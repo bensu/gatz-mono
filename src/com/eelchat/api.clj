@@ -235,12 +235,18 @@
         {:status 303
          :headers {"Location" (str "/community/" (:xt/id community))}}))))
 
-(defn log-request [{:keys [params] :as ctx}]
+(defn headers->file [headers]
+  (let [url (get headers "arena-url")
+        method (get headers "arena-method")]
+    (assert (and url method))
+    (io/file (str "logs/" url "/" method ".log"))))
+
+(defn log-request [{:keys [params headers] :as _ctx}]
   (let [log-id (random-uuid)
-        url (:url params)
-        file (io/file (str "logs/" url ".log"))]
+        file (headers->file headers)]
     (io/make-parents file)
-    (spit file (str (json/write-str params) "\n\n") :append true)
+
+    (spit file (str (json/write-str params) "\n\n"))
     #_(biff/submit-tx ctx
                       [{:db/doc-type :log
                         :xt/id log-id
@@ -248,9 +254,19 @@
     {:status 200
      :body (json/write-str {:log/id (str log-id) :params params})}))
 
+(defn cached-log [{:keys [headers] :as _ctx}]
+  (def -ctx _ctx)
+  (let [file (headers->file headers)
+        contents (json/read-str (slurp file))]
+    {:status 200
+    ;;  :headers (get contents "headers")
+     :body (json/write-str (get contents "body"))}))
+
 (def plugin
   {:api-routes ["/api" ;; {:middleware [mid/wrap-signed-in]}
                 ["/log-request" {:post log-request}]
+                ["/log-response" {:get cached-log
+                                  :post cached-log}]
                 ["/app"           {:get app}]
                 ["/community"     {:post new-community}]
                 ["/community/:id" {:middleware [wrap-community]}
