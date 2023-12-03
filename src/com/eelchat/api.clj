@@ -11,9 +11,27 @@
             [rum.core :as rum]
             [xtdb.api :as xt]))
 
-(defn app [ctx]
+(def default-app-config
+  {:file_upload_config {:allowed_mime_types [],
+                        :allowed_file_extensions [],
+                        :blocked_file_extensions [".png"],
+                        :blocked_mime_types []},
+   :name "Arena",
+   :auto_translation_enabled true,
+   :image_upload_config {:allowed_mime_types [],
+                         :allowed_file_extensions [],
+                         :blocked_file_extensions [],
+                         :blocked_mime_types []},
+   :video_provider "",
+   :async_url_enrich_enabled false})
+
+(defn get-app-settings [ctx]
   {:status 200
-   :body (json/write-str {:setting {:user {:email "sbensu@gmail.com"}}})})
+   :body (json/write-str
+          {:duration "0.84ms",
+           :app default-app-config})})
+
+(defn post-channels [ctx])
 
 (defn new-community [{:keys [session] :as ctx}]
   (let [comm-id (random-uuid)]
@@ -267,7 +285,11 @@
                 ["/log-request" {:post log-request}]
                 ["/log-response" {:get cached-log
                                   :post cached-log}]
-                ["/app"           {:get app}]
+                ;; converted
+                ["/app"           {:get get-app-settings}]
+                ["/channels"      {:post post-channels}]
+
+                ;; from example
                 ["/community"     {:post new-community}]
                 ["/community/:id" {:middleware [wrap-community]}
                  [""      {:get community}]
