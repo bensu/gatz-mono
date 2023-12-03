@@ -2,6 +2,7 @@
   (:require [com.biffweb :as biff]
             [com.eelchat.email :as email]
             [com.eelchat.app :as app]
+            [com.eelchat.api :as api]
             [com.eelchat.home :as home]
             [com.eelchat.subscriptions :as sub]
             [com.eelchat.schema :as schema]
@@ -14,6 +15,7 @@
 
 (def plugins
   [app/plugin
+   api/plugin
    (biff/authentication-plugin {})
    home/plugin
    sub/plugin
