@@ -11,6 +11,38 @@
             [rum.core :as rum]
             [xtdb.api :as xt]))
 
+(defn json-response [body]
+  {:status 200
+   :headers {"Content-Type" "application/json"}
+   :body (json/write-str body)})
+
+;; ====================================================================== 
+;; User
+
+(def default-img "http://www.gravatar.com/avatar")
+
+(def test-user-id #uuid "6bcfc9a9-2fed-4aa2-a28f-9c099a6abaee")
+
+(defn new-user [{:keys [params] :as ctx}]
+  (let [username (:username params)
+        now (java.util.Date.)
+        user-id (random-uuid)
+        user {:db/doc-type :user
+              :xt/id user-id
+              :created_at now
+              :updated_at now
+              :name username
+              :banned false
+              :role "admin"
+              :online true
+              :last_active now
+              :image default-img}]
+    (biff/submit-tx ctx [user])
+    (json-response {:user user})))
+
+;; ====================================================================== 
+;; App config
+
 (def default-app-config
   {:file_upload_config {:allowed_mime_types [],
                         :allowed_file_extensions [],
@@ -288,6 +320,9 @@
                 ;; converted
                 ["/app"           {:get get-app-settings}]
                 ["/channels"      {:post post-channels}]
+
+                ;; new
+                ["/user" {:post new-user}]
 
                 ;; from example
                 ["/community"     {:post new-community}]

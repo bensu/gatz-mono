@@ -1,120 +1,63 @@
 (ns com.eelchat.schema)
 
-(def schema
-  {:user/id :uuid
-   :user    [:map {:closed true}
-             [:xt/id          :user/id]
-             [:user/email     :string]
-             [:user/joined-at inst?]]
-
-   :comm/id   :uuid
-   :community [:map {:closed true}
-               [:xt/id      :comm/id]
-               [:comm/title :string]]
-
-   :mem/id     :uuid
-   :membership [:map {:closed true}
-                [:xt/id     :mem/id]
-                [:mem/user  :user/id]
-                [:mem/comm  :comm/id]
-                [:mem/roles [:set [:enum :admin]]]]
-
-   :chan/id :uuid
-   :channel [:map {:closed true}
-             [:xt/id      :chan/id]
-             [:chan/title :string]
-             [:chan/comm  :comm/id]]
-
-   :sub/id       :uuid
-   :subscription [:map {:closed true}
-                  [:xt/id             :sub/id]
-                  [:sub/url           :string]
-                  [:sub/chan          :chan/id]
-                  [:sub/last-post-uri {:optional true} :string]
-                  [:sub/fetched-at    {:optional true} inst?]
-                  [:sub/last-modified {:optional true} :string]
-                  [:sub/etag          {:optional true} :string]]
-
-   :msg/id  :uuid
-   :message [:map {:closed true}
-             [:xt/id          :msg/id]
-             [:msg/mem        [:or :mem/id [:enum :system]]]
-             [:msg/text       :string]
-             [:msg/channel    :chan/id]
-             [:msg/created-at inst?]]})
-
-(def plugin
-  {:schema schema})
-
-(def user
+(def full-user
   [:map
+   [:id :string]
    [:role :string]
    [:banned :boolean]
-   [:name :string]
-   [:last_active :string]
-   [:value :string]
-   [:updated_at :string]
-   [:online :boolean]
-   [:id :string]
-   [:image :string]
-   [:created_at :string]])
-
-(def image
-  [:map [:name :string]
-   [:width :int]
-   [:type :string]
-   [:duration :int]
-   [:source :string]
-   [:id :string]
-   [:uri :string]
-   [:height :int]])
-
-(def file
-  [:map
-   [:name :string]
-   [:size :int]
-   [:mimeType :string]
-   [:uri :string]])
-
-(def attachment
-  [:map
-   [:mime_type :string]
-   [:fallback {:optional true} :string]
-   [:original_height {:optional true} :int]
-   [:originalImage {:optional true} image]
-   [:type :string]
-   [:file_size {:optional true} :int]
-   [:asset_url {:optional true} :string]
-   [:image_url {:optional true} :string]
-   [:title {:optional true} :string]
-   [:original_width {:optional true} :int]
-   [:thumb_url {:optional true} :string]
-   [:originalFile {:optional true} file]])
-
-(def full-user
-  [:map [:role :string]
-   [:banned :boolean]
-   [:school {:optional true} :string]
-   [:birthland {:optional true} :string]
+   [:email {:optional true} :string]
    [:name :string]
    [:last_active {:optional true} :string]
-   [:value {:optional true} :string]
-   [:title {:optional true} :string]
+   [:image {:optional true} :string]
+   [:created_at :string]
    [:updated_at :string]
+
+   ;; are these used?
    [:year {:optional true} :string]
+   [:title {:optional true} :string]
    [:token {:optional true} :string]
    [:online :boolean]
+   [:passowrd {:optional true} :string]
    [:language {:optional true} :string]
-   [:id :string]
    [:profilePic {:optional true} :string]
-   [:code {:optional true} :string]
    [:userID {:optional true} :string]
-   [:image :string]
    [:streamUserToken {:optional true} :string]
    [:phoneNumber {:optional true} :string]
-   [:created_at :string]])
 
-(def command
+   ;; misc??
+   [:MindMonsterPoint {:optional true} :string]
+   [:introduceurl {:optional true} :string]
+   [:birthdayurl {:optional true} :string]
+   [:address {:optional true} :string]
+   [:markettingagreeurl {:optional true} :int]
+   [:CharacterName {:optional true} :string]
+   [:photoURL {:optional true} :string]
+   [:school {:optional true} :string]
+   [:indivisualagreeurl {:optional true} :int]
+   [:birthland {:optional true} :string]
+   [:EventAlarm {:optional true} :boolean]
+   [:value {:optional true} :string]
+   [:image_url {:optional true} :string]
+   [:MChatAlarm {:optional true} :boolean]
+   [:nameurl {:optional true} :string]
+   [:MissionDate {:optional true} :string]
+   [:CharacterNickName {:optional true} :string]
+   [:WallPaperAlarm {:optional true} :boolean]
+   [:CharacterImage {:optional true} :string]
+   [:onoff {:optional true} :int]
+   [:code {:optional true} :string]
+   [:areaurl {:optional true} :string]
+   [:pointurl {:optional true} :string]
+   [:ChallengeAlarm {:optional true} :boolean]
+   [:MissionCount {:optional true} :string]
+   [:plusurl {:optional true} :string]
+   [:phtoneurl {:optional true} :string]
+   [:ChoiceIsland {:optional true} :string]
+   [:couponurl {:optional true} :string]
+   [:extraData {:optional true} [:map]]
+   [:ageurl {:optional true} :int]])
+
+(def commands
   [:map
    [:args :string]
    [:description :string]
@@ -131,14 +74,20 @@
   [:map
    [:connect_events :boolean]
    [:mutes :boolean]
-   [:typing_events :boolean] [:name :string]
+   [:typing_events :boolean]
+   [:name :string]
    [:automod_behavior :string]
-   [:max_message_length :int] [:custom_events :boolean]
-   [:automod :string] [:read_events :boolean]
-   [:search :boolean] [:updated_at :string]
-   [:commands [:vector command]]
-   [:replies :boolean] [:quotes :boolean]
-   [:uploads :boolean] [:reminders :boolean]
+   [:max_message_length :int]
+   [:custom_events :boolean]
+   [:automod :string]
+   [:read_events :boolean]
+   [:search :boolean]
+   [:updated_at :string]
+   [:commands [:vector commands]]
+   [:replies :boolean]
+   [:quotes :boolean]
+   [:uploads :boolean]
+   [:reminders :boolean]
    [:automod_thresholds automod-thresholds]
    [:blocklist_behavior :string]
    [:mark_messages_pending :boolean]
@@ -148,101 +97,262 @@
    [:push_notifications :boolean]
    [:message_retention :string]])
 
+(def user
+  [:map
+   [:xt/id :uuid]
+   [:updated_at inst?]
+   [:created_at inst?]
+
+   [:name :string]
+   [:role :string]
+   [:banned :boolean]
+   [:online :boolean]
+   [:last_active inst?]
+   [:image :string]
+
+   ;; [:school {:optional true} :string]
+   ;; [:birthland {:optional true} :string]
+   ;; [:value {:optional true} :string]
+   ;; [:title {:optional true} :string]
+   ;; [:year {:optional true} :string]
+   ;; [:token {:optional true} :string]
+   ;; [:language {:optional true} :string]
+   ;; [:profilePic {:optional true} :string]
+   ;; [:code {:optional true} :string]
+   ;; [:userID {:optional true} :string]
+   ;; [:streamUserToken {:optional true} :string]
+   ;; [:phoneNumber {:optional true} :string]
+   ])
+
+(def image
+  [:map
+   [:fileSize {:optional true} :int]
+   [:name {:optional true} :string]
+   [:width {:optional true} :int]
+   [:orientation {:optional true} :nil]
+   [:type {:optional true} :string]
+   [:duration {:optional true} [:maybe :int]]
+   [:source {:optional true} :string]
+   [:size {:optional true} :int]
+   [:cancelled {:optional true} :boolean]
+   [:extension {:optional true} :nil]
+   [:filename {:optional true} :string]
+   [:id {:optional true} :string]
+   [:mimeType {:optional true} :string]
+   [:uri :string]
+   [:playableDuration {:optional true} :nil]
+   [:height {:optional true} :int]])
+
+(def giphy-frame
+  [:map
+   [:frames :string]
+   [:width :string]
+   [:size :string]
+   [:url :string]
+   [:height :string]])
+
+(def giphy
+  [:map
+   [:original giphy-frame]
+   [:fixed_width_downsampled giphy-frame]
+   [:fixed_width giphy-frame]
+   [:fixed_height_downsampled giphy-frame]
+   [:fixed_height_still giphy-frame]
+   [:fixed_width_still giphy-frame]
+   [:fixed_height giphy-frame]])
+
+(def file
+  [:map
+   [:fileSize {:optional true} :int]
+   [:name {:optional true} :string]
+   [:width {:optional true} :int]
+   [:orientation {:optional true} :nil]
+   [:type {:optional true} :string]
+   [:duration {:optional true} [:maybe :some]]
+   [:source {:optional true} :string]
+   [:size {:optional true} :int]
+   [:cancelled {:optional true} :boolean]
+   [:extension {:optional true} :nil]
+   [:filename {:optional true} :string]
+   [:id {:optional true} :string]
+   [:mimeType {:optional true} :string]
+   [:uri {:optional true} :string]
+   [:playableDuration {:optional true} :nil]
+   [:height {:optional true} :int]])
+
+(def attachment
+  [:map
+   [:mime_type {:optional true} :string]
+   [:title_link {:optional true} :string]
+
+   ;; Promise fields?
+   [:_k {:optional true} :nil]
+   [:_j {:optional true} :nil]
+   [:_i {:optional true} :int]
+   [:_h {:optional true} :int]
+
+   [:fallback {:optional true} :string]
+   [:original_height {:optional true} :int]
+   [:originalImage {:optional true} image]
+   [:type {:optional true} :string]
+   [:duration {:optional true} :some]
+   [:file_size {:optional true} :int]
+   [:asset_url {:optional true} :string]
+   [:image_url {:optional true} :string]
+   [:title {:optional true} :string]
+   [:original_width {:optional true} :int]
+   [:og_scrape_url {:optional true} :string]
+   [:giphy {:optional true} giphy]
+   [:author_name {:optional true} :string]
+   [:thumb_url {:optional true} :string]
+   [:originalFile {:optional true} file]
+   [:text {:optional true} :string]])
+
+(def membership
+  [:map
+   [:channel_role :string]
+   [:banned :boolean]
+   [:shadow_banned :boolean]
+   [:updated_at :string]
+   [:notifications_muted :boolean]
+   ;; TODO: reference
+   [:user user]
+   [:created_at :string]])
+
+(def reaction
+  [:map
+   [:type :string]
+   [:updated_at :string]
+   [:message_id :string]
+   [:score :int]
+   [:user_id :string]
+   [:user user]
+   [:created_at :string]])
+
+;; TODO
+(def voting-option
+  [:map [:value :string] [:id :string]])
+
 (def message
   [:map
    [:id :string]
    [:cid :string]
    [:type :string]
-   [:created_at :string]
+   [:status {:optional true} :string]
    [:updated_at :string]
-   [:user full-user]
+   [:deleted_at {:optional true} :string]
+   [:created_at :string]
 
-   [:pinned_at :nil]
-   [:pinned_by :nil]
+   ;; content
+   [:html :string]
+   [:text :string]
+
+   ;; user
+   ;; TODO: reference
+   [:user full-user]
+   [:userId {:optional true} :string]
+
+   ;; other users
+   [:readBy {:optional true} :some]
+   ;; reference to user
+   [:mentioned_users
+    [:vector full-user]]
+
+   ;; pinned
+   [:pinned_at [:maybe :string]]
    [:pin_expires :nil]
    [:pinned :boolean]
+   ;; TODO: reference to user
+   [:pinned_by
+    [:maybe user]]
 
-   [:mentioned_users [:vector :any]]
-   [:latest_reactions [:vector :any]]
-   [:reaction_counts [:map]]
-   [:reaction_scores [:map]]
-   [:reply_count :int]
-   [:deleted_reply_count :int]
-   [:own_reactions [:vector :any]]
-
+   ;; notifications
    [:shadowed :boolean]
    [:silent :boolean]
 
-   [:attachments [:vector :any]]
-   [:i18n [:map [:nl_text :string] [:en_text :string] [:language :string]]]
-   [:html :string]
-   [:text :string]])
+   ;; quotes and parents
+   ;; This is a recursive definition
+   ;;    [:quoted_message
+   ;;     {:optional true} full-message]
+   [:parent_id {:optional true} :string]
+   [:quoted_message_id {:optional true} :string]
+
+   ;; threads
+   ;; TODO: reference to user
+   [:thread_participants {:optional true} [:vector user]]
+
+   ;; replies
+   [:reply_count :int]
+   [:deleted_reply_count :int]
+
+   ;; reactions
+   [:latest_reactions [:vector reaction]]
+   [:own_reactions [:vector reaction]]
+   [:reaction_counts [:map-of :string :int]]
+   [:reaction_scores [:map-of :string :int]]
+
+   ;; misc?
+   [:dateSeparator {:optional true} :string]
+   [:show_in_channel {:optional true} :boolean]
+   [:groupStyles {:optional true} [:vector :string]]
+
+   ;; files
+   [:attachments [:vector attachment]]
+
+   ;; commands?
+   [:args {:optional true} :string]
+   [:command_info {:optional true} [:map [:name :string]]]
+   [:command {:optional true} :string]
+
+   ;; voting?
+   [:multipleChoiceVote {:optional true} :boolean]
+   [:votingOptions {:optional true} [:vector voting-option]]
+
+   ;; i18n
+   [:i18n {:optional true} [:map-of :string :string]]])
 
 (def channel
-  [:vector
-   [:or :some
+  [:map
+   [:id :string]
+   [:disabled :boolean]
+   [:last_message_at :string]
+   [:config  channel-config]
+   [:cid :string]
+   [:name {:optional true} :string]
+   [:type :string]
+   [:cooldown {:optional true} :int]
+   [:member_count :int]
+   [:updated_at :string]
+   [:truncated_at {:optional true} :string]
+   [:hidden :boolean]
+   [:own_capabilities [:vector :string]]
+   [:image {:optional true} :string]
+   [:example {:optional true} :some]
+   [:frozen :boolean]
+   ;; TODO: this should be a reference user/id
+   [:created_by user]
+   [:created_at :string]])
+
+(def channels-response
+  [:map
+   [:read
     [:vector
-     [:map [:role {:optional true} :string]
-      [:id {:optional true} :string]
-      [:cid {:optional true} :string]
-      [:created_at {:optional true} :string]
-      [:channel_role {:optional true} :string]
-      [:banned {:optional true} :boolean]
-
-      [:pin_expires {:optional true} :nil]
-      [:pinned {:optional true} :boolean]
-      [:shadowed {:optional true} :boolean]
-      [:silent {:optional true} :boolean]
-      [:shadow_banned {:optional true} :boolean]
-      [:attachments {:optional true}
-       [:vector attachment]]
-      [:type {:optional true} :string]
-      [:deleted_reply_count {:optional true} :int]
-      [:unread_messages {:optional true} :int]
-      [:own_reactions {:optional true} [:vector :any]]
-      [:updated_at {:optional true} :string]
-      [:quoted_message_id {:optional true} :string]
-      [:notifications_muted {:optional true} :boolean]
-      [:mentioned_users {:optional true}
-       [:vector user]]
-      [:pinned_at {:optional true} :nil]
-      [:latest_reactions {:optional true} [:vector :any]]
-      [:user_id {:optional true} :string]
-      [:last_read {:optional true} :string]
-      [:last_read_message_id {:optional true} :string]
-      [:pinned_by {:optional true} :nil]
-      [:reaction_counts {:optional true} [:map]]
+     [:map
+      [:unread_messages :int]
+      [:last_read :string]
       [:user full-user]
-      [:reaction_scores {:optional true} [:map]]
-      [:reply_count {:optional true} :int]
-      [:quoted_message {:optional true} message]
-      [:i18n {:optional true}
-       [:map [:nl_text :string] [:en_text :string] [:language :string]]]
-      [:html {:optional true} :string]
-      [:text {:optional true} :string]]]
-    [:map
+      [:last_read_message_id {:optional true} :string]]]]
+   [:channel channel]
+   [:watcher_count :int]
+   [:membership membership]
+   [:messages [:vector message]]
+   [:pinned_messages [:vector message]]
+   [:members [:vector  membership]]])
 
-     [:id {:optional true} :string]
-     [:cid {:optional true} :string]
-     [:type {:optional true} :string]
-     [:updated_at :string]
-     [:created_at :string]
 
-     [:banned {:optional true} :boolean]
-     [:channel_role {:optional true} :string]
+(def schema
+  {:user user
+   :channel channel
+   :message message})
 
-     [:disabled {:optional true} :boolean]
-     [:last_message_at {:optional true} :string]
-     [:config {:optional true} channel-config]
-     [:name {:optional true} :string]
-     [:shadow_banned {:optional true} :boolean]
-     [:member_count {:optional true} :int]
-     [:truncated_at {:optional true} :string]
-     [:hidden {:optional true} :boolean]
-     [:own_capabilities {:optional true} [:vector :string]]
-     [:notifications_muted {:optional true} :boolean]
-     [:image {:optional true} :string]
-     [:example {:optional true} :string]
-     [:frozen {:optional true} :boolean]
-     [:user {:optional true} full-user]
-     [:created_by {:optional true} user]]]])
+(def plugin {:schema schema})
