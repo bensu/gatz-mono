@@ -72,6 +72,9 @@
 
 (def channel-config
   [:map
+   [:created_at inst?]
+   [:updated_at inst?]
+
    [:connect_events :boolean]
    [:mutes :boolean]
    [:typing_events :boolean]
@@ -82,7 +85,6 @@
    [:automod :string]
    [:read_events :boolean]
    [:search :boolean]
-   [:updated_at :string]
    [:commands [:vector commands]]
    [:replies :boolean]
    [:quotes :boolean]
@@ -93,7 +95,6 @@
    [:mark_messages_pending :boolean]
    [:url_enrichment :boolean]
    [:reactions :boolean]
-   [:created_at :string]
    [:push_notifications :boolean]
    [:message_retention :string]])
 
@@ -213,11 +214,12 @@
    [:channel_role :string]
    [:banned :boolean]
    [:shadow_banned :boolean]
-   [:updated_at :string]
    [:notifications_muted :boolean]
    ;; TODO: reference
-   [:user user]
-   [:created_at :string]])
+   [:user :uuid]
+   [:channel_id :uuid]
+   [:created_at inst?]
+   [:updated_at :string]])
 
 (def reaction
   [:map
@@ -235,13 +237,14 @@
 
 (def message
   [:map
-   [:id :string]
-   [:cid :string]
+   [:xt/id :uuid]
+   [:cid :uuid]
    [:type :string]
+   [:updated_at inst?]
+   [:deleted_at {:optional true} inst?]
+   [:created_at inst?]
+
    [:status {:optional true} :string]
-   [:updated_at :string]
-   [:deleted_at {:optional true} :string]
-   [:created_at :string]
 
    ;; content
    [:html :string]
@@ -249,26 +252,34 @@
 
    ;; user
    ;; TODO: reference
-   [:user full-user]
-   [:userId {:optional true} :string]
+   [:user :uuid]
+   [:channel_id :uuid]
 
    ;; other users
    [:readBy {:optional true} :some]
    ;; reference to user
-   [:mentioned_users
-    [:vector full-user]]
+   [:mentioned_users [:vector :uuid]]
 
    ;; pinned
    [:pinned_at [:maybe :string]]
    [:pin_expires :nil]
    [:pinned :boolean]
    ;; TODO: reference to user
-   [:pinned_by
-    [:maybe user]]
+   [:pinned_by [:maybe :uuid]]
 
    ;; notifications
    [:shadowed :boolean]
    [:silent :boolean]
+
+   ;; replies
+   [:reply_count :int]
+   [:deleted_reply_count :int]
+
+   ;; reactions
+   [:latest_reactions [:vector reaction]]
+   [:own_reactions [:vector reaction]]
+   [:reaction_counts [:map-of :string :int]]
+
 
    ;; quotes and parents
    ;; This is a recursive definition
@@ -280,16 +291,6 @@
    ;; threads
    ;; TODO: reference to user
    [:thread_participants {:optional true} [:vector user]]
-
-   ;; replies
-   [:reply_count :int]
-   [:deleted_reply_count :int]
-
-   ;; reactions
-   [:latest_reactions [:vector reaction]]
-   [:own_reactions [:vector reaction]]
-   [:reaction_counts [:map-of :string :int]]
-   [:reaction_scores [:map-of :string :int]]
 
    ;; misc?
    [:dateSeparator {:optional true} :string]
@@ -313,35 +314,44 @@
 
 (def channel
   [:map
-   [:id :string]
+   [:cid :uuid]
    [:disabled :boolean]
-   [:last_message_at :string]
-   [:config  channel-config]
-   [:cid :string]
-   [:name {:optional true} :string]
+   [:frozen :boolean]
+   [:xt/id :uuid]
    [:type :string]
-   [:cooldown {:optional true} :int]
+
+   [:config channel-config]
+   [:name {:optional true} :string]
    [:member_count :int]
-   [:updated_at :string]
-   [:truncated_at {:optional true} :string]
+
    [:hidden :boolean]
    [:own_capabilities [:vector :string]]
-   [:image {:optional true} :string]
-   [:example {:optional true} :some]
-   [:frozen :boolean]
-   ;; TODO: this should be a reference user/id
-   [:created_by user]
-   [:created_at :string]])
 
-(def channels-response
+   ;; TODO: this should be a reference user/id
+   [:created_by :uuid]
+
+   [:updated_at inst?]
+   [:created_at inst?]
+   [:last_message_at inst?]
+
+   ;; [:cooldown {:optional true} :int]
+   ;; [:truncated_at {:optional true} :string]
+   ;; [:image {:optional true} :string]
+   ;; [:example {:optional true} :some]
+   ])
+
+(def channel-read-status
   [:map
-   [:read
-    [:vector
-     [:map
-      [:unread_messages :int]
-      [:last_read :string]
-      [:user full-user]
-      [:last_read_message_id {:optional true} :string]]]]
+   [:unread_messages :int]
+   [:last_read inst?]
+   ;; TODO: reference
+   [:user :uuid]
+  ;; [:last_read_message_id {:optional true} :string]
+   ])
+
+(def channel-response
+  [:map
+   [:read [:vector channel-read-status]]
    [:channel channel]
    [:watcher_count :int]
    [:membership membership]

@@ -2,43 +2,20 @@
   "All the operations but in an API"
   (:require [com.biffweb :as biff :refer [q]]
             [com.eelchat.subscriptions :as sub]
-            [com.eelchat.middleware :as mid]
+            [com.eelchat.connections :as conns]
+            [com.eelchat.db :as db]
             [com.eelchat.ui :as ui]
             [clojure.string :as str]
             [clojure.data.json :as json]
             [clojure.java.io :as io]
+            [malli.transform :as mt]
             [ring.adapter.jetty9 :as jetty]
-            [rum.core :as rum]
             [xtdb.api :as xt]))
 
 (defn json-response [body]
   {:status 200
    :headers {"Content-Type" "application/json"}
    :body (json/write-str body)})
-
-;; ====================================================================== 
-;; User
-
-(def default-img "http://www.gravatar.com/avatar")
-
-(def test-user-id #uuid "6bcfc9a9-2fed-4aa2-a28f-9c099a6abaee")
-
-(defn new-user [{:keys [params] :as ctx}]
-  (let [username (:username params)
-        now (java.util.Date.)
-        user-id (random-uuid)
-        user {:db/doc-type :user
-              :xt/id user-id
-              :created_at now
-              :updated_at now
-              :name username
-              :banned false
-              :role "admin"
-              :online true
-              :last_active now
-              :image default-img}]
-    (biff/submit-tx ctx [user])
-    (json-response {:user user})))
 
 ;; ====================================================================== 
 ;; App config
@@ -63,7 +40,215 @@
           {:duration "0.84ms",
            :app default-app-config})})
 
-(defn post-channels [ctx])
+;; ======================================================================
+;; User
+
+(defn get-user
+  [{:keys [params biff/db] :as _ctx}]
+  (if-let [user-id (some-> (:user-id params) mt/-string->uuid)]
+    (let [user (db/user-by-id db user-id)]
+      (json-response {:user user}))
+    {:status 400 :body "invalid params"}))
+
+(defn create-user!
+  [{:keys [params] :as ctx}]
+  (def -ctx ctx)
+  ;; TODO: do params validation
+  (if-let [username (:username params)]
+    (let [user (db/create-user! ctx {:username username})]
+      (json-response {:user user}))
+    {:status 400 :body "invalid params"}))
+
+;; ======================================================================
+;; Channel
+
+(defn get-channels [{:keys [biff/db] :as ctx}]
+  (let [chs (q db
+               '{:find (pull ch [*])
+                 ;; TODO: better index to get all the messages
+                 :where [[ch :type "messaging"]]})]
+    (json-response {:channels chs})))
+
+;; ====================================================================== 
+;; Channels
+
+(defn get-channel [{:keys [biff/db params] :as ctx}]
+  (let [ch-id (mt/-string->uuid (:channel_id params))]
+    (json-response (db/channel-by-id db ch-id))))
+
+(defn get-full-channels [{:keys [biff/db] :as ctx}]
+  (let [chs (q db
+               '{:find (pull ch [*])
+                 ;; TODO: better index to get all the messages
+                 :where [[ch :type "messaging"]]})
+        channels (map (partial db/channel-by-id db) (map :xt/id chs))]
+    (json-response {:channels channels})))
+
+(defn create-channel! [{:keys [params] :as ctx}]
+  (def -ctx ctx)
+  (let [channel (db/create-channel! ctx params)]
+    (json-response {:channel channel})))
+
+;; ====================================================================== 
+;; Messages
+
+(defn create-message! [{:keys [params] :as ctx}]
+  (def -mctx ctx)
+  (let [msg (db/create-message! ctx params)]
+    (json-response {:message msg}))
+  #_(let [now (java.util.Date.)
+          message (:message params)
+          msg-id (random-uuid)
+          content (:text message)
+          ch-id (:channel_id message)
+          ch-id (if (string? ch-id)
+                  (mt/-string->uuid ch-id)
+                  (:channel_id params))
+          msg {:db/doc-type :message
+               :xt/id msg-id
+               :cid ch-id
+               :created_at now
+               :updated_at now
+               :type "regular"
+               :channel_id ch-id
+               :user db/test-user-id
+               :mentioned_users []
+
+               :text content
+               :html (str "<p>" content "</p>")
+
+               :pinned false
+               :pinned_by nil
+               :pin_expires nil
+               :pinned_at nil
+
+               :shadowed false
+               :silent false
+
+               :reply_count 0
+               :deleted_reply_count 0
+
+               :latest_reactions []
+               :own_reactions []
+               :reaction_counts {}
+               :reaction_scores {}
+
+               :attachments []}]
+      #_msg
+      (biff/submit-tx ctx [msg])
+      (json-response {:msg msg})))
+
+(defn fetch-messages [db]
+  (q db
+     '{:find (pull msg [*])
+                 ;; TODO: better index to get all the messages
+       :where [[msg :text _]]}))
+
+(defn delete-msg! [ctx msg-id]
+  (biff/submit-tx ctx
+                  [{:db/op :delete
+                    :xt/id msg-id}]))
+
+;; ====================================================================== 
+;; Websocket
+
+;; export type ConnectionOpen<
+;;   StreamChatGenerics extends ExtendableGenerics = DefaultGenerics
+;; > = {
+;;   connection_id: string;
+;;   cid?: string;
+;;   created_at?: string;
+;;   me?: OwnUserResponse<StreamChatGenerics>;
+;;   type?: string;
+;; };
+
+(defn connection-response [user-id conn-id]
+  {:connection_id conn-id
+   :user-id user-id
+   :created_at (java.util.Date.)})
+
+;; TODO: how to catch and handle errors that are happening in the websocket?
+(defmacro try-print [& body]
+  `(try
+     ~@body
+     (catch Exception e#
+       (def -e e#)
+       (println e#))))
+
+(defn start-connection
+  [{:keys [conns-state params biff/db biff.xtdb/node] :as ctx}]
+  (assert conns-state)
+  (when (jetty/ws-upgrade-request? ctx)
+    ;; TODO: asert this user is actually in the database
+    (try-print
+     (if-let [user (some->> (:user_id params)
+                            mt/-string->uuid
+                            (db/user-by-id db))]
+       (let [user-id (:xt/id user)
+             conn-id (random-uuid)]
+         (jetty/ws-upgrade-response
+          {:on-connect (fn [ws]
+                         (let [db (xt/db node)
+                               channels (or (db/channels-by-user-id db user-id) #{})]
+                           (swap! conns-state conns/add-conn {:user-id user-id
+                                                              :conn-id conn-id
+                                                              :user-channels channels}))
+                         (jetty/send! ws (json/write-str (connection-response user-id conn-id))))
+           :on-close (fn [ws status-code reason]
+                       (let [db (xt/db node)
+                             channels (or (db/channels-by-user-id db user-id) #{})]
+                         (swap! conns-state conns/remove-conn {:user-id user-id
+                                                               :conn-id conn-id
+                                                               :user-channels channels}))
+                       (jetty/send! ws (json/write-str {:reason reason :status status-code :conn-id conn-id :user-id user-id})))
+           :on-text (fn [ws text]
+                      (println "on-text" text)
+                      (jetty/send! ws (json/write-str {:conn-id conn-id :user-id user-id :echo text :state @conns-state}))
+                      #_(let [{:keys [ch-id message]} (json/read-str text)]
+                      ;; TODO: create channel or add member to channel 
+                      ;; are special because they change the conns-state
+                          ))}))
+       {:status 400 :body "Invalid user"}))))
+
+(defn on-new-message [{:keys [biff.xtdb/node com.eelchat/chat-clients]} tx]
+  (println "tx:" tx)
+  (let [db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
+    (doseq [[op & args] (::xt/tx-ops tx)]
+      (when (= op ::xt/put)
+        (let [[doc] args]
+          (when (and (contains? doc :text)
+                     (nil? (xt/entity db-before (:xt/id doc))))
+            (let [msg {:message doc
+                       :cid (:cid doc)}]
+              (println "ws"  (get @chat-clients (:cid doc)))
+              (doseq [ws (get @chat-clients (:cid doc))]
+                (println "sending to ws" ws)
+                (println msg)
+                (jetty/send! ws msg)))))))))
+
+(defn on-new-subscription [{:keys [biff.xtdb/node] :as ctx} tx]
+  (let [db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
+    (doseq [[op & args] (::xt/tx-ops tx)
+            :when (= op ::xt/put)
+            :let [[doc] args]
+            :when (and (contains? doc :sub/url)
+                       (nil? (xt/entity db-before (:xt/id doc))))]
+      (biff/submit-job ctx :fetch-rss (assoc doc :biff/priority 0)))))
+
+(defn on-tx [ctx tx]
+  (println "new txn" tx)
+  (on-new-message ctx tx)
+  (on-new-subscription ctx tx))
+
+
+
+
+
+
+
+
+
+
 
 (defn new-community [{:keys [session] :as ctx}]
   (let [comm-id (random-uuid)]
@@ -87,18 +272,18 @@
   {:status 303
    :headers {"Location" (str "/community/" (:xt/id community))}})
 
-(defn new-channel [{:keys [community roles] :as ctx}]
-  (if (and community (contains? roles :admin))
-    (let [chan-id (random-uuid)]
-      (biff/submit-tx ctx
-                      [{:db/doc-type :channel
-                        :xt/id chan-id
-                        :chan/title (str "Channel #" (rand-int 1000))
-                        :chan/comm (:xt/id community)}])
-      {:status 303
-       :headers {"Location" (str "/community/" (:xt/id community) "/channel/" chan-id)}})
-    {:status 403
-     :body "Forbidden."}))
+#_(defn new-channel [{:keys [community roles] :as ctx}]
+    (if (and community (contains? roles :admin))
+      (let [chan-id (random-uuid)]
+        (biff/submit-tx ctx
+                        [{:db/doc-type :channel
+                          :xt/id chan-id
+                          :chan/title (str "Channel #" (rand-int 1000))
+                          :chan/comm (:xt/id community)}])
+        {:status 303
+         :headers {"Location" (str "/community/" (:xt/id community) "/channel/" chan-id)}})
+      {:status 403
+       :body "Forbidden."}))
 
 (defn delete-channel [{:keys [biff/db channel roles] :as ctx}]
   (when (contains? roles :admin)
@@ -186,16 +371,6 @@
                                 sort)]
                    (str "\n - " url))))])))
 
-(defn new-message [{:keys [channel mem params] :as ctx}]
-  (let [msg {:xt/id (random-uuid)
-             :msg/mem (:xt/id mem)
-             :msg/channel (:xt/id channel)
-             :msg/created-at (java.util.Date.)
-             :msg/text (:text params)}]
-    (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
-                    (concat [(assoc msg :db/doc-type :message)]
-                            (command-tx ctx)))
-    [:<>]))
 
 (defn channel-page [{:keys [biff/db community channel] :as ctx}]
   (let [msgs (q db
@@ -224,46 +399,6 @@
       [:textarea.w-full#text {:name "text"}]
       [:.w-2]
       [:button.btn {:type "submit"} "Send"]))))
-
-(defn connect [{:keys [com.eelchat/chat-clients] {chan-id :xt/id} :channel :as ctx}]
-  {:status 101
-   :headers {"upgrade" "websocket"
-             "connection" "upgrade"}
-   :ws {:on-connect (fn [ws]
-                      (swap! chat-clients update chan-id (fnil conj #{}) ws))
-        :on-close (fn [ws status-code reason]
-                    (swap! chat-clients
-                           (fn [chat-clients]
-                             (let [chat-clients (update chat-clients chan-id disj ws)]
-                               (cond-> chat-clients
-                                 (empty? (get chat-clients chan-id)) (dissoc chan-id))))))}})
-
-(defn on-new-message [{:keys [biff.xtdb/node com.eelchat/chat-clients]} tx]
-  (let [db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
-    (doseq [[op & args] (::xt/tx-ops tx)
-            :when (= op ::xt/put)
-            :let [[doc] args]
-            :when (and (contains? doc :msg/text)
-                       (nil? (xt/entity db-before (:xt/id doc))))
-            :let [html (rum/render-static-markup
-                        [:div#messages {:hx-swap-oob "beforeend"}
-                         (message-view doc)
-                         [:div {:_ "init send newMessage to #messages then remove me"}]])]
-            ws (get @chat-clients (:msg/channel doc))]
-      (jetty/send! ws html))))
-
-(defn on-new-subscription [{:keys [biff.xtdb/node] :as ctx} tx]
-  (let [db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
-    (doseq [[op & args] (::xt/tx-ops tx)
-            :when (= op ::xt/put)
-            :let [[doc] args]
-            :when (and (contains? doc :sub/url)
-                       (nil? (xt/entity db-before (:xt/id doc))))]
-      (biff/submit-job ctx :fetch-rss (assoc doc :biff/priority 0)))))
-
-(defn on-tx [ctx tx]
-  (on-new-message ctx tx)
-  (on-new-subscription ctx tx))
 
 (defn wrap-community [handler]
   (fn [{:keys [biff/db user path-params] :as ctx}]
@@ -305,7 +440,7 @@
      :body (json/write-str {:log/id (str log-id) :params params})}))
 
 (defn cached-log [{:keys [headers] :as _ctx}]
-  (def -ctx _ctx)
+  (def -log-ctx _ctx)
   (let [file (headers->file headers)
         contents (json/read-str (slurp file))]
     {:status 200
@@ -313,26 +448,35 @@
      :body (json/write-str (get contents "body"))}))
 
 (def plugin
-  {:api-routes ["/api" ;; {:middleware [mid/wrap-signed-in]}
-                ["/log-request" {:post log-request}]
-                ["/log-response" {:get cached-log
-                                  :post cached-log}]
-                ;; converted
-                ["/app"           {:get get-app-settings}]
-                ["/channels"      {:post post-channels}]
+  {:api-routes [["/ws"
+                 ["/connect" {:get start-connection}]]
 
-                ;; new
-                ["/user" {:post new-user}]
+                ["/api" ;; {:middleware [mid/wrap-signed-in]}
+                 ["/log-request" {:post log-request}]
+                 ["/log-response" {:get cached-log
+                                   :post cached-log}]
+                ;; converted
+                 ["/app"           {:get get-app-settings}]
+                 ["/user" {:get get-user
+                           :post create-user!}]
+                 ["/message" {:post create-message!}]
+
+                 ["/channels" {:post get-full-channels
+                             ;; :post new-channel
+                               }]
+                 ["/channel" {:post create-channel!
+                              :get get-channel}]
 
                 ;; from example
-                ["/community"     {:post new-community}]
-                ["/community/:id" {:middleware [wrap-community]}
-                 [""      {:get community}]
-                 ["/join" {:post join-community}]
-                 ["/channel" {:post new-channel}]
-                 ["/channel/:chan-id" {:middleware [wrap-channel]}
-                  ["" {:get channel-page
-                       :post new-message
-                       :delete delete-channel}]
-                  ["/connect" {:get connect}]]]]
+                 ["/community"     {:post new-community}]
+                 ["/community/:id" {:middleware [wrap-community]}
+                  [""      {:get community}]
+                  ["/join" {:post join-community}]
+                  ["/channel" {:post create-channel!}]
+                  ["/channel/:chan-id" {:middleware [wrap-channel]}
+                   ["" {:get channel-page
+                        :post create-message!
+                        :delete delete-channel}]
+                  ;; ["/connect" {:get connect}]
+                   ]]]]
    :on-tx on-tx})

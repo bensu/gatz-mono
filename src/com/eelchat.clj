@@ -6,6 +6,7 @@
             [com.eelchat.home :as home]
             [com.eelchat.subscriptions :as sub]
             [com.eelchat.schema :as schema]
+            [com.eelchat.connections :as conns]
             [clojure.test :as test]
             [clojure.tools.logging :as log]
             [clojure.tools.namespace.repl :as tn-repl]
@@ -55,13 +56,24 @@
    :biff/malli-opts #'malli-opts
    :biff.beholder/on-save #'on-save
    :biff.xtdb/tx-fns biff/tx-fns
-   :com.eelchat/chat-clients (atom {})})
+   ;; TODO: you need to also merge the state into the components
+  ;; ::conns-state (atom conns/init-state)
+   })
 
 (defonce system (atom {}))
+
+(defn use-atom [k initial-state ctx]
+  {:pre [(keyword? k)]}
+  (println "use atom setup")
+  (let [a (atom initial-state)]
+    (-> ctx
+        (assoc k a)
+        (update :biff/stop conj #(reset! a initial-state)))))
 
 (def components
   [biff/use-config
    biff/use-secrets
+   (partial use-atom :conns-state conns/init-state)
    biff/use-xt
    biff/use-queues
    biff/use-tx-listener
@@ -97,4 +109,4 @@
 
   ;; If that messes up your editor's REPL integration, you may need to use this
   ;; instead:
-  (biff/fix-print (refresh)))
+  (biff/fix-print (refresh))) 

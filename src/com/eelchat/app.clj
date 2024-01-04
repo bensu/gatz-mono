@@ -16,22 +16,22 @@
 (defn new-community [{:keys [session] :as ctx}]
   (let [comm-id (random-uuid)]
     (biff/submit-tx ctx
-      [{:db/doc-type :community
-        :xt/id comm-id
-        :comm/title (str "Community #" (rand-int 1000))}
-       {:db/doc-type :membership
-        :mem/user (:uid session)
-        :mem/comm comm-id
-        :mem/roles #{:admin}}])
+                    [{:db/doc-type :community
+                      :xt/id comm-id
+                      :comm/title (str "Community #" (rand-int 1000))}
+                     {:db/doc-type :membership
+                      :mem/user (:uid session)
+                      :mem/comm comm-id
+                      :mem/roles #{:admin}}])
     {:status 303
      :headers {"Location" (str "/community/" comm-id)}}))
 
 (defn join-community [{:keys [user community] :as ctx}]
   (biff/submit-tx ctx
-    [{:db/doc-type :membership
-      :db.op/upsert {:mem/user (:xt/id user)
-                     :mem/comm (:xt/id community)}
-      :mem/roles [:db/default #{}]}])
+                  [{:db/doc-type :membership
+                    :db.op/upsert {:mem/user (:xt/id user)
+                                   :mem/comm (:xt/id community)}
+                    :mem/roles [:db/default #{}]}])
   {:status 303
    :headers {"Location" (str "/community/" (:xt/id community))}})
 
@@ -39,10 +39,10 @@
   (if (and community (contains? roles :admin))
     (let [chan-id (random-uuid)]
       (biff/submit-tx ctx
-        [{:db/doc-type :channel
-          :xt/id chan-id
-          :chan/title (str "Channel #" (rand-int 1000))
-          :chan/comm (:xt/id community)}])
+                      [{:db/doc-type :channel
+                        :xt/id chan-id
+                        :chan/title (str "Channel #" (rand-int 1000))
+                        :chan/comm (:xt/id community)}])
       {:status 303
        :headers {"Location" (str "/community/" (:xt/id community) "/channel/" chan-id)}})
     {:status 403
@@ -51,14 +51,14 @@
 (defn delete-channel [{:keys [biff/db channel roles] :as ctx}]
   (when (contains? roles :admin)
     (biff/submit-tx ctx
-      (for [id (conj (q db
-                        '{:find msg
-                          :in [channel]
-                          :where [[msg :msg/channel channel]]}
-                        (:xt/id channel))
-                     (:xt/id channel))]
-        {:db/op :delete
-         :xt/id id})))
+                    (for [id (conj (q db
+                                      '{:find msg
+                                        :in [channel]
+                                        :where [[msg :msg/channel channel]]}
+                                      (:xt/id channel))
+                                   (:xt/id channel))]
+                      {:db/op :delete
+                       :xt/id id})))
   [:<>])
 
 (defn community [{:keys [biff/db user community] :as ctx}]
@@ -107,32 +107,32 @@
                    ;; Make sure this message comes after the user's message.
                    :msg/created-at (biff/add-seconds (java.util.Date.) 1)})]
     (cond
-     (not (contains? roles :admin))
-     nil
+      (not (contains? roles :admin))
+      nil
 
-     subscribe-url
-     [{:db/doc-type :subscription
-       :db.op/upsert {:sub/url subscribe-url
-                      :sub/chan (:xt/id channel)}}
-      (message (str "Subscribed to " subscribe-url))]
+      subscribe-url
+      [{:db/doc-type :subscription
+        :db.op/upsert {:sub/url subscribe-url
+                       :sub/chan (:xt/id channel)}}
+       (message (str "Subscribed to " subscribe-url))]
 
-     unsubscribe-url
-     [{:db/op :delete
-       :xt/id (biff/lookup-id db :sub/chan (:xt/id channel) :sub/url unsubscribe-url)}
-      (message (str "Unsubscribed from " unsubscribe-url))]
+      unsubscribe-url
+      [{:db/op :delete
+        :xt/id (biff/lookup-id db :sub/chan (:xt/id channel) :sub/url unsubscribe-url)}
+       (message (str "Unsubscribed from " unsubscribe-url))]
 
-     list-command
-     [(message (apply
-                str
-                "Subscriptions:"
-                (for [url (->> (q db
-                                  '{:find (pull sub [:sub/url])
-                                    :in [channel]
-                                    :where [[sub :sub/chan channel]]}
-                                  (:xt/id channel))
-                               (map :sub/url)
-                               sort)]
-                  (str "\n - " url))))])))
+      list-command
+      [(message (apply
+                 str
+                 "Subscriptions:"
+                 (for [url (->> (q db
+                                   '{:find (pull sub [:sub/url])
+                                     :in [channel]
+                                     :where [[sub :sub/chan channel]]}
+                                   (:xt/id channel))
+                                (map :sub/url)
+                                sort)]
+                   (str "\n - " url))))])))
 
 (defn new-message [{:keys [channel mem params] :as ctx}]
   (let [msg {:xt/id (random-uuid)
@@ -141,8 +141,8 @@
              :msg/created-at (java.util.Date.)
              :msg/text (:text params)}]
     (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
-      (concat [(assoc msg :db/doc-type :message)]
-              (command-tx ctx)))
+                    (concat [(assoc msg :db/doc-type :message)]
+                            (command-tx ctx)))
     [:<>]))
 
 (defn channel-page [{:keys [biff/db community channel] :as ctx}]
