@@ -1,4 +1,4 @@
-(ns com.eelchat.middleware
+(ns gatz.middleware
   (:require [xtdb.api :as xt]))
 
 (defn wrap-redirect-signed-in [handler]

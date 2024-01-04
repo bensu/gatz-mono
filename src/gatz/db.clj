@@ -1,4 +1,4 @@
-(ns com.eelchat.db
+(ns gatz.db
   (:require [com.biffweb :as biff :refer [q]]
             [malli.transform :as mt]))
 

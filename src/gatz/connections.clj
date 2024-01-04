@@ -1,4 +1,4 @@
-(ns com.eelchat.connections
+(ns gatz.connections
   (:require [clojure.set :as set]
             [medley.core :refer [dissoc-in]]))
 

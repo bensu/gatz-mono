@@ -1,4 +1,4 @@
-(ns com.eelchat.tasks)
+(ns gatz.tasks)
 
 (defn hello
   "An example of a custom task."

@@ -1,9 +1,9 @@
-(ns com.eelchat.home
+(ns gatz.home
   (:require [clj-http.client :as http]
             [com.biffweb :as biff]
-            [com.eelchat.middleware :as mid]
-            [com.eelchat.ui :as ui]
-            [com.eelchat.settings :as settings]
+            [gatz.middleware :as mid]
+            [gatz.ui :as ui]
+            [gatz.settings :as settings]
             [rum.core :as rum]
             [xtdb.api :as xt]))
 
@@ -68,7 +68,7 @@
      "The world's finest discussion platform"]
     [:.h-2]
     [:.sm:text-lg.sm:text-center.w-full
-     "Communities, channels, messages, even RSS—eelchat has it all. Coming soon."]
+     "Communities, channels, messages, even RSS—gatz has it all. Coming soon."]
     [:.h-6]
     (signup-form ctx)
     [:.h-12 {:class "grow-[2]"}]

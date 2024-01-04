@@ -1,9 +1,9 @@
-(ns com.eelchat.ui
+(ns gatz.ui
   (:require [cheshire.core :as cheshire]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [com.eelchat.settings :as settings]
-            [com.eelchat.ui.icons :refer [icon]]
+            [gatz.settings :as settings]
+            [gatz.ui.icons :refer [icon]]
             [com.biffweb :as biff :refer [q]]
             [ring.middleware.anti-forgery :as csrf]))
 

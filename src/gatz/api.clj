@@ -1,10 +1,10 @@
-(ns com.eelchat.api
+(ns gatz.api
   "All the operations but in an API"
   (:require [com.biffweb :as biff :refer [q]]
-            [com.eelchat.subscriptions :as sub]
-            [com.eelchat.connections :as conns]
-            [com.eelchat.db :as db]
-            [com.eelchat.ui :as ui]
+            [gatz.subscriptions :as sub]
+            [gatz.connections :as conns]
+            [gatz.db :as db]
+            [gatz.ui :as ui]
             [clojure.string :as str]
             [clojure.data.json :as json]
             [clojure.java.io :as io]
@@ -210,7 +210,7 @@
                           ))}))
        {:status 400 :body "Invalid user"}))))
 
-(defn on-new-message [{:keys [biff.xtdb/node com.eelchat/chat-clients]} tx]
+(defn on-new-message [{:keys [biff.xtdb/node gatz/chat-clients]} tx]
   (println "tx:" tx)
   (let [db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
     (doseq [[op & args] (::xt/tx-ops tx)]

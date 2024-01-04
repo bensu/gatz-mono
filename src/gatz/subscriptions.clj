@@ -1,4 +1,4 @@
-(ns com.eelchat.subscriptions
+(ns gatz.subscriptions
   (:require [com.biffweb :as biff :refer [q]]
             [remus :as remus])
   (:import [org.jsoup Jsoup]))
@@ -64,7 +64,7 @@
 
 (defn fetch-rss-consumer [{:keys [biff/job] :as ctx}]
   (biff/submit-tx ctx
-    (sub-tx (assoc-result ctx job))))
+                  (sub-tx (assoc-result ctx job))))
 
 (def plugin
   {:tasks [{:task #'fetch-rss

@@ -1,10 +1,10 @@
-{:deps {com.eelchat/tasks {:local/root "tasks"}}
+{:deps {gatz/tasks {:local/root "tasks"}}
  :tasks {;; Used only in local development.
          dev              com.biffweb.tasks/dev
          format           com.biffweb.tasks/format
          clean            com.biffweb.tasks/clean
          generate-secrets com.biffweb.tasks/generate-secrets
-         hello            com.eelchat.tasks/hello
+         hello            gatz.tasks/hello
 
          ;; Used for interacting with production.
          deploy           com.biffweb.tasks/deploy

@@ -1,8 +1,8 @@
-(ns com.eelchat.app
+(ns gatz.app
   (:require [com.biffweb :as biff :refer [q]]
-            [com.eelchat.subscriptions :as sub]
-            [com.eelchat.middleware :as mid]
-            [com.eelchat.ui :as ui]
+            [gatz.subscriptions :as sub]
+            [gatz.middleware :as mid]
+            [gatz.ui :as ui]
             [clojure.string :as str]
             [ring.adapter.jetty9 :as jetty]
             [rum.core :as rum]
@@ -173,7 +173,7 @@
       [:.w-2]
       [:button.btn {:type "submit"} "Send"]))))
 
-(defn connect [{:keys [com.eelchat/chat-clients] {chan-id :xt/id} :channel :as ctx}]
+(defn connect [{:keys [gatz/chat-clients] {chan-id :xt/id} :channel :as ctx}]
   {:status 101
    :headers {"upgrade" "websocket"
              "connection" "upgrade"}
@@ -186,7 +186,7 @@
                                (cond-> chat-clients
                                  (empty? (get chat-clients chan-id)) (dissoc chan-id))))))}})
 
-(defn on-new-message [{:keys [biff.xtdb/node com.eelchat/chat-clients]} tx]
+(defn on-new-message [{:keys [biff.xtdb/node gatz/chat-clients]} tx]
   (let [db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
     (doseq [[op & args] (::xt/tx-ops tx)
             :when (= op ::xt/put)

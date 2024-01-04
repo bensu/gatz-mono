@@ -39,10 +39,10 @@
          :biff.tasks/clj-args ["-J-XX:-OmitStackTraceInFastThrow"
                                "-J-XX:+CrashOnOutOfMemoryError"
                                "-J-Duser.timezone=UTC"
-                               "-M" "-m" "com.eelchat"
+                               "-M" "-m" "gatz.system"
                                "--port" "7888"
                                "--middleware" "[cider.nrepl/cider-middleware,refactor-nrepl.middleware/wrap-refactor]"]
-         :biff.tasks/on-soft-deploy "\"(com.eelchat/on-save @com.eelchat/system)\""
+         :biff.tasks/on-soft-deploy "\"(gatz/on-save @gatz/system)\""
          ;; Replace "master" with e.g. "main:master" or "dev:master" if you
          ;; want to deploy a different branch, for example:
          ;:biff.tasks/deploy-cmd ["git" "push" "prod" "main:master"]

@@ -1,4 +1,4 @@
-(ns com.eelchat.schema)
+(ns gatz.schema)
 
 (def full-user
   [:map

@@ -1,12 +1,12 @@
-(ns com.eelchat
+(ns gatz.system
   (:require [com.biffweb :as biff]
-            [com.eelchat.email :as email]
-            [com.eelchat.app :as app]
-            [com.eelchat.api :as api]
-            [com.eelchat.home :as home]
-            [com.eelchat.subscriptions :as sub]
-            [com.eelchat.schema :as schema]
-            [com.eelchat.connections :as conns]
+            [gatz.email :as email]
+            [gatz.app :as app]
+            [gatz.api :as api]
+            [gatz.home :as home]
+            [gatz.subscriptions :as sub]
+            [gatz.schema :as schema]
+            [gatz.connections :as conns]
             [clojure.test :as test]
             [clojure.tools.logging :as log]
             [clojure.tools.namespace.repl :as tn-repl]
@@ -41,7 +41,7 @@
   (biff/add-libs)
   (biff/eval-files! ctx)
   (generate-assets! ctx)
-  (test/run-all-tests #"com.eelchat.test.*"))
+  (test/run-all-tests #"gatz.test.*"))
 
 (def malli-opts
   {:registry (malr/composite-registry

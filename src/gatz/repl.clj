@@ -1,5 +1,5 @@
-(ns com.eelchat.repl
-  (:require [com.eelchat :as main]
+(ns gatz.repl
+  (:require [gatz :as main]
             [com.biffweb :as biff :refer [q]]
             [clojure.edn :as edn]
             [clojure.java.io :as io]))
@@ -9,22 +9,22 @@
 
 (defn add-fixtures []
   (biff/submit-tx (get-context)
-    (-> (io/resource "fixtures.edn")
-        slurp
-        edn/read-string)))
+                  (-> (io/resource "fixtures.edn")
+                      slurp
+                      edn/read-string)))
 
 (defn seed-channels []
   (let [{:keys [biff/db] :as ctx} (get-context)]
     (biff/submit-tx ctx
-      (for [[mem chan] (q db
-                          '{:find [mem chan]
-                            :where [[mem :mem/comm comm]
-                                    [chan :chan/comm comm]]})]
-        {:db/doc-type :message
-         :msg/mem mem
-         :msg/channel chan
-         :msg/created-at :db/now
-         :msg/text (str "Seed message " (rand-int 1000))}))))
+                    (for [[mem chan] (q db
+                                        '{:find [mem chan]
+                                          :where [[mem :mem/comm comm]
+                                                  [chan :chan/comm comm]]})]
+                      {:db/doc-type :message
+                       :msg/mem mem
+                       :msg/channel chan
+                       :msg/created-at :db/now
+                       :msg/text (str "Seed message " (rand-int 1000))}))))
 
 (comment
 

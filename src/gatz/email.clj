@@ -1,20 +1,20 @@
-(ns com.eelchat.email
+(ns gatz.email
   (:require [camel-snake-kebab.core :as csk]
             [camel-snake-kebab.extras :as cske]
             [clj-http.client :as http]
-            [com.eelchat.settings :as settings]
+            [gatz.settings :as settings]
             [clojure.tools.logging :as log]
             [rum.core :as rum]))
 
 (defn signin-link [{:keys [to url user-exists]}]
   {:to to
-   :subject "Join the eelchat waitlist"
+   :subject "Join the gatz waitlist"
    :html-body (rum/render-static-markup
                [:html
                 [:body
                  [:p "We received a request to join " settings/app-name
                   " using this email address. Click this link to join:"]
-                 [:p [:a {:href url :target "_blank"} "Join the eelchat waitlist"]]
+                 [:p [:a {:href url :target "_blank"} "Join the gatz waitlist"]]
                  [:p "This link will expire in one hour. "
                   "If you did not request this link, you can ignore this email."]]])
    :text-body (str "We received a request to join " settings/app-name

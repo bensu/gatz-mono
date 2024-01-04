@@ -1,4 +1,4 @@
-(ns com.eelchat.test
+(ns gatz.test
   (:require [clojure.test :refer [deftest is]]))
 
 (deftest example-test
