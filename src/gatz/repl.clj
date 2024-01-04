@@ -1,5 +1,5 @@
 (ns gatz.repl
-  (:require [gatz :as main]
+  (:require [gatz.system :as main]
             [com.biffweb :as biff :refer [q]]
             [clojure.edn :as edn]
             [clojure.java.io :as io]))

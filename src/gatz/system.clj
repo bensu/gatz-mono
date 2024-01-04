@@ -10,6 +10,7 @@
             [clojure.test :as test]
             [clojure.tools.logging :as log]
             [clojure.tools.namespace.repl :as tn-repl]
+            [ring.middleware.cors :refer [wrap-cors]]
             [malli.core :as malc]
             [malli.registry :as malr]
             [nrepl.cmdline :as nrepl-cmd]))
@@ -24,7 +25,10 @@
 
 (def routes [["" {:middleware [biff/wrap-site-defaults]}
               (keep :routes plugins)]
-             ["" {:middleware [biff/wrap-api-defaults]}
+             ["" {:middleware [biff/wrap-api-defaults
+                               #(wrap-cors %
+                                           :access-control-allow-origin [#"http://localhost:8081"]
+                                           :access-control-allow-methods [:get :put :post :delete])]}
               (keep :api-routes plugins)]])
 
 (def handler (-> (biff/reitit-handler {:routes routes})

@@ -3,6 +3,7 @@
         camel-snake-kebab/camel-snake-kebab {:mvn/version "0.4.3"}
         dev.weavejester/medley {:mvn/version "1.7.0"}
         remus/remus {:mvn/version "0.2.2"}
+        ring-cors/ring-cors {:mvn/version "0.1.13"}
         org.jsoup/jsoup {:mvn/version "1.11.3"}
         org.clojure/clojure {:mvn/version "1.11.1"}
         org.slf4j/slf4j-simple {:mvn/version "2.0.0-alpha5"}}}
