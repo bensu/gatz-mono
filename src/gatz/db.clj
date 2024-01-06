@@ -134,7 +134,6 @@
                  :disabled false
                  :frozen false
                  :hidden false
-                 :own_capabilities default-capabilities
                  :created_by user-id}]
     (biff/submit-tx ctx [channel])
     channel))
@@ -143,10 +142,11 @@
 ;; ====================================================================== 
 ;; Messages
 
-(defn create-message! [ctx {:keys [text channel_id]}]
+(defn create-message! [ctx {:keys [text id channel_id]}]
   {:pre [(string? text)]}
   (let [now (java.util.Date.)
-        msg-id (random-uuid)
+        msg-id (or (some-> id mt/-string->uuid)
+                   (random-uuid))
         ch-id (mt/-string->uuid channel_id)
         msg {:db/doc-type :message
              :xt/id msg-id
@@ -155,7 +155,7 @@
              :updated_at now
              :type "regular"
              :channel_id ch-id
-             :user test-user-id
+             :user_id test-user-id
              :mentioned_users []
 
              :text text
@@ -169,10 +169,6 @@
              :shadowed false
              :silent false
 
-             :reply_count 0
-             :deleted_reply_count 0
-
-             :latest_reactions []
              :own_reactions []
              :reaction_counts {}
              :reaction_scores {}

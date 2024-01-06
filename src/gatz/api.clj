@@ -20,25 +20,11 @@
 ;; ====================================================================== 
 ;; App config
 
-(def default-app-config
-  {:file_upload_config {:allowed_mime_types [],
-                        :allowed_file_extensions [],
-                        :blocked_file_extensions [".png"],
-                        :blocked_mime_types []},
-   :name "Arena",
-   :auto_translation_enabled true,
-   :image_upload_config {:allowed_mime_types [],
-                         :allowed_file_extensions [],
-                         :blocked_file_extensions [],
-                         :blocked_mime_types []},
-   :video_provider "",
-   :async_url_enrich_enabled false})
+(def default-app-config {:name "Gatz"})
 
-(defn get-app-settings [ctx]
+(defn get-app-settings [_ctx]
   {:status 200
-   :body (json/write-str
-          {:duration "0.84ms",
-           :app default-app-config})})
+   :body (json/write-str {:app default-app-config})})
 
 ;; ======================================================================
 ;; User
