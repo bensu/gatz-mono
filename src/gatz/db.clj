@@ -142,6 +142,12 @@
 ;; ====================================================================== 
 ;; Messages
 
+(defn ->uuid [s]
+  (if (string? s)
+    (try
+      (java.util.UUID/fromString s)
+      (catch Exception _ nil))))
+
 (defn create-message!
   [{:keys [auth/user-id] :as ctx}
    {:keys [text id channel_id]}]
@@ -149,8 +155,9 @@
   {:pre [(string? text)]}
 
   (let [now (java.util.Date.)
-        msg-id (or (some-> id mt/-string->uuid)
+        msg-id (or (some-> id ->uuid)
                    (random-uuid))
+        _ (assert (uuid? msg-id))
         ch-id (mt/-string->uuid channel_id)
         msg {:db/doc-type :message
              :xt/id msg-id
@@ -173,7 +180,10 @@
              :shadowed false
              :silent false
 
+             :reply_count 0
+             :deleted_reply_count 0
              :own_reactions []
+             :latest_reactions []
              :reaction_counts {}
              :reaction_scores {}
 

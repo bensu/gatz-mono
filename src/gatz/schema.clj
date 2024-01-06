@@ -251,8 +251,7 @@
    [:text :string]
 
    ;; user
-   ;; TODO: reference
-   [:user :uuid]
+   [:user_id :uuid]
    [:channel_id :uuid]
 
    ;; other users
