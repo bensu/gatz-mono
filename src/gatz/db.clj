@@ -142,8 +142,12 @@
 ;; ====================================================================== 
 ;; Messages
 
-(defn create-message! [ctx {:keys [text id channel_id]}]
+(defn create-message!
+  [{:keys [auth/user-id] :as ctx}
+   {:keys [text id channel_id]}]
+
   {:pre [(string? text)]}
+
   (let [now (java.util.Date.)
         msg-id (or (some-> id mt/-string->uuid)
                    (random-uuid))
@@ -155,7 +159,7 @@
              :updated_at now
              :type "regular"
              :channel_id ch-id
-             :user_id test-user-id
+             :user_id user-id
              :mentioned_users []
 
              :text text
@@ -174,7 +178,7 @@
              :reaction_scores {}
 
              :attachments []}]
-    #_(biff/submit-tx ctx [msg])
+    (biff/submit-tx ctx [msg])
     msg))
 
 ;; validate message

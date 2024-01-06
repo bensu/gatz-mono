@@ -7,6 +7,7 @@
             [gatz.subscriptions :as sub]
             [gatz.schema :as schema]
             [gatz.connections :as conns]
+            [gatz.auth :as auth]
             [clojure.test :as test]
             [clojure.tools.logging :as log]
             [clojure.tools.namespace.repl :as tn-repl]
@@ -26,6 +27,7 @@
 (def routes [["" {:middleware [biff/wrap-site-defaults]}
               (keep :routes plugins)]
              ["" {:middleware [biff/wrap-api-defaults
+                              ;;  auth/wrap-api-auth
                                #(wrap-cors %
                                            :access-control-allow-origin [#"http://localhost:8081"]
                                            :access-control-allow-methods [:get :put :post :delete])]}

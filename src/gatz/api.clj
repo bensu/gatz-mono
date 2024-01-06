@@ -10,7 +10,8 @@
             [clojure.java.io :as io]
             [malli.transform :as mt]
             [ring.adapter.jetty9 :as jetty]
-            [xtdb.api :as xt]))
+            [xtdb.api :as xt]
+            [gatz.auth :as auth]))
 
 (defn json-response [body]
   {:status 200
@@ -437,7 +438,7 @@
   {:api-routes [["/ws"
                  ["/connect" {:get start-connection}]]
 
-                ["/api" ;; {:middleware [mid/wrap-signed-in]}
+                ["/api" {:middleware [auth/wrap-api-auth]}
                  ["/log-request" {:post log-request}]
                  ["/log-response" {:get cached-log
                                    :post cached-log}]
