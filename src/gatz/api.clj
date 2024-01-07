@@ -21,11 +21,25 @@
 ;; ====================================================================== 
 ;; App config
 
-(def default-app-config {:name "Gatz"})
+(def default-app-config
+  {:file_upload_config {:allowed_mime_types [],
+                        :allowed_file_extensions [],
+                        :blocked_file_extensions [".png"],
+                        :blocked_mime_types []},
+   :name "Arena",
+   :auto_translation_enabled true,
+   :image_upload_config {:allowed_mime_types [],
+                         :allowed_file_extensions [],
+                         :blocked_file_extensions [],
+                         :blocked_mime_types []},
+   :video_provider "",
+   :async_url_enrich_enabled false})
 
-(defn get-app-settings [_ctx]
+(defn get-app-settings [ctx]
   {:status 200
-   :body (json/write-str {:app default-app-config})})
+   :body (json/write-str
+          {:duration "0.84ms",
+           :app default-app-config})})
 
 ;; ======================================================================
 ;; User
@@ -39,12 +53,24 @@
 
 (defn create-user!
   [{:keys [params] :as ctx}]
-  (def -ctx ctx)
   ;; TODO: do params validation
   (if-let [username (:username params)]
     (let [user (db/create-user! ctx {:username username})]
       (json-response {:user user}))
     {:status 400 :body "invalid params"}))
+
+(defn sign-in!
+  [{:keys [params biff/db] :as ctx}]
+  (def -ctx ctx)
+  ;; TODO: do params validation
+  (if-let [username (:username params)]
+    (if-let [user (db/user-by-name db username)]
+      (json-response {:user user
+                      :token (auth/create-auth-token (:xt/id user))})
+      {:status 400 :body "User not found"})
+    {:status 400 :body "invalid params"}))
+
+
 
 ;; ======================================================================
 ;; Channel
@@ -437,12 +463,16 @@
 (def plugin
   {:api-routes [["/ws"
                  ["/connect" {:get start-connection}]]
+                 ;; unauthenticated
+                ["/api"
+                 ["/signin" {:post sign-in!}]]
 
+                ;; authenticated
                 ["/api" {:middleware [auth/wrap-api-auth]}
                  ["/log-request" {:post log-request}]
                  ["/log-response" {:get cached-log
                                    :post cached-log}]
-                ;; converted
+                 ;; converted
                  ["/app"           {:get get-app-settings}]
                  ["/user" {:get get-user
                            :post create-user!}]

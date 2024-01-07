@@ -9,7 +9,9 @@
 
 (defn verify-auth-token [auth-token]
   (try
-    (jwt/unsign auth-token (jwt-secret))
+    (-> auth-token
+        (jwt/unsign (jwt-secret))
+        (update :auth/user-id mt/-string->uuid))
     (catch Exception _e
       nil)))
 

@@ -35,6 +35,15 @@
         :where [[user :xt/id user-id]]}
       user-id)))
 
+(defn user-by-name [db username]
+  {:pre [(string? username) (not (empty? username))]}
+  (first
+   (q db
+      '{:find (pull user [*])
+        :in [username]
+        :where [[user :name username]]}
+      username)))
+
 ;; ====================================================================== 
 ;; Channel
 
@@ -152,7 +161,7 @@
   [{:keys [auth/user-id] :as ctx}
    {:keys [text id channel_id]}]
 
-  {:pre [(string? text)]}
+  {:pre [(string? text) (uuid? user-id)]}
 
   (let [now (java.util.Date.)
         msg-id (or (some-> id ->uuid)
