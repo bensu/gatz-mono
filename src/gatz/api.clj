@@ -89,6 +89,22 @@
   (let [ch-id (mt/-string->uuid (:channel_id params))]
     (json-response (db/channel-by-id db ch-id))))
 
+(defn get-discussion [{:keys [biff/db params] :as ctx}]
+  (let [did (mt/-string->uuid (:id params))]
+    (json-response (db/discussion-by-id db did))))
+
+
+
+(defn get-full-discussions [{:keys [biff/db] :as ctx}]
+  (let [chs (q db
+               '{:find (pull ch [*])
+                 ;; TODO: better index to get all the messages
+                 :where [[ch :type "messaging"]]})
+        channels (map (partial db/discussion-by-id db) (map :xt/id chs))]
+    (json-response {:discussions channels})))
+
+
+
 (defn get-full-channels [{:keys [biff/db] :as ctx}]
   (let [chs (q db
                '{:find (pull ch [*])
@@ -481,6 +497,11 @@
                  ["/channels" {:post get-full-channels
                              ;; :post new-channel
                                }]
+                 ["/discussions" {:post get-full-discussions}]
+                 ["/discussion" {:get get-discussion}]
+
+
+
                  ["/channel" {:post create-channel!
                               :get get-channel}]
 

@@ -56,6 +56,37 @@
      :created_at now
      :updated_at now}))
 
+(defn discussion-by-id [db did]
+  ;; (def -ctx ctx)
+  (let [discussion (first (q db '{:find (pull ch [*])
+                                  :in [did]
+                                  :where [[ch :xt/id did]]}
+                             did))
+        _ (assert discussion)
+        messages (q db '{:find (pull msg [*])
+                         :in [channel-id]
+                         :where [[msg :channel_id did]]}
+                    did)]
+    {:discussion discussion
+     :messages messages}))
+
+(defn discussion-by-id [db did]
+  ;; (def -ctx ctx)
+  (let [discussion (first (q db '{:find (pull ch [*])
+                                  :in [did]
+                                  :where [[ch :xt/id did]]}
+                             did))
+        _ (assert discussion)
+        messages (q db '{:find (pull msg [*])
+                         :in [did]
+                         :where [[msg :channel_id did]]}
+                    did)]
+    {:discussion discussion
+     :messages messages}))
+
+
+
+
 (defn channel-by-id [db channel-id]
   ;; (def -ctx ctx)
   (let [channel (first (q db '{:find (pull ch [*])
@@ -159,7 +190,7 @@
 
 (defn create-message!
   [{:keys [auth/user-id] :as ctx}
-   {:keys [text id channel_id]}]
+   {:keys [text id discussion_id]}]
 
   {:pre [(string? text) (uuid? user-id)]}
 
@@ -167,14 +198,14 @@
         msg-id (or (some-> id ->uuid)
                    (random-uuid))
         _ (assert (uuid? msg-id))
-        ch-id (mt/-string->uuid channel_id)
+        did (mt/-string->uuid discussion_id)
         msg {:db/doc-type :message
              :xt/id msg-id
-             :cid ch-id
+             :cid did
              :created_at now
              :updated_at now
              :type "regular"
-             :channel_id ch-id
+             :channel_id did
              :user_id user-id
              :mentioned_users []
 
