@@ -124,48 +124,7 @@
 (defn create-message! [{:keys [params] :as ctx}]
   (def -mctx ctx)
   (let [msg (db/create-message! ctx params)]
-    (json-response {:message msg}))
-  #_(let [now (java.util.Date.)
-          message (:message params)
-          msg-id (random-uuid)
-          content (:text message)
-          ch-id (:channel_id message)
-          ch-id (if (string? ch-id)
-                  (mt/-string->uuid ch-id)
-                  (:channel_id params))
-          msg {:db/doc-type :message
-               :xt/id msg-id
-               :cid ch-id
-               :created_at now
-               :updated_at now
-               :type "regular"
-               :channel_id ch-id
-               :user db/test-user-id
-               :mentioned_users []
-
-               :text content
-               :html (str "<p>" content "</p>")
-
-               :pinned false
-               :pinned_by nil
-               :pin_expires nil
-               :pinned_at nil
-
-               :shadowed false
-               :silent false
-
-               :reply_count 0
-               :deleted_reply_count 0
-
-               :latest_reactions []
-               :own_reactions []
-               :reaction_counts {}
-               :reaction_scores {}
-
-               :attachments []}]
-      #_msg
-      (biff/submit-tx ctx [msg])
-      (json-response {:msg msg})))
+    (json-response {:message msg})))
 
 (defn fetch-messages [db]
   (q db

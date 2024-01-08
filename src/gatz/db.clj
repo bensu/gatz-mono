@@ -105,7 +105,10 @@
      :channel channel
      :watcher_count 0
      :membership membership
-     :messages messages
+     :messages (->> messages
+                    (sort-by (fn [m]
+                               (- (.getTime (:created_at m)))))
+                    vec)
      :pinned_messages []
      :members []}))
 
