@@ -102,12 +102,13 @@
 
 (defn create-discussion!
 
-  [{:keys [auth/user-id] :as ctx} {:keys [name]}]
+  [{:keys [auth/user-id] :as ctx} {:keys [name selected_users]}]
 
   {:pre [(string? name) (not (empty? name))]}
 
   (let [now (java.util.Date.)
         did (random-uuid)
+        member-uids (keep mt/-string->uuid selected_users)
         d {:db/doc-type :gatz/discussion
            :db/type :gatz/discussion
            :xt/id did
@@ -116,7 +117,7 @@
            :discussion/created_by user-id
            :discussion/created_at now
            :discussion/updated_at now
-           :discussion/members #{user-id}}]
+           :discussion/members (conj (set member-uids) user-id)}]
     (biff/submit-tx ctx [d])
     d))
 
