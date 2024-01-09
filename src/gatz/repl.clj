@@ -2,7 +2,8 @@
   (:require [gatz.system :as main]
             [com.biffweb :as biff :refer [q]]
             [clojure.edn :as edn]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io]
+            [xtdb.api :as xt]))
 
 (defn get-context []
   (biff/assoc-db @main/system))
@@ -25,6 +26,17 @@
                        :msg/channel chan
                        :msg/created-at :db/now
                        :msg/text (str "Seed message " (rand-int 1000))}))))
+
+(comment
+
+  (let [res (xt/q (xt/db xtdb-node)
+                  '{:find [id]
+                    :where [[id :xt/id _]]})
+        ids (map first res)]
+    (->> ids
+         (mapv (fn [id] [::xt/delete id]))
+         (xt/submit-tx xtdb-node))))
+
 
 (comment
 

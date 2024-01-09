@@ -18,29 +18,6 @@
    :headers {"Content-Type" "application/json"}
    :body (json/write-str body)})
 
-;; ====================================================================== 
-;; App config
-
-(def default-app-config
-  {:file_upload_config {:allowed_mime_types [],
-                        :allowed_file_extensions [],
-                        :blocked_file_extensions [".png"],
-                        :blocked_mime_types []},
-   :name "Arena",
-   :auto_translation_enabled true,
-   :image_upload_config {:allowed_mime_types [],
-                         :allowed_file_extensions [],
-                         :blocked_file_extensions [],
-                         :blocked_mime_types []},
-   :video_provider "",
-   :async_url_enrich_enabled false})
-
-(defn get-app-settings [ctx]
-  {:status 200
-   :body (json/write-str
-          {:duration "0.84ms",
-           :app default-app-config})})
-
 ;; ======================================================================
 ;; User
 
@@ -72,51 +49,34 @@
 
 
 
-;; ======================================================================
-;; Channel
-
-(defn get-channels [{:keys [biff/db] :as ctx}]
-  (let [chs (q db
-               '{:find (pull ch [*])
-                 ;; TODO: better index to get all the messages
-                 :where [[ch :type "messaging"]]})]
-    (json-response {:channels chs})))
-
 ;; ====================================================================== 
-;; Channels
+;; Discussions 
 
-(defn get-channel [{:keys [biff/db params] :as ctx}]
-  (let [ch-id (mt/-string->uuid (:channel_id params))]
-    (json-response (db/channel-by-id db ch-id))))
-
-(defn get-discussion [{:keys [biff/db params] :as ctx}]
+(defn get-discussion [{:keys [biff/db params] :as _ctx}]
   (let [did (mt/-string->uuid (:id params))]
     (json-response (db/discussion-by-id db did))))
 
 
+;; discrepancy in how this gets params
+(defn get-full-discussions [{:keys [biff/db auth/user-id] :as _ctx}]
+  (def -dctx _ctx)
+  (let [dis (db/discussions-by-user-id db user-id)
+        ds (map (partial db/discussion-by-id db) dis)]
+    (json-response {:discussions ds})))
 
-(defn get-full-discussions [{:keys [biff/db] :as ctx}]
-  (let [chs (q db
-               '{:find (pull ch [*])
-                 ;; TODO: better index to get all the messages
-                 :where [[ch :type "messaging"]]})
-        channels (map (partial db/discussion-by-id db) (map :xt/id chs))]
-    (json-response {:discussions channels})))
-
-
-
-(defn get-full-channels [{:keys [biff/db] :as ctx}]
-  (let [chs (q db
-               '{:find (pull ch [*])
-                 ;; TODO: better index to get all the messages
-                 :where [[ch :type "messaging"]]})
-        channels (map (partial db/channel-by-id db) (map :xt/id chs))]
-    (json-response {:channels channels})))
-
-(defn create-channel! [{:keys [params] :as ctx}]
+(defn create-discussion! [{:keys [params] :as ctx}]
   (def -ctx ctx)
-  (let [channel (db/create-channel! ctx params)]
-    (json-response {:channel channel})))
+  (let [d (db/create-discussion! ctx params)]
+    (json-response {:discussion d})))
+
+(defn add-member! [{:keys [params auth/user-id] :as ctx}]
+  (let [did (mt/-string->uuid (:discussion_id params))
+        uid (mt/-string->uuid (:user_id params))]
+    (if (and (uuid? did) (uuid? did))
+      ;; check if auth/id is admin
+      (let [d (db/add-member! ctx {:discussion/id did :user/id uid})]
+        (json-response {:discussion d}))
+      {:status 400 :body "invalid params"})))
 
 ;; ====================================================================== 
 ;; Messages
@@ -164,30 +124,29 @@
        (println e#))))
 
 (defn start-connection
-  [{:keys [conns-state params biff/db biff.xtdb/node] :as ctx}]
+  [{:keys [conns-state auth/user-id biff/db biff.xtdb/node] :as ctx}]
   (assert conns-state)
   (when (jetty/ws-upgrade-request? ctx)
     ;; TODO: asert this user is actually in the database
     (try-print
-     (if-let [user (some->> (:user_id params)
-                            mt/-string->uuid
-                            (db/user-by-id db))]
+     (if-let [user (some->> user-id (db/user-by-id db))]
        (let [user-id (:xt/id user)
              conn-id (random-uuid)]
          (jetty/ws-upgrade-response
           {:on-connect (fn [ws]
                          (let [db (xt/db node)
-                               channels (or (db/channels-by-user-id db user-id) #{})]
-                           (swap! conns-state conns/add-conn {:user-id user-id
+                               ds (or (db/discussions-by-user-id db user-id) #{})]
+                           (swap! conns-state conns/add-conn {:ws ws
+                                                              :user-id user-id
                                                               :conn-id conn-id
-                                                              :user-channels channels}))
+                                                              :user-channels ds}))
                          (jetty/send! ws (json/write-str (connection-response user-id conn-id))))
            :on-close (fn [ws status-code reason]
                        (let [db (xt/db node)
-                             channels (or (db/channels-by-user-id db user-id) #{})]
+                             ds (or (db/discussions-by-user-id db user-id) #{})]
                          (swap! conns-state conns/remove-conn {:user-id user-id
                                                                :conn-id conn-id
-                                                               :user-channels channels}))
+                                                               :user-channels ds}))
                        (jetty/send! ws (json/write-str {:reason reason :status status-code :conn-id conn-id :user-id user-id})))
            :on-text (fn [ws text]
                       (println "on-text" text)
@@ -198,21 +157,24 @@
                           ))}))
        {:status 400 :body "Invalid user"}))))
 
-(defn on-new-message [{:keys [biff.xtdb/node gatz/chat-clients]} tx]
+;; TODO: fix to send message
+(defn on-new-message [{:keys [biff.xtdb/node conns-state] :as nctx} tx]
+  (def -nctx nctx)
   (println "tx:" tx)
   (let [db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
     (doseq [[op & args] (::xt/tx-ops tx)]
       (when (= op ::xt/put)
-        (let [[doc] args]
-          (when (and (contains? doc :text)
-                     (nil? (xt/entity db-before (:xt/id doc))))
-            (let [msg {:message doc
-                       :cid (:cid doc)}]
-              (println "ws"  (get @chat-clients (:cid doc)))
-              (doseq [ws (get @chat-clients (:cid doc))]
+        (let [[message] args]
+          (when (and (contains? message :message/text)
+                     (nil? (xt/entity db-before (:xt/id message))))
+            (let [did (:message/did message)
+                  msg {:message message :did did}
+                  wss (conns/ch-id->wss @conns-state did)]
+              (println "ws" wss)
+              (doseq [ws wss]
                 (println "sending to ws" ws)
                 (println msg)
-                (jetty/send! ws msg)))))))))
+                (jetty/send! ws (json/write-str msg))))))))))
 
 (defn on-new-subscription [{:keys [biff.xtdb/node] :as ctx} tx]
   (let [db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
@@ -228,185 +190,6 @@
   (on-new-message ctx tx)
   (on-new-subscription ctx tx))
 
-
-
-
-
-
-
-
-
-
-
-(defn new-community [{:keys [session] :as ctx}]
-  (let [comm-id (random-uuid)]
-    (biff/submit-tx ctx
-                    [{:db/doc-type :community
-                      :xt/id comm-id
-                      :comm/title (str "Community #" (rand-int 1000))}
-                     {:db/doc-type :membership
-                      :mem/user (:uid session)
-                      :mem/comm comm-id
-                      :mem/roles #{:admin}}])
-    {:status 303
-     :headers {"Location" (str "/community/" comm-id)}}))
-
-(defn join-community [{:keys [user community] :as ctx}]
-  (biff/submit-tx ctx
-                  [{:db/doc-type :membership
-                    :db.op/upsert {:mem/user (:xt/id user)
-                                   :mem/comm (:xt/id community)}
-                    :mem/roles [:db/default #{}]}])
-  {:status 303
-   :headers {"Location" (str "/community/" (:xt/id community))}})
-
-#_(defn new-channel [{:keys [community roles] :as ctx}]
-    (if (and community (contains? roles :admin))
-      (let [chan-id (random-uuid)]
-        (biff/submit-tx ctx
-                        [{:db/doc-type :channel
-                          :xt/id chan-id
-                          :chan/title (str "Channel #" (rand-int 1000))
-                          :chan/comm (:xt/id community)}])
-        {:status 303
-         :headers {"Location" (str "/community/" (:xt/id community) "/channel/" chan-id)}})
-      {:status 403
-       :body "Forbidden."}))
-
-(defn delete-channel [{:keys [biff/db channel roles] :as ctx}]
-  (when (contains? roles :admin)
-    (biff/submit-tx ctx
-                    (for [id (conj (q db
-                                      '{:find msg
-                                        :in [channel]
-                                        :where [[msg :msg/channel channel]]}
-                                      (:xt/id channel))
-                                   (:xt/id channel))]
-                      {:db/op :delete
-                       :xt/id id})))
-  [:<>])
-
-(defn community [{:keys [biff/db user community] :as ctx}]
-  (let [member (some (fn [mem]
-                       (= (:xt/id community) (get-in mem [:mem/comm :xt/id])))
-                     (:user/mems user))]
-    (ui/app-page
-     ctx
-     (if member
-       [:<>
-        [:.border.border-neutral-600.p-3.bg-white.grow
-         "Messages window"]
-        [:.h-3]
-        [:.border.border-neutral-600.p-3.h-28.bg-white
-         "Compose window"]]
-       [:<>
-        [:.grow]
-        [:h1.text-3xl.text-center (:comm/title community)]
-        [:.h-6]
-        (biff/form
-         {:action (str "/community/" (:xt/id community) "/join")
-          :class "flex justify-center"}
-         [:button.btn {:type "submit"} "Join this community"])
-        [:div {:class "grow-[1.75]"}]]))))
-
-(defn message-view [{:msg/keys [mem text created-at]}]
-  (let [username (if (= :system mem)
-                   "🎅🏻 System 🎅🏻"
-                   (str "User " (subs (str mem) 0 4)))]
-    [:div
-     [:.text-sm
-      [:span.font-bold username]
-      [:span.w-2.inline-block]
-      [:span.text-gray-600 (biff/format-date created-at "d MMM h:mm aa")]]
-     [:p.whitespace-pre-wrap.mb-6 text]]))
-
-(defn command-tx [{:keys [biff/db channel roles params]}]
-  (let [subscribe-url (second (re-find #"^/subscribe ([^\s]+)" (:text params)))
-        unsubscribe-url (second (re-find #"^/unsubscribe ([^\s]+)" (:text params)))
-        list-command (= (str/trimr (:text params)) "/list")
-        message (fn [text]
-                  {:db/doc-type :message
-                   :msg/mem :system
-                   :msg/channel (:xt/id channel)
-                   :msg/text text
-                   ;; Make sure this message comes after the user's message.
-                   :msg/created-at (biff/add-seconds (java.util.Date.) 1)})]
-    (cond
-      (not (contains? roles :admin))
-      nil
-
-      subscribe-url
-      [{:db/doc-type :subscription
-        :db.op/upsert {:sub/url subscribe-url
-                       :sub/chan (:xt/id channel)}}
-       (message (str "Subscribed to " subscribe-url))]
-
-      unsubscribe-url
-      [{:db/op :delete
-        :xt/id (biff/lookup-id db :sub/chan (:xt/id channel) :sub/url unsubscribe-url)}
-       (message (str "Unsubscribed from " unsubscribe-url))]
-
-      list-command
-      [(message (apply
-                 str
-                 "Subscriptions:"
-                 (for [url (->> (q db
-                                   '{:find (pull sub [:sub/url])
-                                     :in [channel]
-                                     :where [[sub :sub/chan channel]]}
-                                   (:xt/id channel))
-                                (map :sub/url)
-                                sort)]
-                   (str "\n - " url))))])))
-
-
-(defn channel-page [{:keys [biff/db community channel] :as ctx}]
-  (let [msgs (q db
-                '{:find (pull msg [*])
-                  :in [channel]
-                  :where [[msg :msg/channel channel]]}
-                (:xt/id channel))
-        href (str "/community/" (:xt/id community)
-                  "/channel/" (:xt/id channel))]
-    (ui/app-page
-     ctx
-     [:.border.border-neutral-600.p-3.bg-white.grow.flex-1.overflow-y-auto#messages
-      {:hx-ext "ws"
-       :ws-connect (str href "/connect")
-       :_ "on load or newMessage set my scrollTop to my scrollHeight"}
-      (map message-view (sort-by :msg/created-at msgs))]
-     [:.h-3]
-     (biff/form
-      {:hx-post href
-       :hx-target "#messages"
-       :hx-swap "beforeend"
-       :_ (str "on htmx:afterRequest"
-               " set <textarea/>'s value to ''"
-               " then send newMessage to #messages")
-       :class "flex"}
-      [:textarea.w-full#text {:name "text"}]
-      [:.w-2]
-      [:button.btn {:type "submit"} "Send"]))))
-
-(defn wrap-community [handler]
-  (fn [{:keys [biff/db user path-params] :as ctx}]
-    (if-some [community (xt/entity db (parse-uuid (:id path-params)))]
-      (let [mem (->> (:user/mems user)
-                     (filter (fn [mem]
-                               (= (:xt/id community) (get-in mem [:mem/comm :xt/id]))))
-                     first)
-            roles (:mem/roles mem)]
-        (handler (assoc ctx :community community :roles roles :mem mem)))
-      {:status 303
-       :headers {"location" "/app"}})))
-
-(defn wrap-channel [handler]
-  (fn [{:keys [biff/db user mem community path-params] :as ctx}]
-    (let [channel (xt/entity db (parse-uuid (:chan-id path-params)))]
-      (if (and (= (:chan/comm channel) (:xt/id community)) mem)
-        (handler (assoc ctx :channel channel))
-        {:status 303
-         :headers {"Location" (str "/community/" (:xt/id community))}}))))
 
 (defn headers->file [headers]
   (let [url (get headers "arena-url")
@@ -436,7 +219,7 @@
      :body (json/write-str (get contents "body"))}))
 
 (def plugin
-  {:api-routes [["/ws"
+  {:api-routes [["/ws" {:middleware [auth/wrap-api-auth]}
                  ["/connect" {:get start-connection}]]
                  ;; unauthenticated
                 ["/api"
@@ -448,32 +231,10 @@
                  ["/log-response" {:get cached-log
                                    :post cached-log}]
                  ;; converted
-                 ["/app"           {:get get-app-settings}]
                  ["/user" {:get get-user
                            :post create-user!}]
                  ["/message" {:post create-message!}]
-
-                 ["/channels" {:post get-full-channels
-                             ;; :post new-channel
-                               }]
-                 ["/discussions" {:post get-full-discussions}]
-                 ["/discussion" {:get get-discussion}]
-
-
-
-                 ["/channel" {:post create-channel!
-                              :get get-channel}]
-
-                ;; from example
-                 ["/community"     {:post new-community}]
-                 ["/community/:id" {:middleware [wrap-community]}
-                  [""      {:get community}]
-                  ["/join" {:post join-community}]
-                  ["/channel" {:post create-channel!}]
-                  ["/channel/:chan-id" {:middleware [wrap-channel]}
-                   ["" {:get channel-page
-                        :post create-message!
-                        :delete delete-channel}]
-                  ;; ["/connect" {:get connect}]
-                   ]]]]
+                 ["/discussions" {:get get-full-discussions
+                                  :post create-discussion!}]
+                 ["/discussion" {:get get-discussion}]]]
    :on-tx on-tx})

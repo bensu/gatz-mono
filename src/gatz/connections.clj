@@ -52,6 +52,8 @@
   (set (vals (get-in state [:user-id->conn-id->ws user-id]))))
 
 (defn add-conn [state {:keys [user-id conn-id ws user-channels]}]
+  {:pre [(some? ws) (uuid? user-id) (uuid? conn-id)
+         (set? user-channels) (every? uuid? user-channels)]}
   (-> state
       (update :user-id->conn-id->ws assoc-in [user-id conn-id] ws)
       (update :ch-id->user-ids (fn [ch-id->user-ids]
