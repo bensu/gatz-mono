@@ -93,10 +93,12 @@
                                   :in [did]
                                   :where [[d :xt/id did]
                                           [d :db/type :gatz/discussion]]}
-                             did))]
+                             did))
+        messages  (messages-by-did db did)]
     (assert discussion)
     {:discussion discussion
-     :messages (messages-by-did db did)}))
+     :user-ids (set (map :message/user_id messages))
+     :messages messages}))
 
 (defn create-discussion!
 
