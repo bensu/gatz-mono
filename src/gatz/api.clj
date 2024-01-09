@@ -115,7 +115,7 @@
 
 (defn connection-response [user-id conn-id]
   {:connection_id conn-id
-   :user-id user-id
+   :user_id user-id
    :created_at (java.util.Date.)})
 
 ;; TODO: how to catch and handle errors that are happening in the websocket?
@@ -168,16 +168,40 @@
     (doseq [[op & args] (::xt/tx-ops tx)]
       (when (= op ::xt/put)
         (let [[message] args]
+          ;; TODO: replace with :db/type = :gatz/message
           (when (and (contains? message :message/text)
                      (nil? (xt/entity db-before (:xt/id message))))
             (let [did (:message/did message)
-                  msg {:message message :did did}
+                  msg {:event/type :event/new_message
+                       :event/data {:message message :did did}}
                   wss (conns/ch-id->wss @conns-state did)]
-              (println "ws" wss)
               (doseq [ws wss]
-                (println "sending to ws" ws)
+                (jetty/send! ws (json/write-str msg))))))))))
+
+(defn on-new-discussion [{:keys [biff.xtdb/node conns-state] :as nctx} tx]
+  (def -dctx nctx)
+  (println "tx:" tx)
+  (let [db-after (xt/db node)
+        db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
+    (doseq [[op & args] (::xt/tx-ops tx)]
+      (when (= op ::xt/put)
+        (let [[d] args]
+          ;; TODO: replace with :db/type = :gatz/message
+          (when (and (contains? d :discussion/members)
+                     (nil? (xt/entity db-before (:xt/id d))))
+            (let [members (:discussion/members d)
+                  did (:xt/id d)
+                  msg {:event/type :event/new_discussion
+                       :event/data (db/discussion-by-id db-after did)}
+                  conns @conns-state
+                  wss (mapcat (partial conns/user-wss conns) members)
+                  ;; wss (conns/ch-id->wss @conns-state did)
+                  ]
+              (doseq [ws wss]
                 (println msg)
                 (jetty/send! ws (json/write-str msg))))))))))
+
+
 
 (defn on-new-subscription [{:keys [biff.xtdb/node] :as ctx} tx]
   (let [db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
@@ -191,7 +215,8 @@
 (defn on-tx [ctx tx]
   (println "new txn" tx)
   (on-new-message ctx tx)
-  (on-new-subscription ctx tx))
+  (on-new-discussion ctx tx)
+  #_(on-new-subscription ctx tx))
 
 
 (defn headers->file [headers]
