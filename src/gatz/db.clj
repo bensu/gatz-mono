@@ -46,6 +46,10 @@
                 [user :db/type :gatz/user]]}
       user-id)))
 
+(defn all-users [db]
+  (vec (q db '{:find (pull user [*])
+               :where [[user :db/type :gatz/user]]})))
+
 ;; ====================================================================== 
 ;; Messages
 

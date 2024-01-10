@@ -2,11 +2,8 @@
   "All the operations but in an API"
   (:require [com.biffweb :as biff :refer [q]]
             [clojure.set :as set]
-            [gatz.subscriptions :as sub]
             [gatz.connections :as conns]
             [gatz.db :as db]
-            [gatz.ui :as ui]
-            [clojure.string :as str]
             [clojure.data.json :as json]
             [clojure.java.io :as io]
             [malli.transform :as mt]
@@ -63,8 +60,7 @@
   (def -dctx _ctx)
   (let [dis (db/discussions-by-user-id db user-id)
         ds (map (partial db/discussion-by-id db) dis)
-        uids (reduce set/union #{} (map :user-ids ds))
-        users (map (partial db/user-by-id db) uids)]
+        users (db/all-users db)]
     (json-response {:discussions ds :users users})))
 
 (defn create-discussion! [{:keys [params] :as ctx}]
