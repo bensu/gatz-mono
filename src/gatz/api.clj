@@ -178,6 +178,8 @@
               (doseq [ws wss]
                 (jetty/send! ws (json/write-str msg))))))))))
 
+;; TODO: if a user is added to a discussion, they should be registered too
+
 (defn on-new-discussion [{:keys [biff.xtdb/node conns-state] :as nctx} tx]
   (def -dctx nctx)
   (println "tx:" tx)
@@ -194,9 +196,9 @@
                   msg {:event/type :event/new_discussion
                        :event/data (db/discussion-by-id db-after did)}
                   conns @conns-state
-                  wss (mapcat (partial conns/user-wss conns) members)
-                  ;; wss (conns/ch-id->wss @conns-state did)
-                  ]
+                  wss (mapcat (partial conns/user-wss conns) members)]
+              ;; register these users to listen to the channel
+              (swap! conns-state conns/add-users-to-ch {:ch-id did :user-ids members})
               (doseq [ws wss]
                 (println msg)
                 (jetty/send! ws (json/write-str msg))))))))))

@@ -77,6 +77,13 @@
   (-> state
       (update :ch-id->user-ids assoc-in [ch-id user-id] {})))
 
+(defn add-users-to-ch [state {:keys [ch-id user-ids]}]
+  (reduce
+   (fn [acc uid]
+     (add-user-to-ch acc {:ch-id ch-id :user-id uid}))
+   state
+   user-ids))
+
 (defn remove-user-from-ch [state {:keys [ch-id user-id]}]
   (-> state
       (update :ch-id->user-ids dissoc-in [ch-id user-id])))
