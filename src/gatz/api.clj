@@ -19,6 +19,9 @@
 ;; ======================================================================
 ;; User
 
+(defn err-resp [err-type err-msg]
+  (json-response {:type "error" :error err-type :message err-msg}))
+
 (defn get-user
   [{:keys [params biff/db] :as _ctx}]
   (if-let [user-id (some-> (:user-id params) mt/-string->uuid)]
@@ -32,7 +35,7 @@
   (if-let [username (:username params)]
     (let [user (db/create-user! ctx {:username username})]
       (json-response {:user user}))
-    {:status 400 :body "invalid params"}))
+    (err-resp "username_taken" "Username is already taken")))
 
 (defn sign-in!
   [{:keys [params biff/db] :as ctx}]
@@ -42,8 +45,21 @@
     (if-let [user (db/user-by-name db username)]
       (json-response {:user user
                       :token (auth/create-auth-token (:xt/id user))})
-      {:status 400 :body "User not found"})
-    {:status 400 :body "invalid params"}))
+      (err-resp "user_not_found" "Username not found"))
+    (err-resp "invalid_username" "Invalid username")))
+
+(defn sign-up!
+  [{:keys [params biff/db] :as ctx}]
+  (def -ctx ctx)
+  ;; TODO: do params validation
+  (if-let [username (:username params)]
+    (if (some? (db/user-by-name db username))
+      (err-resp "username_taken" "Username is already taken")
+      (let [user (db/create-user! ctx {:username username})]
+        (json-response {:type "sign_up"
+                        :user user
+                        :token (auth/create-auth-token (:xt/id user))})))
+    (err-resp "invalid_username" "Invalid username")))
 
 ;; ====================================================================== 
 ;; Discussions 
@@ -249,7 +265,8 @@
                  ["/connect" {:get start-connection}]]
                  ;; unauthenticated
                 ["/api"
-                 ["/signin" {:post sign-in!}]]
+                 ["/signin" {:post sign-in!}]
+                 ["/signup" {:post sign-up!}]]
 
                 ;; authenticated
                 ["/api" {:middleware [auth/wrap-api-auth]}
