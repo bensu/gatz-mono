@@ -1,1 +1,2 @@
-clj -T:build uber
+#!/bin/bash
+lein uberjar

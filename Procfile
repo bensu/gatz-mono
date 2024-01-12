@@ -1,0 +1,1 @@
+web: java -jar target/gatz-0.0.1-standalone.jar

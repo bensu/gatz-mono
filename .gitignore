@@ -11,3 +11,4 @@
 .lsp/
 .portal/
 logs/
+.lein-repl-history

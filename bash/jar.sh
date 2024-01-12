@@ -1,2 +1,2 @@
 #!/bin/bash
-source secrets.env; java -jar target/gatz-0.0.1-standalone.jar
+source secrets.env; java -jar target/uberjar/gatz-web-standalone.jar

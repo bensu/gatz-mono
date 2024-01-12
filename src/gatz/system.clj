@@ -3,7 +3,6 @@
   (:require [com.biffweb :as biff]
             [gatz.email :as email]
             [gatz.api :as api]
-            [gatz.subscriptions :as sub]
             [gatz.schema :as schema]
             [gatz.connections :as conns]
             [clojure.test :as test]
@@ -19,7 +18,6 @@
   [api/plugin
    (biff/authentication-plugin {})
    #_home/plugin
-   sub/plugin
    schema/plugin])
 
 (def routes [["" {:middleware [biff/wrap-site-defaults]}

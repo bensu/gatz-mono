@@ -205,14 +205,14 @@
 
 
 
-(defn on-new-subscription [{:keys [biff.xtdb/node] :as ctx} tx]
-  (let [db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
-    (doseq [[op & args] (::xt/tx-ops tx)
-            :when (= op ::xt/put)
-            :let [[doc] args]
-            :when (and (contains? doc :sub/url)
-                       (nil? (xt/entity db-before (:xt/id doc))))]
-      (biff/submit-job ctx :fetch-rss (assoc doc :biff/priority 0)))))
+#_(defn on-new-subscription [{:keys [biff.xtdb/node] :as ctx} tx]
+    (let [db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
+      (doseq [[op & args] (::xt/tx-ops tx)
+              :when (= op ::xt/put)
+              :let [[doc] args]
+              :when (and (contains? doc :sub/url)
+                         (nil? (xt/entity db-before (:xt/id doc))))]
+        (biff/submit-job ctx :fetch-rss (assoc doc :biff/priority 0)))))
 
 (defn on-tx [ctx tx]
   (println "new txn" tx)
