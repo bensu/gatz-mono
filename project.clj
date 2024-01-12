@@ -7,6 +7,7 @@
   :uberjar-name "gatz-web-standalone.jar"
   :plugins [[lein-tools-deps "0.4.5"]]
   :middleware [lein-tools-deps.plugin/resolve-dependencies-with-deps-edn]
+  :profiles {:uberjar {:aot [gatz.system]}}
   :lein-tools-deps/config {:config-files [:install :user :project]}
 ;;   :repositories [["public-github" {:url "git://github.com"}]]
 ;;   :git-down {com.biffweb/biff {:property "value"}}
