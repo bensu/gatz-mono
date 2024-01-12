@@ -1,13 +1,10 @@
 (ns gatz.system
   (:require [com.biffweb :as biff]
             [gatz.email :as email]
-            [gatz.app :as app]
             [gatz.api :as api]
-            [gatz.home :as home]
             [gatz.subscriptions :as sub]
             [gatz.schema :as schema]
             [gatz.connections :as conns]
-            [gatz.auth :as auth]
             [clojure.test :as test]
             [clojure.tools.logging :as log]
             [clojure.tools.namespace.repl :as tn-repl]
@@ -17,17 +14,15 @@
             [nrepl.cmdline :as nrepl-cmd]))
 
 (def plugins
-  [app/plugin
-   api/plugin
+  [api/plugin
    (biff/authentication-plugin {})
-   home/plugin
+   #_home/plugin
    sub/plugin
    schema/plugin])
 
 (def routes [["" {:middleware [biff/wrap-site-defaults]}
               (keep :routes plugins)]
              ["" {:middleware [biff/wrap-api-defaults
-                              ;;  auth/wrap-api-auth
                                #(wrap-cors %
                                            :access-control-allow-origin [#"http://localhost:8081"]
                                            :access-control-allow-methods [:get :put :post :delete])]}

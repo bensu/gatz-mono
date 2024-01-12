@@ -1,7 +1,6 @@
 (ns gatz.api
   "All the operations but in an API"
   (:require [com.biffweb :as biff :refer [q]]
-            [clojure.set :as set]
             [gatz.connections :as conns]
             [gatz.db :as db]
             [clojure.data.json :as json]
@@ -115,16 +114,6 @@
 ;; ====================================================================== 
 ;; Websocket
 
-;; export type ConnectionOpen<
-;;   StreamChatGenerics extends ExtendableGenerics = DefaultGenerics
-;; > = {
-;;   connection_id: string;
-;;   cid?: string;
-;;   created_at?: string;
-;;   me?: OwnUserResponse<StreamChatGenerics>;
-;;   type?: string;
-;; };
-
 (defn connection-response [user-id conn-id]
   {:connection_id conn-id
    :user_id user-id
@@ -154,22 +143,21 @@
                            (swap! conns-state conns/add-conn {:ws ws
                                                               :user-id user-id
                                                               :conn-id conn-id
-                                                              :user-channels ds}))
+                                                              :user-discussions ds}))
                          (jetty/send! ws (json/write-str (connection-response user-id conn-id))))
            :on-close (fn [ws status-code reason]
                        (let [db (xt/db node)
                              ds (or (db/discussions-by-user-id db user-id) #{})]
                          (swap! conns-state conns/remove-conn {:user-id user-id
                                                                :conn-id conn-id
-                                                               :user-channels ds}))
+                                                               :user-discussions ds}))
                        (jetty/send! ws (json/write-str {:reason reason :status status-code :conn-id conn-id :user-id user-id})))
            :on-text (fn [ws text]
                       (println "on-text" text)
                       (jetty/send! ws (json/write-str {:conn-id conn-id :user-id user-id :echo text :state @conns-state}))
-                      #_(let [{:keys [ch-id message]} (json/read-str text)]
-                      ;; TODO: create channel or add member to channel 
+                      ;; TODO: create discussion or add member 
                       ;; are special because they change the conns-state
-                          ))}))
+                      )}))
        {:status 400 :body "Invalid user"}))))
 
 ;; TODO: fix to send message
@@ -186,7 +174,7 @@
             (let [did (:message/did message)
                   msg {:event/type :event/new_message
                        :event/data {:message message :did did}}
-                  wss (conns/ch-id->wss @conns-state did)]
+                  wss (conns/did->wss @conns-state did)]
               (doseq [ws wss]
                 (jetty/send! ws (json/write-str msg))))))))))
 
@@ -209,8 +197,8 @@
                        :event/data (db/discussion-by-id db-after did)}
                   conns @conns-state
                   wss (mapcat (partial conns/user-wss conns) members)]
-              ;; register these users to listen to the channel
-              (swap! conns-state conns/add-users-to-ch {:ch-id did :user-ids members})
+              ;; register these users to listen to the discussion
+              (swap! conns-state conns/add-users-to-d {:did did :user-ids members})
               (doseq [ws wss]
                 (println msg)
                 (jetty/send! ws (json/write-str msg))))))))))
