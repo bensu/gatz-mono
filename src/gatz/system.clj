@@ -73,22 +73,11 @@
         (assoc k a)
         (update :biff/stop conj #(reset! a initial-state)))))
 
-;; this works locally
-;; psql -d gatz_dev -h 127.0.0.1 -p 5432 -U bensu
-(defn jdbc-spec []
-  {:biff.xtdb.jdbc/dbtype "postgresql"
-   :biff.xtdb.jdbc/dbname "gatz_dev"
-   :biff.xtdb.jdbc/host "127.0.0.1"
-   :biff.xtdb.jdbc/port 5432
-   :biff.xtdb.jdbc/user "bensu"
-   ;; :biff.xtdb.jdbc/password "secret"
-   })
-
 (def components
   [biff/use-config
    biff/use-secrets
    #(use-atom % :conns-state conns/init-state)
-   #(biff/use-xt (merge % {:biff.xtdb/topology :jdbc} (jdbc-spec)))
+   biff/use-xt
    biff/use-queues
    biff/use-tx-listener
    biff/use-jetty

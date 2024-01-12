@@ -1,12 +1,18 @@
 ;; vim: ft=clojure
 {:prod {:biff.xtdb/dir "storage/xtdb"
-        :biff.xtdb/topology :standalone
+        :biff.xtdb/topology :jdbc 
+        ;; TODO: set up heroku
+        :biff.xtdb.jdbc/dbtype "postgresql"
+        :biff.xtdb.jdbc/dbname "gatz_dev"
+        :biff.xtdb.jdbc/host "127.0.0.1"
+        :biff.xtdb.jdbc/port 5432
+        :biff.xtdb.jdbc/password "JDBC_PASSWORD" ;; Leave this as-is, and update secrets.env
+
         ;; Standalone topology in production isn't recommended for anything
         ;; serious. You can uncomment the following to use managed postgres
         ;; instead.
         ;; :biff.xtdb/topology :jdbc
         ;; :biff.xtdb.jdbc/user "user"
-        ;; :biff.xtdb.jdbc/password "JDBC_PASSWORD" ; Leave this as-is, and update secrets.env
         ;; :biff.xtdb.jdbc/host "host"
         ;; :biff.xtdb.jdbc/port 5432
         ;; :biff.xtdb.jdbc/dbname "dbname"
@@ -31,8 +37,16 @@
        :biff/host "0.0.0.0"
        :biff/port 8080
        :biff/base-url "http://localhost:8080"
-       :biff.xtdb/topology :standalone
-       :biff.middleware/secure false}
+
+       :biff.middleware/secure false
+
+       :biff.xtdb/topology :jdbc 
+       :biff.xtdb.jdbc/dbtype "postgresql"
+       :biff.xtdb.jdbc/dbname "gatz_dev"
+       :biff.xtdb.jdbc/host "127.0.0.1"
+       :biff.xtdb.jdbc/port 5432
+       ;; TODO: make a special gatz user
+       :biff.xtdb.jdbc/user "bensu"}
  :tasks {;; Set this if the auto-detection doesn't work
          ;; Possible values: macos-x64, macos-arm64, linux-x64, linux-arm64
          :biff.tasks/tailwind-build nil
