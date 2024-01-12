@@ -1,4 +1,5 @@
 (ns gatz.system
+  (:gen-class)
   (:require [com.biffweb :as biff]
             [gatz.email :as email]
             [gatz.api :as api]
@@ -12,8 +13,7 @@
             [malli.core :as malc]
             [malli.registry :as malr]
             [nrepl.cmdline :as nrepl-cmd]
-            [xtdb.jdbc.psql])
-  (:import [java.time Duration]))
+            [xtdb.jdbc.psql]))
 
 (def plugins
   [api/plugin
@@ -58,10 +58,7 @@
    :biff/handler #'handler
    :biff/malli-opts #'malli-opts
    :biff.beholder/on-save #'on-save
-   :biff.xtdb/tx-fns biff/tx-fns
-   ;; TODO: you need to also merge the state into the components
-  ;; ::conns-state (atom conns/init-state)
-   })
+   :biff.xtdb/tx-fns biff/tx-fns})
 
 (defonce system (atom {}))
 
