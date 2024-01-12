@@ -65,7 +65,7 @@
 
 (defonce system (atom {}))
 
-(defn use-atom [k initial-state ctx]
+(defn use-atom [ctx k initial-state]
   {:pre [(keyword? k)]}
   (println "use atom setup")
   (let [a (atom initial-state)]
@@ -73,34 +73,22 @@
         (assoc k a)
         (update :biff/stop conj #(reset! a initial-state)))))
 
+;; this works locally
+;; psql -d gatz_dev -h 127.0.0.1 -p 5432 -U bensu
 (defn jdbc-spec []
-  {:jdbcUrl "..."
-                                              ;; OR
-   :host "..."
-   :dbname "..."
-   :user "..."
-   :password "..."}
-  (let [db-spec (biff/secret :db/spec)]
-    (if (string? db-spec)
-      (edn/read-string db-spec)
-      db-spec)))
+  {:biff.xtdb.jdbc/dbtype "postgresql"
+   :biff.xtdb.jdbc/dbname "gatz_dev"
+   :biff.xtdb.jdbc/host "127.0.0.1"
+   :biff.xtdb.jdbc/port 5432
+   :biff.xtdb.jdbc/user "bensu"
+   ;; :biff.xtdb.jdbc/password "secret"
+   })
 
 (def components
   [biff/use-config
    biff/use-secrets
-   (partial use-atom :conns-state conns/init-state)
-   biff/use-tx
-;;   #(biff/use-xt
-;;     %
-;;     {:xtdb/document-store {:xtdb/module 'xtdb.jdbc/->document-store
-;;                            :connection-pool {:dialect {:xtdb/module 'xtdb.jdbc.psql/->dialect}
-;;                                              ;; :pool-opts {...}
-;;                                              :db-spec (jdbc-spec)}}
-;;      :xtdb/tx-log {:xtdb/module 'xtdb.jdbc/->tx-log
-;;                    :connection-pool {:dialect {:xtdb/module 'xtdb.jdbc.psql/->dialect}
-;;                                     ;; :pool-opts {...}
-;;                                      :db-spec (jdbc-spec)}
-;;                    :poll-sleep-duration (Duration/ofSeconds 1)}})
+   #(use-atom % :conns-state conns/init-state)
+   #(biff/use-xt (merge % {:biff.xtdb/topology :jdbc} (jdbc-spec)))
    biff/use-queues
    biff/use-tx-listener
    biff/use-jetty

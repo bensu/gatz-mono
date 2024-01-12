@@ -92,7 +92,7 @@
 ;; Discussion 
 
 (defn discussion-by-id [db did]
-  ;; (def -ctx ctx)
+  {:pre [(uuid? did)]}
   (let [discussion (first (q db '{:find (pull d [*])
                                   :in [did]
                                   :where [[d :xt/id did]
