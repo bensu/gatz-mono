@@ -6,17 +6,6 @@
          format           com.biffweb.tasks/format
          clean            com.biffweb.tasks/clean
          generate-secrets com.biffweb.tasks/generate-secrets
-         hello            gatz.tasks/hello
-
-         ;; Build
-         build {:doc  "Build deployable jar file for this project"
-                :task (let [params (format "-X:jar :jar %s :group-id %s :artifact-id %s :version '\"%s\"'"
-                                           "gatz"
-                                           "gaz"
-                                           "gatz"
-                                           "0")]
-                        (fs/create-dirs "target")
-                        (clojure params))}
 
          ;; Used for interacting with production.
          deploy           com.biffweb.tasks/deploy
