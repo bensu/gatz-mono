@@ -11,7 +11,9 @@
             [ring.middleware.cors :refer [wrap-cors]]
             [malli.core :as malc]
             [malli.registry :as malr]
-            [nrepl.cmdline :as nrepl-cmd]))
+            [nrepl.cmdline :as nrepl-cmd]
+            [xtdb.jdbc.psql])
+  (:import [java.time Duration]))
 
 (def plugins
   [api/plugin
@@ -71,11 +73,34 @@
         (assoc k a)
         (update :biff/stop conj #(reset! a initial-state)))))
 
+(defn jdbc-spec []
+  {:jdbcUrl "..."
+                                              ;; OR
+   :host "..."
+   :dbname "..."
+   :user "..."
+   :password "..."}
+  (let [db-spec (biff/secret :db/spec)]
+    (if (string? db-spec)
+      (edn/read-string db-spec)
+      db-spec)))
+
 (def components
   [biff/use-config
    biff/use-secrets
    (partial use-atom :conns-state conns/init-state)
-   biff/use-xt
+   biff/use-tx
+;;   #(biff/use-xt
+;;     %
+;;     {:xtdb/document-store {:xtdb/module 'xtdb.jdbc/->document-store
+;;                            :connection-pool {:dialect {:xtdb/module 'xtdb.jdbc.psql/->dialect}
+;;                                              ;; :pool-opts {...}
+;;                                              :db-spec (jdbc-spec)}}
+;;      :xtdb/tx-log {:xtdb/module 'xtdb.jdbc/->tx-log
+;;                    :connection-pool {:dialect {:xtdb/module 'xtdb.jdbc.psql/->dialect}
+;;                                     ;; :pool-opts {...}
+;;                                      :db-spec (jdbc-spec)}
+;;                    :poll-sleep-duration (Duration/ofSeconds 1)}})
    biff/use-queues
    biff/use-tx-listener
    biff/use-jetty
