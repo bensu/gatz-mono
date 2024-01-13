@@ -82,7 +82,8 @@
    biff/use-tx-listener
    (fn [{:keys [biff/secret] :as ctx}]
      (println (secret :biff/port))
-     (let [port (mt/-string->long (secret :biff/port))]
+     (let [port (or (Integer/parseInt (System/getenv "PORT"))
+                    (mt/-string->long (secret :biff/port)))]
        (assert (some? port))
        (biff/use-jetty (assoc ctx :biff/port port))))
    biff/use-chime
