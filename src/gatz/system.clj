@@ -101,7 +101,7 @@
 
 (defn -main [& args]
   (start)
-  (apply nrepl-cmd/-main args))
+  #_(apply nrepl-cmd/-main args))
 
 (defn refresh []
   (doseq [f (:biff/stop @system)]
