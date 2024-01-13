@@ -77,6 +77,8 @@
      (let [secret (:biff/secret ctx)
            jdbc-url (secret :biff.xtdb.jdbc/jdbcUrl)]
        (assert (some? jdbc-url))
+       (println jdbc-url)
+       (println (secret :biff.xtdb.jdbc/password))
        (biff/use-xt (assoc ctx :biff.xtdb.jdbc/jdbcUrl jdbc-url))))
    biff/use-queues
    biff/use-tx-listener
