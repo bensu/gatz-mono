@@ -73,7 +73,11 @@
   [biff/use-config
    biff/use-secrets
    #(use-atom % :conns-state conns/init-state)
-   biff/use-xt
+   (fn [ctx]
+     (let [secret (:biff/secret ctx)
+           jdbc-url (secret :biff.xtdb.jdbc/jdbcUrl)]
+       (assert (some? jdbc-url))
+       (biff/use-xt (assoc ctx :biff.xtdb.jdbc/jdbcUrl jdbc-url))))
    biff/use-queues
    biff/use-tx-listener
    biff/use-jetty

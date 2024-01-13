@@ -46,7 +46,7 @@
        ;; :biff.xtdb.jdbc/dbname "gatz_dev"
        ;; :biff.xtdb.jdbc/host "127.0.0.1"
        ;; :biff.xtdb.jdbc/port 5432
-       :biff.xtdb.jdbc/jdbcUrl "jdbc:postgresql://localhost:5432/gatz_dev"
+      ;;  :biff.xtdb.jdbc/jdbcUrl "jdbc:postgresql://localhost:5432/gatz_dev"
        ;; TODO: make a special gatz user
       ;; :biff.xtdb.jdbc/user "bensu"
        }
