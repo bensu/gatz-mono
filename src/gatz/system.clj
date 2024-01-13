@@ -12,7 +12,8 @@
             [malli.core :as malc]
             [malli.registry :as malr]
             [nrepl.cmdline :as nrepl-cmd]
-            [xtdb.jdbc.psql]))
+            [xtdb.jdbc.psql])
+  (:import [org.postgresql Driver]))
 
 (def plugins
   [api/plugin
