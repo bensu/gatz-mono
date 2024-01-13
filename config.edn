@@ -21,7 +21,7 @@
         :recaptcha/secret-key "RECAPTCHA_SECRET_KEY"
         :biff.beholder/enabled false
         :biff.middleware/cookie-secret "COOKIE_SECRET"
-        :biff/port "HTTP_PORT"
+        :biff/port "PORT"
         :biff/jwt-secret "JWT_SECRET"}
  :dev {:merge [:prod]
        :biff.beholder/enabled true
