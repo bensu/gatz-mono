@@ -25,8 +25,9 @@
 (def routes [["" {:middleware [biff/wrap-site-defaults]}
               (keep :routes plugins)]
              ["" {:middleware [biff/wrap-api-defaults
+                               ;; TODO: be more restrictive
                                #(wrap-cors %
-                                           :access-control-allow-origin [#"http://localhost:8081"]
+                                           :access-control-allow-origin [#".*"]
                                            :access-control-allow-methods [:get :put :post :delete])]}
               (keep :api-routes plugins)]])
 
