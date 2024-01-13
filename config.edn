@@ -3,20 +3,8 @@
         :biff.xtdb/topology :jdbc 
         ;; TODO: set up heroku
         :biff.xtdb.jdbc/dbtype "postgresql"
-        ;; :biff.xtdb.jdbc/dbname "gatz_dev"
-        ;; :biff.xtdb.jdbc/host "127.0.0.1"
-        ;; :biff.xtdb.jdbc/port 5432
-        ;; :biff.xtdb.jdbc/password "JDBC_PASSWORD" ;; Leave this as-is, and update secrets.env
         :biff.xtdb.jdbc/jdbcUrl "JDBC_DATABASE_URL"
 
-        ;; Standalone topology in production isn't recommended for anything
-        ;; serious. You can uncomment the following to use managed postgres
-        ;; instead.
-        ;; :biff.xtdb/topology :jdbc
-        ;; :biff.xtdb.jdbc/user "user"
-        ;; :biff.xtdb.jdbc/host "host"
-        ;; :biff.xtdb.jdbc/port 5432
-        ;; :biff.xtdb.jdbc/dbname "dbname"
         :biff/base-url "https://example.com"
         ;; Postmark is used to send email sign-in links. Create an account at
         ;; https://postmarkapp.com
