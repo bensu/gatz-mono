@@ -1,1 +1,1 @@
-web: java -jar target/uberjar/gatz-web-standalone.jar
+web: java -jar target/uberjar/gatz-web-standalone.jar --port $PORT

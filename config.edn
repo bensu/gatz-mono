@@ -6,7 +6,7 @@
         :biff.xtdb.jdbc/jdbcUrl "JDBC_DATABASE_URL"
         :biff.xtdb.jdbc/password "JDBC_PASSWORD"
 
-        :biff/base-url "https://example.com"
+        :biff/base-url "http://gatz.chat"
         ;; Postmark is used to send email sign-in links. Create an account at
         ;; https://postmarkapp.com
         :postmark/api-key "POSTMARK_API_KEY"
@@ -22,12 +22,12 @@
         :biff.beholder/enabled false
         :biff.middleware/cookie-secret "COOKIE_SECRET"
         :biff/port "PORT"
+        :biff/host "0.0.0.0"
         :biff/jwt-secret "JWT_SECRET"}
  :dev {:merge [:prod]
        :biff.beholder/enabled true
-       :biff/host "0.0.0.0"
        :biff/base-url "http://localhost:8080"
-
+       :biff/host "0.0.0.0"
        :biff.middleware/secure false
 
        ;; :biff.xtdb.jdbc/dbtype "postgresql"

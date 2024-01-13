@@ -85,7 +85,7 @@
      (let [port (or (Integer/parseInt (System/getenv "PORT"))
                     (mt/-string->long (secret :biff/port)))]
        (assert (some? port))
-       (biff/use-jetty (assoc ctx :biff/port port))))
+       (biff/use-jetty (assoc ctx :biff/port port :biff/host "0.0.0.0"))))
    biff/use-chime
    biff/use-beholder])
 
