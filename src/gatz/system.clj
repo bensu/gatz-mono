@@ -11,6 +11,7 @@
             [ring.middleware.cors :refer [wrap-cors]]
             [malli.core :as malc]
             [malli.registry :as malr]
+            [malli.transform :as mt]
             [nrepl.cmdline :as nrepl-cmd]
             [xtdb.jdbc.psql])
   (:import [org.postgresql Driver]))
@@ -73,16 +74,16 @@
   [biff/use-config
    biff/use-secrets
    #(use-atom % :conns-state conns/init-state)
-   (fn [ctx]
-     (let [secret (:biff/secret ctx)
-           jdbc-url (secret :biff.xtdb.jdbc/jdbcUrl)]
+   (fn [{:keys [biff/secret] :as ctx}]
+     (let [jdbc-url (secret :biff.xtdb.jdbc/jdbcUrl)]
        (assert (some? jdbc-url))
-       (println jdbc-url)
-       (println (secret :biff.xtdb.jdbc/password))
        (biff/use-xt (assoc ctx :biff.xtdb.jdbc/jdbcUrl jdbc-url))))
    biff/use-queues
    biff/use-tx-listener
-   biff/use-jetty
+   (fn [{:keys [biff/secret] :as ctx}]
+     (let [port (mt/-string->long (secret :biff/port))]
+       (assert (some? port))
+       (biff/use-jetty (assoc ctx :biff/port port))))
    biff/use-chime
    biff/use-beholder])
 
