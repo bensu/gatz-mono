@@ -66,7 +66,6 @@
 
 (defn use-atom [ctx k initial-state]
   {:pre [(keyword? k)]}
-  (println "use atom setup")
   (let [a (atom initial-state)]
     (-> ctx
         (assoc k a)
@@ -80,6 +79,7 @@
      (let [jdbc-url (-> (str "jdbc:" (secret :biff.xtdb.jdbc/jdbcUrl))
                         (str/replace "postgres://" "postgresql://"))]
        (assert (some? jdbc-url))
+       (println jdbc-url)
        (biff/use-xt (assoc ctx :biff.xtdb.jdbc/jdbcUrl jdbc-url))))
    biff/use-queues
    biff/use-tx-listener
