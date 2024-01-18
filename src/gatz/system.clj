@@ -14,6 +14,7 @@
             [malli.registry :as malr]
             [malli.transform :as mt]
             [nrepl.cmdline :as nrepl-cmd]
+            [to-jdbc-uri.core :refer [to-jdbc-uri]]
             [xtdb.jdbc.psql])
   (:import [org.postgresql Driver]))
 
@@ -71,13 +72,24 @@
         (assoc k a)
         (update :biff/stop conj #(reset! a initial-state)))))
 
+(comment
+  (defn parse-jdbc-uri [uri-s]
+    {:pre [(string? uri-s)]}
+    (let [uri (java.net.URI. uri-s)
+          user-info (.getUserInfo uri)
+          [user password] (str/split user-info #":")]
+      {:host (.getHost uri)
+       :db (str/replace-first (.getPath uri) "/" "")
+       :port (.getPort uri)
+       :user user
+       :password password})))
+
 (def components
   [biff/use-config
    biff/use-secrets
    #(use-atom % :conns-state conns/init-state)
    (fn [{:keys [biff/secret] :as ctx}]
-     (let [jdbc-url (-> (str "jdbc:" (secret :biff.xtdb.jdbc/jdbcUrl))
-                        (str/replace "postgres://" "postgresql://"))]
+     (let [jdbc-url (to-jdbc-uri (secret :biff.xtdb.jdbc/jdbcUrl))]
        (assert (some? jdbc-url))
        (println jdbc-url)
        (biff/use-xt (assoc ctx :biff.xtdb.jdbc/jdbcUrl jdbc-url))))
@@ -104,7 +116,7 @@
 
 (defn -main [& args]
   (start)
-  #_(apply nrepl-cmd/-main args))
+  (apply nrepl-cmd/-main args))
 
 (defn refresh []
   (doseq [f (:biff/stop @system)]

@@ -11,4 +11,5 @@
         ring-cors/ring-cors {:mvn/version "0.1.13"}
         org.jsoup/jsoup {:mvn/version "1.11.3"}
         org.clojure/clojure {:mvn/version "1.11.1"}
-        org.slf4j/slf4j-simple {:mvn/version "2.0.0-alpha5"}}}
+        org.slf4j/slf4j-simple {:mvn/version "2.0.0-alpha5"}
+        com.carouselapps/to-jdbc-uri {:mvn/version "0.5.0"}}}
