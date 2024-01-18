@@ -101,7 +101,7 @@
         messages  (messages-by-did db did)]
     (assert discussion)
     {:discussion discussion
-     :user-ids (set (map :message/user_id messages))
+     :user_ids (set (map :message/user_id messages))
      :messages messages}))
 
 (defn create-discussion!

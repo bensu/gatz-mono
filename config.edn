@@ -3,7 +3,7 @@
         :biff.xtdb/topology :jdbc 
         ;; TODO: set up heroku
         :biff.xtdb.jdbc/dbtype "postgresql"
-        :biff.xtdb.jdbc/jdbcUrl "JDBC_DATABASE_URL"
+        :biff.xtdb.jdbc/jdbcUrl "DATABASE_URL"
         :biff.xtdb.jdbc/password "JDBC_PASSWORD"
 
         :biff/base-url "http://gatz.chat"

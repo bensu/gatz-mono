@@ -78,7 +78,7 @@
    (fn [{:keys [biff/secret] :as ctx}]
      (let [jdbc-url (secret :biff.xtdb.jdbc/jdbcUrl)]
        (assert (some? jdbc-url))
-       (biff/use-xt (assoc ctx :biff.xtdb.jdbc/jdbcUrl jdbc-url))))
+       (biff/use-xt (assoc ctx :biff.xtdb.jdbc/jdbcUrl (str "jdbc:" jdbc-url)))))
    biff/use-queues
    biff/use-tx-listener
    (fn [{:keys [biff/secret] :as ctx}]

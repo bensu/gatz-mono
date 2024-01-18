@@ -65,9 +65,9 @@
 
 (defn get-discussion [{:keys [biff/db params] :as _ctx}]
   (let [did (mt/-string->uuid (:id params))
-        {:keys [discussion messages user-ids]} (db/discussion-by-id db did)]
+        {:keys [discussion messages user_ids]} (db/discussion-by-id db did)]
     (json-response {:discussion discussion
-                    :users (map (partial db/user-by-id db) user-ids)
+                    :users (map (partial db/user-by-id db) user_ids)
                     :messages messages})))
 
 ;; discrepancy in how this gets params
