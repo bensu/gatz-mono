@@ -5,6 +5,7 @@
             [gatz.api :as api]
             [gatz.schema :as schema]
             [gatz.connections :as conns]
+            [clojure.string :as str]
             [clojure.test :as test]
             [clojure.tools.logging :as log]
             [clojure.tools.namespace.repl :as tn-repl]
@@ -76,9 +77,10 @@
    biff/use-secrets
    #(use-atom % :conns-state conns/init-state)
    (fn [{:keys [biff/secret] :as ctx}]
-     (let [jdbc-url (secret :biff.xtdb.jdbc/jdbcUrl)]
+     (let [jdbc-url (-> (str "jdbc:" (secret :biff.xtdb.jdbc/jdbcUrl))
+                        (str/replace "postgres://" "postgresql://"))]
        (assert (some? jdbc-url))
-       (biff/use-xt (assoc ctx :biff.xtdb.jdbc/jdbcUrl (str "jdbc:" jdbc-url)))))
+       (biff/use-xt (assoc ctx :biff.xtdb.jdbc/jdbcUrl jdbc-url))))
    biff/use-queues
    biff/use-tx-listener
    (fn [{:keys [biff/secret] :as ctx}]
