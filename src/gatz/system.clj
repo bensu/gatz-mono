@@ -92,7 +92,13 @@
      (let [jdbc-url (to-jdbc-uri (secret :biff.xtdb.jdbc/jdbcUrl))]
        (assert (some? jdbc-url))
        (println jdbc-url)
-       (biff/use-xt (assoc ctx :biff.xtdb.jdbc/jdbcUrl jdbc-url))))
+       (-> ctx
+           (assoc :biff.xtdb.jdbc/jdbcUrl jdbc-url)
+           ;; if biff/secret is present, biff/use-tx tries to pull password out of it, 
+           ;; which Heroku doesn't provide
+           (dissoc :biff/secret)
+           (biff/use-xt)
+           (assoc :biff/secret secret))))
    biff/use-queues
    biff/use-tx-listener
    (fn [{:keys [biff/secret] :as ctx}]
