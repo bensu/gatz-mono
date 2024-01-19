@@ -4,7 +4,7 @@
         ;; TODO: set up heroku
         :biff.xtdb.jdbc/dbtype "postgresql"
         :biff.xtdb.jdbc/jdbcUrl "DATABASE_URL"
-        :biff.xtdb.jdbc/password "JDBC_PASSWORD"
+        ;; :biff.xtdb.jdbc/password "JDBC_PASSWORD"
 
         :biff/base-url "http://gatz.chat"
         ;; Postmark is used to send email sign-in links. Create an account at
