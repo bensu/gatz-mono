@@ -19,7 +19,8 @@
    [:discussion/created_by :user/id]
    [:discussion/created_at inst?]
    [:discussion/updated_at inst?]
-   [:discussion/members [:set :user/id]]])
+   [:discussion/members [:set :user/id]]
+   [:discussion/seen_at [:map-of :user/id inst?]]])
 
 (def message
   [:map

@@ -91,14 +91,17 @@
 ;; ====================================================================== 
 ;; Discussion 
 
+(defn d-by-id [db did]
+  (first (q db '{:find (pull d [*])
+                 :in [did]
+                 :where [[d :xt/id did]
+                         [d :db/type :gatz/discussion]]}
+            did)))
+
 (defn discussion-by-id [db did]
   {:pre [(uuid? did)]}
-  (let [discussion (first (q db '{:find (pull d [*])
-                                  :in [did]
-                                  :where [[d :xt/id did]
-                                          [d :db/type :gatz/discussion]]}
-                             did))
-        messages  (messages-by-did db did)]
+  (let [discussion (d-by-id db did)
+        messages (messages-by-did db did)]
     (assert discussion)
     {:discussion discussion
      :user_ids (:discussion/members discussion)
@@ -121,9 +124,18 @@
            :discussion/created_by user-id
            :discussion/created_at now
            :discussion/updated_at now
+           :discussion/seen_at {}
            :discussion/members (conj (set member-uids) user-id)}]
     (biff/submit-tx ctx [d])
     d))
+
+(defn mark-as-seen! [{:keys [biff/db] :as ctx} uid did now]
+  {:pre [(uuid? did) (uuid? uid) (inst? now)]}
+  (let [d (d-by-id db did)
+        seen-at (:discussion/seen_at d {})]
+    (biff/submit-tx ctx [(assoc d
+                                :db/doc-type :gatz/discussion
+                                :discussion/seen_at (assoc seen-at uid now))])))
 
 (defn add-member! [ctx p]
   (let [d (discussion-by-id (:biff/db ctx) (:discussion/id p))

@@ -70,6 +70,15 @@
                     :users (map (partial db/user-by-id db) user_ids)
                     :messages messages})))
 
+(defn mark-seen! [{:keys [biff/db auth/user-id params] :as ctx}]
+  {:pre [(uuid? user-id)]}
+  (let [did (mt/-string->uuid (:did params))]
+    (db/mark-as-seen! ctx user-id did (java.util.Date.))
+    (let [{:keys [discussion messages user_ids]} (db/discussion-by-id db did)]
+      (json-response {:discussion discussion
+                      :users (map (partial db/user-by-id db) user_ids)
+                      :messages messages}))))
+
 ;; discrepancy in how this gets params
 (defn get-full-discussions [{:keys [biff/db auth/user-id] :as _ctx}]
   (def -dctx _ctx)
@@ -267,5 +276,6 @@
                  ["/message" {:post create-message!}]
                  ["/discussions" {:get get-full-discussions
                                   :post create-discussion!}]
-                 ["/discussion" {:get get-discussion}]]]
+                 ["/discussion" {:get get-discussion}]
+                 ["/discussion/mark-seen" {:post mark-seen!}]]]
    :on-tx on-tx})
