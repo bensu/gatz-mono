@@ -125,6 +125,7 @@
            :discussion/created_at now
            :discussion/updated_at now
            :discussion/seen_at {}
+           :discussion/archived_at {}
            :discussion/members (conj (set member-uids) user-id)}]
     (biff/submit-tx ctx [d])
     d))
@@ -133,9 +134,18 @@
   {:pre [(uuid? did) (uuid? uid) (inst? now)]}
   (let [d (d-by-id db did)
         seen-at (:discussion/seen_at d {})]
+    (biff/submit-tx ctx [(merge {:discussion/archived_at {}}
+                                (assoc d
+                                       :db/doc-type :gatz/discussion
+                                       :discussion/seen_at (assoc seen-at uid now)))])))
+
+(defn archive! [{:keys [biff/db] :as ctx} uid did now]
+  {:pre [(uuid? did) (uuid? uid) (inst? now)]}
+  (let [d (d-by-id db did)
+        archive-at (:discussion/archived_at d {})]
     (biff/submit-tx ctx [(assoc d
                                 :db/doc-type :gatz/discussion
-                                :discussion/seen_at (assoc seen-at uid now))])))
+                                :discussion/archived_at (assoc archive-at uid now))])))
 
 (defn add-member! [ctx p]
   (let [d (discussion-by-id (:biff/db ctx) (:discussion/id p))
