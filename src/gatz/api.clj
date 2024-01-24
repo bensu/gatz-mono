@@ -96,10 +96,12 @@
         users (db/all-users db)]
     (json-response {:discussions ds :users users})))
 
-(defn create-discussion! [{:keys [params] :as ctx}]
+(defn create-discussion! [{:keys [params biff/db] :as ctx}]
   (def -ctx ctx)
-  (let [d (db/create-discussion! ctx params)]
-    (json-response {:discussion d})))
+  (let [{:keys [:discussion/members] :as d} (db/create-discussion! ctx params)]
+    (json-response {:discussion d
+                    :users (mapv (partial db/user-by-id db) members)
+                    :messages []})))
 
 (defn add-member! [{:keys [params auth/user-id] :as ctx}]
   (let [did (mt/-string->uuid (:discussion_id params))
