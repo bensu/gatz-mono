@@ -133,19 +133,21 @@
 (defn mark-as-seen! [{:keys [biff/db] :as ctx} uid did now]
   {:pre [(uuid? did) (uuid? uid) (inst? now)]}
   (let [d (d-by-id db did)
-        seen-at (:discussion/seen_at d {})]
-    (biff/submit-tx ctx [(merge {:discussion/archived_at {}}
-                                (assoc d
-                                       :db/doc-type :gatz/discussion
-                                       :discussion/seen_at (assoc seen-at uid now)))])))
+        seen-at (:discussion/seen_at d {})
+        d (-> {:discussion/archived_at {}}
+              (merge d)
+              (assoc :discussion/seen_at (assoc seen-at uid now)))]
+    (biff/submit-tx ctx [(assoc d :db/doc-type :gatz/discussion)])
+    d))
 
 (defn archive! [{:keys [biff/db] :as ctx} uid did now]
   {:pre [(uuid? did) (uuid? uid) (inst? now)]}
   (let [d (d-by-id db did)
-        archive-at (:discussion/archived_at d {})]
-    (biff/submit-tx ctx [(assoc d
-                                :db/doc-type :gatz/discussion
-                                :discussion/archived_at (assoc archive-at uid now))])))
+        archive-at (:discussion/archived_at d {})
+        d (assoc d :discussion/archived_at (assoc archive-at uid now))]
+    (biff/submit-tx ctx [(assoc d :db/doc-type :gatz/discussion)])
+    d))
+
 
 (defn add-member! [ctx p]
   (let [d (discussion-by-id (:biff/db ctx) (:discussion/id p))
