@@ -5,7 +5,7 @@
   [:map
    [:xt/id :user/id]
    [:db/type [:enum :gatz/user]]
-   [:user/name :string]
+   [:user/name string?]
    [:user/created_at inst?]
    [:user/updated_at inst?]
    [:user/image [:maybe string?]]])
@@ -15,7 +15,7 @@
    [:xt/id :discussion/id]
    [:db/type [:enum :gatz/discussion]]
    [:discussion/did :discussion/id]
-   [:discussion/name :string]
+   [:discussion/name [:maybe string?]]
    [:discussion/created_by :user/id]
    [:discussion/created_at inst?]
    [:discussion/updated_at inst?]

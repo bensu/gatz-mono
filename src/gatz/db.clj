@@ -111,7 +111,8 @@
 
   [{:keys [auth/user-id] :as ctx} {:keys [name selected_users]}]
 
-  {:pre [(string? name) (not (empty? name))]}
+  {:pre [(or (nil? name)
+             (and (string? name) (not (empty? name))))]}
 
   (let [now (java.util.Date.)
         did (random-uuid)
