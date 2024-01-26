@@ -1,1 +1,2 @@
-{submit-tx [[:inner 0]]}
+{submit-tx [[:inner 0]]
+ gatz.api/if-authorized-for-discussion 2}

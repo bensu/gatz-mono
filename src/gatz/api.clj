@@ -63,30 +63,48 @@
 ;; ====================================================================== 
 ;; Discussions 
 
-(defn get-discussion [{:keys [biff/db params] :as _ctx}]
+(defmacro if-authorized-for-discussion [[user-id d] body]
+  `(if (contains? (:discussion/members ~d) ~user-id)
+     (do ~@body)
+     (err-resp "not_in_discussion" "You are not in this discussion")))
+
+(defmacro if-admin-for-discussion [[user-id d] body]
+  `(if (= (:discussion/created_by ~d) ~user-id)
+     (do ~@body)
+     (err-resp "not_admin" "You are not an admin for this discussion")))
+
+(defn get-discussion [{:keys [biff/db params auth/user-id] :as _ctx}]
   (let [did (mt/-string->uuid (:id params))
         {:keys [discussion messages user_ids]} (db/discussion-by-id db did)]
-    (json-response {:discussion discussion
-                    :users (map (partial db/user-by-id db) user_ids)
-                    :messages messages})))
+    (if-authorized-for-discussion
+     [user-id discussion]
+     (json-response {:discussion discussion
+                     :users (map (partial db/user-by-id db) user_ids)
+                     :messages messages}))))
 
 (defn mark-seen! [{:keys [biff/db auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
   (let [did (mt/-string->uuid (:did params))
-        d (db/mark-as-seen! ctx user-id did (java.util.Date.))
-        {:keys [messages user_ids]} (db/discussion-by-id db did)]
-    (json-response {:discussion d
-                    :users (map (partial db/user-by-id db) user_ids)
-                    :messages messages})))
+        d (db/d-by-id db did)]
+    (if-authorized-for-discussion
+     [user-id d]
+     (let [d (db/mark-as-seen! ctx user-id did (java.util.Date.))
+           {:keys [messages user_ids]} (db/discussion-by-id db did)]
+       (json-response {:discussion d
+                       :users (map (partial db/user-by-id db) user_ids)
+                       :messages messages})))))
 
 (defn archive! [{:keys [biff/db auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
   (let [did (mt/-string->uuid (:did params))
-        d (db/archive! ctx user-id did (java.util.Date.))
-        {:keys [messages user_ids]} (db/discussion-by-id db did)]
-    (json-response {:discussion d
-                    :users (map (partial db/user-by-id db) user_ids)
-                    :messages messages})))
+        d (db/d-by-id db did)]
+    (if-authorized-for-discussion
+     [user-id d]
+     (let  [d (db/archive! ctx user-id did (java.util.Date.))
+            {:keys [messages user_ids]} (db/discussion-by-id db did)]
+       (json-response {:discussion d
+                       :users (map (partial db/user-by-id db) user_ids)
+                       :messages messages})))))
 
 ;; discrepancy in how this gets params
 (defn get-full-discussions [{:keys [biff/db auth/user-id] :as _ctx}]
@@ -103,13 +121,15 @@
                     :users (mapv (partial db/user-by-id db) members)
                     :messages []})))
 
-(defn add-member! [{:keys [params auth/user-id] :as ctx}]
+(defn add-member! [{:keys [params auth/user-id biff/db] :as ctx}]
   (let [did (mt/-string->uuid (:discussion_id params))
         uid (mt/-string->uuid (:user_id params))]
     (if (and (uuid? did) (uuid? did))
-      ;; check if auth/id is admin
-      (let [d (db/add-member! ctx {:discussion/id did :user/id uid})]
-        (json-response {:discussion d}))
+      (let [d (db/d-by-id db did)]
+        (if-admin-for-discussion
+         [user-id d]
+         (let [d (db/add-member! ctx {:discussion/id did :user/id uid})]
+           (json-response {:discussion d}))))
       {:status 400 :body "invalid params"})))
 
 ;; ====================================================================== 
