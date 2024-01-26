@@ -38,7 +38,6 @@
 
 (defn sign-in!
   [{:keys [params biff/db] :as ctx}]
-  (def -ctx ctx)
   ;; TODO: do params validation
   (if-let [username (:username params)]
     (if-let [user (db/user-by-name db username)]
@@ -49,7 +48,6 @@
 
 (defn sign-up!
   [{:keys [params biff/db] :as ctx}]
-  (def -ctx ctx)
   ;; TODO: do params validation
   (if-let [username (:username params)]
     (if (some? (db/user-by-name db username))
@@ -63,15 +61,20 @@
 ;; ====================================================================== 
 ;; Discussions 
 
-(defmacro if-authorized-for-discussion [[user-id d] body]
-  `(if (contains? (:discussion/members ~d) ~user-id)
-     (do ~@body)
-     (err-resp "not_in_discussion" "You are not in this discussion")))
+(defmacro if-authorized-for-discussion [[user-id d] & body]
+  `(cond
+     (nil? ~user-id) (err-resp "not_logged_in" "You are not logged in")
+     (nil? ~d) (err-resp "discussion_not_found" "Discussion not found")
+     (contains? (:discussion/members ~d) ~user-id) (do ~@body)
+     :else (err-resp "not_in_discussion" "You are not in this discussion")))
 
-(defmacro if-admin-for-discussion [[user-id d] body]
-  `(if (= (:discussion/created_by ~d) ~user-id)
+(defmacro if-admin-for-discussion [[user-id d] & body]
+  `(cond
+     (nil? ~user-id) (err-resp "not_logged_in" "You are not logged in")
+     (nil? ~d) (err-resp "discussion_not_found" "Discussion not found")
+     (= (:discussion/created_by ~d) ~user-id)
      (do ~@body)
-     (err-resp "not_admin" "You are not an admin for this discussion")))
+     :else (err-resp "not_admin" "You are not an admin for this discussion")))
 
 (defn get-discussion [{:keys [biff/db params auth/user-id] :as _ctx}]
   (let [did (mt/-string->uuid (:id params))
@@ -100,22 +103,20 @@
         d (db/d-by-id db did)]
     (if-authorized-for-discussion
      [user-id d]
-     (let  [d (db/archive! ctx user-id did (java.util.Date.))
-            {:keys [messages user_ids]} (db/discussion-by-id db did)]
+     (let [d (db/archive! ctx user-id did (java.util.Date.))
+           {:keys [messages user_ids]} (db/discussion-by-id db did)]
        (json-response {:discussion d
                        :users (map (partial db/user-by-id db) user_ids)
                        :messages messages})))))
 
 ;; discrepancy in how this gets params
 (defn get-full-discussions [{:keys [biff/db auth/user-id] :as _ctx}]
-  (def -dctx _ctx)
   (let [dis (db/discussions-by-user-id db user-id)
         ds (map (partial db/discussion-by-id db) dis)
         users (db/all-users db)]
     (json-response {:discussions ds :users users})))
 
 (defn create-discussion! [{:keys [params biff/db] :as ctx}]
-  (def -ctx ctx)
   (let [{:keys [:discussion/members] :as d} (db/create-discussion! ctx params)]
     (json-response {:discussion d
                     :users (mapv (partial db/user-by-id db) members)
@@ -135,10 +136,17 @@
 ;; ====================================================================== 
 ;; Messages
 
-(defn create-message! [{:keys [params] :as ctx}]
+(defn create-message! [{:keys [params biff/db auth/user-id] :as ctx}]
   (def -mctx ctx)
-  (let [msg (db/create-message! ctx params)]
-    (json-response {:message msg})))
+  (let [{:keys [text id discussion_id]} params
+        mid (or (some-> id mt/-string->uuid)
+                (random-uuid))
+        did (mt/-string->uuid discussion_id)
+        d (db/d-by-id db did)]
+    (if-authorized-for-discussion
+     [user-id d]
+     (let [msg (db/create-message! ctx {:did did :mid mid :text text})]
+       (json-response {:message msg})))))
 
 (defn fetch-messages [db]
   (q db
@@ -202,7 +210,6 @@
 
 ;; TODO: fix to send message
 (defn on-new-message [{:keys [biff.xtdb/node conns-state] :as nctx} tx]
-  (def -nctx nctx)
   (println "tx:" tx)
   (let [db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
     (doseq [[op & args] (::xt/tx-ops tx)]
@@ -221,7 +228,6 @@
 ;; TODO: if a user is added to a discussion, they should be registered too
 
 (defn on-new-discussion [{:keys [biff.xtdb/node conns-state] :as nctx} tx]
-  (def -dctx nctx)
   (println "tx:" tx)
   (let [db-after (xt/db node)
         db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
@@ -281,7 +287,6 @@
      :body (json/write-str {:log/id (str log-id) :params params})}))
 
 (defn cached-log [{:keys [headers] :as _ctx}]
-  (def -log-ctx _ctx)
   (let [file (headers->file headers)
         contents (json/read-str (slurp file))]
     {:status 200

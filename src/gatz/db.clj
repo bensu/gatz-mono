@@ -53,26 +53,23 @@
 ;; ====================================================================== 
 ;; Messages
 
-(defn ->uuid [s]
-  (if (string? s)
-    (try
-      (java.util.UUID/fromString s)
-      (catch Exception _ nil))))
+#_(defn ->uuid [s]
+    (if (string? s)
+      (try
+        (java.util.UUID/fromString s)
+        (catch Exception _ nil))))
 
 (defn create-message!
-  [{:keys [auth/user-id] :as ctx}
-   {:keys [text id discussion_id]}]
 
-  {:pre [(string? text) (uuid? user-id)]}
+  [{:keys [auth/user-id] :as ctx}
+   {:keys [text mid did]}]
+
+  {:pre [(string? text) (uuid? mid) (uuid? did) (uuid? user-id)]}
 
   (let [now (java.util.Date.)
-        msg-id (or (some-> id ->uuid)
-                   (random-uuid))
-        _ (assert (uuid? msg-id))
-        did (mt/-string->uuid discussion_id)
         msg {:db/doc-type :gatz/message
              :db/type :gatz/message
-             :xt/id msg-id
+             :xt/id mid
              :message/did did
              :message/created_at now
              :message/updated_at now

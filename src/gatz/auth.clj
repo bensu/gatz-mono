@@ -15,10 +15,8 @@
     (catch Exception _e
       nil)))
 
-
 (defn wrap-api-auth [handler]
   (fn [{:keys [headers params] :as ctx}]
-    (def -ctx ctx)
     (if-let [token (or (get headers "authorization")
                        (get params :token))]
       (if-let [auth-payload (verify-auth-token token)]
