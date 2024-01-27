@@ -18,15 +18,20 @@
           :form-params {:Channel "sms" :To phone}})
         :body)))
 
+(def MAX_ATTEMPTS_REACHED 60202)
+
 (defn check-code!
   "Checks if the code is the right one. Returns either true or false if the code is invalid"
   [env {:keys [phone code]}]
   (if (= TEST_PHONE phone)
     {:sid "test_twilio_sid" :status "approved" :send_code_attempts []}
-    (-> (format "https://verify.twilio.com/v2/Services/%s/VerificationCheck"
-                (env :twilio/verify-service))
-        (http/post
-         {:basic-auth [(env :twilio/sid) (env :twilio/auth-token)]
-          :as :json
-          :form-params {:Code code :To phone}})
-        :body)))
+    (let [r (-> (format "https://verify.twilio.com/v2/Services/%s/VerificationCheck"
+                        (env :twilio/verify-service))
+                (http/post
+                 {:basic-auth [(env :twilio/sid) (env :twilio/auth-token)]
+                  :as :json
+                  :form-params {:Code code :To phone}})
+                :body)]
+      (if (= MAX_ATTEMPTS_REACHED (:code r))
+        {:status "failed" :send_code_attempts []}
+        r))))

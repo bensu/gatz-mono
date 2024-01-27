@@ -90,11 +90,9 @@
 
 (defn clean-code [s] (-> s str/trim))
 
-(defn twilio-to-status [v] (:status v))
-
 (defn twilio-to-response [v]
   {:id (:sid v)
-   :status (twilio-to-status v)
+   :status (:status v)
    :attempts (- 6 (count (:send_code_attempts v)))})
 
 (defn verify-phone! [{:keys [params biff/db biff/secret] :as _ctx}]
@@ -113,10 +111,12 @@
         phone (clean-phone phone_number)
         code (clean-code code)
         v (twilio/check-code! secret {:phone phone :code code})
-        approved? (= "approved" (twilio-to-status v))]
+        approved? (= "approved" (:status v))]
     (json-response
      (merge {:phone_number phone}
             (twilio-to-response v)
+            (when-not approved?
+              {:status "wrong_code"})
             (when approved?
               (when-let [user (db/user-by-phone db phone)]
                 {:user user
