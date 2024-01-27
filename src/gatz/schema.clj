@@ -8,6 +8,7 @@
    [:user/name string?]
    [:user/created_at inst?]
    [:user/updated_at inst?]
+   [:user/phone_number string?]
    [:user/image [:maybe string?]]])
 
 (def discussion

@@ -6,6 +6,10 @@
         :biff.xtdb.jdbc/jdbcUrl "DATABASE_URL"
         ;; :biff.xtdb.jdbc/password "JDBC_PASSWORD"
 
+        :twilio/verify-service "TWILIO_VERIFY_SERVICE"
+        :twilio/sid "TWILIO_SID"
+        :twilio/auth-token "TWILIO_AUTH_TOKEN"
+
         :biff/base-url "http://gatz.chat"
         ;; Postmark is used to send email sign-in links. Create an account at
         ;; https://postmarkapp.com

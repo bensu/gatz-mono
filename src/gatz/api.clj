@@ -1,14 +1,16 @@
 (ns gatz.api
   "All the operations but in an API"
   (:require [com.biffweb :as biff :refer [q]]
-            [gatz.connections :as conns]
-            [gatz.db :as db]
             [clojure.data.json :as json]
             [clojure.java.io :as io]
+            [clojure.string :as str]
+            [gatz.auth :as auth]
+            [gatz.connections :as conns]
+            [gatz.db :as db]
             [malli.transform :as mt]
             [ring.adapter.jetty9 :as jetty]
-            [xtdb.api :as xt]
-            [gatz.auth :as auth]))
+            [twilio.api :as twilio]
+            [xtdb.api :as xt]))
 
 (defn json-response [body]
   {:status 200
@@ -37,7 +39,7 @@
     (err-resp "username_taken" "Username is already taken")))
 
 (defn sign-in!
-  [{:keys [params biff/db] :as ctx}]
+  [{:keys [params biff/db] :as _ctx}]
   ;; TODO: do params validation
   (if-let [username (:username params)]
     (if-let [user (db/user-by-name db username)]
@@ -46,17 +48,84 @@
       (err-resp "user_not_found" "Username not found"))
     (err-resp "invalid_username" "Invalid username")))
 
+(defn clean-username [s] (-> s str/trim))
+
+(defn clean-phone
+  "The standard format is +{AREA}{NUMBER} without separators. Examples:
+
+   +14159499931
+   +16507919090
+   +5491137560419"
+  [phone]
+  (let [only-numbers (some-> phone (str/replace #"[^0-9]" ""))]
+    (some->> only-numbers (str "+"))))
+
+;; TODO: use a proper validation function
+(defn valid-phone?
+  "Strips the phone number of all non-numeric characters, then check if it's a valid phone number. "
+  [phone]
+  (let [phone (or (some-> phone clean-phone) "")]
+    (and (not-empty phone)
+         (<= 9 (count phone)))))
+
+;; TODO: do params validation
 (defn sign-up!
   [{:keys [params biff/db] :as ctx}]
-  ;; TODO: do params validation
-  (if-let [username (:username params)]
-    (if (some? (db/user-by-name db username))
-      (err-resp "username_taken" "Username is already taken")
-      (let [user (db/create-user! ctx {:username username})]
-        (json-response {:type "sign_up"
-                        :user user
-                        :token (auth/create-auth-token (:xt/id user))})))
+  (if-let [username (some-> (:username params) clean-username)]
+    (if-let [phone (some-> (:phone_number params) clean-phone)]
+      (cond
+        (some? (db/user-by-name db username))
+        (err-resp "username_taken" "Username is already taken")
+
+        (some? (db/user-by-phone db phone))
+        (err-resp "phone_taken" "Phone is already taken")
+
+        :else
+        (let [user (db/create-user! ctx {:username username :phone phone})]
+          (json-response {:type "sign_up"
+                          :user user
+                          :token (auth/create-auth-token (:xt/id user))})))
+      (err-resp "invalid_phone" "Invalid phone number"))
     (err-resp "invalid_username" "Invalid username")))
+
+(defn clean-code [s] (-> s str/trim))
+
+(defn twilio-to-status [v] (:status v))
+
+(defn twilio-to-response [v]
+  {:id (:sid v)
+   :status (twilio-to-status v)
+   :attempts (- 6 (count (:send_code_attempts v)))})
+
+(defn verify-phone! [{:keys [params biff/db biff/secret] :as _ctx}]
+  (let [{:keys [phone_number]} params
+        phone (clean-phone phone_number)]
+    (if-not (valid-phone? phone)
+      (err-resp "invalid_phone" "Invalid phone number")
+      (let [v (twilio/start-verification! secret {:phone phone})]
+        (json-response (merge {:phone_number phone}
+                              (twilio-to-response v)
+                              (when-let [user (db/user-by-phone db phone)]
+                                {:user user})))))))
+
+(defn verify-code! [{:keys [params biff/secret biff/db] :as _ctx}]
+  (let [{:keys [phone_number code]} params
+        phone (clean-phone phone_number)
+        code (clean-code code)
+        v (twilio/check-code! secret {:phone phone :code code})
+        approved? (= "approved" (twilio-to-status v))]
+    (json-response
+     (merge {:phone_number phone}
+            (twilio-to-response v)
+            (when approved?
+              (when-let [user (db/user-by-phone db phone)]
+                {:user user
+                 :token (auth/create-auth-token (:xt/id user))}))))))
+
+(defn check-username [{:keys [params biff/db] :as _ctx}]
+  (let [{:keys [username]} params
+        existing-user (db/user-by-name db username)]
+    (json-response {:username username :available (nil? existing-user)})))
 
 ;; ====================================================================== 
 ;; Discussions 
@@ -299,7 +368,11 @@
                  ;; unauthenticated
                 ["/api"
                  ["/signin" {:post sign-in!}]
-                 ["/signup" {:post sign-up!}]]
+                 ["/signup" {:post sign-up!}]
+
+                 ["/verify/start" {:post verify-phone!}]
+                 ["/verify/code" {:post verify-code!}]
+                 ["/user/check-username" {:post check-username}]]
 
                 ;; authenticated
                 ["/api" {:middleware [auth/wrap-api-auth]}

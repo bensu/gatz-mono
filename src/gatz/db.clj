@@ -20,7 +20,20 @@
          (sort-by (comp :user/created_at #(.getTime %)))
          first)))
 
-(defn create-user! [ctx {:keys [username]}]
+(defn user-by-phone [db phone]
+  {:pre [(string? phone) (not (empty? phone))]}
+  (let [users (q db
+                 '{:find (pull u [*])
+                   :in [phone]
+                   :where [[u :user/phone_number phone]
+                           [u :db/type :gatz/user]]}
+                 phone)]
+           ;; XXX: we can't guarantee uniqueness of phones
+    (->> users
+         (sort-by (comp :user/created_at #(.getTime %)))
+         first)))
+
+(defn create-user! [ctx {:keys [username phone]}]
 
   (assert (nil? (user-by-name (:biff/db ctx) username)))
 
@@ -30,6 +43,7 @@
               :db/type :gatz/user
               :xt/id user-id
               :user/name username
+              :user/phone_number phone
               :user/created_at now
               :user/updated_at now
               :user/image default-img}]
