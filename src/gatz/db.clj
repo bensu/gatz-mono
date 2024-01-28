@@ -1,6 +1,7 @@
 (ns gatz.db
   (:require [com.biffweb :as biff :refer [q]]
-            [malli.transform :as mt]))
+            [malli.transform :as mt]
+            [xtdb.api :as xtdb]))
 
 ;; ====================================================================== 
 ;; User
@@ -32,6 +33,11 @@
     (->> users
          (sort-by (comp :user/created_at #(.getTime %)))
          first)))
+
+(defn get-all-users [db]
+  (q db
+     '{:find (pull u [*])
+       :where [[u :db/type :gatz/user]]}))
 
 (defn create-user! [ctx {:keys [username phone]}]
 
@@ -176,3 +182,43 @@
                 user-id)]
     (set (map first dids))))
 
+
+
+;; ======================================================================
+;; Migrations
+
+(def good-users
+  {"sbensu"  "+12222222222"
+   "bensu" "+10000000000"
+   "sebas" "+14159499932"
+   "devon" "+16509067099"
+   "test" "+11111111111"})
+
+(defn get-env [k]
+  {:post [(string? %)]}
+  (System/getenv k))
+
+(defn get-node []
+  (biff/use-xt {:biff.xtdb/topology :standalone
+                :biff.xtdb.jdbc/jdbcUrl (get-env "DATABASE_URL")}))
+
+(defn delete-bad-users! [ctx]
+  (let [node (:biff.xtdb/node ctx)
+        db (xtdb/db node)
+        all-users (get-all-users db)
+        txns (->> all-users
+                  (remove (fn [user]
+                            (contains? good-users (:user/name user))))
+                  (map :xt/id)
+                  (mapv (fn [uid]
+                          [::xtdb/delete uid])))]
+    (xtdb/submit-tx node txns)))
+
+(defn add-phone-number-to-good-users!
+  [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        txns (for [[username phone] good-users]
+               (some-> (user-by-name db username)
+                       (assoc :db/doc-type :gatz/user)
+                       (assoc :user/phone_number phone)))]
+    (biff/submit-tx ctx (vec (remove nil? txns)))))
