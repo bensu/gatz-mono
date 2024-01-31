@@ -10,6 +10,8 @@
         :twilio/sid "TWILIO_SID"
         :twilio/auth-token "TWILIO_AUTH_TOKEN"
 
+        :expo/push-token "EXPO_PUSH_NOTIFICATION_TOKEN"
+
         :biff/base-url "http://gatz.chat"
         ;; Postmark is used to send email sign-in links. Create an account at
         ;; https://postmarkapp.com

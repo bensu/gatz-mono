@@ -1,5 +1,7 @@
 (ns gatz.db
   (:require [com.biffweb :as biff :refer [q]]
+            [gatz.schema :as schema]
+            [malli.core :as m]
             [malli.transform :as mt]
             [xtdb.api :as xtdb]))
 
@@ -65,6 +67,35 @@
         :where [[user :xt/id user-id]
                 [user :db/type :gatz/user]]}
       user-id)))
+
+;; TODO: validate push-token
+
+(defn add-push-token!
+  [{:keys [biff/db] :as ctx} {:keys [user-id push-token]}]
+
+  {:pre [(uuid? user-id)
+         (m/validate schema/push-tokens push-token)]}
+
+  (if-let [user (user-by-id db user-id)]
+    (let [updated-user (-> user
+                           (assoc :db/doc-type :gatz/user)
+                           (assoc :user/push_tokens push-token))]
+      (biff/submit-tx ctx [updated-user])
+      updated-user)
+    (assert false "User not found")))
+
+(defn clear-push-token!
+  [{:keys [biff/db] :as ctx} user-id]
+
+  {:pre [(uuid? user-id)]}
+
+  (if-let [user (user-by-id db user-id)]
+    (let [updated-user (-> user
+                           (assoc :db/doc-type :gatz/user)
+                           (assoc :user/push_tokens nil))]
+      (biff/submit-tx ctx [updated-user])
+      updated-user)
+    (assert false "User not found")))
 
 (defn all-users [db]
   (vec (q db '{:find (pull user [*])

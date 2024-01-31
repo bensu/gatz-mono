@@ -1,6 +1,16 @@
 (ns gatz.schema
   (:require [malli.core :as m]))
 
+(def push-token
+  [:map
+   [:push/token string?]
+   [:push/created_at inst?]
+   [:push/service [:enum :push/expo]]])
+
+(def push-tokens
+  [:map
+   [:push/expo push-token]])
+
 (def user
   [:map
    [:xt/id :user/id]
@@ -9,6 +19,7 @@
    [:user/created_at inst?]
    [:user/updated_at inst?]
    [:user/phone_number string?]
+   [:user/push_tokens [:maybe push-tokens]]
    [:user/image [:maybe string?]]])
 
 (def discussion
@@ -40,6 +51,7 @@
    :message/id :uuid
    :gatz/user user
    :gatz/discussion discussion
-   :gatz/message message})
+   :gatz/message message
+   :gatz/push push-token})
 
 (def plugin {:schema schema})

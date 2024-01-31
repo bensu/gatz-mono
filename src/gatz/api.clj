@@ -9,6 +9,7 @@
             [gatz.db :as db]
             [malli.transform :as mt]
             [ring.adapter.jetty9 :as jetty]
+            [sdk.expo :as expo]
             [twilio.api :as twilio]
             [xtdb.api :as xt]))
 
@@ -37,6 +38,19 @@
     (let [user (db/create-user! ctx {:username username})]
       (json-response {:user user}))
     (err-resp "username_taken" "Username is already taken")))
+
+(defn add-push-token!
+  [{:keys [params auth/user-id] :as ctx}]
+  (def -ctx ctx)
+  (if-let [push-token (:push_token params)]
+    (let [new-token {:push/service :push/expo
+                     :push/token push-token
+                     :push/created_at (java.util.Date.)}
+          user (db/add-push-token! ctx {:user-id user-id
+                                        :push-token {:push/expo new-token}})]
+      (json-response {:user user}))
+    (err-resp "push_token_missing" "Missing push token parameter")))
+
 
 (defn sign-in!
   [{:keys [params biff/db] :as _ctx}]
@@ -379,6 +393,8 @@
                  ["/log-request" {:post log-request}]
                  ["/log-response" {:get cached-log
                                    :post cached-log}]
+                 ["/user/push-token" {:post add-push-token!}]
+
                  ;; converted
                  ["/user" {:get get-user
                            :post create-user!}]
