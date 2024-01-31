@@ -10,7 +10,7 @@
             [malli.transform :as mt]
             [ring.adapter.jetty9 :as jetty]
             [sdk.expo :as expo]
-            [twilio.api :as twilio]
+            [sdk.twilio :as twilio]
             [xtdb.api :as xt]))
 
 (defn json-response [body]

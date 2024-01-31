@@ -1,4 +1,4 @@
-(ns twilio.api
+(ns sdk.twilio
   (:require [clj-http.client :as http]
             [clojure.string :as str]))
 
