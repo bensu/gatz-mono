@@ -7,9 +7,9 @@
             [gatz.auth :as auth]
             [gatz.connections :as conns]
             [gatz.db :as db]
+            [gatz.notify :as notify]
             [malli.transform :as mt]
             [ring.adapter.jetty9 :as jetty]
-            [sdk.expo :as expo]
             [sdk.twilio :as twilio]
             [xtdb.api :as xt]))
 
@@ -201,6 +201,9 @@
 
 (defn create-discussion! [{:keys [params biff/db] :as ctx}]
   (let [{:keys [:discussion/members] :as d} (db/create-discussion! ctx params)]
+    ;; TODO: move notifications to first message
+    (future
+      (notify/new-discussion-to-members! ctx d))
     (json-response {:discussion d
                     :users (mapv (partial db/user-by-id db) members)
                     :messages []})))
@@ -310,7 +313,7 @@
 
 ;; TODO: if a user is added to a discussion, they should be registered too
 
-(defn on-new-discussion [{:keys [biff.xtdb/node conns-state] :as nctx} tx]
+(defn on-new-discussion [{:keys [biff.xtdb/node conns-state] :as ctx} tx]
   (println "tx:" tx)
   (let [db-after (xt/db node)
         db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
@@ -318,6 +321,7 @@
       (when (= op ::xt/put)
         (let [[d] args]
           ;; TODO: replace with :db/type = :gatz/message
+          ;; TODO: this way of detecting if the discussion is new is not reliable
           (when (and (contains? d :discussion/members)
                      (nil? (xt/entity db-before (:xt/id d))))
             (let [members (:discussion/members d)
@@ -377,7 +381,8 @@
      :body (json/write-str (get contents "body"))}))
 
 (def plugin
-  {:api-routes [["/ws" {:middleware [auth/wrap-api-auth]}
+  {:on-tx on-tx
+   :api-routes [["/ws" {:middleware [auth/wrap-api-auth]}
                  ["/connect" {:get start-connection}]]
                  ;; unauthenticated
                 ["/api"
@@ -403,5 +408,4 @@
                                   :post create-discussion!}]
                  ["/discussion" {:get get-discussion}]
                  ["/discussion/mark-seen" {:post mark-seen!}]
-                 ["/discussion/archive" {:post archive!}]]]
-   :on-tx on-tx})
+                 ["/discussion/archive" {:post archive!}]]]})
