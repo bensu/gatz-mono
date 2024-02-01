@@ -45,10 +45,10 @@
   (if-let [push-token (:push_token params)]
     (let [new-token {:push/service :push/expo
                      :push/token push-token
-                     :push/created_at (java.util.Date.)}
-          user (db/add-push-token! ctx {:user-id user-id
-                                        :push-token {:push/expo new-token}})]
-      (json-response {:user user}))
+                     :push/created_at (java.util.Date.)}]
+      (db/add-push-token! ctx {:user-id user-id
+                               :push-token {:push/expo new-token}})
+      (json-response {:status "success"}))
     (err-resp "push_token_missing" "Missing push token parameter")))
 
 
