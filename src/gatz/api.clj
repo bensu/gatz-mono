@@ -24,6 +24,11 @@
 (defn err-resp [err-type err-msg]
   (json-response {:type "error" :error err-type :message err-msg}))
 
+(defn get-me
+  [{:keys [biff/db auth/user-id] :as _ctx}]
+  (let [user (db/user-by-id db user-id)]
+    (json-response {:user user})))
+
 (defn get-user
   [{:keys [params biff/db] :as _ctx}]
   (if-let [user-id (some-> (:user-id params) mt/-string->uuid)]
@@ -45,12 +50,17 @@
   (if-let [push-token (:push_token params)]
     (let [new-token {:push/service :push/expo
                      :push/token push-token
-                     :push/created_at (java.util.Date.)}]
-      (db/add-push-token! ctx {:user-id user-id
-                               :push-token {:push/expo new-token}})
-      (json-response {:status "success"}))
+                     :push/created_at (java.util.Date.)}
+          user (db/add-push-token! ctx {:user-id user-id
+                                        :push-token {:push/expo new-token}})]
+      (json-response {:status "success" :user user}))
     (err-resp "push_token_missing" "Missing push token parameter")))
 
+(defn disable-push!
+  [{:keys [auth/user-id] :as ctx}]
+  (def -ctx ctx)
+  (let [user (db/remove-push-tokens! ctx user-id)]
+    (json-response {:status "success" :user user})))
 
 (defn sign-in!
   [{:keys [params biff/db] :as _ctx}]
@@ -398,7 +408,9 @@
                  ["/log-request" {:post log-request}]
                  ["/log-response" {:get cached-log
                                    :post cached-log}]
+                 ["/me" {:get get-me}]
                  ["/user/push-token" {:post add-push-token!}]
+                 ["/user/disable-push" {:post disable-push!}]
 
                  ;; converted
                  ["/user" {:get get-user

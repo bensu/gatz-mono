@@ -68,8 +68,6 @@
                 [user :db/type :gatz/user]]}
       user-id)))
 
-;; TODO: validate push-token
-
 (defn add-push-token!
   [{:keys [biff/db] :as ctx} {:keys [user-id push-token]}]
 
@@ -84,7 +82,7 @@
       updated-user)
     (assert false "User not found")))
 
-(defn clear-push-token!
+(defn remove-push-tokens!
   [{:keys [biff/db] :as ctx} user-id]
 
   {:pre [(uuid? user-id)]}
