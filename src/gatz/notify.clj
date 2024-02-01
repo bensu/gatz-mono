@@ -10,10 +10,15 @@
     text
     (str (subs text 0 MAX_MESSAGE_LENGTH) "...")))
 
+(defn discussion-url [did]
+  {:pre [(uuid? did)]}
+  (str "/discussion/" did))
+
 (defn new-discussion-to-members!
   [{:keys [biff.xtdb/node biff/secret] :as ctx}
-   {:discussion/keys [members created_by id] :as d}]
+   {:discussion/keys [members created_by] :as d}]
   (let [db (xt/db node)
+        id (:xt/id d)
         message (->> (db/messages-by-did db id)
                      (sort-by :message/created_at)
                      first)
@@ -27,12 +32,14 @@
         title (format "%s started a discussion" (:user/name creator))
         body (or (some-> message :message/text message-preview)
                  "No messages yet")
+        url (discussion-url id)
         notifications (->> users
                            (keep #(get-in % [:user/push_tokens :push/expo :push/token]))
                            (mapv (fn [expo-token]
                                    {:to expo-token
                                     :title title
-                                    :body body})))]
+                                    :body body
+                                    :data {:url url}})))]
     (println "notifications" notifications)
     ;; TODO: check for notification preferences
     (when-not (empty? notifications)
