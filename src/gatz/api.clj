@@ -46,7 +46,6 @@
 
 (defn add-push-token!
   [{:keys [params auth/user-id] :as ctx}]
-  (def -ctx ctx)
   (if-let [push-token (:push_token params)]
     (let [new-token {:push/service :push/expo
                      :push/token push-token
@@ -58,7 +57,6 @@
 
 (defn disable-push!
   [{:keys [auth/user-id] :as ctx}]
-  (def -ctx ctx)
   (let [user (db/remove-push-tokens! ctx user-id)]
     (json-response {:status "success" :user user})))
 
@@ -324,6 +322,8 @@
 ;; TODO: if a user is added to a discussion, they should be registered too
 
 (defn on-new-discussion [{:keys [biff.xtdb/node conns-state] :as ctx} tx]
+  (def -ctx ctx)
+  (def -tx tx)
   (println "tx:" tx)
   (let [db-after (xt/db node)
         db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
@@ -336,14 +336,17 @@
                      (nil? (xt/entity db-before (:xt/id d))))
             (let [members (:discussion/members d)
                   did (:xt/id d)
+                  {:keys [discussion messages user_ids]} (db/discussion-by-id db-after did)
                   msg {:event/type :event/new_discussion
-                       :event/data (db/discussion-by-id db-after did)}
+                       :event/data {:discussion discussion
+                                    :messages messages
+                                    :users (mapv (partial db/user-by-id db-after) user_ids)}}
                   conns @conns-state
                   wss (mapcat (partial conns/user-wss conns) members)]
               ;; register these users to listen to the discussion
               (swap! conns-state conns/add-users-to-d {:did did :user-ids members})
               (doseq [ws wss]
-                (println msg)
+                (println "sending " msg)
                 (jetty/send! ws (json/write-str msg))))))))))
 
 
