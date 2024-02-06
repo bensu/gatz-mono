@@ -8,6 +8,37 @@ To start the app:
 2. Run `bb generate-secrets` and paste the output into `secrets.env`
 3. Run `bb dev`
 
+# Deploy
+
+```
+git push heroku master
+```
+
+Debug
+
+```
+heroku tail --logs
+```
+
+Migrate
+
+Check the nREPL port with `heroku tail --logs`:
+
+```
+...
+nREPL server started on port 34083 on host localhost - nrepl://localhost:34083
+```
+
+Forward to that port:
+
+```
+heroku ps:forward LOCAL_PORT:REMOTE_PORT
+
+heroku ps:forward 7888:34083
+```
+
+Connect to the REPL from Calva or some other repl
+
 # Architecture
 
 Main concepts:
