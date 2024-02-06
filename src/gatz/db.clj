@@ -100,41 +100,6 @@
                :where [[user :db/type :gatz/user]]})))
 
 ;; ====================================================================== 
-;; Messages
-
-#_(defn ->uuid [s]
-    (if (string? s)
-      (try
-        (java.util.UUID/fromString s)
-        (catch Exception _ nil))))
-
-(defn create-message!
-
-  [{:keys [auth/user-id] :as ctx}
-   {:keys [text mid did]}]
-
-  {:pre [(string? text) (uuid? mid) (uuid? did) (uuid? user-id)]}
-
-  (let [now (java.util.Date.)
-        msg {:db/doc-type :gatz/message
-             :db/type :gatz/message
-             :xt/id mid
-             :message/did did
-             :message/created_at now
-             :message/updated_at now
-             :message/user_id user-id
-             :message/text text}]
-    (biff/submit-tx ctx [msg])
-    msg))
-
-(defn messages-by-did [db did]
-  (q db '{:find (pull m [*])
-          :in [did]
-          :where [[m :message/did did]
-                  [m :db/type :gatz/message]]}
-     did))
-
-;; ====================================================================== 
 ;; Discussion 
 
 (defn d-by-id [db did]
@@ -144,14 +109,18 @@
                          [d :db/type :gatz/discussion]]}
             did)))
 
-(defn discussion-by-id [db did]
-  {:pre [(uuid? did)]}
-  (let [discussion (d-by-id db did)
-        messages (messages-by-did db did)]
-    (assert discussion)
-    {:discussion discussion
-     :user_ids (:discussion/members discussion)
-     :messages messages}))
+(def discussion-defaults
+  {:discussion/seen_at {}
+   :discussion/archived_at {}
+   :discussion/first_message nil
+   :discussion/latest_message nil})
+
+(defn- update-discussion
+  ([d] (update-discussion d (java.util.Date.)))
+  ([d now]
+   (-> (merge discussion-defaults d)
+       (assoc :db/doc-type :gatz/discussion)
+       (assoc :discussion/updated_at now))))
 
 (defn create-discussion!
 
@@ -170,21 +139,16 @@
            :discussion/name name
            :discussion/created_by user-id
            :discussion/created_at now
-           :discussion/updated_at now
-           :discussion/seen_at {}
-           :discussion/archived_at {}
            :discussion/members (conj (set member-uids) user-id)}]
-    (biff/submit-tx ctx [d])
+    (biff/submit-tx ctx [(update-discussion d now)])
     d))
 
 (defn mark-as-seen! [{:keys [biff/db] :as ctx} uid did now]
   {:pre [(uuid? did) (uuid? uid) (inst? now)]}
   (let [d (d-by-id db did)
         seen-at (:discussion/seen_at d {})
-        d (-> {:discussion/archived_at {}}
-              (merge d)
-              (assoc :discussion/seen_at (assoc seen-at uid now)))]
-    (biff/submit-tx ctx [(assoc d :db/doc-type :gatz/discussion)])
+        d (assoc d :discussion/seen_at (assoc seen-at uid now))]
+    (biff/submit-tx ctx [(update-discussion d now)])
     d))
 
 (defn archive! [{:keys [biff/db] :as ctx} uid did now]
@@ -192,16 +156,31 @@
   (let [d (d-by-id db did)
         archive-at (:discussion/archived_at d {})
         d (assoc d :discussion/archived_at (assoc archive-at uid now))]
-    (biff/submit-tx ctx [(assoc d :db/doc-type :gatz/discussion)])
+    (biff/submit-tx ctx [(update-discussion d now)])
     d))
 
+(defn get-all-discussions [db]
+  (q db
+     '{:find (pull u [*])
+       :where [[u :db/type :gatz/discussion]]}))
+
+(declare messages-by-did)
+
+(defn discussion-by-id [db did]
+  {:pre [(uuid? did)]}
+  (let [discussion (d-by-id db did)
+        messages (messages-by-did db did)]
+    (assert discussion)
+    {:discussion discussion
+     :user_ids (:discussion/members discussion)
+     :messages messages}))
 
 (defn add-member! [ctx p]
   (let [d (discussion-by-id (:biff/db ctx) (:discussion/id p))
         new-d (-> (:discussion d)
                   (assoc :db/doc-type :gatz/discussion)
                   (update :discussion/members conj (:user/id p)))]
-    (biff/submit-tx ctx [new-d])))
+    (biff/submit-tx ctx [(update-discussion new-d)])))
 
 (defn discussions-by-user-id [db user-id]
   (let [dids (q db '{:find [did]
@@ -211,7 +190,47 @@
                 user-id)]
     (set (map first dids))))
 
+;; ====================================================================== 
+;; Messages
 
+#_(defn ->uuid [s]
+    (if (string? s)
+      (try
+        (java.util.UUID/fromString s)
+        (catch Exception _ nil))))
+
+(defn create-message!
+
+  [{:keys [auth/user-id biff/db] :as ctx}
+   {:keys [text mid did]}]
+
+  {:pre [(string? text) (uuid? mid) (uuid? did) (uuid? user-id)]}
+
+  (let [now (java.util.Date.)
+        msg {:db/doc-type :gatz/message
+             :db/type :gatz/message
+             :xt/id mid
+             :message/did did
+             :message/created_at now
+             :message/updated_at now
+             :message/user_id user-id
+             :message/text text}
+        d (d-by-id db did)
+        updated-discussion (-> (merge d {:discussion/first_message mid})
+                               (assoc :discussion/latest_message mid)
+                               (update-discussion now))]
+    (biff/submit-tx ctx [msg updated-discussion])
+    msg))
+
+;; TODO: should this be sorted?
+(defn messages-by-did [db did]
+  (->> (q db '{:find (pull m [*])
+               :in [did]
+               :where [[m :message/did did]
+                       [m :db/type :gatz/message]]}
+          did)
+       (sort-by :message/created_at)
+       vec))
 
 ;; ======================================================================
 ;; Migrations
@@ -250,4 +269,23 @@
                (some-> (user-by-name db username)
                        (assoc :db/doc-type :gatz/user)
                        (assoc :user/phone_number phone)))]
+    (biff/submit-tx ctx (vec (remove nil? txns)))))
+
+(defn add-first-and-last-message-to-discussions!
+  [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        txns (for [d (get-all-discussions db)]
+               (when (or (nil? (:discussion/first_message d))
+                         (nil? (:discussion/latest_message d)))
+                 (let [messages (messages-by-did db (:discussion/did d))]
+                   (when-not (empty? messages)
+                     (let [first-message (or (:discussion/first_message d)
+                                             (:xt/id (first messages)))
+                           last-message (or (:discussion/latest_message d)
+                                            (:xt/id (last messages)))]
+                       (assert (and first-message last-message))
+                       (-> d
+                           (assoc :discussion/first_message first-message
+                                  :discussion/latest_message last-message)
+                           (update-discussion)))))))]
     (biff/submit-tx ctx (vec (remove nil? txns)))))

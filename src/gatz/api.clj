@@ -211,9 +211,6 @@
 
 (defn create-discussion! [{:keys [params biff/db] :as ctx}]
   (let [{:keys [:discussion/members] :as d} (db/create-discussion! ctx params)]
-    ;; TODO: move notifications to first message
-    (future
-      (notify/new-discussion-to-members! ctx d))
     (json-response {:discussion d
                     :users (mapv (partial db/user-by-id db) members)
                     :messages []})))
@@ -242,6 +239,9 @@
     (if-authorized-for-discussion
      [user-id d]
      (let [msg (db/create-message! ctx {:did did :mid mid :text text})]
+       (when (nil? (:discussion/first_message d))
+         (future
+           (notify/new-discussion-to-members! ctx d msg)))
        (json-response {:message msg})))))
 
 (defn fetch-messages [db]

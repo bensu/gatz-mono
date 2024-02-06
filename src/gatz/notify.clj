@@ -5,7 +5,7 @@
 
 (def MAX_MESSAGE_LENGTH 30)
 
-(defn message-preview [text]
+(defn message-preview [{:keys [message/text]}]
   (if (<= (count text) MAX_MESSAGE_LENGTH)
     text
     (str (subs text 0 MAX_MESSAGE_LENGTH) "...")))
@@ -16,12 +16,10 @@
 
 (defn new-discussion-to-members!
   [{:keys [biff.xtdb/node biff/secret] :as ctx}
-   {:discussion/keys [members created_by] :as d}]
+   {:discussion/keys [members created_by] :as d}
+   message]
   (let [db (xt/db node)
         id (:xt/id d)
-        message (->> (db/messages-by-did db id)
-                     (sort-by :message/created_at)
-                     first)
         ;; _ (assert message "No messages in discussion")
         ;; creator doesn't need a notification
         creator (db/user-by-id db created_by)
@@ -30,8 +28,7 @@
                    (keep (partial db/user-by-id db))
                    vec)
         title (format "%s started a discussion" (:user/name creator))
-        body (or (some-> message :message/text message-preview)
-                 "No messages yet")
+        body (message-preview message)
         url (discussion-url id)
         notifications (->> users
                            (keep #(get-in % [:user/push_tokens :push/expo :push/token]))
