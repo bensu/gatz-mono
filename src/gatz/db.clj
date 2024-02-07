@@ -1,5 +1,6 @@
 (ns gatz.db
   (:require [com.biffweb :as biff :refer [q]]
+            [clojure.string :as str]
             [gatz.schema :as schema]
             [malli.core :as m]
             [malli.transform :as mt]
@@ -289,4 +290,15 @@
                            (assoc :discussion/first_message first-message
                                   :discussion/latest_message last-message)
                            (update-discussion)))))))]
+    (biff/submit-tx ctx (vec (remove nil? txns)))))
+
+(defn lower-case-usernames!
+  [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        txns (for [u (get-all-users db)]
+               (let [username (:user/name u)]
+                 (when (not= username (str/lower-case username))
+                   (-> u
+                       (assoc :db/doc-type :gatz/user)
+                       (assoc :user/name (str/lower-case username))))))]
     (biff/submit-tx ctx (vec (remove nil? txns)))))
