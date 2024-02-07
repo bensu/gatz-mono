@@ -54,7 +54,8 @@
               :user/phone_number phone
               :user/created_at now
               :user/updated_at now
-              :user/image default-img}]
+              :user/image default-img
+              :user/push_tokens nil}]
     (biff/submit-tx ctx [user])
     user))
 
