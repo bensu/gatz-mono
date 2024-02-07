@@ -302,3 +302,10 @@
                        (assoc :db/doc-type :gatz/user)
                        (assoc :user/name (str/lower-case username))))))]
     (biff/submit-tx ctx (vec (remove nil? txns)))))
+
+(defn get-users-without-push-notifications [db]
+  (let [users (get-all-users db)]
+    (->> users
+         (remove :user/push_tokens)
+         (map :user/name)
+         set)))
