@@ -42,7 +42,22 @@
      '{:find (pull u [*])
        :where [[u :db/type :gatz/user]]}))
 
+
+(def MIN_LENGTH_USERNAME 3)
+(def MAX_LENGTH_USERNAME 20)
+
+(defn valid-username? [s]
+  (boolean
+   (and (string? s)
+        (= s (str/lower-case s))
+        (< (count s) MAX_LENGTH_USERNAME)
+        (< MIN_LENGTH_USERNAME (count s))
+        (re-matches #"^[a-z0-9._-]+$" s))))
+
+
 (defn create-user! [ctx {:keys [username phone]}]
+
+  {:pre [(valid-username? username)]}
 
   (assert (nil? (user-by-name (:biff/db ctx) username)))
 

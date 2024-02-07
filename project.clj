@@ -1,6 +1,6 @@
 (defproject chat.gatz/web "0.0.1"
   :min-lein-version "2.0.0"
-  :source-paths ["src" "tasks/src"]
+  :source-paths ["src" "tasks/src" "test"]
   :resource-paths ["resources"]
   :target-path "target/%s/"
   :main gatz.system
