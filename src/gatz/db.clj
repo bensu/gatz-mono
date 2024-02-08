@@ -54,6 +54,20 @@
         (< MIN_LENGTH_USERNAME (count s))
         (re-matches #"^[a-z0-9._-]+$" s))))
 
+(def user-defaults
+  {:user/image default-img
+   :db/type :gatz/user
+   :db/doc-type :gatz/user
+   :user/push_tokens nil
+   :user/is_test false
+   :user/is_admin false})
+
+(defn- update-user
+  ([u] (update-user u (java.util.Date.)))
+  ([u now]
+   (-> (merge user-defaults u)
+       (assoc :db/doc-type :gatz/user)
+       (assoc :user/updated_at now))))
 
 (defn create-user! [ctx {:keys [username phone]}]
 
@@ -63,16 +77,11 @@
 
   (let [now (java.util.Date.)
         user-id (random-uuid)
-        user {:db/doc-type :gatz/user
-              :db/type :gatz/user
-              :xt/id user-id
+        user {:xt/id user-id
               :user/name username
               :user/phone_number phone
-              :user/created_at now
-              :user/updated_at now
-              :user/image default-img
-              :user/push_tokens nil}]
-    (biff/submit-tx ctx [user])
+              :user/created_at now}]
+    (biff/submit-tx ctx [(update-user user now)])
     user))
 
 (defn user-by-id [db user-id]
@@ -93,8 +102,8 @@
 
   (if-let [user (user-by-id db user-id)]
     (let [updated-user (-> user
-                           (assoc :db/doc-type :gatz/user)
-                           (assoc :user/push_tokens push-token))]
+                           (assoc :user/push_tokens push-token)
+                           (update-user))]
       (biff/submit-tx ctx [updated-user])
       updated-user)
     (assert false "User not found")))
@@ -106,8 +115,8 @@
 
   (if-let [user (user-by-id db user-id)]
     (let [updated-user (-> user
-                           (assoc :db/doc-type :gatz/user)
-                           (assoc :user/push_tokens nil))]
+                           (assoc :user/push_tokens nil)
+                           (update-user))]
       (biff/submit-tx ctx [updated-user])
       updated-user)
     (assert false "User not found")))
@@ -324,3 +333,26 @@
          (remove :user/push_tokens)
          (map :user/name)
          set)))
+
+(def admin-usernames #{"sebas"})
+(def test-usernames #{"test" "test2" "test3" "bensu" "sbensu"})
+
+(defn add-admin-and-test-to-all-users!
+  [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        txns (for [u (get-all-users db)]
+               (let [username (:user/name u)]
+                 (cond
+                   (contains? admin-usernames username)
+                   (-> u
+                       (assoc :user/is_admin true)
+                       (update-user))
+
+                   (contains? test-usernames username)
+                   (-> u
+                       (assoc :user/is_test true)
+                       (update-user))
+
+                   :else (update-user u))))]
+    #_(vec (remove nil? txns))
+    (biff/submit-tx ctx (vec (remove nil? txns)))))

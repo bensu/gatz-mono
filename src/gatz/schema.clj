@@ -20,7 +20,9 @@
    [:user/updated_at inst?]
    [:user/phone_number string?]
    [:user/push_tokens [:maybe push-tokens]]
-   [:user/image [:maybe string?]]])
+   [:user/image [:maybe string?]]
+   [:user/is_test [:maybe boolean?]]
+   [:user/is_admin [:maybe boolean?]]])
 
 (def discussion
   [:map

@@ -38,10 +38,11 @@
 
 (defn create-user!
   [{:keys [params] :as ctx}]
-  ;; TODO: do params validation
-  (if-let [username (:username params)]
-    (let [user (db/create-user! ctx {:username username})]
-      (json-response {:user user}))
+  (if-let [username (some-> (:username params) str/trim)]
+    (if (db/valid-username? username)
+      (let [user (db/create-user! ctx {:username username})]
+        (json-response {:user user}))
+      (err-resp "invalid_username" "Username is invalid"))
     (err-resp "username_taken" "Username is already taken")))
 
 (defn add-push-token!
@@ -101,6 +102,9 @@
 
         (some? (db/user-by-phone db phone))
         (err-resp "phone_taken" "Phone is already taken")
+
+        (not (db/valid-username? username))
+        (err-resp "invalid_username" "Username is invalid")
 
         :else
         (let [user (db/create-user! ctx {:username username :phone phone})]
