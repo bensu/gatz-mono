@@ -298,14 +298,21 @@
                                                               :user-id user-id
                                                               :conn-id conn-id
                                                               :user-discussions ds}))
-                         (jetty/send! ws (json/write-str (connection-response user-id conn-id))))
+                         (jetty/send! ws (json/write-str
+                                          (connection-response user-id conn-id)))
+                         (db/mark-user-active! ctx user-id))
            :on-close (fn [ws status-code reason]
                        (let [db (xt/db node)
                              ds (or (db/discussions-by-user-id db user-id) #{})]
                          (swap! conns-state conns/remove-conn {:user-id user-id
                                                                :conn-id conn-id
                                                                :user-discussions ds}))
-                       (jetty/send! ws (json/write-str {:reason reason :status status-code :conn-id conn-id :user-id user-id})))
+                       (jetty/send! ws (json/write-str
+                                        {:reason reason
+                                         :status status-code
+                                         :conn-id conn-id
+                                         :user-id user-id}))
+                       (db/mark-user-active! ctx user-id))
            :on-text (fn [ws text]
                       (println "on-text" text)
                       (jetty/send! ws (json/write-str {:conn-id conn-id :user-id user-id :echo text :state @conns-state}))

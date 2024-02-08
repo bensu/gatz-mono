@@ -65,7 +65,9 @@
 (defn- update-user
   ([u] (update-user u (java.util.Date.)))
   ([u now]
-   (-> (merge user-defaults u)
+   (-> (merge user-defaults
+              {:user/last_active now}
+              u)
        (assoc :db/doc-type :gatz/user)
        (assoc :user/updated_at now))))
 
@@ -93,6 +95,20 @@
         :where [[user :xt/id user-id]
                 [user :db/type :gatz/user]]}
       user-id)))
+
+(defn mark-user-active!
+  [{:keys [biff/db] :as ctx} user-id]
+
+  {:pre [(uuid? user-id) (some? db)]}
+
+  (if-let [user (user-by-id db user-id)]
+    (let [updated-user (-> user
+                           (assoc :user/last_active (java.util.Date.))
+                           (update-user))]
+      (biff/submit-tx ctx [updated-user])
+      updated-user)
+    (assert false "User not found")))
+
 
 (defn add-push-token!
   [{:keys [biff/db] :as ctx} {:keys [user-id push-token]}]
@@ -244,6 +260,71 @@
                              [(< created-at older-than-ts)]]}
                 user-id older-than-ts)]
     (mapv first (take limit dids))))
+
+
+;; ====================================================================== 
+;; Activity for notifications
+
+(defn user-last-active [db uid]
+
+  {:pre [(uuid? uid)]
+   :post [(or (nil? %) (inst? %))]}
+
+  (let [r (q db '{:find [activity-ts]
+                  :in [user-id]
+                  :order-by [[activity-ts :desc]]
+                  :where [[uid :xt/id user-id]
+                          [uid :db/type :gatz/user]
+                          [uid :user/last_active activity-ts]]}
+             uid)]
+    (ffirst r)))
+
+(defn discussion-creators-for-user-id-created-since
+
+  [db user-id since-ts]
+
+  {:pre [(uuid? user-id) (inst? since-ts)]
+   :post [(set? %) (every? string? %)]}
+
+  (let [dids (q db '{:find [creator-username]
+                     :in [user-id since-ts]
+                      ;; TODO: this is scanning all user discussions ever
+                     :where [[did :db/type :gatz/discussion]
+                             [did :discussion/members user-id]
+                             [did :discussion/created_at created-at]
+                             [(< since-ts created-at)]
+
+                             [did :discussion/created_by creator-id]
+
+                             [creator-id :db/type :gatz/user]
+                             [creator-id :user/name creator-username]]}
+                user-id since-ts)]
+    (set (map first dids))))
+
+
+(defn message-senders-to-user-since
+
+  [db user-id since-ts]
+
+  {:pre [(uuid? user-id) (inst? since-ts)]
+   :post [(set? %) (every? string? %)]}
+
+  (let [usernames (q db '{:find [username]
+                          :in [user-id since-ts]
+                          ;; TODO: this is scanning all user discussions ever
+                          :where [[did :db/type :gatz/discussion]
+                                  [did :discussion/members user-id]
+
+                                  [mid :db/type :gatz/message]
+                                  [mid :message/created_at m-created-at]
+                                  [mid :message/did did]
+                                  [(< since-ts m-created-at)]
+                                  [mid :message/user_id sender-id]
+
+                                  [sender-id :db/type :gatz/user]
+                                  [sender-id :user/name username]]}
+                     user-id since-ts)]
+    (set (map first usernames))))
 
 ;; ====================================================================== 
 ;; Messages

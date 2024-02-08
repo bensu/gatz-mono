@@ -22,7 +22,8 @@
    [:user/push_tokens [:maybe push-tokens]]
    [:user/image [:maybe string?]]
    [:user/is_test [:maybe boolean?]]
-   [:user/is_admin [:maybe boolean?]]])
+   [:user/is_admin [:maybe boolean?]]
+   [:user/last_active inst?]])
 
 (def discussion
   [:map
