@@ -9,10 +9,10 @@
   (biff/assoc-db @main/system))
 
 (defn add-fixtures []
-  (biff/submit-tx (get-context)
-                  (-> (io/resource "fixtures.edn")
-                      slurp
-                      edn/read-string)))
+  e (biff/submit-tx (get-context)
+                    (-> (io/resource "fixtures.edn")
+                        slurp
+                        edn/read-string)))
 
 (comment
 

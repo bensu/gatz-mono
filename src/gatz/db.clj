@@ -208,6 +208,7 @@
                   (update :discussion/members conj (:user/id p)))]
     (biff/submit-tx ctx [(update-discussion new-d)])))
 
+;; TODO: add a max limit
 (defn discussions-by-user-id [db user-id]
   (let [dids (q db '{:find [did]
                      :in [user-id]
@@ -215,6 +216,34 @@
                              [did :discussion/members user-id]]}
                 user-id)]
     (set (map first dids))))
+
+
+(defn discussions-by-user-id-up-to [db user-id limit]
+  (let [dids (q db '{:find [did created-at]
+                     :in [user-id]
+                     :order-by [[created-at :desc]]
+                     :where [[did :db/type :gatz/discussion]
+                             [did :discussion/created_at created-at]
+                             [did :discussion/members user-id]]}
+                user-id)]
+    (mapv first (take limit dids))))
+
+
+(defn discussions-by-user-id-older-than
+
+  [db user-id older-than-ts limit]
+
+  {:pre [(uuid? user-id) (inst? older-than-ts)]}
+
+  (let [dids (q db '{:find [did created-at]
+                     :in [user-id older-than-ts]
+                     :order-by [[created-at :desc]]
+                     :where [[did :db/type :gatz/discussion]
+                             [did :discussion/members user-id]
+                             [did :discussion/created_at created-at]
+                             [(< created-at older-than-ts)]]}
+                user-id older-than-ts)]
+    (mapv first (take limit dids))))
 
 ;; ====================================================================== 
 ;; Messages

@@ -204,9 +204,17 @@
                        :users (map (partial db/user-by-id db) user_ids)
                        :messages messages})))))
 
+(def discussion-fetch-batch 20)
+
 ;; discrepancy in how this gets params
-(defn get-full-discussions [{:keys [biff/db auth/user-id] :as _ctx}]
-  (let [dis (db/discussions-by-user-id db user-id)
+(defn get-full-discussions [{:keys [biff/db auth/user-id params] :as _ctx}]
+  (let [dis (if-let [older-than-ts (some->> (:last_did params)
+                                            mt/-string->uuid
+                                            (db/discussion-by-id db)
+                                            :discussion
+                                            :discussion/created_at)]
+              (db/discussions-by-user-id-older-than db user-id older-than-ts discussion-fetch-batch)
+              (db/discussions-by-user-id-up-to db user-id discussion-fetch-batch))
         ds (map (partial db/discussion-by-id db) dis)
         users (db/all-users db)]
     (json-response {:discussions ds :users users})))
