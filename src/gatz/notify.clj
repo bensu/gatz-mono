@@ -1,9 +1,10 @@
 (ns gatz.notify
   (:require [clojure.set :as set]
+            [chime.core :as chime]
             [gatz.db :as db]
             [sdk.expo :as expo]
             [xtdb.api :as xt])
-  (:import [java.time LocalDateTime ZoneId]
+  (:import [java.time LocalDateTime ZoneId Instant Duration]
            [java.util Date]))
 
 (def MAX_MESSAGE_LENGTH 30)
@@ -106,6 +107,8 @@
 (defn activity-for-all-users!
   [{:keys [biff.xtdb/node] :as ctx}]
 
+  (println "running activity-for-all-users!")
+
   (let [db (xtdb.api/db node)]
     (doseq [user (db/get-all-users db)]
       (when (some? (->token user))
@@ -123,3 +126,8 @@
             ;; TODO: handle
             (println "Error in activity-for-all-users!")
             (println e)))))))
+
+(def plugin
+  {:tasks [{:task activity-for-all-users!
+            :schedule (fn []
+                        (chime/periodic-seq (Instant/now) (Duration/ofHours 8)))}]})

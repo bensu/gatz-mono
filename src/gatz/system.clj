@@ -5,6 +5,7 @@
             [gatz.api :as api]
             [gatz.schema :as schema]
             [gatz.connections :as conns]
+            [gatz.notify :as notify]
             [clojure.string :as str]
             [clojure.test :as test]
             [clojure.tools.logging :as log]
@@ -22,6 +23,7 @@
   [api/plugin
    (biff/authentication-plugin {})
    #_home/plugin
+   notify/plugin
    schema/plugin])
 
 (def routes [["" {:middleware [biff/wrap-site-defaults]}

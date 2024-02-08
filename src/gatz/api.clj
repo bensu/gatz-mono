@@ -250,8 +250,8 @@
      [user-id d]
      (let [msg (db/create-message! ctx {:did did :mid mid :text text})]
        (when (nil? (:discussion/first_message d))
-         (future
-           (notify/new-discussion-to-members! ctx d msg)))
+         #_(future
+             (notify/new-discussion-to-members! ctx d msg)))
        (json-response {:message msg})))))
 
 (defn fetch-messages [db]
