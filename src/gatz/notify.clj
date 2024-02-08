@@ -130,4 +130,5 @@
 (def plugin
   {:tasks [{:task activity-for-all-users!
             :schedule (fn []
-                        (chime/periodic-seq (Instant/now) (Duration/ofHours 8)))}]})
+                        (rest
+                         (chime/periodic-seq (Instant/now) (Duration/ofHours 8))))}]})
