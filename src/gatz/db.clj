@@ -521,8 +521,9 @@
    "tara"         "https://api.gatz.chat/avatars/tara.jpg"
    "jack"         "https://api.gatz.chat/avatars/jack.jpg"
    "grantslatton" "https://api.gatz.chat/avatars/grantslatton.jpg"
-   "bensu"        "https://api.gatz.chat/avatars/tara.jpg"
+   "bensu"        "https://api.gatz.chat/avatars/sebas.jpg"
    "martin"       "https://api.gatz.chat/avatars/martin.jpg"
+   "willyintheworld" "https://api.gatz.chat/avatars/willyintheworld.jpg"
    "ameesh"       "https://api.gatz.chat/avatars/ameesh.jpg"})
 
 (defn add-user-images!
