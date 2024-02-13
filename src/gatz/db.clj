@@ -516,14 +516,14 @@
     (biff/submit-tx ctx (vec (remove nil? txns)))))
 
 (def username->img
-  {"sebas"        "http://localhost:8080/avatars/sebas.jpg"
-   "devon"        "http://localhost:8080/avatars/devon.jpg"
-   "tara"         "http://localhost:8080/avatars/tara.jpg"
-   "jack"         "http://localhost:8080/avatars/jack.jpg"
-   "grantslatton" "http://localhost:8080/avatars/grantslatton.jpg"
-   "bensu"        "http://localhost:8080/avatars/tara.jpg"
-   "martin"       "http://localhost:8080/avatars/martin.jpg"
-   "ameesh"       "http://localhost:8080/avatars/ameesh.jpg"})
+  {"sebas"        "https://api.gatz.chat/avatars/sebas.jpg"
+   "devon"        "https://api.gatz.chat/avatars/devon.jpg"
+   "tara"         "https://api.gatz.chat/avatars/tara.jpg"
+   "jack"         "https://api.gatz.chat/avatars/jack.jpg"
+   "grantslatton" "https://api.gatz.chat/avatars/grantslatton.jpg"
+   "bensu"        "https://api.gatz.chat/avatars/tara.jpg"
+   "martin"       "https://api.gatz.chat/avatars/martin.jpg"
+   "ameesh"       "https://api.gatz.chat/avatars/ameesh.jpg"})
 
 (defn add-user-images!
   [{:keys [biff.xtdb/node] :as ctx}]
