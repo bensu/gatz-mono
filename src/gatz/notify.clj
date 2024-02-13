@@ -61,23 +61,42 @@
       :else (let [[f1 f2 & more] friends]
               (format "%s, %s, and %s more" f1 f2 (count more))))))
 
+(defn render-activity [dids mids]
+  {:post [(string? %)]}
+
+  (let [n-dids (count dids)
+        n-mids (count mids)]
+    (condp = [(zero? n-dids) (zero? n-mids)]
+      [true true]  "No activity"
+      [true false] (format "%s new replies" n-mids)
+      [false true] (format "%s new posts" n-dids)
+      [false false] (format "%s new posts, %s new replies" n-dids n-mids))))
+
+
 (defn ->token [user]
   (get-in user [:user/push_tokens :push/expo :push/token]))
+
+;; sebas, ameesh, and tara are in gatz
+;; 3 new posts, 2 replies
 
 (defn friends-activity!
   [{:keys [biff/secret] :as _ctx}
    to-user
-   friend-usernames]
+   friend-usernames
+   dids
+   mids]
 
-  {:pre [(every? string? friend-usernames)]}
+  {:pre [(set? friend-usernames) (every? string? friend-usernames)
+         (set? dids) (every? uuid? dids)
+         (set? mids) (every? uuid? mids)]}
 
   (let [friends (remove #(= % (:user/name to-user)) friend-usernames)]
     (when-not (empty? friends)
       (when-let [expo-token (->token to-user)]
         (println "sending notification to" (:user/name to-user) "with friends" friends)
         (let [notification {:to expo-token
-                            :title "New activity in Gatz"
-                            :body (str "From " (render-friends friends))}]
+                            :title (format "%s are in gatz" (render-friends friends))
+                            :body (render-activity dids mids)}]
           (expo/push-many! secret [notification]))))))
 
 (defn hours-ago [n]
@@ -98,28 +117,31 @@
         uid (:xt/id user)
         since-ts (or (db/user-last-active db uid)
                      (hours-ago 8))
-        message-senders (db/message-senders-to-user-since db uid since-ts)
-        discussion-creators (db/discussion-creators-for-user-id-created-since db uid since-ts)]
+        {:keys [senders mids]} (db/messages-sent-to-user-since db uid since-ts)
+        {:keys [creators dids]} (db/discussions-for-user-since-ts db uid since-ts)]
     {:since-ts since-ts
-     :message-senders message-senders
-     :discussion-creators discussion-creators}))
+     :dids dids
+     :mids mids
+     :message-senders senders
+     :discussion-creators creators}))
 
 (defn activity-for-all-users!
   [{:keys [biff.xtdb/node] :as ctx}]
 
   (println "running activity-for-all-users!")
 
-  (let [db (xtdb.api/db node)]
+  (let [db (xtdb.api/db node)
+        ctx (assoc ctx :biff/db db)]
     (doseq [user (db/get-all-users db)]
       (when (some? (->token user))
         (try
           (let [uid (:xt/id user)
 
-                {:keys [message-senders discussion-creators]}
+                {:keys [mids dids message-senders discussion-creators]}
                 (activity-for-user-since ctx user)
 
-                friends (vec (sort (set/union message-senders discussion-creators)))]
-            (friends-activity! ctx user friends)
+                friends (set/union message-senders discussion-creators)]
+            (friends-activity! ctx user friends dids mids)
             ;; make sure they don't see these notifications again
             (db/mark-user-active! ctx uid))
           (catch Throwable e
