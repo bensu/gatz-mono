@@ -219,11 +219,23 @@
         users (db/all-users db)]
     (json-response {:discussions ds :users users})))
 
+;; TODO: validate all params at the API level, not the db level
+;; TODO: members are not validated as existing
 (defn create-discussion! [{:keys [params biff/db] :as ctx}]
-  (let [{:keys [:discussion/members] :as d} (db/create-discussion! ctx params)]
-    (json-response {:discussion d
-                    :users (mapv (partial db/user-by-id db) members)
-                    :messages []})))
+  (if-let [post-text (:text params)]
+    (if-not (db/valid-post? post-text)
+      (err-resp "invalid_post" "Invalid post")
+      (let [{:keys [discussion message]} (db/create-discussion-with-message! ctx params)]
+        (json-response
+         {:discussion discussion
+          :users (mapv (partial db/user-by-id db) (:discussion/members discussion))
+          :messages [message]})))
+    (let [{:keys [discussion/members] :as discussion}
+          (db/create-discussion! ctx params)]
+      (json-response
+       {:discussion discussion
+        :users (mapv (partial db/user-by-id db) members)
+        :messages []}))))
 
 (defn add-member! [{:keys [params auth/user-id biff/db] :as ctx}]
   (let [did (mt/-string->uuid (:discussion_id params))

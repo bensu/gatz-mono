@@ -7,6 +7,12 @@
             [xtdb.api :as xtdb]))
 
 ;; ====================================================================== 
+;; Utils
+
+(defn valid-post? [s]
+  (and (string? s) (not (empty? s))))
+
+;; ====================================================================== 
 ;; User
 
 (def default-img "http://www.gravatar.com/avatar")
@@ -184,6 +190,42 @@
            :discussion/members (conj (set member-uids) user-id)}]
     (biff/submit-tx ctx [(update-discussion d now)])
     d))
+
+(defn update-message
+  ([m] (update-message m (java.util.Date.)))
+  ([m now]
+   (-> m
+       (assoc :db/doc-type :gatz/message)
+       (assoc :message/updated_at now))))
+
+(defn create-discussion-with-message!
+
+  [{:keys [auth/user-id] :as ctx} {:keys [name selected_users text]}]
+
+  {:pre [(or (nil? name)
+             (and (string? name) (not (empty? name)))
+             (valid-post? text))]}
+
+  (let [now (java.util.Date.)
+        did (random-uuid)
+        member-uids (keep mt/-string->uuid selected_users)
+        d {:db/type :gatz/discussion
+           :xt/id did
+           :discussion/did did
+           :discussion/name name
+           :discussion/created_by user-id
+           :discussion/created_at now
+           :discussion/members (conj (set member-uids) user-id)}
+        msg {:db/type :gatz/message
+             :xt/id (random-uuid)
+             :message/did did
+             :message/created_at now
+             :message/updated_at now
+             :message/user_id user-id
+             :message/text text}]
+    (biff/submit-tx ctx [(update-discussion d now)
+                         (update-message msg now)])
+    {:discussion d :message msg}))
 
 (defn mark-as-seen! [{:keys [biff/db] :as ctx} uid did now]
   {:pre [(uuid? did) (uuid? uid) (inst? now)]}
