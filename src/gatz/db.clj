@@ -516,14 +516,14 @@
     (biff/submit-tx ctx (vec (remove nil? txns)))))
 
 (def username->img
-  {"sebas" "/avatars/sebas.jpg"
-   "devon" "/avatars/devon.jpg"
-   "tara"  "/avatars/tara.jpg"
-   "jack" "/avatars/jack.jpg"
-   "grantslatton" "/avatars/grantslatton.jpg"
-   "bensu" "/avatars/tara.jpg"
-   "martin" "/avatars/martin.jpg"
-   "ameesh" "/avatars/ameesh.jpg"})
+  {"sebas"        "http://localhost:8080/avatars/sebas.jpg"
+   "devon"        "http://localhost:8080/avatars/devon.jpg"
+   "tara"         "http://localhost:8080/avatars/tara.jpg"
+   "jack"         "http://localhost:8080/avatars/jack.jpg"
+   "grantslatton" "http://localhost:8080/avatars/grantslatton.jpg"
+   "bensu"        "http://localhost:8080/avatars/tara.jpg"
+   "martin"       "http://localhost:8080/avatars/martin.jpg"
+   "ameesh"       "http://localhost:8080/avatars/ameesh.jpg"})
 
 (defn add-user-images!
   [{:keys [biff.xtdb/node] :as ctx}]
