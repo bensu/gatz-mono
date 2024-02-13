@@ -15,8 +15,6 @@
 ;; ====================================================================== 
 ;; User
 
-(def default-img "http://www.gravatar.com/avatar")
-
 (defn user-by-name [db username]
   {:pre [(string? username) (not (empty? username))]}
   (let [users (q db
@@ -61,9 +59,9 @@
         (re-matches #"^[a-z0-9._-]+$" s))))
 
 (def user-defaults
-  {:user/image default-img
-   :db/type :gatz/user
+  {:db/type :gatz/user
    :db/doc-type :gatz/user
+   :user/avatar nil
    :user/push_tokens nil
    :user/is_test false
    :user/is_admin false})
@@ -515,4 +513,27 @@
 
                    :else (update-user u))))]
     #_(vec (remove nil? txns))
+    (biff/submit-tx ctx (vec (remove nil? txns)))))
+
+(def username->img
+  {"sebas" "/avatars/sebas.jpg"
+   "devon" "/avatars/devon.jpg"
+   "tara"  "/avatars/tara.jpg"
+   "jack" "/avatars/jack.jpg"
+   "grantslatton" "/avatars/grantslatton.jpg"
+   "bensu" "/avatars/tara.jpg"
+   "martin" "/avatars/martin.jpg"
+   "ameesh" "/avatars/ameesh.jpg"})
+
+(defn add-user-images!
+  [{:keys [biff.xtdb/node] :as ctx}]
+
+  (let [db (xtdb/db node)
+        users (all-users db)
+        txns (for [u users]
+               (let [username (:user/name u)]
+                 (-> u
+                     (assoc :user/avatar (get username->img username))
+                     (update-user)
+                     (dissoc :user/image))))]
     (biff/submit-tx ctx (vec (remove nil? txns)))))

@@ -12,3 +12,5 @@
 .portal/
 logs/
 .lein-repl-history
+
+.DS_Store
