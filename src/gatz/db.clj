@@ -1,5 +1,6 @@
 (ns gatz.db
   (:require [com.biffweb :as biff :refer [q]]
+            [clojure.set :as set]
             [clojure.string :as str]
             [gatz.schema :as schema]
             [malli.core :as m]
@@ -262,6 +263,14 @@
         new-d (-> (:discussion d)
                   (assoc :db/doc-type :gatz/discussion)
                   (update :discussion/members conj (:user/id p)))]
+    (biff/submit-tx ctx [(update-discussion new-d)])))
+
+(defn remove-members! [ctx did uids]
+  {:pre [(uuid? did) (every? uuid? uids)]}
+  (let [d (discussion-by-id (:biff/db ctx) did)
+        new-d (-> (:discussion d)
+                  (assoc :db/doc-type :gatz/discussion)
+                  (update :discussion/members set/difference (set uids)))]
     (biff/submit-tx ctx [(update-discussion new-d)])))
 
 ;; TODO: add a max limit
