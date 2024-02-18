@@ -502,7 +502,7 @@
          set)))
 
 (def admin-usernames #{"sebas"})
-(def test-usernames #{"test" "test2" "test3" "bensu" "sbensu"})
+(def test-usernames #{"test" "test2" "test3" "test4" "bensu" "sbensu"})
 
 (defn add-admin-and-test-to-all-users!
   [{:keys [biff.xtdb/node] :as ctx}]
@@ -533,6 +533,8 @@
    "bensu"        "https://api.gatz.chat/avatars/sebas.jpg"
    "martin"       "https://api.gatz.chat/avatars/martin.jpg"
    "willyintheworld" "https://api.gatz.chat/avatars/willyintheworld.jpg"
+   "tbensu"       "https://api.gatz.chat/avatars/tbensu.jpg"
+   "lconstable"   "https://api.gatz.chat/avatars/lconstable.jpg"
    "ameesh"       "https://api.gatz.chat/avatars/ameesh.jpg"})
 
 (defn add-user-images!
@@ -542,8 +544,9 @@
         users (all-users db)
         txns (for [u users]
                (let [username (:user/name u)]
-                 (-> u
-                     (assoc :user/avatar (get username->img username))
-                     (update-user)
-                     (dissoc :user/image))))]
+                 (when-let [img (get username->img username)]
+                   (-> u
+                       (assoc :user/avatar img)
+                       (update-user)
+                       (dissoc :user/image)))))]
     (biff/submit-tx ctx (vec (remove nil? txns)))))
