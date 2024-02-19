@@ -535,7 +535,9 @@
    "willyintheworld" "https://api.gatz.chat/avatars/willyintheworld.jpg"
    "tbensu"       "https://api.gatz.chat/avatars/tbensu.jpg"
    "lconstable"   "https://api.gatz.chat/avatars/lconstable.jpg"
-   "ameesh"       "https://api.gatz.chat/avatars/ameesh.jpg"})
+   "ameesh"       "https://api.gatz.chat/avatars/ameesh.jpg"
+   "ankit"        "https://api.gatz.chat/avatars/ankit.jpg"
+   "biglu"        "https://api.gatz.chat/avatars/biglu.jpg"})
 
 (defn add-user-images!
   [{:keys [biff.xtdb/node] :as ctx}]
