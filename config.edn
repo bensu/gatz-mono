@@ -12,6 +12,13 @@
 
         :expo/push-token "EXPO_PUSH_NOTIFICATION_TOKEN"
 
+        :s3/origin "CLOUDFLARE_R2_ENDPOINT"
+        :s3/bucket "CLOUDFLARE_R2_BUCKET"
+        :s3/secret-key "CLOUDFLARE_R2_SECRET_ACCESS_KEY"
+        :s3/access-key "CLOUDFLARE_R2_ACCESS_KEY_ID"
+
+        :s3/asset-path "https://gatzapi.com"
+
         :biff/base-url "http://gatz.chat"
         ;; Postmark is used to send email sign-in links. Create an account at
         ;; https://postmarkapp.com
