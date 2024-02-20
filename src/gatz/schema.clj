@@ -42,12 +42,25 @@
    [:discussion/seen_at [:map-of :user/id inst?]]
    [:discussion/archived_at [:map-of :user/id inst?]]])
 
+(def media
+  [:map
+   [:xt/id :media/id]
+   [:media/user :user/id]
+   ;; do I have the message/id when creating the media?
+   [:media/message :message/id]
+   [:media/type [:enum :media/img :media/vid :media/aud]]
+   [:media/url string?]
+   [:media/mime string?]
+   [:media/size int?]
+   [:media/created_at inst?]])
+
 (def message
   [:map
    [:xt/id :message/id]
    [:db/type [:enum :gatz/message]]
    [:message/did :discussion/id]
    [:message/text string?]
+   [:message/media [:maybe [:vector :gatz/media]]]
    [:message/user_id :user/id]
    [:message/created_at inst?]
    [:message/updated_at inst?]])
@@ -56,8 +69,10 @@
   {:discussion/id :uuid
    :user/id :uuid
    :message/id :uuid
+   :media/id :uuid
    :gatz/user user
    :gatz/discussion discussion
+   :gatz/media media
    :gatz/message message
    :gatz/push push-token})
 

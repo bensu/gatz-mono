@@ -142,6 +142,20 @@
       updated-user)
     (assert false "User not found")))
 
+(defn update-user-avatar!
+
+  [{:keys [biff/db] :as ctx} user-id avatar–url]
+  {:pre [(uuid? user-id) (string? avatar–url)]}
+
+  (if-let [user (user-by-id db user-id)]
+    (let [updated-user (-> user
+                           (assoc :user/avatar avatar–url)
+                           (update-user))]
+      (biff/submit-tx ctx [updated-user])
+      updated-user)
+    (assert false "User not found")))
+
+
 (defn all-users [db]
   (vec (q db '{:find (pull user [*])
                :where [[user :db/type :gatz/user]]})))
@@ -190,10 +204,13 @@
     (biff/submit-tx ctx [(update-discussion d now)])
     d))
 
+(def message-defaults
+  {:message/media nil})
+
 (defn update-message
   ([m] (update-message m (java.util.Date.)))
   ([m now]
-   (-> m
+   (-> (merge message-defaults m)
        (assoc :db/doc-type :gatz/message)
        (assoc :message/updated_at now))))
 
@@ -524,6 +541,10 @@
     #_(vec (remove nil? txns))
     (biff/submit-tx ctx (vec (remove nil? txns)))))
 
+(defn username-img [username]
+  {:pre [(string? username)]}
+  (format "https://gatzapi.com/avatars/%s.jpg" username))
+
 (def username->img
   {"sebas"        "https://api.gatz.chat/avatars/sebas.jpg"
    "devon"        "https://api.gatz.chat/avatars/devon.jpg"
@@ -546,9 +567,10 @@
         users (all-users db)
         txns (for [u users]
                (let [username (:user/name u)]
-                 (when-let [img (get username->img username)]
-                   (-> u
-                       (assoc :user/avatar img)
-                       (update-user)
-                       (dissoc :user/image)))))]
+                 (when (contains? username->img username)
+                   (let [img (username-img username)]
+                     (-> u
+                         (assoc :user/avatar img)
+                         (update-user)
+                         (dissoc :user/image))))))]
     (biff/submit-tx ctx (vec (remove nil? txns)))))

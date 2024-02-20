@@ -11,6 +11,7 @@
             [malli.transform :as mt]
             [ring.adapter.jetty9 :as jetty]
             [sdk.twilio :as twilio]
+            [sdk.s3 :as s3]
             [xtdb.api :as xt]))
 
 (defn json-response [body]
@@ -424,6 +425,27 @@
     ;;  :headers (get contents "headers")
      :body (json/write-str (get contents "body"))}))
 
+(def folders #{"media" "avatars"})
+
+(defn presigned-url! [{:keys [params] :as ctx}]
+  (let [folder (get params :folder)]
+    (if (contains? folders folder)
+      (let [id (random-uuid)
+            k  (format "%s/%s" folder id)
+            presigned (.toString
+                       (s3/presigned-url! ctx k))]
+        (json-response {:id id
+                        :presigned_url presigned
+                        :url (s3/make-path k)}))
+      (err-resp "invalid_folder" "Invalid folder"))))
+
+(defn update-avatar!
+  [{:keys [params auth/user-id] :as ctx}]
+  (if-let [url (:file_url params)]
+    (let [user (db/update-user-avatar! ctx user-id url)]
+      (json-response {:user user}))
+    (err-resp "invalid_file_url" "Invalid file url")))
+
 (def plugin
   {:on-tx on-tx
    :api-routes [["/ws" {:middleware [auth/wrap-api-auth]}
@@ -445,6 +467,8 @@
                  ["/me" {:get get-me}]
                  ["/user/push-token" {:post add-push-token!}]
                  ["/user/disable-push" {:post disable-push!}]
+                 ["/user/avatar" {:post update-avatar!}]
+
 
                  ;; converted
                  ["/user" {:get get-user
@@ -454,4 +478,6 @@
                                   :post create-discussion!}]
                  ["/discussion" {:get get-discussion}]
                  ["/discussion/mark-seen" {:post mark-seen!}]
-                 ["/discussion/archive" {:post archive!}]]]})
+                 ["/discussion/archive" {:post archive!}]
+
+                 ["/file/presign" {:post presigned-url!}]]]})
