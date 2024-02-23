@@ -434,7 +434,7 @@
 
 (def folders #{"media" "avatars"})
 
-(defn presigned-url! [{:keys [params] :as ctx}]
+(defn presigned-url! [{:keys [params biff/secret] :as ctx}]
   (let [folder (get params :folder)]
     (if (contains? folders folder)
       (let [id (random-uuid)
@@ -443,7 +443,7 @@
                        (s3/presigned-url! ctx k))]
         (json-response {:id id
                         :presigned_url presigned
-                        :url (s3/make-path k)}))
+                        :url (s3/make-path secret k)}))
       (err-resp "invalid_folder" "Invalid folder"))))
 
 (defn update-avatar!

@@ -12,9 +12,10 @@
   (Date. (+ (.getTime (Date.))
             (* 60 1000 n))))
 
-(defn make-path [k]
+(defn make-path [secret k]
   {:pre [(string? k)]}
-  (let [asset-domain "https://gatzapi.com"]
+  (let [asset-domain (secret :s3/asset-path)]
+    (assert asset-domain "Missing asset domain")
     (format "%s/%s" asset-domain k)))
 
 (defn presigned-url!
