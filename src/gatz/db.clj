@@ -509,6 +509,10 @@
     (biff/submit-tx ctx (vec (remove nil? [msg updated-discussion updated-media])))
     msg))
 
+(defn delete-message! [ctx mid]
+  {:pre [(uuid? mid)]}
+  (biff/submit-tx ctx [[:xtdb.api/delete mid]]))
+
 ;; TODO: should this be sorted?
 (defn messages-by-did [db did]
   (->> (q db '{:find (pull m [*])

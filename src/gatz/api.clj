@@ -157,6 +157,13 @@
 ;; ====================================================================== 
 ;; Discussions 
 
+(defmacro when-authorized-for-message [[user-id m] & body]
+  `(cond
+     (nil? ~user-id) (err-resp "not_logged_in" "You are not logged in")
+     (nil? ~m) (err-resp "missing_message" "Message not found")
+     (= ~user-id (:message/user_id ~m)) (do ~@body)
+     :else (err-resp "unauthorized" "You are unauthorized")))
+
 (defmacro if-authorized-for-discussion [[user-id d] & body]
   `(cond
      (nil? ~user-id) (err-resp "not_logged_in" "You are not logged in")
@@ -271,6 +278,17 @@
          #_(future
              (notify/new-discussion-to-members! ctx d msg)))
        (json-response {:message msg})))))
+
+(defn delete-message! [{:keys [params biff/db auth/user-id] :as ctx}]
+  (let [message (some->>
+                 (:id params)
+                 mt/-string->uuid
+                 (db/message-by-id db))]
+    (if (= user-id (:message/user_id message))
+      (when-authorized-for-message
+       [user-id message]
+       (db/delete-message! ctx (:xt/id message))
+       (json-response {:status "success"})))))
 
 (defn fetch-messages [db]
   (q db
@@ -507,6 +525,7 @@
                  ["/user/disable-push" {:post disable-push!}]
                  ["/user/avatar" {:post update-avatar!}]
 
+
                  ["/file/presign" {:post presigned-url!}]
                  ["/media" {:post create-media!}]
 
@@ -514,6 +533,7 @@
                  ["/user" {:get get-user
                            :post create-user!}]
                  ["/message" {:post create-message!}]
+                 ["/message/delete" {:post delete-message!}]
                  ["/discussions" {:get get-full-discussions
                                   :post create-discussion!}]
                  ["/discussion" {:get get-discussion}]
