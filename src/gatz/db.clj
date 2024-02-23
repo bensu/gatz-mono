@@ -295,7 +295,7 @@
              :message/created_at now
              :message/updated_at now
              :message/user_id user-id
-             :message/media (when-let [media-id (:xt/id media)] [media-id])
+             :message/media (when media [media])
              :message/text (or text "")}]
     (biff/submit-tx ctx (vec (remove nil? [(update-discussion d now)
                                            (update-message msg now)
@@ -487,6 +487,11 @@
          (or (nil? media_id) (uuid? media_id))]}
 
   (let [now (java.util.Date.)
+        media (when media_id
+                (media-by-id db media_id))
+        updated-media (some-> media
+                              (assoc :media/message_id mid)
+                              (update-media))
         msg {:db/doc-type :gatz/message
              :db/type :gatz/message
              :xt/id mid
@@ -494,13 +499,9 @@
              :message/created_at now
              :message/updated_at now
              :message/user_id user-id
-             :message/media (when media_id [media_id])
+             ;; we simply inline the media
+             :message/media (when updated-media [updated-media])
              :message/text text}
-        media (when media_id
-                (media-by-id db media_id))
-        updated-media (some-> media
-                              (assoc :media/message_id mid)
-                              (update-media))
         d (d-by-id db did)
         updated-discussion (-> (merge d {:discussion/first_message mid})
                                (assoc :discussion/latest_message mid)
@@ -510,33 +511,21 @@
 
 ;; TODO: should this be sorted?
 (defn messages-by-did [db did]
-  (->> (q db '{:find [(pull m [*]) (pull media [*])]
+  (->> (q db '{:find (pull m [*])
                :in [did]
                :where [[m :message/did did]
-                       [m :db/type :gatz/message]
-                       [m :message/media media]]}
+                       [m :db/type :gatz/message]]}
           did)
-       (group-by (comp :xt/id first))
-       (map (fn [[_ q]]
-              (let [m (ffirst q)
-                    medias (vec (remove nil? (map second q)))]
-                (assoc m :message/media (when-not (empty? medias) medias)))))
        (sort-by :message/created_at)
        vec))
 
-(defn full-message-by-id [db mid]
+(defn message-by-id [db mid]
   {:pre [(uuid? mid)]}
-  (->> (q db '{:find [(pull m [*]) (pull media [*])]
+  (->> (q db '{:find (pull m [*])
                :in [mid]
                :where [[m :xt/id mid]
-                       [m :db/type :gatz/message]
-                       [m :message/media media]]}
+                       [m :db/type :gatz/message]]}
           mid)
-       (group-by (comp :xt/id first))
-       (map (fn [[_ q]]
-              (let [m (ffirst q)
-                    medias (vec (remove nil? (map second q)))]
-                (assoc m :message/media (when-not (empty? medias) medias)))))
        first))
 
 ;; ======================================================================

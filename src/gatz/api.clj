@@ -351,7 +351,7 @@
                      (nil? (xt/entity db-before (:xt/id message))))
             (let [db-after (xt/db node)
                   did (:message/did message)
-                  full-message (db/full-message-by-id db-after (:xt/id message))
+                  full-message (db/message-by-id db-after (:xt/id message))
                   msg {:event/type :event/new_message
                        :event/data {:message full-message :did did}}
                   wss (conns/did->wss @conns-state did)]

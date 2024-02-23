@@ -65,7 +65,7 @@
    [:message/did :discussion/id]
    [:message/text string?]
    ;; when sending to the client, these should be nested
-   [:message/media [:maybe [:vector :media/id]]]
+   [:message/media [:maybe [:vector :gatz/media]]]
    [:message/user_id :user/id]
    [:message/created_at inst?]
    [:message/updated_at inst?]])
