@@ -178,14 +178,17 @@
                   [m :xt/id id]]}
      id))
 
+(def default-media
+  {:media/size nil :media/height nil :media/width nil})
+
 (defn update-media [m]
-  (assoc m
+  (assoc (merge default-media m)
          :db/type :gatz/media
          :db/doc-type :gatz/media))
 
 (defn create-media!
   [{:keys [auth/user-id] :as ctx}
-   {:keys [id kind url mime size] :as params}]
+   {:keys [id kind url size width height] :as params}]
 
   {:pre [(uuid? user-id)
          (uuid? id)
@@ -201,8 +204,10 @@
                :media/message_id nil
                :media/kind kind
                :media/url url
-              ;;  :media/mime mime
-              ;;  :media/size size
+               :media/width width
+               :media/height height
+               :media/size size
+               ;; :media/mime mime
                :media/created_at now}]
     (biff/submit-tx ctx [(update-media media)])
     media))

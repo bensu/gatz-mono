@@ -53,7 +53,9 @@
    [:media/kind [:enum :media/img :media/vid :media/aud]]
    [:media/url string?]
   ;;  [:media/mime string?]
-  ;;  [:media/size int?]
+   [:media/width [:maybe int?]]
+   [:media/height [:maybe int?]]
+   [:media/size [:maybe int?]]
    [:media/created_at inst?]])
 
 (def message

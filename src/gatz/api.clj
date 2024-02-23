@@ -464,7 +464,7 @@
 ;; TODO: this should be authenticated
 (defn create-media!
   [{:keys [params] :as ctx}]
-  (def -ctx ctx)
+  (def -media-ctx ctx)
   (if (and (string? (:file_url params))
            (string? (:kind params))
            (contains? media-kinds (:kind params)))
@@ -473,7 +473,9 @@
         (let [media (db/create-media! ctx {:kind media-kind
                                            :id id
                                       ;; :mime (:mime params)
-                                      ;; :size (:size params)
+                                           :size (:size params)
+                                           :height (:height params)
+                                           :width (:width params)
                                            :url (:file_url params)})]
           (json-response {:media media}))
         (err-resp "invalid_media_type" "Invalid media type"))
