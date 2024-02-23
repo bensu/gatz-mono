@@ -10,8 +10,10 @@
 ;; ====================================================================== 
 ;; Utils
 
-(defn valid-post? [s]
-  (and (string? s) (not (empty? s))))
+(defn valid-post? [s media-id]
+  (and (string? s)
+       (or (not (empty? s))
+           (some? media-id))))
 
 ;; ====================================================================== 
 ;; User
@@ -161,6 +163,51 @@
                :where [[user :db/type :gatz/user]]})))
 
 ;; ====================================================================== 
+;; Media
+
+(def media-kinds
+  #{;;  :media/aud 
+    :media/img
+                  ;;  :media/vid
+    })
+
+(defn media-by-id [db id]
+  (q db '{:find [(pull m [*])]
+          :in [id]
+          :where [[m :db/type :gatz/media]
+                  [m :xt/id id]]}
+     id))
+
+(defn update-media [m]
+  (assoc m
+         :db/type :gatz/media
+         :db/doc-type :gatz/media))
+
+(defn create-media!
+  [{:keys [auth/user-id] :as ctx}
+   {:keys [id kind url mime size] :as params}]
+
+  {:pre [(uuid? user-id)
+         (uuid? id)
+         (contains? media-kinds kind)
+         (string? url)
+          ;; (string? mime) (number? size)
+         ]}
+
+  (let [now (java.util.Date.)
+        media-id (or id (random-uuid))
+        media {:xt/id media-id
+               :media/user_id user-id
+               :media/message_id nil
+               :media/kind kind
+               :media/url url
+              ;;  :media/mime mime
+              ;;  :media/size size
+               :media/created_at now}]
+    (biff/submit-tx ctx [(update-media media)])
+    media))
+
+;; ====================================================================== 
 ;; Discussion 
 
 (defn d-by-id [db did]
@@ -216,11 +263,12 @@
 
 (defn create-discussion-with-message!
 
-  [{:keys [auth/user-id] :as ctx} {:keys [name selected_users text]}]
+  [{:keys [auth/user-id biff/db] :as ctx}
+   {:keys [name selected_users text media_id]}]
 
   {:pre [(or (nil? name)
              (and (string? name) (not (empty? name)))
-             (valid-post? text))]}
+             (valid-post? text media_id))]}
 
   (let [now (java.util.Date.)
         did (random-uuid)
@@ -232,15 +280,23 @@
            :discussion/created_by user-id
            :discussion/created_at now
            :discussion/members (conj (set member-uids) user-id)}
+        media (some->> media_id
+                       mt/-string->uuid
+                       (media-by-id db))
+        mid (random-uuid)
         msg {:db/type :gatz/message
-             :xt/id (random-uuid)
+             :xt/id mid
              :message/did did
              :message/created_at now
              :message/updated_at now
              :message/user_id user-id
-             :message/text text}]
-    (biff/submit-tx ctx [(update-discussion d now)
-                         (update-message msg now)])
+             :message/media (when-let [media-id (:xt/id media)] [media-id])
+             :message/text (or text "")}]
+    (biff/submit-tx ctx (vec (remove nil? [(update-discussion d now)
+                                           (update-message msg now)
+                                           (some-> media
+                                                   (assoc :media/message_id mid)
+                                                   (update-media))])))
     {:discussion d :message msg}))
 
 (defn mark-as-seen! [{:keys [biff/db] :as ctx} uid did now]
@@ -327,7 +383,6 @@
                 user-id older-than-ts)]
     (mapv first (take limit dids))))
 
-
 ;; ====================================================================== 
 ;; Activity for notifications
 
@@ -403,6 +458,15 @@
 ;; ====================================================================== 
 ;; Messages
 
+(defn media-by-id [db id]
+  {:pre [(uuid? id)]}
+  (ffirst
+   (q db '{:find [(pull m [*])]
+           :in [id]
+           :where [[m :db/type :gatz/media]
+                   [m :xt/id id]]}
+      id)))
+
 #_(defn ->uuid [s]
     (if (string? s)
       (try
@@ -412,9 +476,10 @@
 (defn create-message!
 
   [{:keys [auth/user-id biff/db] :as ctx}
-   {:keys [text mid did]}]
+   {:keys [text mid did media_id]}]
 
-  {:pre [(string? text) (uuid? mid) (uuid? did) (uuid? user-id)]}
+  {:pre [(string? text) (uuid? mid) (uuid? did) (uuid? user-id)
+         (or (nil? media_id) (uuid? media_id))]}
 
   (let [now (java.util.Date.)
         msg {:db/doc-type :gatz/message
@@ -424,23 +489,50 @@
              :message/created_at now
              :message/updated_at now
              :message/user_id user-id
+             :message/media (when media_id [media_id])
              :message/text text}
+        media (when media_id
+                (media-by-id db media_id))
+        updated-media (some-> media
+                              (assoc :media/message_id mid)
+                              (update-media))
         d (d-by-id db did)
         updated-discussion (-> (merge d {:discussion/first_message mid})
                                (assoc :discussion/latest_message mid)
                                (update-discussion now))]
-    (biff/submit-tx ctx [msg updated-discussion])
+    (biff/submit-tx ctx (vec (remove nil? [msg updated-discussion updated-media])))
     msg))
 
 ;; TODO: should this be sorted?
 (defn messages-by-did [db did]
-  (->> (q db '{:find (pull m [*])
+  (->> (q db '{:find [(pull m [*]) (pull media [*])]
                :in [did]
                :where [[m :message/did did]
-                       [m :db/type :gatz/message]]}
+                       [m :db/type :gatz/message]
+                       [m :message/media media]]}
           did)
+       (group-by (comp :xt/id first))
+       (map (fn [[_ q]]
+              (let [m (ffirst q)
+                    medias (vec (remove nil? (map second q)))]
+                (assoc m :message/media (when-not (empty? medias) medias)))))
        (sort-by :message/created_at)
        vec))
+
+(defn full-message-by-id [db mid]
+  {:pre [(uuid? mid)]}
+  (->> (q db '{:find [(pull m [*]) (pull media [*])]
+               :in [mid]
+               :where [[m :xt/id mid]
+                       [m :db/type :gatz/message]
+                       [m :message/media media]]}
+          mid)
+       (group-by (comp :xt/id first))
+       (map (fn [[_ q]]
+              (let [m (ffirst q)
+                    medias (vec (remove nil? (map second q)))]
+                (assoc m :message/media (when-not (empty? medias) medias)))))
+       first))
 
 ;; ======================================================================
 ;; Migrations

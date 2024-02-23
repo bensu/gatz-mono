@@ -45,13 +45,15 @@
 (def media
   [:map
    [:xt/id :media/id]
-   [:media/user :user/id]
-   ;; do I have the message/id when creating the media?
-   [:media/message :message/id]
-   [:media/type [:enum :media/img :media/vid :media/aud]]
+   [:db/type [:enum :gatz/media]]
+   [:media/user_id :user/id]
+   ;; we don't have the message when creating the media
+   ;; this is added later
+   [:media/message_id [:maybe :message/id]]
+   [:media/kind [:enum :media/img :media/vid :media/aud]]
    [:media/url string?]
-   [:media/mime string?]
-   [:media/size int?]
+  ;;  [:media/mime string?]
+  ;;  [:media/size int?]
    [:media/created_at inst?]])
 
 (def message
@@ -60,7 +62,8 @@
    [:db/type [:enum :gatz/message]]
    [:message/did :discussion/id]
    [:message/text string?]
-   [:message/media [:maybe [:vector :gatz/media]]]
+   ;; when sending to the client, these should be nested
+   [:message/media [:maybe [:vector :media/id]]]
    [:message/user_id :user/id]
    [:message/created_at inst?]
    [:message/updated_at inst?]])

@@ -223,8 +223,9 @@
 ;; TODO: validate all params at the API level, not the db level
 ;; TODO: members are not validated as existing
 (defn create-discussion! [{:keys [params biff/db] :as ctx}]
+  (def -dctx ctx)
   (if-let [post-text (:text params)]
-    (if-not (db/valid-post? post-text)
+    (if-not (db/valid-post? post-text (:media_id params))
       (err-resp "invalid_post" "Invalid post")
       (let [{:keys [discussion message]} (db/create-discussion-with-message! ctx params)]
         (json-response
@@ -255,13 +256,17 @@
 (defn create-message! [{:keys [params biff/db auth/user-id] :as ctx}]
   (def -mctx ctx)
   (let [{:keys [text id discussion_id]} params
-        mid (or (some-> id mt/-string->uuid)
-                (random-uuid))
+        mid (let [uid (some-> id mt/-string->uuid)]
+              (if (uuid? uid) uid (random-uuid)))
+        media-id (some-> (:media_id params) mt/-string->uuid)
         did (mt/-string->uuid discussion_id)
         d (db/d-by-id db did)]
     (if-authorized-for-discussion
      [user-id d]
-     (let [msg (db/create-message! ctx {:did did :mid mid :text text})]
+     (let [msg (db/create-message! ctx {:did did
+                                        :mid mid
+                                        :text text
+                                        :media_id media-id})]
        (when (nil? (:discussion/first_message d))
          #_(future
              (notify/new-discussion-to-members! ctx d msg)))
@@ -344,9 +349,11 @@
           ;; TODO: replace with :db/type = :gatz/message
           (when (and (contains? message :message/text)
                      (nil? (xt/entity db-before (:xt/id message))))
-            (let [did (:message/did message)
+            (let [db-after (xt/db node)
+                  did (:message/did message)
+                  full-message (db/full-message-by-id db-after (:xt/id message))
                   msg {:event/type :event/new_message
-                       :event/data {:message message :did did}}
+                       :event/data {:message full-message :did did}}
                   wss (conns/did->wss @conns-state did)]
               (doseq [ws wss]
                 (jetty/send! ws (json/write-str msg))))))))))
@@ -446,6 +453,35 @@
       (json-response {:user user}))
     (err-resp "invalid_file_url" "Invalid file url")))
 
+(def media-kinds (set (map name db/media-kinds)))
+
+(defn str->media-kind [s]
+  {:pre [(string? s)
+         (contains? media-kinds s)]}
+  (keyword "media" s))
+
+;; TODO: fill in the other elements of the media type
+;; TODO: this should be authenticated
+(defn create-media!
+  [{:keys [params] :as ctx}]
+  (def -ctx ctx)
+  (if (and (string? (:file_url params))
+           (string? (:kind params))
+           (contains? media-kinds (:kind params)))
+    (if-let [id (some-> (:id params) mt/-string->uuid)]
+      (if-let [media-kind (str->media-kind (:kind params))]
+        (let [media (db/create-media! ctx {:kind media-kind
+                                           :id id
+                                      ;; :mime (:mime params)
+                                      ;; :size (:size params)
+                                           :url (:file_url params)})]
+          (json-response {:media media}))
+        (err-resp "invalid_media_type" "Invalid media type"))
+      (err-resp "invalid_id" "Invalid id"))
+    (err-resp "invalid_params" "Invalid params")))
+
+
+
 (def plugin
   {:on-tx on-tx
    :api-routes [["/ws" {:middleware [auth/wrap-api-auth]}
@@ -469,6 +505,8 @@
                  ["/user/disable-push" {:post disable-push!}]
                  ["/user/avatar" {:post update-avatar!}]
 
+                 ["/file/presign" {:post presigned-url!}]
+                 ["/media" {:post create-media!}]
 
                  ;; converted
                  ["/user" {:get get-user
@@ -478,6 +516,4 @@
                                   :post create-discussion!}]
                  ["/discussion" {:get get-discussion}]
                  ["/discussion/mark-seen" {:post mark-seen!}]
-                 ["/discussion/archive" {:post archive!}]
-
-                 ["/file/presign" {:post presigned-url!}]]]})
+                 ["/discussion/archive" {:post archive!}]]]})
