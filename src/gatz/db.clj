@@ -631,32 +631,32 @@
   {:pre [(string? username)]}
   (format "https://gatzapi.com/avatars/%s.jpg" username))
 
-(def username->img
-  {"sebas"        "https://api.gatz.chat/avatars/sebas.jpg"
-   "devon"        "https://api.gatz.chat/avatars/devon.jpg"
-   "tara"         "https://api.gatz.chat/avatars/tara.jpg"
-   "jack"         "https://api.gatz.chat/avatars/jack.jpg"
-   "grantslatton" "https://api.gatz.chat/avatars/grantslatton.jpg"
-   "bensu"        "https://api.gatz.chat/avatars/sebas.jpg"
-   "martin"       "https://api.gatz.chat/avatars/martin.jpg"
-   "willyintheworld" "https://api.gatz.chat/avatars/willyintheworld.jpg"
-   "tbensu"       "https://api.gatz.chat/avatars/tbensu.jpg"
-   "lconstable"   "https://api.gatz.chat/avatars/lconstable.jpg"
-   "ameesh"       "https://api.gatz.chat/avatars/ameesh.jpg"
-   "ankit"        "https://api.gatz.chat/avatars/ankit.jpg"
-   "viktor"       "https://api.gatz.chat/avatars/viktor.jpg"
-   "zack"         "https://api.gatz.chat/avatars/zack.jpg"
-   "max"          "https://api.gatz.chat/avatars/max.jpg"
-   "biglu"        "https://api.gatz.chat/avatars/biglu.jpg"})
+;; images are now hosted in cloudflare
+(def picture-in-cloudflare
+  #{"sebas"
+    "devon"
+    "tara"
+    "jack"
+    "grantslatton"
+    "bensu"
+    "martin"
+    "willyintheworld"
+    "tbensu"
+    "lconstable"
+    "ameesh"
+    "ankit"
+    "viktor"
+    "zack"
+    "max"
+    "biglu"})
 
 (defn add-user-images!
   [{:keys [biff.xtdb/node] :as ctx}]
-
   (let [db (xtdb/db node)
         users (all-users db)
         txns (for [u users]
                (let [username (:user/name u)]
-                 (when (contains? username->img username)
+                 (when (contains? picture-in-cloudflare username)
                    (let [img (username-img username)]
                      (-> u
                          (assoc :user/avatar img)
