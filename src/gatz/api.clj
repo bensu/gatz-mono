@@ -364,8 +364,8 @@
     (doseq [[op & args] (::xt/tx-ops tx)]
       (when (= op ::xt/put)
         (let [[message] args]
-          ;; TODO: replace with :db/type = :gatz/message
-          (when (and (contains? message :message/text)
+          ;; TODO should this propagate on every put not just the first one?
+          (when (and (= :gatz/message (:db/type message))
                      (nil? (xt/entity db-before (:xt/id message))))
             (let [db-after (xt/db node)
                   did (:message/did message)
@@ -375,6 +375,24 @@
                   wss (conns/did->wss @conns-state did)]
               (doseq [ws wss]
                 (jetty/send! ws (json/write-str msg))))))))))
+
+;; TODO: fix to send message
+(defn on-delete-message [{:keys [biff.xtdb/node conns-state] :as dctx} tx]
+  (def -dctx dctx)
+  (println "tx:" tx)
+  (let [db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
+    (doseq [[op & args] (::xt/tx-ops tx)]
+      (when (= op ::xt/delete)
+        (let [[mid] args]
+          (when-let [message (db/message-by-id db-before mid)]
+            (let [did (:message/did message)
+                  payload {:event/type :event/delete_message
+                           :event/data {:mid mid :did did}}
+                  wss (conns/did->wss @conns-state did)]
+              (doseq [ws wss]
+                (jetty/send! ws (json/write-str payload))))))))))
+
+
 
 ;; TODO: if a user is added to a discussion, they should be registered too
 
