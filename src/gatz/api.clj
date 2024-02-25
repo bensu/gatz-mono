@@ -377,17 +377,19 @@
                 (jetty/send! ws (json/write-str msg))))))))))
 
 ;; TODO: fix to send message
-(defn on-delete-message [{:keys [biff.xtdb/node conns-state] :as dctx} tx]
-  (def -dctx dctx)
-  (println "tx:" tx)
-  (let [db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
-    (doseq [[op & args] (::xt/tx-ops tx)]
+(defn on-delete-message
+  [{:keys [biff.xtdb/node conns-state] :as _ctx}
+   {:keys [::xt/tx-id ::xt/tx-ops] :as _tx}]
+  (def -dctx _ctx)
+  (let [db-before (xt/db node {::xt/tx-id (dec tx-id)})]
+    (doseq [[op & args] tx-ops]
       (when (= op ::xt/delete)
         (let [[mid] args]
-          (when-let [message (db/message-by-id db-before mid)]
+          (when-let [message (xt/entity db-before mid)]
             (let [did (:message/did message)
                   payload {:event/type :event/delete_message
-                           :event/data {:mid mid :did did}}
+                           :event/data {:mid (:xt/id message)
+                                        :did did}}
                   wss (conns/did->wss @conns-state did)]
               (doseq [ws wss]
                 (jetty/send! ws (json/write-str payload))))))))))
@@ -439,6 +441,7 @@
   (println "new txn" tx)
   (on-new-message ctx tx)
   (on-new-discussion ctx tx)
+  (on-delete-message ctx tx)
   #_(on-new-subscription ctx tx))
 
 
