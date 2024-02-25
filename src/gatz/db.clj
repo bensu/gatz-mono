@@ -644,6 +644,9 @@
    "lconstable"   "https://api.gatz.chat/avatars/lconstable.jpg"
    "ameesh"       "https://api.gatz.chat/avatars/ameesh.jpg"
    "ankit"        "https://api.gatz.chat/avatars/ankit.jpg"
+   "viktor"       "https://api.gatz.chat/avatars/viktor.jpg"
+   "zack"         "https://api.gatz.chat/avatars/zack.jpg"
+   "max"          "https://api.gatz.chat/avatars/max.jpg"
    "biglu"        "https://api.gatz.chat/avatars/biglu.jpg"})
 
 (defn add-user-images!
