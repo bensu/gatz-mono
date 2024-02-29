@@ -257,7 +257,7 @@
     d))
 
 (def message-defaults
-  {:message/media nil})
+  {:message/media nil :message/reply_to nil})
 
 (defn update-message
   ([m] (update-message m (java.util.Date.)))
@@ -481,10 +481,11 @@
 (defn create-message!
 
   [{:keys [auth/user-id biff/db] :as ctx}
-   {:keys [text mid did media_id]}]
+   {:keys [text mid did media_id reply_to]}]
 
   {:pre [(string? text) (uuid? mid) (uuid? did) (uuid? user-id)
-         (or (nil? media_id) (uuid? media_id))]}
+         (or (nil? media_id) (uuid? media_id))
+         (or (nil? reply_to) (uuid? reply_to))]}
 
   (let [now (java.util.Date.)
         media (when media_id
@@ -499,6 +500,7 @@
              :message/created_at now
              :message/updated_at now
              :message/user_id user-id
+             :message/reply_to reply_to
              ;; we simply inline the media
              :message/media (when updated-media [updated-media])
              :message/text text}

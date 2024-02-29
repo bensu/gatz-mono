@@ -266,6 +266,7 @@
         mid (let [uid (some-> id mt/-string->uuid)]
               (if (uuid? uid) uid (random-uuid)))
         media-id (some-> (:media_id params) mt/-string->uuid)
+        reply-to (some-> (:reply_to params) mt/-string->uuid)
         did (mt/-string->uuid discussion_id)
         d (db/d-by-id db did)]
     (if-authorized-for-discussion
@@ -273,6 +274,7 @@
      (let [msg (db/create-message! ctx {:did did
                                         :mid mid
                                         :text text
+                                        :reply_to reply-to
                                         :media_id media-id})]
        (when (nil? (:discussion/first_message d))
          #_(future

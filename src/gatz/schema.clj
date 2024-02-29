@@ -66,6 +66,7 @@
    [:message/text string?]
    ;; when sending to the client, these should be nested
    [:message/media [:maybe [:vector :gatz/media]]]
+   [:message/reply_to [:maybe :message/id]]
    [:message/user_id :user/id]
    [:message/created_at inst?]
    [:message/updated_at inst?]])
