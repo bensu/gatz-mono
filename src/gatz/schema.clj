@@ -40,6 +40,7 @@
    [:discussion/first_message [:maybe :message/id]]
    [:discussion/latest_message [:maybe :message/id]]
    [:discussion/seen_at [:map-of :user/id inst?]]
+   [:discussion/last_message_read [:map-of :user/id :message/id]]
    [:discussion/archived_at [:map-of :user/id inst?]]])
 
 (def media

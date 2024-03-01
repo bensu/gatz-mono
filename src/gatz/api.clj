@@ -200,6 +200,16 @@
                        :users (map (partial db/user-by-id db) user_ids)
                        :messages messages})))))
 
+(defn mark-message-seen! [{:keys [biff/db auth/user-id params] :as ctx}]
+  {:pre [(uuid? user-id)]}
+  (let [did (mt/-string->uuid (:did params))
+        mid (mt/-string->uuid (:mid params))
+        d (db/d-by-id db did)]
+    (if-authorized-for-discussion
+     [user-id d]
+     (let [new-d (db/mark-message-seen! ctx user-id did mid (java.util.Date.))]
+       (json-response {:discussion new-d})))))
+
 (defn archive! [{:keys [biff/db auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
   (let [did (mt/-string->uuid (:did params))
@@ -561,4 +571,5 @@
                                   :post create-discussion!}]
                  ["/discussion" {:get get-discussion}]
                  ["/discussion/mark-seen" {:post mark-seen!}]
+                 ["/discussion/mark-message-seen" {:post mark-message-seen!}]
                  ["/discussion/archive" {:post archive!}]]]})

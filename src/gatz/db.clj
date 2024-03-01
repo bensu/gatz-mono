@@ -225,6 +225,7 @@
 (def discussion-defaults
   {:discussion/seen_at {}
    :discussion/archived_at {}
+   :discussion/last_message_read {}
    :discussion/first_message nil
    :discussion/latest_message nil})
 
@@ -311,6 +312,16 @@
         d (assoc d :discussion/seen_at (assoc seen-at uid now))]
     (biff/submit-tx ctx [(update-discussion d now)])
     d))
+
+(defn mark-message-seen!
+  [{:keys [biff/db] :as ctx} uid did mid now]
+  {:pre [(uuid? mid) (uuid? uid) (uuid? did) (inst? now)]}
+  (let [d (d-by-id db did)
+        new-d (-> d
+                  (update :discussion/last_message_read assoc uid mid)
+                  (update-discussion now))]
+    (biff/submit-tx ctx [new-d])
+    new-d))
 
 (defn archive! [{:keys [biff/db] :as ctx} uid did now]
   {:pre [(uuid? did) (uuid? uid) (inst? now)]}
@@ -668,4 +679,22 @@
                          (assoc :user/avatar img)
                          (update-user)
                          (dissoc :user/image))))))]
+    (biff/submit-tx ctx (vec (remove nil? txns)))))
+
+(defn add-last-message-read!
+  "Adds the last message read to all discussions"
+  [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        txns (for [d (get-all-discussions db)]
+               (let [last-update (or (:discussion/updated_at d)
+                                     (:discussion/created_at d))
+                     members (:discussion/members d)]
+                 (when-let [last-message (or (:discussion/latest_message d)
+                                             (:discussion/first_message d))]
+                   (let [all-read (into {} (for [m members]
+                                             [m last-message]))]
+                     (-> d
+                         (assoc :discussion/last_message_read all-read)
+                         (update-discussion last-update))))))]
+    #_(vec (remove nil? txns))
     (biff/submit-tx ctx (vec (remove nil? txns)))))
