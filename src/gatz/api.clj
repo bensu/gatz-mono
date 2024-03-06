@@ -1,18 +1,19 @@
 (ns gatz.api
   "All the operations but in an API"
-  (:require [com.biffweb :as biff :refer [q]]
+  (:require [chime.core :as chime]
+            [com.biffweb :as biff :refer [q]]
             [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as str]
             [gatz.auth :as auth]
             [gatz.connections :as conns]
             [gatz.db :as db]
-            [gatz.notify :as notify]
             [malli.transform :as mt]
             [ring.adapter.jetty9 :as jetty]
             [sdk.twilio :as twilio]
             [sdk.s3 :as s3]
-            [xtdb.api :as xt]))
+            [xtdb.api :as xt])
+  (:import [java.time Instant Duration]))
 
 (defn json-response [body]
   {:status 200
@@ -286,9 +287,6 @@
                                         :text text
                                         :reply_to reply-to
                                         :media_id media-id})]
-       (when (nil? (:discussion/first_message d))
-         #_(future
-             (notify/new-discussion-to-members! ctx d msg)))
        (json-response {:message msg})))))
 
 (defn delete-message! [{:keys [params biff/db auth/user-id] :as ctx}]
@@ -533,10 +531,22 @@
       (err-resp "invalid_id" "Invalid id"))
     (err-resp "invalid_params" "Invalid params")))
 
+(def alive-message {:status "ok"})
 
+(defn ping-every-connection!
+  [{:keys [conns-state] :as ctx}]
+  (println "pinging every connection")
+  (let [all-wss (conns/all-wss @conns-state)
+        msg (json/write-str alive-message)]
+    (doseq [ws all-wss]
+      (jetty/send! ws msg))))
 
 (def plugin
   {:on-tx on-tx
+   :tasks [{:task ping-every-connection!
+            :schedule (fn []
+                        (chime/periodic-seq (Instant/now) (Duration/ofSeconds 30)))}]
+
    :api-routes [["/ws" {:middleware [auth/wrap-api-auth]}
                  ["/connect" {:get start-connection}]]
                  ;; unauthenticated

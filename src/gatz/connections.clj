@@ -39,6 +39,9 @@
 ;;    :dids #{}
    })
 
+(defn all-wss [state]
+  (mapcat vals (vals (:user-id->conn-id->ws state))))
+
 (defn connected-users [state]
   (set (keys (:user-id->conn-id->ws state))))
 
