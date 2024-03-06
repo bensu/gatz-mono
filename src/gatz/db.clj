@@ -308,9 +308,11 @@
 (defn mark-as-seen! [{:keys [biff/db] :as ctx} uid did now]
   {:pre [(uuid? did) (uuid? uid) (inst? now)]}
   (let [d (d-by-id db did)
+        last-updated-at (:discussion/updated_at d now)
         seen-at (:discussion/seen_at d {})
         d (assoc d :discussion/seen_at (assoc seen-at uid now))]
-    (biff/submit-tx ctx [(update-discussion d now)])
+    ;; We don't count viewing as a change
+    (biff/submit-tx ctx [(update-discussion d last-updated-at)])
     d))
 
 (defn mark-message-seen!
