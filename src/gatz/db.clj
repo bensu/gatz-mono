@@ -181,8 +181,8 @@
 (def default-media
   {:media/size nil :media/height nil :media/width nil})
 
-(defn update-media [m]
-  (assoc (merge default-media m)
+(defn update-media [media]
+  (assoc (merge default-media media)
          :db/type :gatz/media
          :db/doc-type :gatz/media))
 
@@ -258,7 +258,7 @@
     d))
 
 (def message-defaults
-  {:message/media nil :message/reply_to nil})
+  {:message/media nil :message/reply_to nil :message/edits []})
 
 (defn update-message
   ([m] (update-message m (java.util.Date.)))
@@ -546,6 +546,29 @@
                        [m :db/type :gatz/message]]}
           mid)
        first))
+
+(defn edit-message!
+
+  [{:keys [auth/user-id biff/db] :as ctx}
+   {:keys [text mid did]}]
+
+  {:pre [(string? text) (uuid? mid) (uuid? did) (uuid? user-id)]}
+  (if-let [msg (message-by-id db mid)]
+    (let [now (java.util.Date.)
+          new-edit {:message/text text
+                    :message/edited_at now}
+          first-edit? (empty? (:message/edits msg))
+          original-edit {:message/text (:message/text msg)
+                         :message/edited_at (:message/created_at msg)}
+          new-msg (cond-> msg
+                    first-edit? (update :message/edits (fnil conj []) original-edit))
+          new-msg (-> new-msg
+                      (update :message/edits conj new-edit)
+                      (assoc :message/text text)
+                      (update-message now))]
+      (biff/submit-tx ctx [new-msg])
+      new-msg)
+    (assert false "Tried to update a non-existent message")))
 
 ;; ======================================================================
 ;; Migrations

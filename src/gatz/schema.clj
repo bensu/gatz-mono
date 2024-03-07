@@ -59,16 +59,22 @@
    [:media/size [:maybe int?]]
    [:media/created_at inst?]])
 
+(def message-edits
+  [:map
+   [:message/text string?]
+   [:message/edited_at inst?]])
+
 (def message
   [:map
    [:xt/id :message/id]
    [:db/type [:enum :gatz/message]]
    [:message/did :discussion/id]
+   [:message/user_id :user/id]
    [:message/text string?]
    ;; when sending to the client, these should be nested
    [:message/media [:maybe [:vector :gatz/media]]]
    [:message/reply_to [:maybe :message/id]]
-   [:message/user_id :user/id]
+   [:message/edits [:vector message-edits]]
    [:message/created_at inst?]
    [:message/updated_at inst?]])
 

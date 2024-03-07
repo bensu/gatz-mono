@@ -272,10 +272,9 @@
 ;; Messages
 
 (defn create-message! [{:keys [params biff/db auth/user-id] :as ctx}]
-  (def -mctx ctx)
   (let [{:keys [text id discussion_id]} params
-        mid (let [uid (some-> id mt/-string->uuid)]
-              (if (uuid? uid) uid (random-uuid)))
+        mid (let [mid (some-> id mt/-string->uuid)]
+              (if (uuid? mid) mid (random-uuid)))
         media-id (some-> (:media_id params) mt/-string->uuid)
         reply-to (some-> (:reply_to params) mt/-string->uuid)
         did (mt/-string->uuid discussion_id)
@@ -287,6 +286,16 @@
                                         :text text
                                         :reply_to reply-to
                                         :media_id media-id})]
+       (json-response {:message msg})))))
+
+(defn edit-message! [{:keys [params biff/db auth/user-id] :as ctx}]
+  (let [{:keys [text id discussion_id]} params
+        did (mt/-string->uuid discussion_id)
+        mid (some-> id mt/-string->uuid)
+        message (some->> mid (db/message-by-id db))]
+    (when-authorized-for-message
+     [user-id message]
+     (let [msg (db/edit-message! ctx {:did did :mid mid :text text})]
        (json-response {:message msg})))))
 
 (defn delete-message! [{:keys [params biff/db auth/user-id] :as ctx}]
@@ -577,6 +586,7 @@
                            :post create-user!}]
                  ["/message" {:post create-message!}]
                  ["/message/delete" {:post delete-message!}]
+                 ["/message/edit" {:post edit-message!}]
                  ["/discussions" {:get get-full-discussions
                                   :post create-discussion!}]
                  ["/discussion" {:get get-discussion}]
