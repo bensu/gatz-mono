@@ -265,6 +265,7 @@
   ([m now]
    (-> (merge message-defaults m)
        (assoc :db/doc-type :gatz/message)
+       (assoc :db/type :gatz/message)
        (assoc :message/updated_at now))))
 
 (defn create-discussion-with-message!
@@ -506,14 +507,12 @@
         updated-media (some-> media
                               (assoc :media/message_id mid)
                               (update-media))
-        msg {:db/doc-type :gatz/message
-             :db/type :gatz/message
-             :xt/id mid
+        msg {:xt/id mid
              :message/did did
              :message/created_at now
-             :message/updated_at now
              :message/user_id user-id
              :message/reply_to reply_to
+             :message/edits [{:message/text text :message/edited_at now}]
              ;; we simply inline the media
              :message/media (when updated-media [updated-media])
              :message/text text}
@@ -521,7 +520,9 @@
         updated-discussion (-> (merge d {:discussion/first_message mid})
                                (assoc :discussion/latest_message mid)
                                (update-discussion now))]
-    (biff/submit-tx ctx (vec (remove nil? [msg updated-discussion updated-media])))
+    (biff/submit-tx ctx (vec (remove nil? [(update-message msg now)
+                                           updated-discussion
+                                           updated-media])))
     msg))
 
 (defn delete-message! [ctx mid]
