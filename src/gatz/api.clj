@@ -172,6 +172,18 @@
      (contains? (:discussion/members ~d) ~user-id) (do ~@body)
      :else (err-resp "not_in_discussion" "You are not in this discussion")))
 
+(defmacro when-authorized-for-discussions [[user-id ds] & body]
+  `(cond
+     (nil? ~user-id) (err-resp "not_logged_in" "You are not logged in")
+     (or (nil? ~ds) (empty? ~ds)) (err-resp "discussion_not_found" "Discussion not found")
+
+     (not (every? (fn [d#]
+                    (contains? (:discussion/members d#) ~user-id))
+                  ~ds))
+     (err-resp "not_in_discussion" "You are not in this discussion")
+
+     :else (do ~@body)))
+
 (defmacro if-admin-for-discussion [[user-id d] & body]
   `(cond
      (nil? ~user-id) (err-resp "not_logged_in" "You are not logged in")
@@ -191,15 +203,13 @@
 
 (defn mark-seen! [{:keys [biff/db auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
-  (let [did (mt/-string->uuid (:did params))
-        d (db/d-by-id db did)]
-    (if-authorized-for-discussion
-     [user-id d]
-     (let [d (db/mark-as-seen! ctx user-id did (java.util.Date.))
-           {:keys [messages user_ids]} (db/discussion-by-id db did)]
-       (json-response {:discussion d
-                       :users (map (partial db/user-by-id db) user_ids)
-                       :messages messages})))))
+  (let [dids (map mt/-string->uuid (:dids params))
+        ds (mapv (partial db/d-by-id db) dids)]
+    (when-authorized-for-discussions
+     [user-id ds]
+     (do
+       (db/mark-as-seen! ctx user-id dids (java.util.Date.))
+       (json-response {:status "ok"})))))
 
 (defn mark-message-seen! [{:keys [biff/db auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
@@ -225,6 +235,14 @@
 
 (def discussion-fetch-batch 20)
 
+;; The cut-off for discussions is when they were created but the feed sorting is
+;; based on when they were updated. This will close problems when there is more activity
+;; and certain updates are not reflected in the latest feed because they are not the latest...
+
+;; Can I push the seen and updated criteria to the database?
+
+;; I'll punt on this and think a little harder about it later
+
 ;; discrepancy in how this gets params
 (defn get-full-discussions [{:keys [biff/db auth/user-id params] :as _ctx}]
   (let [dis (if-let [older-than-ts (some->> (:last_did params)
@@ -233,6 +251,7 @@
                                             :discussion
                                             :discussion/created_at)]
               (db/discussions-by-user-id-older-than db user-id older-than-ts discussion-fetch-batch)
+              ;; This second function might not be sorting according to what the user saw
               (db/discussions-by-user-id-up-to db user-id discussion-fetch-batch))
         ds (map (partial db/discussion-by-id db) dis)
         users (db/all-users db)]

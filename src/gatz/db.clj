@@ -253,9 +253,29 @@
            :discussion/name name
            :discussion/created_by user-id
            :discussion/created_at now
+           ;; We'll let the user see their own discussion in the feed as new
+           ;; :discussion/seen_at {user-id now}
            :discussion/members (conj (set member-uids) user-id)}]
     (biff/submit-tx ctx [(update-discussion d now)])
     d))
+
+(defn seen-by-user?
+  "Has the user seen this discussion?
+ 
+  Should be kept in-sync with the client version of this function"
+  [user-id d]
+  {:pre [(uuid? user-id)]
+   :post [(boolean? %)]}
+  (let [seen-at (get-in d [:discussion/seen_at user-id])
+        updated-at (get-in d [:discussion/updated_at])]
+    (boolean (or (nil? seen-at)
+                 (< seen-at updated-at)))))
+
+(defn sort-feed [user-id discussions]
+  (let [seen-discussions (group-by (partial seen-by-user? user-id) discussions)]
+    (concat
+     (sort-by :discussion/updated_at (get seen-discussions true))
+     (sort-by :discussion/updated_at (get seen-discussions false)))))
 
 (def message-defaults
   {:message/media nil :message/reply_to nil :message/edits []})
@@ -286,6 +306,8 @@
            :discussion/name name
            :discussion/created_by user-id
            :discussion/created_at now
+           ;; We'll let the user see their own discussion in the feed as new
+           ;; :discussion/seen_at {user-id now}
            :discussion/members (conj (set member-uids) user-id)}
         media (some->> media_id
                        mt/-string->uuid
@@ -306,15 +328,17 @@
                                                    (update-media))])))
     {:discussion d :message msg}))
 
-(defn mark-as-seen! [{:keys [biff/db] :as ctx} uid did now]
-  {:pre [(uuid? did) (uuid? uid) (inst? now)]}
-  (let [d (d-by-id db did)
-        last-updated-at (:discussion/updated_at d now)
-        seen-at (:discussion/seen_at d {})
-        d (assoc d :discussion/seen_at (assoc seen-at uid now))]
-    ;; We don't count viewing as a change
-    (biff/submit-tx ctx [(update-discussion d last-updated-at)])
-    d))
+(defn mark-as-seen! [{:keys [biff/db] :as ctx} uid dids now]
+  {:pre [(every? uuid? dids) (uuid? uid) (inst? now)]}
+  (let [txns (mapv (fn [did]
+                     (let [d (d-by-id db did)
+                           last-updated-at (:discussion/updated_at d now)
+                           seen-at (:discussion/seen_at d {})
+                           d (assoc d :discussion/seen_at (assoc seen-at uid now))]
+                       ;; We don't count viewing as a change
+                       (update-discussion d last-updated-at)))
+                   dids)]
+    (biff/submit-tx ctx txns)))
 
 (defn mark-message-seen!
   [{:keys [biff/db] :as ctx} uid did mid now]
@@ -519,6 +543,8 @@
         d (d-by-id db did)
         updated-discussion (-> (merge d {:discussion/first_message mid})
                                (assoc :discussion/latest_message mid)
+                               ;; We'll let the user see their own post
+                               ;; (update :discussion/seen_at assoc user-id now)
                                (update-discussion now))]
     (biff/submit-tx ctx (vec (remove nil? [(update-message msg now)
                                            updated-discussion
