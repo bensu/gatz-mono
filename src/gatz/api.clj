@@ -201,7 +201,24 @@
                      :users (map (partial db/user-by-id db) user_ids)
                      :messages messages}))))
 
-(defn mark-seen! [{:keys [biff/db auth/user-id params] :as ctx}]
+(defn ^:deprecated
+
+  mark-seen!
+
+  "Only for older clients"
+
+  [{:keys [biff/db auth/user-id params] :as ctx}]
+
+  {:pre [(uuid? user-id)]}
+  (let [did (mt/-string->uuid (:did params))
+        d (db/d-by-id db did)]
+    (if-authorized-for-discussion
+     [user-id d]
+     (do
+       (db/mark-as-seen! ctx user-id [did] (java.util.Date.))
+       (json-response {:status "ok"})))))
+
+(defn mark-many-seen! [{:keys [biff/db auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
   (let [dids (map mt/-string->uuid (:dids params))
         ds (mapv (partial db/d-by-id db) dids)]
@@ -609,6 +626,9 @@
                  ["/discussions" {:get get-full-discussions
                                   :post create-discussion!}]
                  ["/discussion" {:get get-discussion}]
+                 ["/discussion/mark-many-seen" {:post mark-many-seen!}]
+                 ;; this route is deprecated should be removed when all clients
+                 ;; are upgraded
                  ["/discussion/mark-seen" {:post mark-seen!}]
                  ["/discussion/mark-message-seen" {:post mark-message-seen!}]
                  ["/discussion/archive" {:post archive!}]]]})
