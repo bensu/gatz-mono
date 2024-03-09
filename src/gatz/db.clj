@@ -446,8 +446,8 @@
 (defn discussions-for-user-since-ts
 
   [db user-id since-ts]
-
   {:pre [(uuid? user-id) (inst? since-ts)]}
+
   (let [r (q db '{:find [creator-username did]
                   :in [user-id since-ts]
                       ;; TODO: this is scanning all user discussions ever

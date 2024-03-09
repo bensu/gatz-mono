@@ -48,7 +48,7 @@
 
 (defn render-friends [friends]
 
-  {:pre [(not (empty? friends)) (every? string? friends)]
+  {:pre  [(not (empty? friends)) (every? string? friends)]
    :post [(string? %)]}
 
   (let [n (count friends)]
@@ -86,7 +86,7 @@
    dids
    mids]
 
-  {:pre [(set? friend-usernames) (every? string? friend-usernames)
+  {:pre [(every? string? friend-usernames)
          (set? dids) (every? uuid? dids)
          (set? mids) (every? uuid? mids)]}
 
@@ -137,10 +137,16 @@
         (try
           (let [uid (:xt/id user)
 
+                ;; if the message-senders and discussion-creators are ordered
+                ;; by the time they posted, it is more likely the user will
+                ;; see their activity when they open the app
                 {:keys [mids dids message-senders discussion-creators]}
                 (activity-for-user-since ctx user)
 
-                friends (set/union message-senders discussion-creators)]
+                ;; keep the order so that posters show up first
+                ;; posters are more likely to be seen on the feed
+                ;; when the user opens the notification
+                friends (vec (distinct (concat discussion-creators message-senders)))]
             (friends-activity! ctx user friends dids mids)
             ;; make sure they don't see these notifications again
             (db/mark-user-active! ctx uid))
