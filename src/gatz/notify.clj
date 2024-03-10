@@ -101,7 +101,8 @@
                                    :data {:url (discussion-url (:message/did reply))}
                                    :title (render-reply-header poster replier receiver)})))
                             subscribers)]
-    (expo/push-many! secret (vec notifications))))
+    (when-not (empty? notifications)
+      (expo/push-many! secret (vec notifications)))))
 
 ;; sebas, ameesh, and tara are in gatz
 ;; 3 new posts, 2 replies
