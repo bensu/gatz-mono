@@ -80,8 +80,14 @@
 
 (defn render-reply-header [poster replier receiver]
   {:post [(string? %)]}
-  (if (= (:xt/id poster) (:xt/id receiver))
+  (cond
+    (= (:xt/id poster) (:xt/id receiver))
     (format "%s replied to your post" (:user/name replier))
+
+    (= (:xt/id poster) (:xt/id replier))
+    (format "%s replied to their own post" (:user/name replier))
+
+    :else
     (format "%s replied to %s's post" (:user/name replier) (:user/name poster))))
 
 (defn notify-reply!
