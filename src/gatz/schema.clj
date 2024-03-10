@@ -37,6 +37,7 @@
    [:discussion/created_at inst?]
    [:discussion/updated_at inst?]
    [:discussion/members [:set :user/id]]
+   [:discussion/subscribed [:set :user/id]]
    [:discussion/first_message [:maybe :message/id]]
    [:discussion/latest_message [:maybe :message/id]]
    [:discussion/seen_at [:map-of :user/id inst?]]

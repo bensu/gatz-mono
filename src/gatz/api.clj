@@ -8,6 +8,7 @@
             [gatz.auth :as auth]
             [gatz.connections :as conns]
             [gatz.db :as db]
+            [gatz.notify :as notify]
             [malli.transform :as mt]
             [ring.adapter.jetty9 :as jetty]
             [sdk.twilio :as twilio]
@@ -436,14 +437,14 @@
 
 (defn on-message-change!
 
-  [{:keys [biff.xtdb/node conns-state] :as _ctx} tx]
+  [{:keys [biff.xtdb/node conns-state] :as ctx} tx]
 
   (println "tx:" tx)
   (let [db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
     (doseq [[op & args] (::xt/tx-ops tx)]
       (when (= op ::xt/put)
         (let [[message] args]
-          ;; TODO should this propagate on every put not just the first one?
+           ;; Push notifications for those that are not connected?
           (when (= :gatz/message (:db/type message))
             (let [new? (nil? (xt/entity db-before (:xt/id message)))
                   db-after (xt/db node)
@@ -452,6 +453,10 @@
                   evt {:event/type (if new? :event/new_message :event/message_edited)
                        :event/data {:message full-message :did did}}
                   wss (conns/did->wss @conns-state did)]
+              (try
+                (notify/notify-reply! ctx full-message)
+                (catch Exception e
+                  (println "notificaitons failed" e)))
               (doseq [ws wss]
                 (jetty/send! ws (json/write-str evt))))))))))
 

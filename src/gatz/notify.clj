@@ -7,6 +7,9 @@
   (:import [java.time LocalDateTime ZoneId Instant Duration]
            [java.util Date]))
 
+(defn ->token [user]
+  (get-in user [:user/push_tokens :push/expo :push/token]))
+
 (def MAX_MESSAGE_LENGTH 30)
 
 (defn message-preview [{:keys [message/text]}]
@@ -72,9 +75,33 @@
       [false true] (format "%s new posts" n-dids)
       [false false] (format "%s new posts, %s new replies" n-dids n-mids))))
 
+;; sebas replied to _your post_ | sebas replied to milan's post
+;; Here goes the content of the reply
 
-(defn ->token [user]
-  (get-in user [:user/push_tokens :push/expo :push/token]))
+(defn render-reply-header [poster replier receiver]
+  {:post [(string? %)]}
+  (if (= (:xt/id poster) (:xt/id receiver))
+    (format "%s replied to your post" (:user/name replier))
+    (format "%s replied to %s's post" (:user/name replier) (:user/name poster))))
+
+(defn notify-reply!
+  [{:keys [biff/secret biff.xtdb/node] :as ctx} reply]
+  (let [db (xtdb.api/db node)
+        d (db/d-by-id db (:message/did reply))
+        _ (assert d "No discussion for message")
+        replier (db/user-by-id db (:message/user_id reply))
+        poster (db/user-by-id db (:discussion/created_by d))
+        subscribers (keep (partial db/user-by-id db) (:discussion/subscribed d))
+        m-preview (message-preview reply)
+        notifications (keep (fn [receiver]
+                              (when-not (= (:xt/id replier) (:xt/id receiver))
+                                (when-let [token (->token receiver)]
+                                  {:to token
+                                   :body m-preview
+                                   :data {:url (discussion-url (:message/did reply))}
+                                   :title (render-reply-header poster replier receiver)})))
+                            subscribers)]
+    (expo/push-many! secret (vec notifications))))
 
 ;; sebas, ameesh, and tara are in gatz
 ;; 3 new posts, 2 replies
