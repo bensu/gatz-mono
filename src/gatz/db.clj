@@ -2,6 +2,7 @@
   (:require [com.biffweb :as biff :refer [q]]
             [clojure.set :as set]
             [clojure.string :as str]
+            [medley.core :refer [dissoc-in]]
             [gatz.schema :as schema]
             [malli.core :as m]
             [malli.transform :as mt]
@@ -278,7 +279,7 @@
      (sort-by :discussion/updated_at (get seen-discussions false)))))
 
 (def message-defaults
-  {:message/media nil :message/reply_to nil :message/edits []})
+  {:message/media nil :message/reply_to nil :message/edits [] :message/reactions {}})
 
 (defn update-message
   ([m] (update-message m (java.util.Date.)))
@@ -592,6 +593,39 @@
           new-msg (-> new-msg
                       (update :message/edits conj new-edit)
                       (assoc :message/text text)
+                      (update-message now))]
+      (biff/submit-tx ctx [new-msg])
+      new-msg)
+    (assert false "Tried to update a non-existent message")))
+
+(defn react-to-message!
+
+  [{:keys [auth/user-id biff/db] :as ctx}
+   {:keys [reaction mid did]}]
+
+  {:pre [(string? reaction) (uuid? mid) (uuid? did) (uuid? user-id)]}
+
+  (if-let [msg (message-by-id db mid)]
+    (let [now (java.util.Date.)
+          new-msg (-> msg
+                      (update :message/reactions assoc-in [user-id reaction] now)
+                      (update-message now))]
+      (biff/submit-tx ctx [new-msg])
+      new-msg)
+    (assert false "Tried to update a non-existent message")))
+
+
+(defn undo-react!
+
+  [{:keys [auth/user-id biff/db] :as ctx}
+   {:keys [reaction mid did]}]
+
+  {:pre [(string? reaction) (uuid? mid) (uuid? did) (uuid? user-id)]}
+
+  (if-let [msg (message-by-id db mid)]
+    (let [now (java.util.Date.)
+          new-msg (-> msg
+                      (update :message/reactions dissoc-in [user-id reaction])
                       (update-message now))]
       (biff/submit-tx ctx [new-msg])
       new-msg)

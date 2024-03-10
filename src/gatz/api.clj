@@ -334,6 +334,28 @@
      (let [msg (db/edit-message! ctx {:did did :mid mid :text text})]
        (json-response {:message msg})))))
 
+(defn react-to-message! [{:keys [params biff/db auth/user-id] :as ctx}]
+  (let [{:keys [reaction mid did]} params
+        did (mt/-string->uuid did)
+        d (db/d-by-id db did)
+        mid (some-> mid mt/-string->uuid)]
+    (assert (string? reaction) "reaction must be a string")
+    (if-authorized-for-discussion
+     [user-id d]
+     (let [msg (db/react-to-message! ctx {:did did :mid mid :reaction reaction})]
+       (json-response {:message msg})))))
+
+(defn undo-react-to-message! [{:keys [params biff/db auth/user-id] :as ctx}]
+  (let [{:keys [reaction mid did]} params
+        did (mt/-string->uuid did)
+        d (db/d-by-id db did)
+        mid (some-> mid mt/-string->uuid)]
+    (assert (string? reaction) "reaction must be a string")
+    (if-authorized-for-discussion
+     [user-id d]
+     (let [msg (db/undo-react! ctx {:did did :mid mid :reaction reaction})]
+       (json-response {:message msg})))))
+
 (defn delete-message! [{:keys [params biff/db auth/user-id] :as ctx}]
   (let [message (some->>
                  (:id params)
@@ -412,30 +434,33 @@
                       )}))
        {:status 400 :body "Invalid user"}))))
 
-;; TODO: fix to send message
-(defn on-new-message [{:keys [biff.xtdb/node conns-state] :as nctx} tx]
+(defn on-message-change!
+
+  [{:keys [biff.xtdb/node conns-state] :as _ctx} tx]
+
   (println "tx:" tx)
   (let [db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
     (doseq [[op & args] (::xt/tx-ops tx)]
       (when (= op ::xt/put)
         (let [[message] args]
           ;; TODO should this propagate on every put not just the first one?
-          (when (and (= :gatz/message (:db/type message))
-                     (nil? (xt/entity db-before (:xt/id message))))
-            (let [db-after (xt/db node)
+          (when (= :gatz/message (:db/type message))
+            (let [new? (nil? (xt/entity db-before (:xt/id message)))
+                  db-after (xt/db node)
                   did (:message/did message)
                   full-message (db/message-by-id db-after (:xt/id message))
-                  msg {:event/type :event/new_message
+                  evt {:event/type (if new? :event/new_message :event/message_edited)
                        :event/data {:message full-message :did did}}
                   wss (conns/did->wss @conns-state did)]
               (doseq [ws wss]
-                (jetty/send! ws (json/write-str msg))))))))))
+                (jetty/send! ws (json/write-str evt))))))))))
 
 ;; TODO: fix to send message
 (defn on-delete-message
+
   [{:keys [biff.xtdb/node conns-state] :as _ctx}
    {:keys [::xt/tx-id ::xt/tx-ops] :as _tx}]
-  (def -dctx _ctx)
+
   (let [db-before (xt/db node {::xt/tx-id (dec tx-id)})]
     (doseq [[op & args] tx-ops]
       (when (= op ::xt/delete)
@@ -453,9 +478,10 @@
 
 ;; TODO: if a user is added to a discussion, they should be registered too
 
-(defn on-new-discussion [{:keys [biff.xtdb/node conns-state] :as ctx} tx]
-  (def -ctx ctx)
-  (def -tx tx)
+(defn on-new-discussion
+
+  [{:keys [biff.xtdb/node conns-state] :as _ctx} tx]
+
   (println "tx:" tx)
   (let [db-after (xt/db node)
         db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
@@ -492,9 +518,10 @@
                          (nil? (xt/entity db-before (:xt/id doc))))]
         (biff/submit-job ctx :fetch-rss (assoc doc :biff/priority 0)))))
 
+;; TODO: if one of these throws an exception, the rest of the on-tx should still run
 (defn on-tx [ctx tx]
   (println "new txn" tx)
-  (on-new-message ctx tx)
+  (on-message-change! ctx tx)
   (on-new-discussion ctx tx)
   (on-delete-message ctx tx)
   #_(on-new-subscription ctx tx))
@@ -623,6 +650,9 @@
                  ["/message" {:post create-message!}]
                  ["/message/delete" {:post delete-message!}]
                  ["/message/edit" {:post edit-message!}]
+                 ["/message/react" {:post react-to-message!}]
+                 ["/message/undo-react" {:post undo-react-to-message!}]
+
                  ["/discussions" {:get get-full-discussions
                                   :post create-discussion!}]
                  ["/discussion" {:get get-discussion}]
