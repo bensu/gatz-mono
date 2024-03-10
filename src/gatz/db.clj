@@ -227,7 +227,7 @@
   {:discussion/seen_at {}
    :discussion/archived_at {}
    :discussion/last_message_read {}
-   :discussion/subscribed #{}
+   :discussion/subscribers #{}
    :discussion/first_message nil
    :discussion/latest_message nil})
 
@@ -255,7 +255,7 @@
            :discussion/name name
            :discussion/created_by user-id
            :discussion/created_at now
-           :discussion/subscribed #{user-id}
+           :discussion/subscribers #{user-id}
            ;; We'll let the user see their own discussion in the feed as new
            ;; :discussion/seen_at {user-id now}
            :discussion/members (conj (set member-uids) user-id)}]
@@ -308,7 +308,7 @@
            :discussion/did did
            :discussion/name name
            :discussion/created_by user-id
-           :discussion/subscribed #{user-id}
+           :discussion/subscribers #{user-id}
            ;; We'll let the user see their own discussion in the feed as new
            ;; :discussion/seen_at {user-id now}
            :discussion/members (conj (set member-uids) user-id)

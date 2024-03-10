@@ -91,7 +91,7 @@
         _ (assert d "No discussion for message")
         replier (db/user-by-id db (:message/user_id reply))
         poster (db/user-by-id db (:discussion/created_by d))
-        subscribers (keep (partial db/user-by-id db) (:discussion/subscribed d))
+        subscribers (keep (partial db/user-by-id db) (:discussion/subscribers d))
         m-preview (message-preview reply)
         notifications (keep (fn [receiver]
                               (when-not (= (:xt/id replier) (:xt/id receiver))
