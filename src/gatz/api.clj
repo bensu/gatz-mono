@@ -251,6 +251,27 @@
                        :users (map (partial db/user-by-id db) user_ids)
                        :messages messages})))))
 
+(defn subscribe-to-discussion!
+  [{:keys [biff/db auth/user-id params] :as ctx}]
+  {:pre [(uuid? user-id)]}
+  (let [did (mt/-string->uuid (:did params))
+        d (db/d-by-id db did)]
+    (if-authorized-for-discussion
+     [user-id d]
+     (let [d (db/subscribe! ctx user-id did (java.util.Date.))]
+       (json-response {:discussion d})))))
+
+(defn unsubscribe-to-discussion!
+  [{:keys [biff/db auth/user-id params] :as ctx}]
+  {:pre [(uuid? user-id)]}
+  (let [did (mt/-string->uuid (:did params))
+        d (db/d-by-id db did)]
+    (if-authorized-for-discussion
+     [user-id d]
+     (let [d (db/unsubscribe! ctx user-id did (java.util.Date.))]
+       (json-response {:discussion d})))))
+
+
 (def discussion-fetch-batch 20)
 
 ;; The cut-off for discussions is when they were created but the feed sorting is
@@ -666,4 +687,6 @@
                  ;; are upgraded
                  ["/discussion/mark-seen" {:post mark-seen!}]
                  ["/discussion/mark-message-seen" {:post mark-message-seen!}]
-                 ["/discussion/archive" {:post archive!}]]]})
+                 ["/discussion/archive" {:post archive!}]
+                 ["/discussion/subscribe" {:post subscribe-to-discussion!}]
+                 ["/discussion/unsubscribe" {:post unsubscribe-to-discussion!}]]]})
