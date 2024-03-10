@@ -364,19 +364,21 @@
 
 (defn subscribe! [{:keys [biff/db] :as ctx} uid did now]
   {:pre [(uuid? did) (uuid? uid) (inst? now)]}
-  (let [d (d-by-id db did)]
-    (biff/submit-tx ctx [(-> d
-                             (update :discussion/subscribers conj uid)
-                             (update-discussion now))])
-    d))
+  (let [d (d-by-id db did)
+        updated-d (-> d
+                      (update :discussion/subscribers conj uid)
+                      (update-discussion now))]
+    (biff/submit-tx ctx [updated-d])
+    updated-d))
 
 (defn unsubscribe! [{:keys [biff/db] :as ctx} uid did now]
   {:pre [(uuid? did) (uuid? uid) (inst? now)]}
-  (let [d (d-by-id db did)]
-    (biff/submit-tx ctx [(-> d
-                             (update :discussion/subscribers disj uid)
-                             (update-discussion now))])
-    d))
+  (let [d (d-by-id db did)
+        updated-d (-> d
+                      (update :discussion/subscribers disj uid)
+                      (update-discussion now))]
+    (biff/submit-tx ctx [updated-d])
+    updated-d))
 
 (defn get-all-discussions [db]
   (q db
