@@ -475,7 +475,8 @@
                        :event/data {:message full-message :did did}}
                   wss (conns/did->wss @conns-state did)]
               (try
-                (notify/notify-reply! ctx full-message)
+                (when new?
+                  (notify/notify-reply! ctx full-message))
                 (catch Exception e
                   (println "notificaitons failed" e)))
               (doseq [ws wss]
