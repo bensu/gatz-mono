@@ -382,8 +382,13 @@
 
 (defn get-all-discussions [db]
   (q db
-     '{:find (pull u [*])
-       :where [[u :db/type :gatz/discussion]]}))
+     '{:find (pull d [*])
+       :where [[d :db/type :gatz/discussion]]}))
+
+(defn get-all-messages [db]
+  (q db
+     '{:find (pull m [*])
+       :where [[m :db/type :gatz/message]]}))
 
 (declare messages-by-did)
 
@@ -652,6 +657,23 @@
       new-msg)
     (assert false "Tried to update a non-existent message")))
 
+(defn flatten-reactions [did mid reactions]
+  {:pre [(uuid? did) (uuid? mid)]}
+  (mapcat
+   (fn [[uid emoji->ts]]
+     (map (fn [[emoji ts]]
+            {:reaction/emoji emoji
+             :reaction/created_at ts
+             :reaction/to_mid mid
+             :reaction/by_uid uid
+             :reaction/did did})
+          emoji->ts))
+   reactions))
+
+(defn count-reactions [reactions]
+  {:post [(number? %)]}
+  (count (mapcat vals (vals reactions))))
+
 ;; ======================================================================
 ;; Migrations
 
@@ -805,3 +827,13 @@
                          (update-discussion last-update))))))]
     #_(vec (remove nil? txns))
     (biff/submit-tx ctx (vec (remove nil? txns)))))
+
+(defn messages-with-n-or-more-reactions
+  "Finds messages that were reacted to n or more time"
+  [db n]
+  (vec
+   (filter (fn [d]
+             (let [reactions (:message/reactions d)]
+               (<= n (count-reactions reactions))))
+           (get-all-messages db))))
+

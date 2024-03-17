@@ -65,6 +65,14 @@
    [:message/text string?]
    [:message/edited_at inst?]])
 
+(def message-reaction
+  [:map
+   [:reaction/emoji string?]
+   [:reaction/created_at inst?]
+   [:reaction/did :discussion/id]
+   [:reaction/to_mid :message/id]
+   [:reaction/by_uid :user/id]])
+
 (def message
   [:map
    [:xt/id :message/id]
@@ -87,6 +95,7 @@
    :media/id :uuid
    :gatz/user user
    :gatz/discussion discussion
+   :gatz/reaction message-reaction
    :gatz/media media
    :gatz/message message
    :gatz/push push-token})
