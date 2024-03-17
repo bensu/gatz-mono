@@ -72,8 +72,14 @@
     (condp = [(zero? n-dids) (zero? n-mids)]
       [true true]  "No activity"
       [true false] (format "%s new replies" n-mids)
-      [false true] (format "%s new posts" n-dids)
-      [false false] (format "%s new posts, %s new replies" n-dids n-mids))))
+      [false true]  (if (= 1 n-dids)
+                      (format "%s new post" n-dids)
+                      (format "%s new posts" n-dids))
+      [false false] (condp = [(= 1 n-dids) (= 1 n-mids)]
+                      [true true]   (format "%s new post, %s new reply" n-dids n-mids)
+                      [true false]  (format "%s new post, %s new replies" n-dids n-mids)
+                      [false true]  (format "%s new posts, %s new reply" n-dids n-mids)
+                      [false false] (format "%s new posts, %s new replies" n-dids n-mids)))))
 
 ;; sebas replied to _your post_ | sebas replied to milan's post
 ;; Here goes the content of the reply
