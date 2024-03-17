@@ -135,7 +135,9 @@
       (when-let [expo-token (->token to-user)]
         (println "sending notification to" (:user/name to-user) "with friends" friends)
         (let [notification {:to expo-token
-                            :title (format "%s are in gatz" (render-friends friends))
+                            :title (if (= 1 (count friends))
+                                     (format "%s is in gatz" (render-friends friends))
+                                     (format "%s are in gatz" (render-friends friends)))
                             :body (render-activity dids mids)}]
           (expo/push-many! secret [notification]))))))
 
