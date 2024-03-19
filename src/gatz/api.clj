@@ -9,7 +9,9 @@
             [gatz.connections :as conns]
             [gatz.db :as db]
             [gatz.notify :as notify]
+            [gatz.schema :as schema]
             [malli.transform :as mt]
+            [medley.core :refer [map-keys]]
             [ring.adapter.jetty9 :as jetty]
             [sdk.twilio :as twilio]
             [sdk.s3 :as s3]
@@ -63,6 +65,24 @@
   [{:keys [auth/user-id] :as ctx}]
   (let [user (db/remove-push-tokens! ctx user-id)]
     (json-response {:status "success" :user user})))
+
+(defn params->notification-settings [params]
+  (let [m (map-keys (comp (partial keyword "settings.notification") name) params)]
+    (cond-> (select-keys m schema/notification-keys)
+
+      (some? (:settings.notification/activity m))
+      (update :settings.notification/activity (partial keyword "settings.notification")))))
+
+(defn update-notification-settings!
+  [{:keys [params auth/user-id] :as ctx}]
+  (if-let [notification-settings (some-> (:settings params)
+                                         params->notification-settings)]
+    (let [user (db/edit-notifications! ctx
+                                       user-id
+                                       notification-settings)]
+      (json-response {:status "success" :user user}))
+    (err-resp "invalid_params" "Invalid parameters")))
+
 
 (defn sign-in!
   [{:keys [params biff/db] :as _ctx}]
@@ -634,7 +654,7 @@
 
 (defn ping-every-connection!
   [{:keys [conns-state] :as ctx}]
-  (println "pinging every connection")
+  ;; (println "pinging every connection")
   (let [all-wss (conns/all-wss @conns-state)
         msg (json/write-str alive-message)]
     (doseq [ws all-wss]
@@ -666,6 +686,7 @@
                  ["/user/push-token" {:post add-push-token!}]
                  ["/user/disable-push" {:post disable-push!}]
                  ["/user/avatar" {:post update-avatar!}]
+                 ["/user/settings/notifications" {:post update-notification-settings!}]
 
 
                  ["/file/presign" {:post presigned-url!}]

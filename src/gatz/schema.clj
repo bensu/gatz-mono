@@ -11,6 +11,21 @@
   [:map
    [:push/expo push-token]])
 
+
+(def notification-preferences
+  [:map
+   [:settings.notification/overall boolean?]
+   [:settings.notification/activity
+    [:enum :settings.notification/daily :settings.notification/none]]
+   [:settings.notification/comments_to_own_post boolean?]
+   [:settings.notification/reactions_to_own_post boolean?]
+   [:settings.notification/replies_to_comment boolean?]
+   [:settings.notification/reactions_to_comment boolean?]
+   [:settings.notification/at_mentions boolean?]
+   [:settings.notification/subscribe_on_comment boolean?]])
+
+(def notification-keys (set (map first (rest notification-preferences))))
+
 (def user
   [:map
    [:xt/id :user/id]
@@ -21,6 +36,9 @@
    [:user/phone_number string?]
    [:user/push_tokens [:maybe push-tokens]]
    [:user/avatar [:maybe string?]]
+   [:user/settings
+    [:map
+     [:settings/notifications notification-preferences]]]
    ;; :user/image is replaced by :user/avatar
    ;; [:user/image [:maybe string?]]
    [:user/is_test [:maybe boolean?]]

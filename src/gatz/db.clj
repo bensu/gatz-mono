@@ -62,6 +62,26 @@
         (<= MIN_LENGTH_USERNAME (count s))
         (re-matches #"^[a-z0-9._-]+$" s))))
 
+(def notifications-off
+  {:settings.notification/overall false
+   :settings.notification/activity :settings.notification/none
+   :settings.notification/comments_to_own_post false
+   :settings.notification/reactions_to_own_post false
+   :settings.notification/replies_to_comment false
+   :settings.notification/reactions_to_comment false
+   :settings.notification/at_mentions false
+   :settings.notification/subscribe_on_comment false})
+
+(def notifications-on
+  {:settings.notification/overall true
+   :settings.notification/activity :settings.notification/daily
+   :settings.notification/comments_to_own_post true
+   :settings.notification/reactions_to_own_post true
+   :settings.notification/replies_to_comment true
+   :settings.notification/reactions_to_comment true
+   :settings.notification/at_mentions true
+   :settings.notification/subscribe_on_comment true})
+
 (def user-defaults
   {:db/type :gatz/user
    :db/doc-type :gatz/user
@@ -73,11 +93,16 @@
 (defn- update-user
   ([u] (update-user u (java.util.Date.)))
   ([u now]
-   (-> (merge user-defaults
-              {:user/last_active now}
-              u)
-       (assoc :db/doc-type :gatz/user)
-       (assoc :user/updated_at now))))
+   (cond-> (merge user-defaults
+                  {:user/last_active now}
+                  u)
+
+     (nil? (:user/settings u)) (assoc :user/settings (if (:user/push_tokens u)
+                                                       {:settings/notifications notifications-on}
+                                                       {:settings/notifications notifications-off}))
+
+     true (assoc :db/doc-type :gatz/user)
+     true (assoc :user/updated_at now))))
 
 (defn create-user! [ctx {:keys [username phone]}]
 
@@ -127,6 +152,7 @@
   (if-let [user (user-by-id db user-id)]
     (let [updated-user (-> user
                            (assoc :user/push_tokens push-token)
+                           (update :user/settings assoc :settings/notifications notifications-on)
                            (update-user))]
       (biff/submit-tx ctx [updated-user])
       updated-user)
@@ -140,10 +166,32 @@
   (if-let [user (user-by-id db user-id)]
     (let [updated-user (-> user
                            (assoc :user/push_tokens nil)
+                           (update :user/settings assoc :settings/notifications notifications-off)
                            (update-user))]
       (biff/submit-tx ctx [updated-user])
       updated-user)
     (assert false "User not found")))
+
+(defn turn-off-notifications! [{:keys [biff/db] :as ctx} uid]
+  {:pre [(uuid? uid)]}
+  (let [user (user-by-id db uid)
+        updated-user (-> user
+                         (update :user/settings assoc :settings/notifications notifications-off)
+                         (update-user))]
+    (biff/submit-tx ctx [updated-user])
+    updated-user))
+
+(defn edit-notifications!
+  [{:keys [biff/db] :as ctx} uid notification-settings]
+  {:pre [(uuid? uid)
+         ;; TODO: This should allow a subset of the notification-preferences schema
+         #_(m/validate schema/notification-preferences notification-settings)]}
+  (let [user (user-by-id db uid)
+        updated-user (-> user
+                         (update-user)
+                         (update-in [:user/settings :settings/notifications] #(merge % notification-settings)))]
+    (biff/submit-tx ctx [updated-user])
+    updated-user))
 
 (defn update-user-avatar!
 
