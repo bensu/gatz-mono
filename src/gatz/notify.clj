@@ -203,20 +203,22 @@
 
 (defn activity-notification-for-user [db uid]
   (let [to-user (db/user-by-id db uid)
+        settings (get-in to-user [:user/settings :settings/notifications])
         since-ts (or (:user/last_active to-user) (hours-ago 8))]
     (when-let [expo-token (->token to-user)]
-    ;; TODO: check they have the daily notifications active
-      (let [{:keys [senders mids]} (db/messages-sent-to-user-since db uid since-ts)
-            {:keys [creators dids]} (db/discussions-for-user-since-ts db uid since-ts)
-            friends-usernames (vec (distinct (concat creators senders)))
-            friends (remove #(= % (:user/name to-user)) friends-usernames)]
-        (when-not (empty? friends)
-          {:expo/to expo-token
-           :expo/uid uid
-           :expo/title (if (= 1 (count friends))
-                         (format "%s is in gatz" (render-friends friends))
-                         (format "%s are in gatz" (render-friends friends)))
-           :expo/body (render-activity dids mids)})))))
+      (when (and (:settings.notification/overall settings)
+                 (= :settings.notification/daily (:settings.notification/activity settings)))
+        (let [{:keys [senders mids]} (db/messages-sent-to-user-since db uid since-ts)
+              {:keys [creators dids]} (db/discussions-for-user-since-ts db uid since-ts)
+              friends-usernames (vec (distinct (concat creators senders)))
+              friends (remove #(= % (:user/name to-user)) friends-usernames)]
+          (when-not (empty? friends)
+            {:expo/to expo-token
+             :expo/uid uid
+             :expo/title (if (= 1 (count friends))
+                           (format "%s is in gatz" (render-friends friends))
+                           (format "%s are in gatz" (render-friends friends)))
+             :expo/body (render-activity dids mids)}))))))
 
 (defn activity-for-all-users!
   [{:keys [biff.xtdb/node biff/secret] :as ctx}]

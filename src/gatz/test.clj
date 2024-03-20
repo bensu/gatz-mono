@@ -180,4 +180,9 @@
                 ;; of the discussion as a new post and a new reply
                   :expo/body "3 new posts, 3 new replies"}
                  (notify/activity-notification-for-user (xtdb/db node) cid))
-              "Friends get notifications from your activity"))))))
+              "Friends get notifications from your activity")
+
+          (db/edit-notifications! (with-db ctx) cid
+                                  {:settings.notification/activity :settings.notification/none})
+          (is (empty? (notify/activity-notification-for-user (xtdb/db node) cid))
+              "No notifications if you opted out of them"))))))
