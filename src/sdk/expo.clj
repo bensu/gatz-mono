@@ -12,7 +12,7 @@
 ;;   "body": "world"
 ;; }'
 
-(defn valid-notification? [{:keys [to title body]}]
+(defn valid-notification? [{:expo/keys [to title body]}]
   (and (string? to)
        (string? title)
        (string? body)))

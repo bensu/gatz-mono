@@ -40,10 +40,10 @@
         notifications (->> users
                            (keep #(get-in % [:user/push_tokens :push/expo :push/token]))
                            (mapv (fn [expo-token]
-                                   {:to expo-token
-                                    :title title
-                                    :body body
-                                    :data {:url url}})))]
+                                   {:expo/to expo-token
+                                    :expo/title title
+                                    :expo/body body
+                                    :expo/data {:url url}})))]
     (println "notifications" notifications)
     ;; TODO: check for notification preferences
     (when-not (empty? notifications)
@@ -84,37 +84,111 @@
 ;; sebas replied to _your post_ | sebas replied to milan's post
 ;; Here goes the content of the reply
 
-(defn render-reply-header [poster replier receiver]
+(defn render-comment-header [poster replier receiver]
   {:post [(string? %)]}
   (cond
     (= (:xt/id poster) (:xt/id receiver))
-    (format "%s replied to your post" (:user/name replier))
+    (format "%s commented on your post" (:user/name replier))
 
     (= (:xt/id poster) (:xt/id replier))
-    (format "%s replied to their own post" (:user/name replier))
+    (format "%s commented on their own post" (:user/name replier))
 
     :else
-    (format "%s replied to %s's post" (:user/name replier) (:user/name poster))))
+    (format "%s commented on %s's post" (:user/name replier) (:user/name poster))))
 
-(defn notify-reply!
-  [{:keys [biff/secret biff.xtdb/node] :as ctx} reply]
-  (let [db (xtdb.api/db node)
-        d (db/d-by-id db (:message/did reply))
+(defn render-reply-header [replier]
+  {:post [(string? %)]}
+  (format "%s replied to your post" (:user/name replier)))
+
+(defn render-at-mention-header [commenter]
+  {:post [(string? %)]}
+  (format "%s mentioned you in their comment" (:user/name commenter)))
+
+(defn find-at-mentions [text]
+  {:pre [(string? text)]}
+  []
+  #_(let [re #"\B@(\w+)\b"]
+      (set (map second (re-seq re text)))))
+
+(defn notifications-for-comment [db m]
+  (let [d (db/d-by-id db (:message/did m))
         _ (assert d "No discussion for message")
-        replier (db/user-by-id db (:message/user_id reply))
+        commenter (db/user-by-id db (:message/user_id m))
         poster (db/user-by-id db (:discussion/created_by d))
-        subscribers (keep (partial db/user-by-id db) (:discussion/subscribers d))
-        m-preview (message-preview reply)
-        notifications (keep (fn [receiver]
-                              (when-not (= (:xt/id replier) (:xt/id receiver))
-                                (when-let [token (->token receiver)]
-                                  {:to token
-                                   :body m-preview
-                                   :data {:url (discussion-url (:message/did reply))}
-                                   :title (render-reply-header poster replier receiver)})))
-                            subscribers)]
+        m-preview (message-preview m)
+        data {:url (discussion-url (:message/did m))}]
+    (->> (:discussion/subscribers d)
+         (keep (partial db/user-by-id db))
+         (keep (fn [receiver]
+                 (when-not (= (:xt/id commenter) (:xt/id receiver))
+                   (when-let [token (->token receiver)]
+                     (let [uid (:xt/id receiver)
+                           settings (get-in receiver [:user/settings :settings/notifications])]
+                       (println settings)
+                       (when (and (:settings.notification/overall settings)
+                                  (:settings.notification/comments_to_own_post settings))
+                         {:expo/to token
+                          :expo/uid uid
+                          :expo/body m-preview
+                          :expo/data data
+                          :expo/title (render-comment-header poster commenter receiver)}))))))
+         vec)))
+
+(defn notify-comment!
+  [{:keys [biff/secret biff.xtdb/node] :as _ctx} comment]
+  (let [db (xtdb.api/db node)
+        d (db/d-by-id db (:message/did comment))
+        _ (assert d "No discussion for message")
+        ;; commenter (db/user-by-id db (:message/user_id comment))
+        ;; poster (db/user-by-id db (:discussion/created_by d))
+        ;; m-preview (message-preview comment)
+        ;; data {:url (discussion-url (:message/did comment))}
+
+        ;; is it a reply to a comment?
+        ;; notification-to-og-commenter
+        ;; (when-let [reply-to (some->> (:message/reply_to comment)
+        ;;                              (db/message-by-id db))]
+        ;;   (let [og-commenter (db/user-by-id db (:message/user_id reply-to))
+        ;;         settings (get-in og-commenter [:user/settings :settings/notifications])]
+        ;;     (when-let [token (->token og-commenter)]
+        ;;       (when (and (:settings.notification/overall settings)
+        ;;                  (:settings.notification/replies_to_comment settings))
+        ;;         {(:xt/id og-commenter)
+        ;;          {:to token
+        ;;           :body m-preview
+        ;;           :data data
+        ;;           :title (render-reply-header commenter)}}))))
+
+        ;; does it have an @at-mention?
+        ;; at-mentions (find-at-mentions (:message/text comment))
+        ;; notification-to-at-mentioned
+        ;; (->> at-mentions
+        ;;      (keep (partial db/user-by-name db))
+        ;;      (keep (fn [u]
+        ;;              (when-let [token (->token u)]
+        ;;                (let [uid (:xt/id u)
+        ;;                      settings (get-in u [:user/settings :settings/notifications])]
+        ;;                  (when (and (:settings.notification/overall settings)
+        ;;                             (:settings.notification/at_mentions settings))
+        ;;                    [uid
+        ;;                     {:to token
+        ;;                      :body m-preview
+        ;;                      :data data
+        ;;                      :title (render-at-mention-header commenter)}])))))
+        ;;      (into {}))
+
+        notifications-to-subscribers (->> (notifications-for-comment db comment)
+                                          (map (fn [{:keys [expo/uid] :as n}]
+                                                 [uid n]))
+                                          (into {}))
+        ;; this guarantees that each user will see at most one notification
+        uid->notifications (merge notifications-to-subscribers
+                                  #_notification-to-og-commenter
+                                  #_notification-to-at-mentioned)
+        notifications (vec (vals uid->notifications))]
+    (println "notifications" notifications)
     (when-not (empty? notifications)
-      (expo/push-many! secret (vec notifications)))))
+      (expo/push-many! secret notifications))))
 
 ;; sebas, ameesh, and tara are in gatz
 ;; 3 new posts, 2 replies
@@ -134,11 +208,11 @@
     (when-not (empty? friends)
       (when-let [expo-token (->token to-user)]
         (println "sending notification to" (:user/name to-user) "with friends" friends)
-        (let [notification {:to expo-token
-                            :title (if (= 1 (count friends))
-                                     (format "%s is in gatz" (render-friends friends))
-                                     (format "%s are in gatz" (render-friends friends)))
-                            :body (render-activity dids mids)}]
+        (let [notification {:expo/to expo-token
+                            :expo/title (if (= 1 (count friends))
+                                          (format "%s is in gatz" (render-friends friends))
+                                          (format "%s are in gatz" (render-friends friends)))
+                            :expo/body (render-activity dids mids)}]
           (expo/push-many! secret [notification]))))))
 
 (defn hours-ago [n]
@@ -178,20 +252,22 @@
       (when (some? (->token user))
         (try
           (let [uid (:xt/id user)
-
-                ;; if the message-senders and discussion-creators are ordered
-                ;; by the time they posted, it is more likely the user will
-                ;; see their activity when they open the app
-                {:keys [mids dids message-senders discussion-creators]}
-                (activity-for-user-since ctx user)
-
-                ;; keep the order so that posters show up first
-                ;; posters are more likely to be seen on the feed
-                ;; when the user opens the notification
-                friends (vec (distinct (concat discussion-creators message-senders)))]
-            (friends-activity! ctx user friends dids mids)
+                notification (get-in user [:user/settings :settings/notifications])]
+            (when (and (:settings.notification/overall notification)
+                       (= :settings.notification/daily
+                          (:settings.notification/activity notification)))
+              ;; if the message-senders and discussion-creators are ordered
+              ;; by the time they posted, it is more likely the user will
+              ;; see their activity when they open the app
+              (let [{:keys [mids dids message-senders discussion-creators]}
+                    (activity-for-user-since ctx user)
+                    ;; keep the order so that posters show up first
+                    ;; posters are more likely to be seen on the feed
+                    ;; when the user opens the notification
+                    friends (vec (distinct (concat discussion-creators message-senders)))]
+                (friends-activity! ctx user friends dids mids)
             ;; make sure they don't see these notifications again
-            (db/mark-user-active! ctx uid))
+                (db/mark-user-active! ctx uid))))
           (catch Throwable e
             ;; TODO: handle
             (println "Error in activity-for-all-users!")

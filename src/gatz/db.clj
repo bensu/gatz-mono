@@ -104,14 +104,14 @@
      true (assoc :db/doc-type :gatz/user)
      true (assoc :user/updated_at now))))
 
-(defn create-user! [ctx {:keys [username phone]}]
+(defn create-user! [{:keys [biff/db] :as ctx} {:keys [username phone id]}]
 
   {:pre [(valid-username? username)]}
 
-  (assert (nil? (user-by-name (:biff/db ctx) username)))
+  (assert (nil? (user-by-name db username)))
 
   (let [now (java.util.Date.)
-        user-id (random-uuid)
+        user-id (or id (random-uuid))
         user {:xt/id user-id
               :user/name username
               :user/phone_number phone
@@ -410,18 +410,23 @@
     (biff/submit-tx ctx [(update-discussion d now)])
     d))
 
-(defn subscribe! [{:keys [biff/db] :as ctx} uid did now]
-  {:pre [(uuid? did) (uuid? uid) (inst? now)]}
-  (let [d (d-by-id db did)
-        updated-d (-> d
-                      (update :discussion/subscribers conj uid)
-                      (update-discussion now))]
-    (biff/submit-tx ctx [updated-d])
-    updated-d))
+(defn subscribe!
+  ([ctx uid did]
+   (subscribe! ctx uid did (java.util.Date.)))
+  ([{:keys [biff/db] :as ctx} uid did now]
+   {:pre [(uuid? did) (uuid? uid) (inst? now)]}
+   (let [d (d-by-id db did)
+         _ (assert d)
+         updated-d (-> d
+                       (update :discussion/subscribers conj uid)
+                       (update-discussion now))]
+     (biff/submit-tx ctx [updated-d])
+     updated-d)))
 
 (defn unsubscribe! [{:keys [biff/db] :as ctx} uid did now]
   {:pre [(uuid? did) (uuid? uid) (inst? now)]}
   (let [d (d-by-id db did)
+        _ (assert d)
         updated-d (-> d
                       (update :discussion/subscribers disj uid)
                       (update-discussion now))]
@@ -596,11 +601,14 @@
   [{:keys [auth/user-id biff/db] :as ctx}
    {:keys [text mid did media_id reply_to]}]
 
-  {:pre [(string? text) (uuid? mid) (uuid? did) (uuid? user-id)
+  {:pre [(string? text)
+         (or (nil? mid) (uuid? mid))
+         (uuid? did) (uuid? user-id)
          (or (nil? media_id) (uuid? media_id))
          (or (nil? reply_to) (uuid? reply_to))]}
 
   (let [now (java.util.Date.)
+        mid (or mid (random-uuid))
         media (when media_id
                 (media-by-id db media_id))
         updated-media (some-> media

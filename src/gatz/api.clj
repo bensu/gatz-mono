@@ -496,7 +496,7 @@
                   wss (conns/did->wss @conns-state did)]
               (try
                 (when new?
-                  (notify/notify-reply! ctx full-message))
+                  (notify/notify-comment! ctx full-message))
                 (catch Exception e
                   (println "notificaitons failed" e)))
               (doseq [ws wss]
