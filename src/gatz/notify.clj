@@ -44,7 +44,6 @@
                                     :expo/title title
                                     :expo/body body
                                     :expo/data {:url url}})))]
-    (println "notifications" notifications)
     ;; TODO: check for notification preferences
     (when-not (empty? notifications)
       (expo/push-many! secret notifications))))
@@ -124,7 +123,6 @@
                    (when-let [token (->token receiver)]
                      (let [uid (:xt/id receiver)
                            settings (get-in receiver [:user/settings :settings/notifications])]
-                       (println settings)
                        (when (and (:settings.notification/overall settings)
                                   (:settings.notification/comments_to_own_post settings))
                          {:expo/to token
@@ -186,34 +184,11 @@
                                   #_notification-to-og-commenter
                                   #_notification-to-at-mentioned)
         notifications (vec (vals uid->notifications))]
-    (println "notifications" notifications)
     (when-not (empty? notifications)
       (expo/push-many! secret notifications))))
 
 ;; sebas, ameesh, and tara are in gatz
 ;; 3 new posts, 2 replies
-
-(defn friends-activity!
-  [{:keys [biff/secret] :as _ctx}
-   to-user
-   friend-usernames
-   dids
-   mids]
-
-  {:pre [(every? string? friend-usernames)
-         (set? dids) (every? uuid? dids)
-         (set? mids) (every? uuid? mids)]}
-
-  (let [friends (remove #(= % (:user/name to-user)) friend-usernames)]
-    (when-not (empty? friends)
-      (when-let [expo-token (->token to-user)]
-        (println "sending notification to" (:user/name to-user) "with friends" friends)
-        (let [notification {:expo/to expo-token
-                            :expo/title (if (= 1 (count friends))
-                                          (format "%s is in gatz" (render-friends friends))
-                                          (format "%s are in gatz" (render-friends friends)))
-                            :expo/body (render-activity dids mids)}]
-          (expo/push-many! secret [notification]))))))
 
 (defn hours-ago [n]
 
@@ -226,52 +201,38 @@
         zone-date (.atZone ago zone-id)]
     (Date/from (.toInstant zone-date))))
 
-(defn activity-for-user-since
-  [{:keys [biff.xtdb/node] :as _ctx} user]
-
-  (let [db (xtdb.api/db node)
-        uid (:xt/id user)
-        since-ts (or (db/user-last-active db uid)
-                     (hours-ago 8))
-        {:keys [senders mids]} (db/messages-sent-to-user-since db uid since-ts)
-        {:keys [creators dids]} (db/discussions-for-user-since-ts db uid since-ts)]
-    {:since-ts since-ts
-     :dids dids
-     :mids mids
-     :message-senders senders
-     :discussion-creators creators}))
+(defn activity-notification-for-user [db uid]
+  (let [to-user (db/user-by-id db uid)
+        since-ts (or (:user/last_active to-user) (hours-ago 8))]
+    (when-let [expo-token (->token to-user)]
+    ;; TODO: check they have the daily notifications active
+      (let [{:keys [senders mids]} (db/messages-sent-to-user-since db uid since-ts)
+            {:keys [creators dids]} (db/discussions-for-user-since-ts db uid since-ts)
+            friends-usernames (vec (distinct (concat creators senders)))
+            friends (remove #(= % (:user/name to-user)) friends-usernames)]
+        (when-not (empty? friends)
+          {:expo/to expo-token
+           :expo/uid uid
+           :expo/title (if (= 1 (count friends))
+                         (format "%s is in gatz" (render-friends friends))
+                         (format "%s are in gatz" (render-friends friends)))
+           :expo/body (render-activity dids mids)})))))
 
 (defn activity-for-all-users!
-  [{:keys [biff.xtdb/node] :as ctx}]
-
-  (println "running activity-for-all-users!")
+  [{:keys [biff.xtdb/node biff/secret] :as ctx}]
 
   (let [db (xtdb.api/db node)
         ctx (assoc ctx :biff/db db)]
     (doseq [user (db/get-all-users db)]
-      (when (some? (->token user))
-        (try
-          (let [uid (:xt/id user)
-                notification (get-in user [:user/settings :settings/notifications])]
-            (when (and (:settings.notification/overall notification)
-                       (= :settings.notification/daily
-                          (:settings.notification/activity notification)))
-              ;; if the message-senders and discussion-creators are ordered
-              ;; by the time they posted, it is more likely the user will
-              ;; see their activity when they open the app
-              (let [{:keys [mids dids message-senders discussion-creators]}
-                    (activity-for-user-since ctx user)
-                    ;; keep the order so that posters show up first
-                    ;; posters are more likely to be seen on the feed
-                    ;; when the user opens the notification
-                    friends (vec (distinct (concat discussion-creators message-senders)))]
-                (friends-activity! ctx user friends dids mids)
-            ;; make sure they don't see these notifications again
-                (db/mark-user-active! ctx uid))))
-          (catch Throwable e
+      (try
+        (let [uid (:xt/id user)]
+          (when-let [notification (activity-notification-for-user db uid)]
+            (expo/push-many! secret [notification]))
+          (db/mark-user-active! ctx uid))
+        (catch Throwable e
             ;; TODO: handle
-            (println "Error in activity-for-all-users!")
-            (println e)))))))
+          (println "Error in activity-for-all-users!")
+          (println e))))))
 
 (def plugin
   {:tasks [{:task activity-for-all-users!

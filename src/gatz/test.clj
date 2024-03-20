@@ -100,3 +100,84 @@
                    nts-for-new-comment))))))))
 
 
+
+(deftest daily-notifications
+  (testing "When there is no activity, no notifications are sent"
+    (let [uid (random-uuid)
+          node (new-db-node)
+          ctx (->auth-ctx node uid)
+          ptoken "POSTER_TOKEN"
+          poster (db/create-user! (with-db ctx)
+                                  {:id uid
+                                   :username "poster"
+                                   :phone "+11111111111"})
+          cid (random-uuid)
+          commenter (db/create-user! (with-db ctx)
+                                     {:username "commenter"
+                                      :id cid
+                                      :phone "+12222222222"})
+          ctoken "COMMENTER_TOKEN"
+          nts (notify/activity-notification-for-user (xtdb/db node) uid)]
+      (is (empty? nts) "No notifications if user doesn't have them set up")
+      (db/add-push-token! (with-db ctx)
+                          {:user-id (:xt/id poster)
+                           :push-token {:push/expo {:push/service :push/expo
+                                                    :push/token ptoken
+                                                    :push/created_at (java.util.Date.)}}})
+      (is (empty? (notify/activity-notification-for-user (xtdb/db node) uid))
+          "No notifications when there is no activity")
+
+      (testing "Friends get notifications from your activity"
+        (db/create-discussion-with-message!
+         (with-db ctx)
+         {:name ""
+          :selected_users #{(:xt/id commenter)}
+          :text "First discussion!"})
+        (is (empty? (notify/activity-notification-for-user (xtdb/db node) uid))
+            "No notifications for your own activity")
+        (is (empty? (notify/activity-notification-for-user (xtdb/db node) cid))
+            "Friends dont' get notifications if they haven't set them up")
+        (db/add-push-token! (with-db ctx)
+                            {:user-id (:xt/id commenter)
+                             :push-token {:push/expo {:push/service :push/expo
+                                                      :push/token ctoken
+                                                      :push/created_at (java.util.Date.)}}})
+        (is (= {:expo/to ctoken
+                :expo/uid cid
+                :expo/title "poster is in gatz"
+                ;; TODO: this is an error: we are double counting the first message
+                ;; of the discussion as a new post and a new reply
+                :expo/body "1 new post, 1 new reply"}
+               (notify/activity-notification-for-user (xtdb/db node) cid))
+            "Friends get notifications from your activity")
+
+        (db/mark-user-active! (with-db ctx) cid)
+
+        (is (empty? (notify/activity-notification-for-user (xtdb/db node) cid))
+            "They don't get notified if they were active after the activity")
+
+        (testing "It includes multiple discussions"
+          (db/create-discussion-with-message!
+           (with-db ctx)
+           {:name ""
+            :selected_users #{(:xt/id commenter)}
+            :text "Second discussion!"})
+          (db/create-discussion-with-message!
+           (with-db ctx)
+           {:name ""
+            :selected_users #{(:xt/id commenter)}
+            :text "Third discussion!"})
+          (db/create-discussion-with-message!
+           (with-db ctx)
+           {:name ""
+            :selected_users #{(:xt/id commenter)}
+            :text "Fourth discussion!"})
+
+          (is (= {:expo/to ctoken
+                  :expo/uid cid
+                  :expo/title "poster is in gatz"
+                ;; TODO: this is an error: we are double counting the first message
+                ;; of the discussion as a new post and a new reply
+                  :expo/body "3 new posts, 3 new replies"}
+                 (notify/activity-notification-for-user (xtdb/db node) cid))
+              "Friends get notifications from your activity"))))))
