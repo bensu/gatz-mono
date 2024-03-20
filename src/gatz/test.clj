@@ -35,10 +35,13 @@
           commenter (db/create-user! (with-db ctx)
                                      {:username "commenter"
                                       :phone "+12222222222"})
+          lurker (db/create-user! (with-db ctx)
+                                  {:username "lurker"
+                                   :phone "+13333333333"})
           {:keys [message discussion]} (db/create-discussion-with-message!
                                         (with-db ctx)
                                         {:name ""
-                                         :selected_users #{(:xt/id commenter)}
+                                         :selected_users #{(:xt/id commenter) (:xt/id lurker)}
                                          :text "First discussion!"
                                          :media_id nil})
           did (:xt/id discussion)
@@ -97,7 +100,23 @@
                      :expo/body "A comment"
                      :expo/data {:url (str "/discussion/" did)}
                      :expo/title "commenter commented on your post"}]
-                   nts-for-new-comment))))))))
+                   nts-for-new-comment)))))
+      (testing "The lurker auto subscribes and listens to new comments"
+        (db/add-push-token! (with-db ctx)
+                            {:user-id (:xt/id lurker)
+                             :push-token {:push/expo {:push/service :push/expo
+                                                      :push/token "LURKER_TOKEN"
+                                                      :push/created_at (java.util.Date.)}}})
+        (is (= #{(:xt/id poster) (:xt/id commenter)}
+               (:discussion/subscribers (db/d-by-id (xtdb/db node) did)))
+            "Lurker was not originally subscribed to the discussion")
+
+        (db/create-message! (with-db (->auth-ctx node (:xt/id lurker)))
+                            {:text "A lurker comment"
+                             :did did})
+        (is (= #{(:xt/id poster) (:xt/id commenter) (:xt/id lurker)}
+               (:discussion/subscribers (db/d-by-id (xtdb/db node) did)))
+            "Lurker auto subscribes to the discussion")))))
 
 
 

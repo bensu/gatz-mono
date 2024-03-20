@@ -609,6 +609,11 @@
 
   (let [now (java.util.Date.)
         mid (or mid (random-uuid))
+        user (user-by-id db user-id)
+        _ (assert user)
+        auto-subscribe? (get-in user [:user/settings :settings/notifications
+                                      :settings.notification/subscribe_on_comment]
+                                false)
         media (when media_id
                 (media-by-id db media_id))
         updated-media (some-> media
@@ -624,11 +629,12 @@
              :message/media (when updated-media [updated-media])
              :message/text text}
         d (d-by-id db did)
-        updated-discussion (-> (merge d {:discussion/first_message mid})
-                               (assoc :discussion/latest_message mid)
+        updated-discussion (cond-> (merge d {:discussion/first_message mid})
+                             auto-subscribe? (update :discussion/subscribers conj user-id)
+                             true (assoc :discussion/latest_message mid)
                                ;; We'll let the user see their own post
-                               ;; (update :discussion/seen_at assoc user-id now)
-                               (update-discussion now))]
+                               ;; true (update :discussion/seen_at assoc user-id now)
+                             true (update-discussion now))]
     (biff/submit-tx ctx (vec (remove nil? [(update-message msg now)
                                            updated-discussion
                                            updated-media])))
