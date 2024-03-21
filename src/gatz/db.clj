@@ -65,22 +65,26 @@
 (def notifications-off
   {:settings.notification/overall false
    :settings.notification/activity :settings.notification/none
-   :settings.notification/comments_to_own_post false
-   :settings.notification/reactions_to_own_post false
-   :settings.notification/replies_to_comment false
-   :settings.notification/reactions_to_comment false
-   :settings.notification/at_mentions false
-   :settings.notification/subscribe_on_comment false})
+   :settings.notification/subscribe_on_comment false
+
+   ;; :settings.notification/comments_to_own_post false
+   ;; :settings.notification/reactions_to_own_post false
+   ;; :settings.notification/replies_to_comment false
+   ;; :settings.notification/reactions_to_comment false
+   ;; :settings.notification/at_mentions false
+   })
 
 (def notifications-on
   {:settings.notification/overall true
    :settings.notification/activity :settings.notification/daily
-   :settings.notification/comments_to_own_post true
-   :settings.notification/reactions_to_own_post true
-   :settings.notification/replies_to_comment true
-   :settings.notification/reactions_to_comment true
-   :settings.notification/at_mentions true
-   :settings.notification/subscribe_on_comment true})
+   :settings.notification/subscribe_on_comment true
+
+   ;; :settings.notification/comments_to_own_post true
+   ;; :settings.notification/reactions_to_own_post true
+   ;; :settings.notification/replies_to_comment true
+   ;; :settings.notification/reactions_to_comment true
+   ;; :settings.notification/at_mentions true
+   })
 
 (def user-defaults
   {:db/type :gatz/user
@@ -899,3 +903,19 @@
                (<= n (count-reactions reactions))))
            (get-all-messages db))))
 
+
+(defn add-notification-settings-to-users!
+  [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        all-users (get-all-users db)
+        now (java.util.Date.)
+        txns (for [u all-users]
+               (when (nil? (get-in u [:user/settings :settings/notifications]))
+                 (let [token (get-in u [:user/push_tokens :push/expo :push/token])
+                       new-nts (if (nil? token)
+                                 notifications-off
+                                 notifications-on)]
+                   (-> u
+                       (update :user/settings merge {:settings/notifications new-nts})
+                       (update-user now)))))]
+    (vec (remove nil? txns))))

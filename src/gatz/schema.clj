@@ -19,11 +19,12 @@
     [:enum :settings.notification/daily :settings.notification/none]]
    [:settings.notification/subscribe_on_comment boolean?]
    ;; These below are unused:
-   [:settings.notification/comments_to_own_post boolean?]
-   [:settings.notification/reactions_to_own_post boolean?]
-   [:settings.notification/replies_to_comment boolean?]
-   [:settings.notification/reactions_to_comment boolean?]
-   [:settings.notification/at_mentions boolean?]])
+   ;; [:settings.notification/comments_to_own_post boolean?]
+   ;; [:settings.notification/reactions_to_own_post boolean?]
+   ;; [:settings.notification/replies_to_comment boolean?]
+   ;; [:settings.notification/reactions_to_comment boolean?]
+   ;; [:settings.notification/at_mentions boolean?]
+   ])
 
 (def notification-keys (set (map first (rest notification-preferences))))
 

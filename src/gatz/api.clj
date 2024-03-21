@@ -69,7 +69,6 @@
 (defn params->notification-settings [params]
   (let [m (map-keys (comp (partial keyword "settings.notification") name) params)]
     (cond-> (select-keys m schema/notification-keys)
-
       (some? (:settings.notification/activity m))
       (update :settings.notification/activity (partial keyword "settings.notification")))))
 
