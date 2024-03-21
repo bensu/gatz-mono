@@ -205,3 +205,186 @@
                                   {:settings.notification/activity :settings.notification/none})
           (is (empty? (notify/activity-notification-for-user (xtdb/db node) cid))
               "No notifications if you opted out of them"))))))
+
+(deftest reaction-notificactions
+  (testing "After 3 special reactions it triggers a notification"
+
+    (let [uid (random-uuid)
+          node (new-db-node)
+          ctx (->auth-ctx node uid)
+          poster (db/create-user! (with-db ctx)
+                                  {:id uid
+                                   :username "poster"
+                                   :phone "+11111111111"})
+          cid (random-uuid)
+          commenter (db/create-user! (with-db ctx)
+                                     {:username "commenter"
+                                      :id cid
+                                      :phone "+12222222222"})
+          ctoken "COMMENTER_TOKEN"
+          lurker (db/create-user! (with-db ctx)
+                                  {:username "lurker"
+                                   :phone "+13333333333"})
+
+          lurker2 (db/create-user! (with-db ctx)
+                                   {:username "lurker2"
+                                    :phone "+144444444444"})
+
+
+
+          {:keys [discussion]} (db/create-discussion-with-message!
+                                (with-db ctx)
+                                {:name ""
+                                 :selected_users #{(:xt/id poster)}
+                                 :text "First discussion!"})
+
+          did (:xt/id discussion)
+          message (db/create-message! (with-db (->auth-ctx node (:xt/id commenter)))
+                                      {:text "A commenter comment"
+                                       :did did})
+          mid (:xt/id message)]
+
+      (testing "First reaction doesn't trigger notifications"
+        ;; Poster reacts
+        (let [{:keys [reaction message evt]} (db/react-to-message!
+                                              (with-db ctx)
+                                              {:reaction  "❓"
+                                               :mid  mid
+                                               :did did})
+              nts (notify/notification-on-reaction (xtdb/db node) message reaction)]
+
+          (is (empty? nts) "First reaction doesn't trigger notifications")))
+
+      (testing "Second reaction doesn't trigger notifications"
+         ;; Lurker
+        (let [{:keys [reaction message evt]} (db/react-to-message!
+                                              (with-db (->auth-ctx node (:xt/id lurker)))
+                                              {:reaction "❓"
+                                               :mid  mid
+                                               :did did})
+              nts (notify/notification-on-reaction (xtdb/db node) message reaction)]
+          (is (empty? nts) "Second reaction doesn't trigger notifications")))
+
+      (testing "Third reaction doesn't trigger notifications if it is from the commenter"
+         ;; Commenter reacts
+        (let [{:keys [reaction message evt]} (db/react-to-message!
+                                              (with-db (->auth-ctx node (:xt/id commenter)))
+                                              {:reaction "❓"
+                                               :mid  mid
+                                               :did did})
+              nts (notify/notification-on-reaction (xtdb/db node) message reaction)]
+          (is (empty? nts) "Second reaction doesn't trigger notifications")))
+
+      (testing "Third reaction does trigger notifications"
+         ;; Second lurker reacts
+        (let [{:keys [reaction message evt]} (db/react-to-message!
+                                              (with-db (->auth-ctx node (:xt/id lurker2)))
+                                              {:reaction "❓"
+                                               :mid  mid
+                                               :did did})
+              nts (notify/notification-on-reaction (xtdb/db node) message reaction)]
+          (is (empty? nts) "No notifications if the user doesn't have them on")
+
+          (db/add-push-token! (with-db (->auth-ctx node (:xt/id commenter)))
+                              {:user-id (:xt/id commenter)
+                               :push-token {:push/expo {:push/service :push/expo
+                                                        :push/token ctoken
+                                                        :push/created_at (java.util.Date.)}}})
+
+          (let [nts (notify/notification-on-reaction (xtdb/db node) message reaction)]
+            (is (= [{:expo/to ctoken :expo/uid (:xt/id commenter)
+                     :expo/title "Consider posting more about this topic"
+                     :expo/data {:url (str "/discussion/" did "/message/" mid)}
+                     :expo/body "3 people are curious about this message"}]
+                   nts)
+                "No notifications if the user doesn't have them on"))))))
+
+  (testing "After 3 special reactions it triggers a notification, even when they are all different"
+
+    (let [uid (random-uuid)
+          node (new-db-node)
+          ctx (->auth-ctx node uid)
+          poster (db/create-user! (with-db ctx)
+                                  {:id uid
+                                   :username "poster"
+                                   :phone "+11111111111"})
+          cid (random-uuid)
+          commenter (db/create-user! (with-db ctx)
+                                     {:username "commenter"
+                                      :id cid
+                                      :phone "+12222222222"})
+          ctoken "COMMENTER_TOKEN"
+          lurker (db/create-user! (with-db ctx)
+                                  {:username "lurker"
+                                   :phone "+13333333333"})
+
+          lurker2 (db/create-user! (with-db ctx)
+                                   {:username "lurker2"
+                                    :phone "+144444444444"})
+
+          {:keys [discussion]} (db/create-discussion-with-message!
+                                (with-db ctx)
+                                {:name ""
+                                 :selected_users #{(:xt/id poster)}
+                                 :text "First discussion!"})
+
+          did (:xt/id discussion)
+          message (db/create-message! (with-db (->auth-ctx node (:xt/id commenter)))
+                                      {:text "A commenter comment"
+                                       :did did})
+          mid (:xt/id message)]
+
+      (testing "First reaction doesn't trigger notifications"
+        ;; Poster reacts
+        (let [{:keys [reaction message evt]} (db/react-to-message!
+                                              (with-db ctx)
+                                              {:reaction  "❓"
+                                               :mid  mid
+                                               :did did})
+              nts (notify/notification-on-reaction (xtdb/db node) message reaction)]
+
+          (is (empty? nts) "First reaction doesn't trigger notifications")))
+
+      (testing "Second reaction doesn't trigger notifications"
+         ;; Lurker
+        (let [{:keys [reaction message evt]} (db/react-to-message!
+                                              (with-db (->auth-ctx node (:xt/id lurker)))
+                                              {:reaction "❗"
+                                               :mid  mid
+                                               :did did})
+              nts (notify/notification-on-reaction (xtdb/db node) message reaction)]
+          (is (empty? nts) "Second reaction doesn't trigger notifications")))
+
+      (testing "Third reaction doesn't trigger notifications if it is from the commenter"
+         ;; Commenter reacts
+        (let [{:keys [reaction message evt]} (db/react-to-message!
+                                              (with-db (->auth-ctx node (:xt/id commenter)))
+                                              {:reaction "❓"
+                                               :mid  mid
+                                               :did did})
+              nts (notify/notification-on-reaction (xtdb/db node) message reaction)]
+          (is (empty? nts) "Second reaction doesn't trigger notifications")))
+
+      (testing "Third reaction does trigger notifications"
+         ;; Second lurker reacts
+        (let [{:keys [reaction message evt]} (db/react-to-message!
+                                              (with-db (->auth-ctx node (:xt/id lurker2)))
+                                              {:reaction "❗"
+                                               :mid  mid
+                                               :did did})
+              nts (notify/notification-on-reaction (xtdb/db node) message reaction)]
+          (is (empty? nts) "No notifications if the user doesn't have them on")
+
+          (db/add-push-token! (with-db (->auth-ctx node (:xt/id commenter)))
+                              {:user-id (:xt/id commenter)
+                               :push-token {:push/expo {:push/service :push/expo
+                                                        :push/token ctoken
+                                                        :push/created_at (java.util.Date.)}}})
+
+          (let [nts (notify/notification-on-reaction (xtdb/db node) message reaction)]
+            (is (= [{:expo/to ctoken :expo/uid (:xt/id commenter)
+                     :expo/title "Consider posting more about this topic"
+                     :expo/data {:url (str "/discussion/" did "/message/" mid)}
+                     :expo/body "3 people are curious about this message"}]
+                   nts)
+                "No notifications if the user doesn't have them on")))))))

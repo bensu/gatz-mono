@@ -695,6 +695,12 @@
       new-msg)
     (assert false "Tried to update a non-existent message")))
 
+(defn new-evt [evt]
+  (merge {:db/doc-type :gatz/evt
+          :evt/ts (java.util.Date.)
+          :evt/id (random-uuid)}
+         evt))
+
 (defn react-to-message!
 
   [{:keys [auth/user-id biff/db] :as ctx}
@@ -704,11 +710,22 @@
 
   (if-let [msg (message-by-id db mid)]
     (let [now (java.util.Date.)
+          full-reaction {:reaction/emoji reaction
+                         :reaction/created_at now
+                         :reaction/did did
+                         :reaction/to_mid mid
+                         :reaction/by_uid user-id}
           new-msg (-> msg
                       (update :message/reactions assoc-in [user-id reaction] now)
-                      (update-message now))]
-      (biff/submit-tx ctx [new-msg])
-      new-msg)
+                      (update-message now))
+          evt (new-evt
+               {:evt/type :evt.message/add-reaction
+                :evt/uid user-id
+                :evt/did did
+                :evt/mid mid
+                :evt/data {:reaction full-reaction}})]
+      (biff/submit-tx ctx [new-msg evt])
+      {:message new-msg :reaction full-reaction :evt evt})
     (assert false "Tried to update a non-existent message")))
 
 

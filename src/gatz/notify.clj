@@ -187,6 +187,37 @@
     (when-not (empty? notifications)
       (expo/push-many! secret notifications))))
 
+(def trigger-emoji
+  {"❓" 3
+   "❗" 3})
+
+(defn notification-on-reaction [db message reaction]
+  (when-let [n-trigger (get trigger-emoji (:reaction/emoji reaction))]
+    (let [user (db/user-by-id db (:message/user_id message))]
+      (when-let [token (->token user)]
+        (let [settings (get-in user [:user/settings :settings/notifications])]
+          (when (and (:settings.notification/overall settings)
+                     (:settings.notification/suggestions_from_gatz settings))
+            (let [new-emoji (:reaction/emoji reaction)
+                  mid (:xt/id message)
+                  did (:message/did message)
+                  flat-reactions (db/flatten-reactions mid did (:message/reactions message))
+                  n-reactions (count (filter #(and (contains? trigger-emoji (:reaction/emoji %))
+                                                   (not= (:xt/id user) (:reaction/by_uid %)))
+                                             flat-reactions))]
+              (when (<= n-trigger n-reactions)
+                [{:expo/to token
+                  :expo/uid (:xt/id user)
+                  :expo/data {:url (str "/discussion/" did "/message/" mid)}
+                  :expo/title "Consider posting more about this topic"
+                  :expo/body (format "%s people are curious about this message" n-reactions)}]))))))))
+
+(defn notify-on-reaction!
+  [{:keys [biff/db biff/secret]} message reaction]
+  (let [nts (notification-on-reaction db message reaction)]
+    (when-not (empty? nts)
+      (expo/push-many! secret nts))))
+
 ;; sebas, ameesh, and tara are in gatz
 ;; 3 new posts, 2 replies
 
@@ -241,3 +272,4 @@
             :schedule (fn []
                         (rest
                          (chime/periodic-seq (Instant/now) (Duration/ofHours 8))))}]})
+

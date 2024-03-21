@@ -383,8 +383,8 @@
     (assert (string? reaction) "reaction must be a string")
     (if-authorized-for-discussion
      [user-id d]
-     (let [msg (db/react-to-message! ctx {:did did :mid mid :reaction reaction})]
-       (json-response {:message msg})))))
+     (let [{:keys [message reaction evt]} (db/react-to-message! ctx {:did did :mid mid :reaction reaction})]
+       (json-response {:message message})))))
 
 (defn undo-react-to-message! [{:keys [params biff/db auth/user-id] :as ctx}]
   (let [{:keys [reaction mid did]} params
@@ -475,11 +475,34 @@
                       )}))
        {:status 400 :body "Invalid user"}))))
 
+(defmulti handle-evt! (fn [_ctx evt] (:evt/type evt)))
+
+(defmethod handle-evt! :evt.message/add-reaction
+  [{:keys [biff.xtdb/node] :as ctx} evt]
+  (let [db (xt/db node)
+        ;; did (:evt/did evt)
+        mid (:evt/mid evt)
+        _ (assert mid)
+        message (db/message-by-id db mid)
+        reaction (get-in evt [:evt/data :reaction])]
+    (try
+      (notify/notify-on-reaction! ctx message reaction)
+      (catch Exception e
+        (println "notificaitons failed" e)))))
+
+(defn on-evt! [ctx tx]
+  (doseq [[op & args] (::xt/tx-ops tx)]
+    (when (= op ::xt/put)
+      (let [[evt] args]
+        (when (= :gatz/evt (:db/type evt))
+          (handle-evt! ctx evt))))))
+
 (defn on-message-change!
 
   [{:keys [biff.xtdb/node conns-state] :as ctx} tx]
 
   (println "tx:" tx)
+  (def -tx tx)
   (let [db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
     (doseq [[op & args] (::xt/tx-ops tx)]
       (when (= op ::xt/put)
@@ -568,6 +591,7 @@
 (defn on-tx [ctx tx]
   (println "new txn" tx)
   (on-message-change! ctx tx)
+  (on-evt! ctx tx)
   (on-new-discussion ctx tx)
   (on-delete-message ctx tx)
   #_(on-new-subscription ctx tx))

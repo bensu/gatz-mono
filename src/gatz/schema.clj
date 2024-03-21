@@ -94,6 +94,17 @@
    [:reaction/to_mid :message/id]
    [:reaction/by_uid :user/id]])
 
+(def event
+  [:map
+   [:evt/id :evt/id]
+   [:evt/uid :user/id]
+   [:evt/did :discussion/id]
+   [:evt/mid [:maybe :message/id]]
+   [:evt/ts  inst?]
+   [:evt/type [:enum :evt.message/add-reaction]]
+   [:evt/data [:map
+               [:reaction message-reaction]]]])
+
 (def message
   [:map
    [:xt/id :message/id]
@@ -114,6 +125,8 @@
    :user/id :uuid
    :message/id :uuid
    :media/id :uuid
+   :evt/id :uuid
+   :gatz/evt event
    :gatz/user user
    :gatz/discussion discussion
    :gatz/reaction message-reaction
