@@ -66,6 +66,7 @@
   {:settings.notification/overall false
    :settings.notification/activity :settings.notification/none
    :settings.notification/subscribe_on_comment false
+   :settings.notification/suggestions_from_gatz false
 
    ;; :settings.notification/comments_to_own_post false
    ;; :settings.notification/reactions_to_own_post false
@@ -78,6 +79,7 @@
   {:settings.notification/overall true
    :settings.notification/activity :settings.notification/daily
    :settings.notification/subscribe_on_comment true
+   :settings.notification/suggestions_from_gatz true
 
    ;; :settings.notification/comments_to_own_post true
    ;; :settings.notification/reactions_to_own_post true
@@ -101,9 +103,12 @@
                   {:user/last_active now}
                   u)
 
-     (nil? (:user/settings u)) (assoc :user/settings (if (:user/push_tokens u)
-                                                       {:settings/notifications notifications-on}
-                                                       {:settings/notifications notifications-off}))
+     (nil? (:user/settings u))
+     (update-in [:user/settings :settings/notifications]
+                #(merge (if (:user/push_tokens u)
+                          notifications-on
+                          notifications-off)
+                        %))
 
      true (assoc :db/doc-type :gatz/user)
      true (assoc :user/updated_at now))))

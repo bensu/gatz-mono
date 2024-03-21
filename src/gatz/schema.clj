@@ -18,6 +18,7 @@
    [:settings.notification/activity
     [:enum :settings.notification/daily :settings.notification/none]]
    [:settings.notification/subscribe_on_comment boolean?]
+   [:settings.notification/suggestions_from_gatz boolean?]
    ;; These below are unused:
    ;; [:settings.notification/comments_to_own_post boolean?]
    ;; [:settings.notification/reactions_to_own_post boolean?]
