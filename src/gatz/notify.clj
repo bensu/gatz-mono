@@ -123,8 +123,7 @@
                    (when-let [token (->token receiver)]
                      (let [uid (:xt/id receiver)
                            settings (get-in receiver [:user/settings :settings/notifications])]
-                       (when (and (:settings.notification/overall settings)
-                                  (:settings.notification/comments_to_own_post settings))
+                       (when (:settings.notification/overall settings)
                          {:expo/to token
                           :expo/uid uid
                           :expo/body m-preview
