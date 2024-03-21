@@ -322,6 +322,10 @@
                                    {:username "lurker2"
                                     :phone "+144444444444"})
 
+          lurker3 (db/create-user! (with-db ctx)
+                                   {:username "lurker3"
+                                    :phone "+144444444445"})
+
           {:keys [discussion]} (db/create-discussion-with-message!
                                 (with-db ctx)
                                 {:name ""
@@ -387,4 +391,24 @@
                      :expo/data {:url (str "/discussion/" did "/message/" mid)}
                      :expo/body "3 people are curious about this message"}]
                    nts)
-                "No notifications if the user doesn't have them on")))))))
+                "No notifications if the user doesn't have them on"))))
+
+      (testing "Unrelated reactions don't trigger notifications"
+         ;; Third lurker reacts
+        (let [{:keys [reaction message evt]} (db/react-to-message!
+                                              (with-db (->auth-ctx node (:xt/id lurker3)))
+                                              {:reaction "😭"
+                                               :mid  mid
+                                               :did did})
+              nts (notify/notification-on-reaction (xtdb/db node) message reaction)]
+          (is (empty? nts) "No notifications if the user doesn't have them on")))
+
+      (testing "Further reactions don't trigger notifications"
+         ;; Third lurker reacts
+        (let [{:keys [reaction message evt]} (db/react-to-message!
+                                              (with-db (->auth-ctx node (:xt/id lurker3)))
+                                              {:reaction "❗"
+                                               :mid  mid
+                                               :did did})
+              nts (notify/notification-on-reaction (xtdb/db node) message reaction)]
+          (is (empty? nts) "No notifications if the user doesn't have them on"))))))

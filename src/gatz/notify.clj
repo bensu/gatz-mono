@@ -187,25 +187,24 @@
     (when-not (empty? notifications)
       (expo/push-many! secret notifications))))
 
-(def trigger-emoji
-  {"❓" 3
-   "❗" 3})
+(def trigger-emoji #{"❓" "❗"})
+
+(def trigger-emoji-threshold 3)
 
 (defn notification-on-reaction [db message reaction]
-  (when-let [n-trigger (get trigger-emoji (:reaction/emoji reaction))]
+  (when (contains? trigger-emoji (:reaction/emoji reaction))
     (let [user (db/user-by-id db (:message/user_id message))]
       (when-let [token (->token user)]
         (let [settings (get-in user [:user/settings :settings/notifications])]
           (when (and (:settings.notification/overall settings)
                      (:settings.notification/suggestions_from_gatz settings))
-            (let [new-emoji (:reaction/emoji reaction)
-                  mid (:xt/id message)
+            (let [mid (:xt/id message)
                   did (:message/did message)
                   flat-reactions (db/flatten-reactions mid did (:message/reactions message))
                   n-reactions (count (filter #(and (contains? trigger-emoji (:reaction/emoji %))
                                                    (not= (:xt/id user) (:reaction/by_uid %)))
                                              flat-reactions))]
-              (when (<= n-trigger n-reactions)
+              (when (= trigger-emoji-threshold n-reactions)
                 [{:expo/to token
                   :expo/uid (:xt/id user)
                   :expo/data {:url (str "/discussion/" did "/message/" mid)}
