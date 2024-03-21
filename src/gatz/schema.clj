@@ -99,6 +99,7 @@
    [:evt/id :evt/id]
    [:evt/uid :user/id]
    [:evt/did :discussion/id]
+   [:db/type [:enum :gatz/evt]]
    [:evt/mid [:maybe :message/id]]
    [:evt/ts  inst?]
    [:evt/type [:enum :evt.message/add-reaction]]

@@ -475,7 +475,8 @@
                       )}))
        {:status 400 :body "Invalid user"}))))
 
-(defmulti handle-evt! (fn [_ctx evt] (:evt/type evt)))
+(defmulti handle-evt! (fn [_ctx evt]
+                        (:evt/type evt)))
 
 (defmethod handle-evt! :evt.message/add-reaction
   [{:keys [biff.xtdb/node] :as ctx} evt]
@@ -491,6 +492,7 @@
         (println "notificaitons failed" e)))))
 
 (defn on-evt! [ctx tx]
+  (println "on-evt")
   (doseq [[op & args] (::xt/tx-ops tx)]
     (when (= op ::xt/put)
       (let [[evt] args]
@@ -501,8 +503,6 @@
 
   [{:keys [biff.xtdb/node conns-state] :as ctx} tx]
 
-  (println "tx:" tx)
-  (def -tx tx)
   (let [db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
     (doseq [[op & args] (::xt/tx-ops tx)]
       (when (= op ::xt/put)

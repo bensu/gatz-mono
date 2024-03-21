@@ -698,6 +698,7 @@
 (defn new-evt [evt]
   (merge {:db/doc-type :gatz/evt
           :evt/ts (java.util.Date.)
+          :db/type :gatz/evt
           :evt/id (random-uuid)}
          evt))
 
