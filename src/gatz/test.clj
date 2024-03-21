@@ -293,9 +293,9 @@
 
           (let [nts (notify/notification-on-reaction (xtdb/db node) message reaction)]
             (is (= [{:expo/to ctoken :expo/uid (:xt/id commenter)
-                     :expo/title "Consider posting more about this topic"
-                     :expo/data {:url (str "/discussion/" did "/message/" mid)}
-                     :expo/body "3 people are curious about this message"}]
+                     :expo/title "3 friends are interested in your comment"
+                     :expo/body "Consider posting about this topic"
+                     :expo/data {:url (str "/discussion/" did "/message/" mid)}}]
                    nts)
                 "No notifications if the user doesn't have them on"))))))
 
@@ -387,9 +387,9 @@
 
           (let [nts (notify/notification-on-reaction (xtdb/db node) message reaction)]
             (is (= [{:expo/to ctoken :expo/uid (:xt/id commenter)
-                     :expo/title "Consider posting more about this topic"
-                     :expo/data {:url (str "/discussion/" did "/message/" mid)}
-                     :expo/body "3 people are curious about this message"}]
+                     :expo/title "3 friends are interested in your comment"
+                     :expo/body "Consider posting about this topic"
+                     :expo/data {:url (str "/discussion/" did "/message/" mid)}}]
                    nts)
                 "No notifications if the user doesn't have them on"))))
 
