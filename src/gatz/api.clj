@@ -36,7 +36,7 @@
 
 (defn get-user
   [{:keys [params biff/db] :as _ctx}]
-  (if-let [user-id (some-> (:user-id params) mt/-string->uuid)]
+  (if-let [user-id (some-> (:id params) mt/-string->uuid)]
     (let [user (db/user-by-id db user-id)]
       (json-response {:user user}))
     {:status 400 :body "invalid params"}))
@@ -706,6 +706,7 @@
                  ["/log-response" {:get cached-log
                                    :post cached-log}]
                  ["/me" {:get get-me}]
+                 ["/user" {:get get-user}]
                  ["/user/push-token" {:post add-push-token!}]
                  ["/user/disable-push" {:post disable-push!}]
                  ["/user/avatar" {:post update-avatar!}]
@@ -715,9 +716,6 @@
                  ["/file/presign" {:post presigned-url!}]
                  ["/media" {:post create-media!}]
 
-                 ;; converted
-                 ["/user" {:get get-user
-                           :post create-user!}]
                  ["/message" {:post create-message!}]
                  ["/message/delete" {:post delete-message!}]
                  ["/message/edit" {:post edit-message!}]
