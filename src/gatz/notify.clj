@@ -208,7 +208,7 @@
                   :expo/uid (:xt/id user)
                   :expo/data {:url (str "/discussion/" did "/message/" mid)}
                   :expo/title (format "%s friends are interested in your comment" n-reactions)
-                  :expo/body "Consider posting about this topic"}]))))))))
+                  :expo/body "Consider posting more about it"}]))))))))
 
 (defn notify-on-reaction!
   [{:keys [biff/db biff/secret]} message reaction]

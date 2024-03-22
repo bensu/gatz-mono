@@ -285,6 +285,7 @@
    :discussion/archived_at {}
    :discussion/last_message_read {}
    :discussion/subscribers #{}
+   :discussion/originally_from nil
    :discussion/first_message nil
    :discussion/latest_message nil})
 
@@ -351,24 +352,28 @@
 (defn create-discussion-with-message!
 
   [{:keys [auth/user-id biff/db] :as ctx}
-   {:keys [name selected_users text media_id]}]
+   {:keys [name selected_users text media_id originally_from]}]
 
   {:pre [(or (nil? name)
              (and (string? name) (not (empty? name)))
              (valid-post? text media_id))]}
 
-  (let [now (java.util.Date.)
+  (let [originally-from (when originally_from
+                          {:did (mt/-string->uuid (:did originally_from))
+                           :mid (mt/-string->uuid (:mid originally_from))})
+        now (java.util.Date.)
         did (random-uuid)
-        member-uids (keep mt/-string->uuid selected_users)
+        member-uids (set (keep mt/-string->uuid selected_users))
         d {:db/type :gatz/discussion
            :xt/id did
            :discussion/did did
            :discussion/name name
            :discussion/created_by user-id
            :discussion/subscribers #{user-id}
+           :discussion/originally_from originally-from
            ;; We'll let the user see their own discussion in the feed as new
            ;; :discussion/seen_at {user-id now}
-           :discussion/members (conj (set member-uids) user-id)
+           :discussion/members (conj member-uids user-id)
            :discussion/created_at now}
         media (some->> media_id
                        mt/-string->uuid

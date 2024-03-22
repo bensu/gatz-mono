@@ -59,6 +59,9 @@
    [:discussion/updated_at inst?]
    [:discussion/members [:set :user/id]]
    [:discussion/subscribers [:set :user/id]]
+   [:discussion/originally_from [:maybe [:map
+                                         [:did :discussion/id]
+                                         [:mid :message/id]]]]
    [:discussion/first_message [:maybe :message/id]]
    [:discussion/latest_message [:maybe :message/id]]
    [:discussion/seen_at [:map-of :user/id inst?]]
