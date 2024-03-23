@@ -339,7 +339,13 @@
      (sort-by :discussion/updated_at (get seen-discussions false)))))
 
 (def message-defaults
-  {:message/media nil :message/reply_to nil :message/edits [] :message/reactions {}})
+  {:message/media nil
+   :message/reply_to nil
+   :message/edits []
+   :message/reactions {}
+   :message/posted_as_discussion []})
+
+(declare message-by-id)
 
 (defn update-message
   ([m] (update-message m (java.util.Date.)))
@@ -361,6 +367,8 @@
   (let [originally-from (when originally_from
                           {:did (mt/-string->uuid (:did originally_from))
                            :mid (mt/-string->uuid (:mid originally_from))})
+        original-msg (when originally-from
+                       (message-by-id db (:mid originally-from)))
         now (java.util.Date.)
         did (random-uuid)
         member-uids (set (keep mt/-string->uuid selected_users))
@@ -386,12 +394,16 @@
              :message/updated_at now
              :message/user_id user-id
              :message/media (when media [media])
-             :message/text (or text "")}]
-    (biff/submit-tx ctx (vec (remove nil? [(update-discussion d now)
-                                           (update-message msg now)
-                                           (some-> media
-                                                   (assoc :media/message_id mid)
-                                                   (update-media))])))
+             :message/text (or text "")}
+        txns [(update-discussion d now)
+              (update-message msg now)
+              (some-> original-msg
+                      (update-message now)
+                      (update :message/posted_as_discussion conj did))
+              (some-> media
+                      (assoc :media/message_id mid)
+                      (update-media))]]
+    (biff/submit-tx ctx (vec (remove nil? txns)))
     {:discussion d :message msg}))
 
 (defn mark-as-seen! [{:keys [biff/db] :as ctx} uid dids now]

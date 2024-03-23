@@ -121,6 +121,7 @@
    [:message/reply_to [:maybe :message/id]]
    [:message/edits [:vector message-edits]]
    [:message/reactions [:map-of :user/id [:map-of string? inst?]]]
+   [:message/posted_as_discussion [:vector :discussion/id]]
    [:message/created_at inst?]
    [:message/updated_at inst?]])
 
