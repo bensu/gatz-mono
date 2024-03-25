@@ -468,7 +468,6 @@
                                          :user-id user-id}))
                        (db/mark-user-active! ctx user-id))
            :on-text (fn [ws text]
-                      (println "on-text" text)
                       (jetty/send! ws (json/write-str {:conn-id conn-id :user-id user-id :echo text :state @conns-state}))
                       ;; TODO: create discussion or add member 
                       ;; are special because they change the conns-state
@@ -492,7 +491,6 @@
         (println "notificaitons failed" e)))))
 
 (defn on-evt! [ctx tx]
-  (println "on-evt")
   (doseq [[op & args] (::xt/tx-ops tx)]
     (when (= op ::xt/put)
       (let [[evt] args]
@@ -551,7 +549,6 @@
 
   [{:keys [biff.xtdb/node conns-state] :as _ctx} tx]
 
-  (println "tx:" tx)
   (let [db-after (xt/db node)
         db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
     (doseq [[op & args] (::xt/tx-ops tx)]
@@ -573,7 +570,6 @@
               ;; register these users to listen to the discussion
               (swap! conns-state conns/add-users-to-d {:did did :user-ids members})
               (doseq [ws wss]
-                (println "sending " msg)
                 (jetty/send! ws (json/write-str msg))))))))))
 
 
@@ -589,7 +585,6 @@
 
 ;; TODO: if one of these throws an exception, the rest of the on-tx should still run
 (defn on-tx [ctx tx]
-  (println "new txn" tx)
   (on-message-change! ctx tx)
   (on-evt! ctx tx)
   (on-new-discussion ctx tx)
