@@ -292,7 +292,10 @@
 (defn- update-discussion
   ([d] (update-discussion d (java.util.Date.)))
   ([d now]
-   (-> (merge discussion-defaults d)
+   (-> (merge discussion-defaults
+              ;; TODO: remove when migration is complete
+              {:discussion/latest_activity_ts now}
+              d)
        (assoc :db/doc-type :gatz/discussion)
        (assoc :discussion/updated_at now))))
 
@@ -313,6 +316,7 @@
            :discussion/name name
            :discussion/created_by user-id
            :discussion/created_at now
+           :discussion/latest_activity_ts now
            :discussion/subscribers #{user-id}
            ;; We'll let the user see their own discussion in the feed as new
            ;; :discussion/seen_at {user-id now}
@@ -382,6 +386,7 @@
            ;; We'll let the user see their own discussion in the feed as new
            ;; :discussion/seen_at {user-id now}
            :discussion/members (conj member-uids user-id)
+           :discussion/latest_activity_ts now
            :discussion/created_at now}
         media (some->> media_id
                        mt/-string->uuid
@@ -464,6 +469,13 @@
      '{:find (pull d [*])
        :where [[d :db/type :gatz/discussion]]}))
 
+(defn get-all-discussions-with-latest-message [db]
+  (q db
+     '{:find [(pull d [*]) (pull m [*])]
+       :where [[d :db/type :gatz/discussion]
+               [d :discussion/latest_message m]
+               [m :db/type :gatz/message]]}))
+
 (defn get-all-messages [db]
   (q db
      '{:find (pull m [*])
@@ -505,32 +517,43 @@
     (set (map first dids))))
 
 
-(defn discussions-by-user-id-up-to [db user-id limit]
+;; ----------------------------------------------------------------------------
+;; Feed
+
+;; TODO: figure out how to embed this as a parameter to the query
+(def discussion-fetch-batch 20)
+
+;; These functions are out of sync with the frontend, which is sorting by latest activity
+;; not by created_at date
+
+(defn discussions-by-user-id-up-to [db user-id]
   (let [dids (q db '{:find [did created-at]
                      :in [user-id]
                      :order-by [[created-at :desc]]
+                     :limit 20
                      :where [[did :db/type :gatz/discussion]
                              [did :discussion/created_at created-at]
                              [did :discussion/members user-id]]}
                 user-id)]
-    (mapv first (take limit dids))))
+    (mapv first dids)))
 
 
 (defn discussions-by-user-id-older-than
 
-  [db user-id older-than-ts limit]
+  [db user-id older-than-ts]
 
   {:pre [(uuid? user-id) (inst? older-than-ts)]}
 
   (let [dids (q db '{:find [did created-at]
                      :in [user-id older-than-ts]
+                     :limit 20
                      :order-by [[created-at :desc]]
                      :where [[did :db/type :gatz/discussion]
                              [did :discussion/members user-id]
                              [did :discussion/created_at created-at]
                              [(< created-at older-than-ts)]]}
                 user-id older-than-ts)]
-    (mapv first (take limit dids))))
+    (mapv first dids)))
 
 ;; ====================================================================== 
 ;; Activity for notifications
@@ -651,15 +674,18 @@
              :message/user_id user-id
              :message/reply_to reply_to
              :message/edits [{:message/text text :message/edited_at now}]
-             ;; we simply inline the media
+             ;; we inline the media so that no joins are needed when pulling it out
+             ;; because media is immutable after it has been added to a message
              :message/media (when updated-media [updated-media])
              :message/text text}
         d (d-by-id db did)
         updated-discussion (cond-> (merge d {:discussion/first_message mid})
                              auto-subscribe? (update :discussion/subscribers conj user-id)
                              true (assoc :discussion/latest_message mid)
-                               ;; We'll let the user see their own post
-                               ;; true (update :discussion/seen_at assoc user-id now)
+                             true (assoc :discussion/latest_activity_ts now)
+                             ;; TODO: this is probably wrong, this is for a message, not a post:
+                             ;; We'll let the user see their own post
+                             ;; true (update :discussion/seen_at assoc user-id now)
                              true (update-discussion now))]
     (biff/submit-tx ctx (vec (remove nil? [(update-message msg now)
                                            updated-discussion
@@ -679,6 +705,18 @@
           did)
        (sort-by :message/created_at)
        vec))
+
+(defn d-latest-message [db did]
+  {:pre [(uuid? did)]}
+  (->> (q db '{:find [(pull m [*]) created-at]
+               :in [did]
+               :where [[m :message/did did]
+                       [m :db/type :gatz/message]
+                       [m :message/created_at created-at]]
+               :order-by [[created-at :desc]]
+               :limit 1}
+          did)
+       ffirst))
 
 (defn message-by-id [db mid]
   {:pre [(uuid? mid)]}
@@ -959,3 +997,35 @@
                        (update :user/settings merge {:settings/notifications new-nts})
                        (update-user now)))))]
     (vec (remove nil? txns))))
+
+(defn get-discussions-without-last-message [db]
+  (q db
+     '{:find (pull d [*])
+       :where [[d :db/type :gatz/discussion]
+               [d :discussion/latest_message nil]]}))
+
+(defn add-latest-message!
+  [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        ds (get-discussions-without-last-message db)
+        now (java.util.Date.)
+        txns (for [d ds]
+               (when-let [latest-message (d-latest-message db (:xt/id d))]
+                 (let [latest-activity-ts (:message/created_at latest-message)]
+                   (-> d
+                       (assoc :discussion/latest_message (:xt/id latest-message))
+                       (assoc :discussion/latest_activity_ts latest-activity-ts)
+                       (update-discussion now)))))]
+    (biff/submit-tx ctx (vec (remove nil? txns)))))
+
+(defn add-latest-activity-ts!
+  [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        all-discussions (get-all-discussions-with-latest-message db)
+        now (java.util.Date.)
+        txns (for [[d latest-message] all-discussions]
+               (let [latest-activity-ts (:message/created_at latest-message)]
+                 (-> d
+                     (assoc :discussion/latest_activity_ts latest-activity-ts)
+                     (update-discussion now))))]
+    (biff/submit-tx ctx (vec (remove nil? txns)))))

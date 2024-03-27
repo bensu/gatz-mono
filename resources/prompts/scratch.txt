@@ -1,0 +1,23 @@
+```
+Here is a conversation between a few users. What related topics might these users be interested in?
+
+{{conversation}}
+
+
+```
+Based on these topics, what are some very short questions the users would be interested in answering?
+
+Here are some examples of the style of questions I am looking for:
+
+- What do you think you know about [topic] that your friends don't?
+- Why do you find [topic] interesting?
+- How did you encounter [topic] in the first place?
+- Why is [topic] on your mind?
+```
+
+```
+Pick the top 3 that you think the user is most likely to want to answer. 
+Assume the user will see the questions later and maybe forgot about this conversation.
+Reply only with the questions, one per line.
+Please rephrase the questions if needed for them to be short
+```

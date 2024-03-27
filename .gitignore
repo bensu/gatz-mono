@@ -13,3 +13,4 @@ logs/
 .lein-repl-history
 
 .DS_Store
+**/.calva/repl.calva-repl

@@ -291,8 +291,6 @@
        (json-response {:discussion d})))))
 
 
-(def discussion-fetch-batch 20)
-
 ;; The cut-off for discussions is when they were created but the feed sorting is
 ;; based on when they were updated. This will close problems when there is more activity
 ;; and certain updates are not reflected in the latest feed because they are not the latest...
@@ -308,9 +306,9 @@
                                             (db/discussion-by-id db)
                                             :discussion
                                             :discussion/created_at)]
-              (db/discussions-by-user-id-older-than db user-id older-than-ts discussion-fetch-batch)
+              (db/discussions-by-user-id-older-than db user-id older-than-ts)
               ;; This second function might not be sorting according to what the user saw
-              (db/discussions-by-user-id-up-to db user-id discussion-fetch-batch))
+              (db/discussions-by-user-id-up-to db user-id))
         ds (map (partial db/discussion-by-id db) dis)
         users (db/all-users db)]
     (json-response {:discussions ds :users users})))
