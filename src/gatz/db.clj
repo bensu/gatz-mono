@@ -415,11 +415,11 @@
   {:pre [(every? uuid? dids) (uuid? uid) (inst? now)]}
   (let [txns (mapv (fn [did]
                      (let [d (d-by-id db did)
-                           last-updated-at (:discussion/updated_at d now)
-                           seen-at (:discussion/seen_at d {})
-                           d (assoc d :discussion/seen_at (assoc seen-at uid now))]
-                       ;; We don't count viewing as a change
-                       (update-discussion d last-updated-at)))
+                           seen-at (-> (:discussion/seen_at d {})
+                                       (assoc uid now))]
+                       (-> d
+                           (assoc :discussion/seen_at seen-at)
+                           (update-discussion))))
                    dids)]
     (biff/submit-tx ctx txns)))
 
@@ -683,9 +683,7 @@
                              auto-subscribe? (update :discussion/subscribers conj user-id)
                              true (assoc :discussion/latest_message mid)
                              true (assoc :discussion/latest_activity_ts now)
-                             ;; TODO: this is probably wrong, this is for a message, not a post:
-                             ;; We'll let the user see their own post
-                             ;; true (update :discussion/seen_at assoc user-id now)
+                             true (update :discussion/seen_at assoc user-id now)
                              true (update-discussion now))]
     (biff/submit-tx ctx (vec (remove nil? [(update-message msg now)
                                            updated-discussion
