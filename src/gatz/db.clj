@@ -523,16 +523,13 @@
 ;; TODO: figure out how to embed this as a parameter to the query
 (def discussion-fetch-batch 20)
 
-;; These functions are out of sync with the frontend, which is sorting by latest activity
-;; not by created_at date
-
 (defn discussions-by-user-id-up-to [db user-id]
-  (let [dids (q db '{:find [did created-at]
+  (let [dids (q db '{:find [did latest-activity-ts]
                      :in [user-id]
-                     :order-by [[created-at :desc]]
+                     :order-by [[latest-activity-ts :desc]]
                      :limit 20
                      :where [[did :db/type :gatz/discussion]
-                             [did :discussion/created_at created-at]
+                             [did :discussion/latest_activity_ts latest-activity-ts]
                              [did :discussion/members user-id]]}
                 user-id)]
     (mapv first dids)))
@@ -544,14 +541,14 @@
 
   {:pre [(uuid? user-id) (inst? older-than-ts)]}
 
-  (let [dids (q db '{:find [did created-at]
+  (let [dids (q db '{:find [did latest-activity-ts]
                      :in [user-id older-than-ts]
                      :limit 20
-                     :order-by [[created-at :desc]]
+                     :order-by [[latest-activity-ts :desc]]
                      :where [[did :db/type :gatz/discussion]
                              [did :discussion/members user-id]
-                             [did :discussion/created_at created-at]
-                             [(< created-at older-than-ts)]]}
+                             [did :discussion/latest_activity_ts latest-activity-ts]
+                             [(< latest-activity-ts older-than-ts)]]}
                 user-id older-than-ts)]
     (mapv first dids)))
 
