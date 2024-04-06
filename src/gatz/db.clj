@@ -375,6 +375,7 @@
                        (message-by-id db (:mid originally-from)))
         now (java.util.Date.)
         did (random-uuid)
+        mid (random-uuid)
         member-uids (set (keep mt/-string->uuid selected_users))
         d {:db/type :gatz/discussion
            :xt/id did
@@ -383,6 +384,8 @@
            :discussion/created_by user-id
            :discussion/subscribers #{user-id}
            :discussion/originally_from originally-from
+           :discussion/first_message mid
+           :discussion/latest_message mid
            ;; We'll let the user see their own discussion in the feed as new
            ;; :discussion/seen_at {user-id now}
            :discussion/members (conj member-uids user-id)
@@ -391,7 +394,6 @@
         media (some->> media_id
                        mt/-string->uuid
                        (media-by-id db))
-        mid (random-uuid)
         msg {:db/type :gatz/message
              :xt/id mid
              :message/did did
@@ -676,7 +678,8 @@
              :message/media (when updated-media [updated-media])
              :message/text text}
         d (d-by-id db did)
-        updated-discussion (cond-> (merge d {:discussion/first_message mid})
+        ;; TODO: the first message of the discussion is all wrong
+        updated-discussion (cond-> d
                              auto-subscribe? (update :discussion/subscribers conj user-id)
                              true (assoc :discussion/latest_message mid)
                              true (assoc :discussion/latest_activity_ts now)
@@ -1024,3 +1027,19 @@
                      (assoc :discussion/latest_activity_ts latest-activity-ts)
                      (update-discussion now))))]
     (biff/submit-tx ctx (vec (remove nil? txns)))))
+
+
+(defn fix-first-and-last-message! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        all-discussions (get-all-discussions db)
+        now (java.util.Date.)
+        txns (for [d all-discussions]
+               (let [messages (messages-by-did db (:discussion/did d))
+                     first-message (first messages)
+                     last-message (last messages)]
+                 (-> d
+                     (assoc :discussion/first_message (:xt/id first-message)
+                            :discussion/latest_message (:xt/id last-message))
+                     (update-discussion now))))
+        txns (vec (remove nil? txns))]
+    (biff/submit-tx ctx txns)))

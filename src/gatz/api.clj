@@ -377,7 +377,8 @@
   (let [{:keys [reaction mid did]} params
         did (mt/-string->uuid did)
         d (db/d-by-id db did)
-        mid (some-> mid mt/-string->uuid)]
+        mid (or (some-> mid mt/-string->uuid)
+                (:discussion/first_message d))]
     (assert (string? reaction) "reaction must be a string")
     (if-authorized-for-discussion
      [user-id d]
