@@ -1043,3 +1043,12 @@
                      (update-discussion now))))
         txns (vec (remove nil? txns))]
     (biff/submit-tx ctx txns)))
+
+(defn rename-user! [{:keys [biff.xtdb/node] :as ctx} old-name new-name]
+  (let [db (xtdb/db node)
+        user (user-by-name db old-name)
+        now (java.util.Date.)
+        new-user (-> user
+                     (assoc :user/name new-name)
+                     (update-user now))]
+    (biff/submit-tx ctx [new-user])))
