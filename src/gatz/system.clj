@@ -11,6 +11,7 @@
             [clojure.tools.logging :as log]
             [clojure.tools.namespace.repl :as tn-repl]
             [ring.middleware.cors :refer [wrap-cors]]
+            [ring.middleware.gzip :refer [wrap-gzip]]
             [malli.core :as malc]
             [malli.registry :as malr]
             [malli.transform :as mt]
@@ -32,7 +33,8 @@
                                ;; TODO: be more restrictive
                                #(wrap-cors %
                                            :access-control-allow-origin [#".*"]
-                                           :access-control-allow-methods [:get :put :post :delete])]}
+                                           :access-control-allow-methods [:get :put :post :delete])
+                               wrap-gzip]}
               (keep :api-routes plugins)]])
 
 (def handler (-> (biff/reitit-handler {:routes routes})

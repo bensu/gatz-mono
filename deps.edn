@@ -10,6 +10,7 @@
         remus/remus {:mvn/version "0.2.2"}
         com.amazonaws/aws-java-sdk-s3 {:mvn/version "1.12.661"}
         ring-cors/ring-cors {:mvn/version "0.1.13"}
+        amalloy/ring-gzip-middleware {:mvn/version "0.1.4"}
         org.jsoup/jsoup {:mvn/version "1.11.3"}
         org.clojure/clojure {:mvn/version "1.11.1"}
         org.slf4j/slf4j-simple {:mvn/version "2.0.0-alpha5"}
