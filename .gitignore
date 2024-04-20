@@ -11,6 +11,7 @@
 .portal/
 logs/
 .lein-repl-history
+*.backup
 
 .DS_Store
 **/.calva/repl.calva-repl
