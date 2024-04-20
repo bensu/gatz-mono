@@ -29,6 +29,7 @@
                  username)]
            ;; XXX: we can't guarantee uniqueness of usernames
     (->> users
+         (remove nil?)
          (sort-by (comp :user/created_at #(.getTime %)))
          first)))
 
@@ -42,6 +43,7 @@
                  phone)]
            ;; XXX: we can't guarantee uniqueness of phones
     (->> users
+         (remove nil?)
          (sort-by (comp :user/created_at #(.getTime %)))
          first)))
 
@@ -130,13 +132,7 @@
 
 (defn user-by-id [db user-id]
   {:pre [(uuid? user-id)]}
-  (first
-   (q db
-      '{:find (pull user [*])
-        :in [user-id]
-        :where [[user :xt/id user-id]
-                [user :db/type :gatz/user]]}
-      user-id)))
+  (xtdb/entity db user-id))
 
 (defn mark-user-active!
   [{:keys [biff/db] :as ctx} user-id]
@@ -274,11 +270,7 @@
 ;; Discussion 
 
 (defn d-by-id [db did]
-  (first (q db '{:find (pull d [*])
-                 :in [did]
-                 :where [[d :xt/id did]
-                         [d :db/type :gatz/discussion]]}
-            did)))
+  (xtdb/entity db did))
 
 (def discussion-defaults
   {:discussion/seen_at {}
