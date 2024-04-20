@@ -212,14 +212,24 @@
      (do ~@body)
      :else (err-resp "not_admin" "You are not an admin for this discussion")))
 
-(defn get-discussion [{:keys [biff/db params auth/user-id] :as _ctx}]
-  (let [did (mt/-string->uuid (:id params))
-        {:keys [discussion messages user_ids]} (db/discussion-by-id db did)]
-    (if-authorized-for-discussion
-     [user-id discussion]
-     (json-response {:discussion discussion
-                     :users (map (partial db/user-by-id db) user_ids)
-                     :messages messages}))))
+(defn get-discussion
+  [{:keys [biff/db biff.xtdb/node params auth/user-id] :as _ctx}]
+  (let [latest-tx (xt/latest-completed-tx node)
+        tx-id (some-> (:latest_tx params) mt/-string->long)]
+    (if (= tx-id (::xt/tx-id latest-tx))
+      (json-response {:current true
+                      :latest_tx {:id (::xt/tx-id latest-tx)
+                                  :ts (::xt/tx-time latest-tx)}})
+      (let [did (mt/-string->uuid (:id params))
+            {:keys [discussion messages user_ids]} (db/discussion-by-id db did)]
+        (if-authorized-for-discussion
+         [user-id discussion]
+         (json-response {:current false
+                         :latest_tx {:id (::xt/tx-id latest-tx)
+                                     :ts (::xt/tx-time latest-tx)}
+                         :discussion discussion
+                         :users (map (partial db/user-by-id db) user_ids)
+                         :messages messages}))))))
 
 (defn ^:deprecated
 
@@ -300,18 +310,29 @@
 ;; I'll punt on this and think a little harder about it later
 
 ;; discrepancy in how this gets params
-(defn get-full-discussions [{:keys [biff/db auth/user-id params] :as _ctx}]
-  (let [dis (if-let [older-than-ts (some->> (:last_did params)
-                                            mt/-string->uuid
-                                            (db/discussion-by-id db)
-                                            :discussion
-                                            :discussion/created_at)]
-              (db/discussions-by-user-id-older-than db user-id older-than-ts)
+(defn get-full-discussions
+  [{:keys [biff/db biff.xtdb/node auth/user-id params] :as _ctx}]
+  (let [latest-tx (xt/latest-completed-tx node)
+        tx-id (some-> (:latest_tx params) mt/-string->long)]
+    (if (= (::xt/tx-id latest-tx) tx-id)
+      (json-response {:current true
+                      :latest_tx {:id (::xt/tx-id latest-tx)
+                                  :ts (::xt/tx-time latest-tx)}})
+      (let [dis (if-let [older-than-ts (some->> (:last_did params)
+                                                mt/-string->uuid
+                                                (db/discussion-by-id db)
+                                                :discussion
+                                                :discussion/created_at)]
+                  (db/discussions-by-user-id-older-than db user-id older-than-ts)
               ;; This second function might not be sorting according to what the user saw
-              (db/discussions-by-user-id-up-to db user-id))
-        ds (map (partial db/discussion-by-id db) dis)
-        users (db/all-users db)]
-    (json-response {:discussions ds :users users})))
+                  (db/discussions-by-user-id-up-to db user-id))
+            ds (map (partial db/discussion-by-id db) dis)
+            users (db/all-users db)]
+        (json-response {:discussions ds
+                        :users users
+                        :current false
+                        :latest_tx {:id (::xt/tx-id latest-tx)
+                                    :ts (::xt/tx-time latest-tx)}})))))
 
 ;; TODO: validate all params at the API level, not the db level
 ;; TODO: members are not validated as existing
@@ -417,6 +438,8 @@
   (biff/submit-tx ctx
                   [{:db/op :delete
                     :xt/id msg-id}]))
+
+
 
 ;; ====================================================================== 
 ;; Websocket
