@@ -291,6 +291,7 @@
        (assoc :db/doc-type :gatz/discussion)
        (assoc :discussion/updated_at now))))
 
+;; TODO: deprecate and remove
 (defn create-discussion!
 
   [{:keys [auth/user-id] :as ctx} {:keys [name selected_users]}]
@@ -369,6 +370,7 @@
         did (random-uuid)
         mid (random-uuid)
         member-uids (set (keep mt/-string->uuid selected_users))
+        ;; TODO: embed msg in discussion
         d {:db/type :gatz/discussion
            :xt/id did
            :discussion/did did
@@ -396,6 +398,7 @@
              :message/text (or text "")}
         txns [(update-discussion d now)
               (update-message msg now)
+              ;; TODO: update other discussion, not just message for it
               (some-> original-msg
                       (update-message now)
                       (update :message/posted_as_discussion conj did))
@@ -479,6 +482,7 @@
 
 (defn discussion-by-id [db did]
   {:pre [(uuid? did)]}
+  ;; TODO: change shape
   (let [discussion (d-by-id db did)
         messages (messages-by-did db did)]
     (assert discussion)
@@ -589,6 +593,7 @@
             r)))
 
 
+;; TODO: can't query messages like this directly anymore
 (defn messages-sent-to-user-since
 
   [db user-id since-ts]
@@ -623,6 +628,7 @@
 
 (defn media-by-id [db id]
   {:pre [(uuid? id)]}
+  ;; TODO: use entity API
   (ffirst
    (q db '{:find [(pull m [*])]
            :in [id]
@@ -659,6 +665,7 @@
         updated-media (some-> media
                               (assoc :media/message_id mid)
                               (update-media))
+        ;; TODO: put directly in discussion
         msg {:xt/id mid
              :message/did did
              :message/created_at now
@@ -687,6 +694,7 @@
   (biff/submit-tx ctx [[:xtdb.api/delete mid]]))
 
 ;; TODO: should this be sorted?
+;; TODO: can't query messages
 (defn messages-by-did [db did]
   (->> (q db '{:find (pull m [*])
                :in [did]
@@ -696,6 +704,7 @@
        (sort-by :message/created_at)
        vec))
 
+;; TODO: can't query messages
 (defn d-latest-message [db did]
   {:pre [(uuid? did)]}
   (->> (q db '{:find [(pull m [*]) created-at]
@@ -708,6 +717,7 @@
           did)
        ffirst))
 
+;; TODO: can't query messages
 (defn message-by-id [db mid]
   {:pre [(uuid? mid)]}
   (->> (q db '{:find (pull m [*])
@@ -717,6 +727,7 @@
           mid)
        first))
 
+;; TODO: update into discussion
 (defn edit-message!
 
   [{:keys [auth/user-id biff/db] :as ctx}
@@ -747,6 +758,7 @@
           :evt/id (random-uuid)}
          evt))
 
+;; TODO: update into discussion
 (defn react-to-message!
 
   [{:keys [auth/user-id biff/db] :as ctx}
@@ -775,6 +787,7 @@
     (assert false "Tried to update a non-existent message")))
 
 
+;; TODO: update into discussion
 (defn undo-react!
 
   [{:keys [auth/user-id biff/db] :as ctx}

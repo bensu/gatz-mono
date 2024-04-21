@@ -342,10 +342,12 @@
     (if-not (db/valid-post? post-text (:media_id params))
       (err-resp "invalid_post" "Invalid post")
       (let [{:keys [discussion message]} (db/create-discussion-with-message! ctx params)]
+        ;; TODO: change shape of response
         (json-response
          {:discussion discussion
           :users (mapv (partial db/user-by-id db) (:discussion/members discussion))
           :messages [message]})))
+     ;; TODO: remove this branch
     (let [{:keys [discussion/members] :as discussion}
           (db/create-discussion! ctx params)]
       (json-response
@@ -422,6 +424,7 @@
                  (:id params)
                  mt/-string->uuid
                  (db/message-by-id db))]
+    ;; TODO: fix
     (if (= user-id (:message/user_id message))
       (when-authorized-for-message
        [user-id message]
