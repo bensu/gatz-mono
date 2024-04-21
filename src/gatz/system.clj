@@ -95,20 +95,24 @@
    :body "Loading"})
 
 (def components
-  [(fn start-fake-server [ctx]
+  [biff/use-config
+   biff/use-secrets
+   (fn start-fake-server [{:keys [biff/secret] :as ctx}]
      ;; This is here so that heroku is happy with the startup time
-     (let [server (ring.adapter.jetty9/run-jetty
+     (let [port (or (Integer/parseInt (System/getenv "PORT"))
+                    (mt/-string->long (secret :biff/port)))
+           _ (println "binding fake server to " port)
+           server (ring.adapter.jetty9/run-jetty
                    tiny-handler
                    {:host "localhost"
-                    :port  (or (Integer/parseInt (System/getenv "PORT"))
-                               8080)
+                    :port port
                     :join? false
                     :allow-null-path-info true})]
+       (println "server" server)
        (assoc ctx :fake-server server)))
-   biff/use-config
-   biff/use-secrets
-   #(use-atom % :conns-state conns/init-state)
-   (fn [{:keys [biff/secret] :as ctx}]
+   (fn start-conns-state [ctx]
+     (use-atom ctx :conns-state conns/init-state))
+   (fn start-xtdb [{:keys [biff/secret] :as ctx}]
      (let [jdbc-url (to-jdbc-uri (secret :biff.xtdb.jdbc/jdbcUrl))]
        (assert (some? jdbc-url))
        (-> ctx
@@ -121,9 +125,10 @@
    biff/use-queues
    biff/use-tx-listener
    (fn stop-fake-server [ctx]
-     (.stop (:fake-server ctx))
+     (println "stopping fake server")
+     (ring.adapter.jetty9/stop-server (:fake-server ctx))
      (dissoc ctx :fake-server ctx))
-   (fn [{:keys [biff/secret] :as ctx}]
+   (fn start-http-server [{:keys [biff/secret] :as ctx}]
      (println (secret :biff/port))
      (let [port (or (Integer/parseInt (System/getenv "PORT"))
                     (mt/-string->long (secret :biff/port)))]
