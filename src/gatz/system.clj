@@ -100,7 +100,8 @@
      (let [server (ring.adapter.jetty9/run-jetty
                    tiny-handler
                    {:host "localhost"
-                    :port 8080
+                    :port  (or (Integer/parseInt (System/getenv "PORT"))
+                               8080)
                     :join? false
                     :allow-null-path-info true})]
        (assoc ctx :fake-server server)))
