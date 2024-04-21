@@ -16,6 +16,7 @@
             [malli.registry :as malr]
             [malli.transform :as mt]
             [nrepl.cmdline :as nrepl-cmd]
+            [ring.adapter.jetty9]
             [to-jdbc-uri.core :refer [to-jdbc-uri]]
             [xtdb.jdbc.psql])
   (:import [org.postgresql Driver]))
@@ -88,8 +89,22 @@
        :user user
        :password password})))
 
+(defn tiny-handler [ctx]
+  {:status 200
+   :headers {"content-type" "text/plain"}
+   :body "Loading"})
+
 (def components
-  [biff/use-config
+  [(fn start-fake-server [ctx]
+     ;; This is here so that heroku is happy with the startup time
+     (let [server (ring.adapter.jetty9/run-jetty
+                   tiny-handler
+                   {:host "localhost"
+                    :port 8080
+                    :join? false
+                    :allow-null-path-info true})]
+       (assoc ctx :fake-server server)))
+   biff/use-config
    biff/use-secrets
    #(use-atom % :conns-state conns/init-state)
    (fn [{:keys [biff/secret] :as ctx}]
@@ -104,6 +119,9 @@
            (assoc :biff/secret secret))))
    biff/use-queues
    biff/use-tx-listener
+   (fn stop-fake-server [ctx]
+     (.stop (:fake-server ctx))
+     (dissoc ctx :fake-server ctx))
    (fn [{:keys [biff/secret] :as ctx}]
      (println (secret :biff/port))
      (let [port (or (Integer/parseInt (System/getenv "PORT"))
