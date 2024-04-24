@@ -266,8 +266,9 @@
           (println e))))))
 
 (def plugin
-  {:tasks [{:task activity-for-all-users!
-            :schedule (fn []
-                        (rest
-                         (chime/periodic-seq (Instant/now) (Duration/ofHours 8))))}]})
+  {:tasks []
+   #_[{:task activity-for-all-users!
+       :schedule (fn []
+                   (rest
+                    (chime/periodic-seq (Instant/now) (Duration/ofHours 8))))}]})
 
