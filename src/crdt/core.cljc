@@ -5,22 +5,33 @@
            [clojure.lang IPersistentMap]
            [java.lang Thread]))
 
-(defprotocol DeltaCRDT
+(defprotocol OpCRDT
   (-value [this] "Returns the EDN value without the CRDT tracking")
   (-apply-delta [this -delta] "Applies a delta to the CRDT"))
 
+(defprotocol CRDTDelta
+  (-init [this] "Returns the empty type of the CRDT it should be applied to"))
+
 (defrecord MaxWins [value]
-  DeltaCRDT
+  CRDTDelta
+  (-init [_] (->MaxWins ::empty))
+  OpCRDT
   (-value [_] value)
   ;; Should the delta be expected to be a MaxWins or could it be the value?
   (-apply-delta [this delta]
     (let [delta-value (-value delta)]
-      (case (compare value delta-value)
-        -1 delta
-        0 this
-        1 this))))
+      (cond
+        (= ::empty delta-value) this
+        (= ::empty value)       delta
+        :else (case (compare value delta-value)
+                -1 delta
+                0 this
+                1 this)))))
 
 (deftest max-wins
+  (testing "empty value is always replaced"
+    (let [initial (-init (->MaxWins 0))]
+      (is (= 1 (-value (-apply-delta initial (->MaxWins 1)))))))
   (testing "any order yields the same final value with integers"
     (let [values (shuffle (map #(->MaxWins %) (range 10)))
           initial (->MaxWins 0)
@@ -34,16 +45,24 @@
       (is (= (-value final) (last instants))))))
 
 (defrecord LWW [clock value]
-  DeltaCRDT
+  CRDTDelta
+  (-init [_] (->LWW ::empty (-init value)))
+  OpCRDT
   (-value [_] value)
   (-apply-delta [this delta]
     (let [delta-clock (.clock delta)]
-      (case (compare clock delta-clock)
-        -1 delta
-        0 this ;; TODO: if the clocks are equal, the values should be equal too?
-        1 this))))
+      (cond
+        (= ::empty delta-clock) this
+        (= ::empty clock)       delta
+        :else (case (compare clock delta-clock)
+                -1 delta
+                0 this ;; TODO: if the clocks are equal, the values should be equal too?
+                1 this)))))
 
 (deftest lww
+  (testing "empty value is always replaced"
+    (let [initial (-init (->LWW 0 0))]
+      (is (= 1 (-value (-apply-delta initial (->LWW 1 1)))))))
   (testing "any order yields the same final value"
     (testing "with integer clocks"
       (let [initial (->LWW 0 0)
@@ -63,7 +82,7 @@
         (is (= (last values) (-value final)))))))
 
 (defrecord GrowOnlySet [xs]
-  DeltaCRDT
+  OpCRDT
   (-value [_] xs)
   (-apply-delta [_ delta]
     (->GrowOnlySet (conj xs (-value delta)))))
@@ -78,7 +97,7 @@
 
 ;; {x {:adds #{unique-ids} :removes #{unique-ids}}
 (defrecord AddRemoveSet [xs]
-  DeltaCRDT
+  OpCRDT
   (-value [_]
     (->> xs
          (keep (fn [[x {:keys [adds removes]}]]
@@ -86,6 +105,7 @@
                    x)))
          (set)))
   (-apply-delta [_ delta]
+    ;; Should be a record
     ;; delta is {:crdt.add-remove-set/add {x unique-id}
     ;;           :crdt.add-remove-set/remove {x unique-id}}
     (let [after-adds (reduce
@@ -119,7 +139,13 @@
       (is (= #{} (-value initial)))
       (is (= (set (remove even? (range 10))) (-value final))))))
 
-(extend-protocol DeltaCRDT
+(extend-protocol CRDTDelta
+  Object
+  (-init [this] this)
+  IPersistentMap
+  (-init [_] {}))
+
+(extend-protocol OpCRDT
   Object
   (-value [this] this)
   (-apply-delta [_ _] (assert false "Applied a delta to a value that is not a CRDT"))
@@ -129,13 +155,34 @@
   (-apply-delta [this delta]
     ;; delta is a {key delta} map
     (reduce (fn [m [k val-delta]]
-              (update m k -apply-delta val-delta))
+              (let [empty (-init val-delta)]
+                (update m k (fnil -apply-delta empty) val-delta)))
             this delta)))
 
 (deftest persistent-map
   (testing "you can apply deltas to a map"
     (let [initial {:a 1 :b (->MaxWins 0) :c (->LWW 0 0)}
-          deltas (shuffle (map (fn [x] {:b (->MaxWins x) :c (->LWW x x)}) (range 10)))
+          deltas (shuffle (map (fn [x]
+                                 {:b (->MaxWins x) :c (->LWW x x)})
+                               (range 10)))
           final (reduce -apply-delta initial deltas)]
       (is (= {:a 1 :b 0 :c 0} (-value initial)))
-      (is (= {:a 1 :b 9 :c 9} (-value final))))))
+      (is (= {:a 1 :b 9 :c 9} (-value final)))))
+  (testing "you can apply deltas recursively"
+    (let [initial {}
+          user-ids (range 10)
+          adds (map (fn [user-id]
+                      {user-id {"heart" (->LWW (Date.) true)
+                                "like" (->LWW (Date.) true)}})
+                    user-ids)
+          removes (map (fn [user-id]
+                         {user-id {"like" (->LWW (Date.) false)}})
+                       (filter even? user-ids))
+          deltas (shuffle (concat adds removes))
+          final (reduce -apply-delta initial deltas)]
+      (is (= {} (-value initial))
+          (= (into {} (map (fn [user-id]
+                             [user-id {"heart" true
+                                       "like"  (not (even? user-id))}])
+                           user-ids))
+             (-value final))))))
