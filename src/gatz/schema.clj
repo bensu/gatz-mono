@@ -124,12 +124,12 @@
    [:message/updated_at inst?]
    ;; grow only set
    [:message/posted_as_discussion [:vector :discussion/id]]
-   ;; add remove set
-   [:message/reactions [:map-of :user/id [:map-of string? inst?]]]
-   ;; LWW
+   ;; Grow only set
    [:message/edits [:vector message-edits]]
-   ;; view over edits, not a CRDT itself
-   [:message/text string?]])
+   ;; LWW
+   [:message/text string?]
+   ;; {user-id {emoji (->LWW ts?)}
+   [:message/reactions [:map-of :user/id [:map-of string? inst?]]]])
 
 (def schema
   {:discussion/id :uuid
