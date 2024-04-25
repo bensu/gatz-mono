@@ -90,8 +90,8 @@
 
 (deftest persistent-map
   (testing "you can apply deltas to a map"
-    (let [initial {:a 1 :b (->MaxWins 0)}
-          deltas (shuffle (map (fn [x] {:b (->MaxWins x)}) (range 10)))
+    (let [initial {:a 1 :b (->MaxWins 0) :c (->LWW 0 0)}
+          deltas (shuffle (map (fn [x] {:b (->MaxWins x) :c (->LWW x x)}) (range 10)))
           final (reduce -apply-delta initial deltas)]
-      (is (= {:a 1 :b 0} (-value initial)))
-      (is (= {:a 1 :b 9} (-value final))))))
+      (is (= {:a 1 :b 0 :c 0} (-value initial)))
+      (is (= {:a 1 :b 9 :c 9} (-value final))))))
