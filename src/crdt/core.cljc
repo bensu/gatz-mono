@@ -1,7 +1,8 @@
 (ns crdt.core
   (:require [clojure.test :as test :refer [deftest testing is are]])
   (:import [java.util Date]
-           [clojure.lang IPersistentMap]))
+           [clojure.lang IPersistentMap]
+           [java.lang Thread]))
 
 (defprotocol DeltaCRDT
   (-value [this] "Returns the EDN value without the CRDT tracking")
@@ -30,6 +31,35 @@
           initial (->MaxWins (first instants))
           final (reduce -apply-delta initial values)]
       (is (= (-value final) (last instants))))))
+
+(defrecord LWW [clock value]
+  DeltaCRDT
+  (-value [_] value)
+  (-apply-delta [this delta]
+    (let [delta-clock (.clock delta)]
+      (case (compare clock delta-clock)
+        -1 delta
+        0 this ;; TODO: if the clocks are equal, the values should be equal too?
+        1 this))))
+
+(deftest lww
+  (testing "any order yields the same final value"
+    (testing "with integer clocks"
+      (let [initial (->LWW 0 0)
+            clocks (range 1 10)
+            values (shuffle (range 1 10))
+            deltas (map #(->LWW %1 %2) clocks values)
+            final (reduce -apply-delta initial (shuffle deltas))]
+        (is (= 0 (-value initial)))
+        (is (= (last values) (-value final)))))
+    (testing "with date clocks"
+      (let [initial (->LWW (Date.) 0)
+            clocks (take 9 (repeatedly #(do (Thread/sleep 1) (Date.))))
+            values (shuffle (range 1 10))
+            deltas (map #(->LWW %1 %2) clocks values)
+            final (reduce -apply-delta initial (shuffle deltas))]
+        (is (= 0 (-value initial)))
+        (is (= (last values) (-value final)))))))
 
 (defrecord GrowOnlySet [xs]
   DeltaCRDT
