@@ -112,19 +112,24 @@
 
 (def message
   [:map
+    ;; final
    [:xt/id :message/id]
    [:db/type [:enum :gatz/message]]
    [:message/did :discussion/id]
    [:message/user_id :user/id]
-   [:message/text string?]
-   ;; when sending to the client, these should be nested
-   [:message/media [:maybe [:vector :gatz/media]]]
    [:message/reply_to [:maybe :message/id]]
-   [:message/edits [:vector message-edits]]
-   [:message/reactions [:map-of :user/id [:map-of string? inst?]]]
-   [:message/posted_as_discussion [:vector :discussion/id]]
+   [:message/media [:maybe [:vector :gatz/media]]]
    [:message/created_at inst?]
-   [:message/updated_at inst?]])
+   ;; max wins
+   [:message/updated_at inst?]
+   ;; grow only set
+   [:message/posted_as_discussion [:vector :discussion/id]]
+   ;; add remove set
+   [:message/reactions [:map-of :user/id [:map-of string? inst?]]]
+   ;; LWW
+   [:message/edits [:vector message-edits]]
+   ;; view over edits, not a CRDT itself
+   [:message/text string?]])
 
 (def schema
   {:discussion/id :uuid
