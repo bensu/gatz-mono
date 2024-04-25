@@ -1,6 +1,7 @@
 (ns crdt.core
   (:require [clojure.set :as set]
-            [clojure.test :as test :refer [deftest testing is are]])
+            [clojure.test :as test :refer [deftest testing is]]
+            [taoensso.nippy :as nippy])
   (:import [java.util Date UUID]
            [clojure.lang IPersistentMap]
            [java.lang Thread]))
@@ -42,7 +43,9 @@
           values  (map ->MaxWins (shuffle instants))
           initial (->MaxWins (first instants))
           final (reduce -apply-delta initial values)]
-      (is (= (-value final) (last instants))))))
+      (is (= (-value final) (last instants)))))
+  (testing "can be serialized"
+    (is (= (->MaxWins 0) (nippy/thaw (nippy/freeze (->MaxWins 0)))))))
 
 (defrecord LWW [clock value]
   CRDTDelta
@@ -79,7 +82,9 @@
             deltas (map #(->LWW %1 %2) clocks values)
             final (reduce -apply-delta initial (shuffle deltas))]
         (is (= 0 (-value initial)))
-        (is (= (last values) (-value final)))))))
+        (is (= (last values) (-value final)))))
+    (testing "can be serialized"
+      (is (= (->LWW 0 0) (nippy/thaw (nippy/freeze (->LWW 0 0))))))))
 
 (defrecord GrowOnlySet [xs]
   OpCRDT
@@ -93,7 +98,10 @@
           deltas (shuffle (range 10))
           final (reduce -apply-delta initial deltas)]
       (is (= #{} (-value initial)))
-      (is (= (set (range 10)) (-value final))))))
+      (is (= (set (range 10)) (-value final)))))
+  (testing "can be serialized"
+    (is (= (->GrowOnlySet #{1 2 3})
+           (nippy/thaw (nippy/freeze (->GrowOnlySet #{1 2 3})))))))
 
 ;; {x {:adds #{unique-ids} :removes #{unique-ids}}
 (defrecord AddRemoveSet [xs]
@@ -160,6 +168,9 @@
             this delta)))
 
 (deftest persistent-map
+  (testing "can be serialized"
+    (let [init {:a (->MaxWins 0) :b (->LWW 0 0) :c (->GrowOnlySet #{1 2 3})}]
+      (is (= init (nippy/thaw (nippy/freeze init))))))
   (testing "you can apply deltas to a map"
     (let [initial {:a 1 :b (->MaxWins 0) :c (->LWW 0 0)}
           deltas (shuffle (map (fn [x]
