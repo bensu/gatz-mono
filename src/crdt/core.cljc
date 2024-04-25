@@ -83,6 +83,12 @@
             final (reduce -apply-delta initial (shuffle deltas))]
         (is (= 0 (-value initial)))
         (is (= (last values) (-value final)))))
+    (testing "with nil"
+      (let [initial (->LWW 0 1)
+            delta   (->LWW 1 nil)
+            final (-apply-delta initial delta)]
+        (is (= 1 (-value initial)))
+        (is (= nil (-value final)))))
     (testing "can be serialized"
       (is (= (->LWW 0 0) (nippy/thaw (nippy/freeze (->LWW 0 0))))))))
 
