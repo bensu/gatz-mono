@@ -1,6 +1,7 @@
 (ns crdt.core
-  (:require [clojure.test :as test :refer [deftest testing is are]])
-  (:import [java.util Date]
+  (:require [clojure.set :as set]
+            [clojure.test :as test :refer [deftest testing is are]])
+  (:import [java.util Date UUID]
            [clojure.lang IPersistentMap]
            [java.lang Thread]))
 
@@ -74,6 +75,49 @@
           final (reduce -apply-delta initial deltas)]
       (is (= #{} (-value initial)))
       (is (= (set (range 10)) (-value final))))))
+
+;; {x {:adds #{unique-ids} :removes #{unique-ids}}
+(defrecord AddRemoveSet [xs]
+  DeltaCRDT
+  (-value [_]
+    (->> xs
+         (keep (fn [[x {:keys [adds removes]}]]
+                 (when-not (empty? (set/difference adds removes))
+                   x)))
+         (set)))
+  (-apply-delta [_ delta]
+    ;; delta is {:crdt.add-remove-set/add {x unique-id}
+    ;;           :crdt.add-remove-set/remove {x unique-id}}
+    (let [after-adds (reduce
+                      (fn [xs [x unique-id]]
+                        (update-in xs [x :adds] (fnil conj #{}) unique-id))
+                      xs
+                      (:crdt.add-remove-set/add delta))
+          after-removes (reduce
+                         (fn [xs [x unique-id]]
+                           (update-in xs [x :removes] (fnil conj #{}) unique-id))
+                         after-adds
+                         (:crdt.add-remove-set/remove delta))]
+      (->AddRemoveSet after-removes))))
+
+;; This is not super ergonomic! 
+;; The API you want knows which id you are removing
+(deftest add-remove-set
+  (testing "You can add and remove"
+    (let [initial (->AddRemoveSet {})
+          ;; here causality is important. we only remove what we added
+          adds (map (fn [x] [x (UUID/randomUUID)]) (range 10))
+          removes (filter (comp even? first) adds)
+          adds (map (fn [[x id]]
+                      {:crdt.add-remove-set/add {x id}})
+                    adds)
+          removes  (map (fn [[x id]]
+                          {:crdt.add-remove-set/remove {x id}})
+                        removes)
+          deltas (shuffle (concat adds removes adds removes))
+          final (reduce -apply-delta initial deltas)]
+      (is (= #{} (-value initial)))
+      (is (= (set (remove even? (range 10))) (-value final))))))
 
 (extend-protocol DeltaCRDT
   Object
