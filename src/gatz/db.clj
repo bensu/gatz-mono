@@ -338,6 +338,7 @@
 (def message-defaults
   {:message/media nil
    :message/reply_to nil
+   :message/deleted_at nil
    :message/edits []
    :message/reactions {}
    :message/posted_as_discussion []})
@@ -689,9 +690,18 @@
                                            updated-media])))
     msg))
 
-(defn delete-message! [ctx mid]
+(defn delete-message!
+  "Marks a message as deleted with :message/deleted_at"
+  [{:keys [biff/db] :as ctx} mid]
   {:pre [(uuid? mid)]}
-  (biff/submit-tx ctx [[:xtdb.api/delete mid]]))
+  (if-let [m (message-by-id db mid)]
+    (let [now (java.util.Date.)
+          updated-m (-> m
+                        (assoc :message/deleted_at now)
+                        (update-message now))]
+      (biff/submit-tx ctx [updated-m])
+      updated-m)
+    (assert false "Tried to delete a non-existing message")))
 
 ;; TODO: should this be sorted?
 ;; TODO: can't query messages
@@ -701,6 +711,7 @@
                :where [[m :message/did did]
                        [m :db/type :gatz/message]]}
           did)
+       (remove :message/deleted_at)
        (sort-by :message/created_at)
        vec))
 
@@ -715,17 +726,20 @@
                :order-by [[created-at :desc]]
                :limit 1}
           did)
+       (remove :message/deleted_at)
        ffirst))
 
 ;; TODO: can't query messages
 (defn message-by-id [db mid]
   {:pre [(uuid? mid)]}
-  (->> (q db '{:find (pull m [*])
-               :in [mid]
-               :where [[m :xt/id mid]
-                       [m :db/type :gatz/message]]}
-          mid)
-       first))
+  (xtdb/entity db mid)
+  #_(->> (q db '{:find (pull m [*])
+                 :in [mid]
+                 :where [[m :xt/id mid]
+                         [m :db/type :gatz/message]
+                         [m :message/deleted_at nil]]}
+            mid)
+         first))
 
 ;; TODO: update into discussion
 (defn edit-message!

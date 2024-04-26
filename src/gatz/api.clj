@@ -437,13 +437,6 @@
                  ;; TODO: better index to get all the messages
        :where [[msg :text _]]}))
 
-(defn delete-msg! [ctx msg-id]
-  (biff/submit-tx ctx
-                  [{:db/op :delete
-                    :xt/id msg-id}]))
-
-
-
 ;; ====================================================================== 
 ;; Websocket
 

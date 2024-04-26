@@ -120,6 +120,8 @@
    [:message/reply_to [:maybe :message/id]]
    [:message/media [:maybe [:vector :gatz/media]]]
    [:message/created_at inst?]
+   ;; First Write Wins
+   [:message/deleted_at [:maybe inst?]]
    ;; max wins
    [:message/updated_at inst?]
    ;; grow only set
