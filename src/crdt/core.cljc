@@ -13,6 +13,39 @@
 (defprotocol CRDTDelta
   (-init [this] "Returns the empty type of the CRDT it should be applied to"))
 
+(defrecord MinWins [value]
+  CRDTDelta
+  (-init [_] (->MinWins ::empty))
+  OpCRDT
+  (-value [_] value)
+  (-apply-delta [this delta]
+    (let [delta-value (-value delta)]
+      (cond
+        (= ::empty delta-value) this
+        (= ::empty value)       delta
+        :else (case (compare value delta-value)
+                -1 this
+                0 this
+                1 delta)))))
+
+(deftest min-wins
+  (testing "empty value is always replaced"
+    (let [initial (-init (->MinWins 0))]
+      (is (= 1 (-value (-apply-delta initial (->MinWins 1)))))))
+  (testing "any order yields the same final value with integers"
+    (let [values (shuffle (map #(->MinWins %) (range 10)))
+          initial (->MinWins 3)
+          final (reduce -apply-delta initial values)]
+      (is (= 0 (-value final)))))
+  (testing "any order yields the same final value with dates"
+    (let [instants (take 10 (repeatedly (fn [] (Date.))))
+          values  (map ->MinWins (shuffle instants))
+          initial (->MinWins (first instants))
+          final (reduce -apply-delta initial values)]
+      (is (= (-value final) (first instants)))))
+  (testing "can be serialized"
+    (is (= (->MinWins 0) (nippy/thaw (nippy/freeze (->MinWins 0)))))))
+
 (defrecord MaxWins [value]
   CRDTDelta
   (-init [_] (->MaxWins ::empty))
