@@ -4,7 +4,7 @@
             [taoensso.nippy :as nippy])
   (:import [java.util Date UUID]
            [clojure.lang IPersistentMap]
-           [java.lang Thread]))
+           [java.lang Comparable Thread]))
 
 (defprotocol OpCRDT
   (-value [this] "Returns the EDN value without the CRDT tracking")
@@ -80,6 +80,22 @@
   (testing "can be serialized"
     (is (= (->MaxWins 0) (nippy/thaw (nippy/freeze (->MaxWins 0)))))))
 
+(defmacro stagger-compare [ks a b]
+  (loop [ks ks
+         expr 0]
+    (if-let [k (first ks)]
+      (let [new-compare `(case (compare (get ~a ~k) (get ~b ~k))
+                           -1 -1
+                           1 1
+                           0 ~expr)]
+        (recur (rest ks) new-compare))
+      expr)))
+
+(defrecord ClientClock [event-number ts user-id conn-id]
+  Comparable
+  (compareTo [this that]
+    (stagger-compare [:event-number :ts :user-id :conn-id] this that)))
+
 (defrecord LWW [clock value]
   CRDTDelta
   (-init [_] (->LWW ::empty (-init value)))
@@ -116,6 +132,21 @@
             final (reduce -apply-delta initial (shuffle deltas))]
         (is (= 0 (-value initial)))
         (is (= (last values) (-value final)))))
+    (testing "with ClientClocks"
+      (let [uid (random-uuid) cid (random-uuid)
+            tick! (let [event-number (atom 0)]
+                    (fn []
+                      (->ClientClock
+                       (swap! event-number inc) (Date.) uid cid)))
+            initial (->LWW (tick!) 0)
+            clocks (take 9 (repeatedly tick!))
+            values (shuffle (range 1 10))
+            deltas (map #(->LWW %1 %2) clocks values)
+            final (reduce -apply-delta initial (shuffle deltas))]
+        (is (= 0 (-value initial)))
+        (is (= (last values) (-value final)))
+        (testing "which can be serialized"
+          (is (every? #(= % (nippy/thaw (nippy/freeze %))) values)))))
     (testing "with nil"
       (let [initial (->LWW 0 1)
             delta   (->LWW 1 nil)
