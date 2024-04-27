@@ -187,6 +187,20 @@
        :where [[d :db/type :gatz/discussion]
                [d :discussion/latest_message nil]]}))
 
+;; TODO: can't query messages
+(defn d-latest-message [db did]
+  {:pre [(uuid? did)]}
+  (->> (q db '{:find [(pull m [:message/created_at :xt/id]) created-at]
+               :in [did]
+               :where [[m :message/did did]
+                       [m :db/type :gatz/message]
+                       [m :message/created_at created-at]]
+               :order-by [[created-at :desc]]
+               :limit 1}
+          did)
+       (remove :message/deleted_at)
+       ffirst))
+
 (defn add-latest-message!
   [{:keys [biff.xtdb/node] :as ctx}]
   (let [db (xtdb/db node)

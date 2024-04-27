@@ -629,13 +629,7 @@
 
 (defn media-by-id [db id]
   {:pre [(uuid? id)]}
-  ;; TODO: use entity API
-  (ffirst
-   (q db '{:find [(pull m [*])]
-           :in [id]
-           :where [[m :db/type :gatz/media]
-                   [m :xt/id id]]}
-      id)))
+  (xtdb/entity db id))
 
 #_(defn ->uuid [s]
     (if (string? s)
@@ -703,43 +697,23 @@
       updated-m)
     (assert false "Tried to delete a non-existing message")))
 
-;; TODO: should this be sorted?
+;; TODO: can't query messages
+(defn message-by-id [db mid]
+  {:pre [(uuid? mid)]}
+  ;; TODO: deserialization here
+  (xtdb/entity db mid))
+
 ;; TODO: can't query messages
 (defn messages-by-did [db did]
-  (->> (q db '{:find (pull m [*])
+  (->> (q db '{:find m
                :in [did]
                :where [[m :message/did did]
                        [m :db/type :gatz/message]]}
           did)
+       (map (partial message-by-id db))
        (remove :message/deleted_at)
        (sort-by :message/created_at)
        vec))
-
-;; TODO: can't query messages
-(defn d-latest-message [db did]
-  {:pre [(uuid? did)]}
-  (->> (q db '{:find [(pull m [*]) created-at]
-               :in [did]
-               :where [[m :message/did did]
-                       [m :db/type :gatz/message]
-                       [m :message/created_at created-at]]
-               :order-by [[created-at :desc]]
-               :limit 1}
-          did)
-       (remove :message/deleted_at)
-       ffirst))
-
-;; TODO: can't query messages
-(defn message-by-id [db mid]
-  {:pre [(uuid? mid)]}
-  (xtdb/entity db mid)
-  #_(->> (q db '{:find (pull m [*])
-                 :in [mid]
-                 :where [[m :xt/id mid]
-                         [m :db/type :gatz/message]
-                         [m :message/deleted_at nil]]}
-            mid)
-         first))
 
 ;; TODO: update into discussion
 (defn edit-message!
