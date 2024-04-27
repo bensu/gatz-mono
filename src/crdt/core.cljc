@@ -22,7 +22,7 @@
     (let [delta-value (-value delta)]
       (cond
         (nil? delta-value) this
-        (nil? value)       delta
+        (nil? value)       (->MinWins delta-value)
         :else (case (compare value delta-value)
                 -1 this
                 0 this
@@ -31,6 +31,8 @@
 (deftest min-wins
   (testing "empty value is always replaced"
     (let [initial (-init (->MinWins 0))]
+      (is (= 1 (-value (-apply-delta initial (->MinWins 1))))))
+    (let [initial (->MinWins nil)]
       (is (= 1 (-value (-apply-delta initial (->MinWins 1)))))))
   (testing "any order yields the same final value with integers"
     (let [values (shuffle (map #(->MinWins %) (range 10)))
@@ -48,15 +50,15 @@
 
 (defrecord MaxWins [value]
   CRDTDelta
-  (-init [_] (->MaxWins ::empty))
+  (-init [_] (->MaxWins nil))
   OpCRDT
   (-value [_] value)
   ;; Should the delta be expected to be a MaxWins or could it be the value?
   (-apply-delta [this delta]
     (let [delta-value (-value delta)]
       (cond
-        (= ::empty delta-value) this
-        (= ::empty value)       delta
+        (nil? delta-value) this
+        (nil? value)       (->MaxWins delta-value)
         :else (case (compare value delta-value)
                 -1 (->MaxWins delta-value)
                 0 this
@@ -65,6 +67,8 @@
 (deftest max-wins
   (testing "empty value is always replaced"
     (let [initial (-init (->MaxWins 0))]
+      (is (= 1 (-value (-apply-delta initial (->MaxWins 1))))))
+    (let [initial (->MaxWins nil)]
       (is (= 1 (-value (-apply-delta initial (->MaxWins 1)))))))
   (testing "any order yields the same final value with integers"
     (let [values (shuffle (map #(->MaxWins %) (range 10)))
@@ -326,8 +330,9 @@
     (-apply-delta (-init delta) delta))
   Object
   (-value [this] this)
-  (-apply-delta [_ _]
-    (assert false "Applied a delta to a value that is not a CRDT"))
+  (-apply-delta [this delta]
+    (assert false
+            (str "Applied a delta to a value that is not a CRDT: " (type this) delta)))
   IPersistentMap
   (-value [this]
     (reduce (fn [m [k v]] (assoc m k (-value v))) {} this))
