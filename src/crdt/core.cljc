@@ -81,15 +81,98 @@
     (is (= (->MaxWins 0) (nippy/thaw (nippy/freeze (->MaxWins 0)))))))
 
 (defmacro stagger-compare [ks a b]
-  (loop [ks ks
-         expr 0]
-    (if-let [k (first ks)]
-      (let [new-compare `(case (compare (get ~a ~k) (get ~b ~k))
-                           -1 -1
-                           1 1
-                           0 ~expr)]
-        (recur (rest ks) new-compare))
-      expr)))
+  (let [k (first ks)]
+    (assert k "Can't compare empty keys")
+    `(case (compare (get ~a ~k) (get ~b ~k))
+       -1 -1
+       1 1
+       0 ~(if (empty? (rest ks))
+            0
+            `(stagger-compare ~(rest ks) ~a ~b)))))
+
+;; Hybrid Logical Clocks
+;; https://adamwulf.me/2021/05/distributed-clocks-and-crdts/
+
+(defprotocol IHLC
+  (-increment [this now] "Increment the clock")
+  (-receive [this that now] "Combine two clocks"))
+
+(defrecord HLC [^Date ts ^Long counter ^UUID node]
+  IHLC
+  (-increment [_ now]
+    (if (< (.getTime ts) (.getTime now))
+      (->HLC now 0 node)
+      (->HLC ts (inc counter) node)))
+  (-receive [_ remote now]
+    (if (and (< (.getTime ts) (.getTime now))
+             (< (.getTime (:ts remote)) (.getTime now)))
+      (->HLC now 0 node)
+      (case (compare ts (:ts remote))
+        -1 (->HLC (:ts remote) (inc (:counter remote)) node)
+        0 (->HLC ts (inc (max counter (:counter remote))) node)
+        1 (->HLC ts (inc counter) node))))
+  Comparable
+  (compareTo [this that]
+    (stagger-compare [:ts :counter :node] this that)))
+
+(defn new-hlc
+  ([node] (new-hlc node (Date.)))
+  ([node now] (->HLC now 0 node)))
+
+(defn inc-time [^Date d]
+  (Date. (inc (.getTime d))))
+
+(deftest hlc
+  (testing "You can generate HLCs"
+    (let [t0 (Date.)
+          aid (random-uuid)
+          bid (random-uuid)
+          a-init (new-hlc aid t0)
+          b-init (new-hlc bid t0)]
+      (is (= (compare aid bid)
+             (compare a-init b-init))
+          "The clocks end up comparing the node id when everything else is the same")
+
+      (let [a2 (-increment a-init t0)
+            b2 (-increment b-init t0)]
+        (is (= -1 (compare a-init a2)))
+        (is (= -1 (compare b-init a2)))
+        (is (= -1 (compare a-init b2)))
+        (is (= -1 (compare b-init b2)))
+        (is (= (compare aid bid) (compare a2 b2))))
+
+      ;; make sure the time is later
+      (let [t1 (inc-time t0)
+            merged-later (-receive a-init b-init t1)]
+        (is (= (->HLC t1 0 aid) merged-later)
+            "Local wins when receiving with equal times")
+        (is (= -1 (compare a-init merged-later)))
+        (is (= -1 (compare b-init merged-later))))
+
+      (testing "Both clients have new events, they are merged later"
+        (let [a2 (-increment a-init t0)
+              t1 (inc-time t0)
+              b2 (-increment b-init t1)
+              t2 (inc-time t1)
+              merged-later (-receive a2 b2 t2)]
+          (is (= (->HLC t2 0 aid) merged-later)
+              "timestamp wins over counter")
+          (is (= -1 (compare a-init merged-later)))
+          (is (= -1 (compare b-init merged-later)))
+          (is (= -1 (compare b2 merged-later)))))
+
+      (testing "Both clients have new events, b is later"
+        (let [a2 (-increment a-init t0)
+              t1 (inc-time t0)
+              b2 (-increment b-init t1)
+              merged-later (-receive a2 b2 t1)]
+          (is (= (->HLC t0 1 aid) a2))
+          (is (= (->HLC t1 0 bid) b2))
+          (is (= (->HLC t1 1 aid) merged-later)
+              "Need to use counter")
+          (is (= -1 (compare a-init merged-later)))
+          (is (= -1 (compare b-init merged-later)))
+          (is (= -1 (compare b2 merged-later))))))))
 
 (defrecord ClientClock [event-number ts user-id conn-id]
   Comparable
