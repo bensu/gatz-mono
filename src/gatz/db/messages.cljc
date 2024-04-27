@@ -1,6 +1,8 @@
 (ns gatz.db.messages
   (:require [clojure.test :refer [deftest testing is]]
-            [crdt.core :as crdt])
+            [crdt.core :as crdt]
+            [medley.core :refer [map-vals]]
+            #?(:clj [taoensso.nippy :as nippy]))
   (:import [java.util Date]))
 
 (def message-defaults
@@ -19,51 +21,89 @@
    :message/media
    :message/created_at])
 
+(defn new-message
+  [{:keys [uid mid did text media reply_to]} {:keys [now cid]}]
+  (let [clock (crdt/new-hlc cid now)]
+    {:xt/id mid
+     :db/doc-type :gatz.crdt/message
+     :db/type :gatz.crdt/message
+     :crdt/clock clock
+     :message/did did
+     :message/user_id uid
+     :message/reply_to reply_to
+     :message/media media
+     :message/created_at now
+     :message/deleted_at (crdt/->MinWins nil)
+     :message/updated_at (crdt/->MaxWins now)
+     :message/posted_as_discussion (crdt/->GrowOnlySet #{})
+     :message/edits (crdt/->GrowOnlySet #{{:message/text text
+                                           :message/edited_at now}})
+     :message/text (crdt/->LWW clock text)
+     :message/reactions {}}))
+
 (deftest crdt-messages
-  (let [mid (random-uuid)
-        did (random-uuid)
-        uid (random-uuid)
-        tick! (let [clock (atom 0)]
-                (fn [] (swap! clock inc)))
+  (let [[did mid uid cid uid2] (repeatedly 5 random-uuid)
+        t0 (Date.)
+        c0 (crdt/new-hlc cid t0)
+        tick! (let [clock (atom c0)]
+                (fn
+                  ([] (swap! clock crdt/-increment t0))
+                  ([ts] (swap! clock crdt/-increment ts))))
         now (Date.)
-        uid2 (random-uuid)
         text "0"
-        msg {:xt/id mid
-             :message/did did
-             :message/user_id uid
-             :message/reply_to nil
-             :message/media nil
-             :message/created_at now
-             :message/deleted_at (crdt/->MinWins nil)
-             :message/updated_at (crdt/->MaxWins now)
-             :message/posted_as_discussion (crdt/->GrowOnlySet #{})
-             :message/edits (crdt/->GrowOnlySet (set [{:message/text text :message/edited_at now}]))
-             :message/text (crdt/->LWW (tick!) text)
-             :message/reactions {}}
-        deltas [{:message/text (crdt/->LWW (tick!) "1")
+        msg (new-message {:uid uid
+                          :mid mid
+                          :did did
+                          :text text
+                          :media nil
+                          :reply_to nil}
+                         {:cid cid :now t0})
+        [c1 c2 c3 c4 c5 c6 c7 c8 c9 c10] (repeatedly 10 tick!)
+        deltas [{:crdt/clock c1
+                 :message/text (crdt/->LWW c1 "1")
                  :message/edits {:message/text "1" :message/edited_at (Date.)}
                  :message/updated_at (Date.)}
-                {:message/text (crdt/->LWW (tick!) "2")
+                {:crdt/clock c2
+                 :message/text (crdt/->LWW c2 "2")
                  :message/updated_at (Date.)
                  :message/edits {:message/text "2" :message/edited_at (Date.)}}
-                {:message/text (crdt/->LWW (tick!) "3")
+                {:crdt/clock c3
+                 :message/text (crdt/->LWW c3 "3")
                  :message/updated_at (Date.)
                  :message/edits {:message/text "3" :message/edited_at (Date.)}}
 
-                {:message/posted_as_discussion (random-uuid)
+                {:crdt/clock c4
+                 :message/posted_as_discussion (random-uuid)
                  :message/updated_at (Date.)}
-                {:message/posted_as_discussion (random-uuid)
+                {:crdt/clock c5
+                 :message/posted_as_discussion (random-uuid)
                  :message/updated_at (Date.)}
 
-                {:message/reactions {uid {"like" (crdt/->LWW (tick!) now)}}}
-                {:message/reactions {uid {"dislike" (crdt/->LWW (tick!) now)}}}
-                {:message/reactions {uid {"dislike" (crdt/->LWW (tick!) nil)}}}
-                {:message/reactions {uid2 {"like" (crdt/->LWW (tick!) now)}}}
+                {:crdt/clock c6
+                 :message/reactions {uid {"like" (crdt/->LWW c6 now)}}}
+                {:crdt/clock c7
+                 :message/reactions {uid {"dislike" (crdt/->LWW c7 now)}}}
+                {:crdt/clock c8
+                 :message/reactions {uid {"dislike" (crdt/->LWW c8 nil)}}}
+                {:crdt/clock c9
+                 :message/reactions {uid2 {"like" (crdt/->LWW c9 now)}}}
 
-                {:message/deleted_at (Date.)
+                {:crdt/clock c10
+                 :message/deleted_at (Date.)
                  :message/updated_at (Date.)}]
         final (reduce crdt/-apply-delta msg (shuffle deltas))
         final-value (crdt/-value final)]
+
+    #?(:clj
+       (testing "messages can be freezed and thawed"
+         (is (= msg (nippy/thaw (nippy/freeze msg))))
+         (is (= final (nippy/thaw (nippy/freeze final))))))
+
+    (testing "message deltas are idempotent"
+      (let [second-final (->> (concat deltas deltas)
+                              (shuffle)
+                              (reduce crdt/-apply-delta msg))]
+        (is (= final second-final))))
 
     (testing "message converges to what we expect"
       (is (= (select-keys (crdt/-value msg) final-keys)
@@ -82,5 +122,49 @@
       (is (= {uid {"like" now "dislike" nil} uid2 {"like" now}}
              (:message/reactions final-value)))
 
+      (is (= c10 (:crdt/clock final-value)))
+
       (is (= (last (sort (map :message/updated_at deltas)))
              (:message/updated_at final-value))))))
+
+
+;; ========================================================================
+;; Versions
+
+;; I want to have versions of serialized files so that I can 
+;; do more complicated migrations and know that I'll be dealing with the same
+
+(def migration-client-id #uuid "08f711cd-1d4d-4f61-b157-c36a8be8ef95")
+
+(defn v0->v1 [data]
+  (let [clock (crdt/new-hlc migration-client-id)]
+    (-> data
+        (assoc :crdt/clock clock)
+        (update :message/deleted_at #(crdt/->MinWins %))
+        (update :message/updated_at #(crdt/->MaxWins %))
+        (update :message/posted_as_discussion #(crdt/->GrowOnlySet (or % #{})))
+        (update :message/edits #(crdt/->GrowOnlySet (or % #{})))
+        (update :message/text #(crdt/->LWW clock %))
+        (update :message/reactions
+                (fn [uid->emoji->ts]
+                  (map-vals (fn [emoji->ts]
+                              (map-vals (fn [ts] (crdt/->LWW clock ts)) emoji->ts))
+                            uid->emoji->ts))))))
+
+(def migrations
+  [{:from 0 :to 1 :transform v0->v1}])
+
+(def last-version (count migrations))
+
+(defn deserialize [raw-data]
+  ;; TODO: should I handle the unthawable case from
+  ;; TODO: what should the version system look like
+  (let [version (or (:db/version raw-data) 0)
+        transforms (subvec migrations version last-version)]
+    (reduce (fn [data {:keys [from to transform]}]
+              (assert (= from (:db/version data))
+                      "Applying migration to the wrong version")
+              (-> (transform data)
+                  (assoc :db/version to)))
+            raw-data
+            transforms)))
