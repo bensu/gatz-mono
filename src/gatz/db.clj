@@ -2,8 +2,8 @@
   (:require [com.biffweb :as biff :refer [q]]
             [clojure.set :as set]
             [clojure.string :as str]
-            [medley.core :refer [dissoc-in]]
             [gatz.schema :as schema]
+            [gatz.db.message :as db.message]
             [malli.core :as m]
             [malli.transform :as mt]
             [xtdb.api :as xtdb]))
@@ -335,24 +335,6 @@
      (sort-by :discussion/updated_at (get seen-discussions true))
      (sort-by :discussion/updated_at (get seen-discussions false)))))
 
-(def message-defaults
-  {:message/media nil
-   :message/reply_to nil
-   :message/deleted_at nil
-   :message/edits []
-   :message/reactions {}
-   :message/posted_as_discussion []})
-
-(declare message-by-id)
-
-(defn update-message
-  ([m] (update-message m (java.util.Date.)))
-  ([m now]
-   (-> (merge message-defaults m)
-       (assoc :db/doc-type :gatz/message)
-       (assoc :db/type :gatz/message)
-       (assoc :message/updated_at now))))
-
 (defn create-discussion-with-message!
 
   [{:keys [auth/user-id biff/db] :as ctx}
@@ -366,7 +348,7 @@
                           {:did (mt/-string->uuid (:did originally_from))
                            :mid (mt/-string->uuid (:mid originally_from))})
         original-msg (when originally-from
-                       (message-by-id db (:mid originally-from)))
+                       (db.message/by-id db (:mid originally-from)))
         now (java.util.Date.)
         did (random-uuid)
         mid (random-uuid)
@@ -398,10 +380,10 @@
              :message/media (when media [media])
              :message/text (or text "")}
         txns [(update-discussion d now)
-              (update-message msg now)
+              (db.message/update-message msg now)
               ;; TODO: update other discussion, not just message for it
               (some-> original-msg
-                      (update-message now)
+                      (db.message/update-message now)
                       (update :message/posted_as_discussion conj did))
               (some-> media
                       (assoc :media/message_id mid)
@@ -474,18 +456,11 @@
                [d :discussion/latest_message m]
                [m :db/type :gatz/message]]}))
 
-(defn get-all-messages [db]
-  (q db
-     '{:find (pull m [*])
-       :where [[m :db/type :gatz/message]]}))
-
-(declare messages-by-did)
-
 (defn discussion-by-id [db did]
   {:pre [(uuid? did)]}
   ;; TODO: change shape
   (let [discussion (d-by-id db did)
-        messages (messages-by-did db did)]
+        messages (db.message/by-did db did)]
     (assert discussion)
     {:discussion discussion
      :user_ids (:discussion/members discussion)
@@ -679,133 +654,8 @@
                              true (assoc :discussion/latest_activity_ts now)
                              true (update :discussion/seen_at assoc user-id now)
                              true (update-discussion now))]
-    (biff/submit-tx ctx (vec (remove nil? [(update-message msg now)
+    (biff/submit-tx ctx (vec (remove nil? [(db.message/update-message msg now)
                                            updated-discussion
                                            updated-media])))
     msg))
-
-(defn delete-message!
-  "Marks a message as deleted with :message/deleted_at"
-  [{:keys [biff/db] :as ctx} mid]
-  {:pre [(uuid? mid)]}
-  (if-let [m (message-by-id db mid)]
-    (let [now (java.util.Date.)
-          updated-m (-> m
-                        (assoc :message/deleted_at now)
-                        (update-message now))]
-      (biff/submit-tx ctx [updated-m])
-      updated-m)
-    (assert false "Tried to delete a non-existing message")))
-
-;; TODO: can't query messages
-(defn message-by-id [db mid]
-  {:pre [(uuid? mid)]}
-  ;; TODO: deserialization here
-  (xtdb/entity db mid))
-
-;; TODO: can't query messages
-(defn messages-by-did [db did]
-  (->> (q db '{:find m
-               :in [did]
-               :where [[m :message/did did]
-                       [m :db/type :gatz/message]]}
-          did)
-       (map (partial message-by-id db))
-       (remove :message/deleted_at)
-       (sort-by :message/created_at)
-       vec))
-
-;; TODO: update into discussion
-(defn edit-message!
-
-  [{:keys [auth/user-id biff/db] :as ctx}
-   {:keys [text mid did]}]
-
-  {:pre [(string? text) (uuid? mid) (uuid? did) (uuid? user-id)]}
-  (if-let [msg (message-by-id db mid)]
-    (let [now (java.util.Date.)
-          new-edit {:message/text text
-                    :message/edited_at now}
-          first-edit? (empty? (:message/edits msg))
-          original-edit {:message/text (:message/text msg)
-                         :message/edited_at (:message/created_at msg)}
-          new-msg (cond-> msg
-                    first-edit? (update :message/edits (fnil conj []) original-edit))
-          new-msg (-> new-msg
-                      (update :message/edits conj new-edit)
-                      (assoc :message/text text)
-                      (update-message now))]
-      (biff/submit-tx ctx [new-msg])
-      new-msg)
-    (assert false "Tried to update a non-existent message")))
-
-(defn new-evt [evt]
-  (merge {:db/doc-type :gatz/evt
-          :evt/ts (java.util.Date.)
-          :db/type :gatz/evt
-          :evt/id (random-uuid)}
-         evt))
-
-;; TODO: update into discussion
-(defn react-to-message!
-
-  [{:keys [auth/user-id biff/db] :as ctx}
-   {:keys [reaction mid did]}]
-
-  {:pre [(string? reaction) (uuid? mid) (uuid? did) (uuid? user-id)]}
-
-  (if-let [msg (message-by-id db mid)]
-    (let [now (java.util.Date.)
-          full-reaction {:reaction/emoji reaction
-                         :reaction/created_at now
-                         :reaction/did did
-                         :reaction/to_mid mid
-                         :reaction/by_uid user-id}
-          new-msg (-> msg
-                      (update :message/reactions assoc-in [user-id reaction] now)
-                      (update-message now))
-          evt (new-evt
-               {:evt/type :evt.message/add-reaction
-                :evt/uid user-id
-                :evt/did did
-                :evt/mid mid
-                :evt/data {:reaction full-reaction}})]
-      (biff/submit-tx ctx [new-msg evt])
-      {:message new-msg :reaction full-reaction :evt evt})
-    (assert false "Tried to update a non-existent message")))
-
-
-;; TODO: update into discussion
-(defn undo-react!
-
-  [{:keys [auth/user-id biff/db] :as ctx}
-   {:keys [reaction mid did]}]
-
-  {:pre [(string? reaction) (uuid? mid) (uuid? did) (uuid? user-id)]}
-
-  (if-let [msg (message-by-id db mid)]
-    (let [now (java.util.Date.)
-          new-msg (-> msg
-                      (update :message/reactions dissoc-in [user-id reaction])
-                      (update-message now))]
-      (biff/submit-tx ctx [new-msg])
-      new-msg)
-    (assert false "Tried to update a non-existent message")))
-
-(defn flatten-reactions [did mid reactions]
-  {:pre [(uuid? did) (uuid? mid)]}
-  (mapcat
-   (fn [[uid emoji->ts]]
-     (map (fn [[emoji ts]]
-            {:reaction/emoji emoji
-             :reaction/created_at ts
-             :reaction/to_mid mid
-             :reaction/by_uid uid
-             :reaction/did did})
-          emoji->ts))
-   reactions))
-
-(defn count-reactions [reactions]
-  {:post [(number? %)]}
-  (count (mapcat vals (vals reactions))))
 

@@ -1,5 +1,6 @@
 (ns gatz.db.migrations
   (:require [gatz.db :refer :all]
+            [gatz.db.message :as db.message]
             [clojure.string :as str]
             [com.biffweb :as biff :refer [q]]
             [xtdb.api :as xtdb]))
@@ -46,7 +47,7 @@
         txns (for [d (get-all-discussions db)]
                (when (or (nil? (:discussion/first_message d))
                          (nil? (:discussion/latest_message d)))
-                 (let [messages (messages-by-did db (:discussion/did d))]
+                 (let [messages (db.message/by-did db (:discussion/did d))]
                    (when-not (empty? messages)
                      (let [first-message (or (:discussion/first_message d)
                                              (:xt/id (first messages)))
@@ -155,13 +156,18 @@
     #_(vec (remove nil? txns))
     (biff/submit-tx ctx (vec (remove nil? txns)))))
 
+(defn get-all-messages [db]
+  (q db
+     '{:find (pull m [*])
+       :where [[m :db/type :gatz/message]]}))
+
 (defn messages-with-n-or-more-reactions
   "Finds messages that were reacted to n or more time"
   [db n]
   (vec
    (filter (fn [d]
              (let [reactions (:message/reactions d)]
-               (<= n (count-reactions reactions))))
+               (<= n (db.message/count-reactions reactions))))
            (get-all-messages db))))
 
 
@@ -233,7 +239,7 @@
         all-discussions (get-all-discussions db)
         now (java.util.Date.)
         txns (for [d all-discussions]
-               (let [messages (messages-by-did db (:discussion/did d))
+               (let [messages (db.message/by-did db (:discussion/did d))
                      first-message (first messages)
                      last-message (last messages)]
                  (-> d

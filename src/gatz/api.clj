@@ -8,6 +8,7 @@
             [gatz.auth :as auth]
             [gatz.connections :as conns]
             [gatz.db :as db]
+            [gatz.db.message :as db.message]
             [gatz.notify :as notify]
             [gatz.schema :as schema]
             [malli.transform :as mt]
@@ -390,10 +391,10 @@
   (let [{:keys [text id discussion_id]} params
         did (mt/-string->uuid discussion_id)
         mid (some-> id mt/-string->uuid)
-        message (some->> mid (db/message-by-id db))]
+        message (some->> mid (db.message/by-id db))]
     (when-authorized-for-message
      [user-id message]
-     (let [msg (db/edit-message! ctx {:did did :mid mid :text text})]
+     (let [msg (db.message/edit-message! ctx {:did did :mid mid :text text})]
        (json-response {:message msg})))))
 
 (defn react-to-message! [{:keys [params biff/db auth/user-id] :as ctx}]
@@ -405,7 +406,7 @@
     (assert (string? reaction) "reaction must be a string")
     (if-authorized-for-discussion
      [user-id d]
-     (let [{:keys [message reaction evt]} (db/react-to-message! ctx {:did did :mid mid :reaction reaction})]
+     (let [{:keys [message reaction evt]} (db.message/react-to-message! ctx {:did did :mid mid :reaction reaction})]
        (json-response {:message message})))))
 
 (defn undo-react-to-message! [{:keys [params biff/db auth/user-id] :as ctx}]
@@ -416,19 +417,19 @@
     (assert (string? reaction) "reaction must be a string")
     (if-authorized-for-discussion
      [user-id d]
-     (let [msg (db/undo-react! ctx {:did did :mid mid :reaction reaction})]
+     (let [msg (db.message/undo-react! ctx {:did did :mid mid :reaction reaction})]
        (json-response {:message msg})))))
 
 (defn delete-message! [{:keys [params biff/db auth/user-id] :as ctx}]
   (let [message (some->>
                  (:id params)
                  mt/-string->uuid
-                 (db/message-by-id db))]
+                 (db.message/by-id db))]
     ;; TODO: fix
     (if (= user-id (:message/user_id message))
       (when-authorized-for-message
        [user-id message]
-       (db/delete-message! ctx (:xt/id message))
+       (db.message/delete-message! ctx (:xt/id message))
        (json-response {:status "success"})))))
 
 (defn fetch-messages [db]
@@ -501,7 +502,7 @@
         ;; did (:evt/did evt)
         mid (:evt/mid evt)
         _ (assert mid)
-        message (db/message-by-id db mid)
+        message (db.message/by-id db mid)
         reaction (get-in evt [:evt/data :reaction])]
     (try
       (notify/notify-on-reaction! ctx message reaction)
@@ -528,7 +529,7 @@
             (let [new? (nil? (xt/entity db-before (:xt/id message)))
                   db-after (xt/db node)
                   did (:message/did message)
-                  full-message (db/message-by-id db-after (:xt/id message))
+                  full-message (db.message/by-id db-after (:xt/id message))
                   evt {:event/type (if new? :event/new_message :event/message_edited)
                        :event/data {:message full-message :did did}}
                   wss (conns/did->wss @conns-state did)]

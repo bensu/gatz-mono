@@ -1,4 +1,4 @@
-(ns gatz.db.messages
+(ns gatz.crdt.message
   (:require [clojure.test :refer [deftest testing is]]
             [crdt.core :as crdt]
             [medley.core :refer [map-vals]]
