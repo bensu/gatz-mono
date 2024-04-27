@@ -113,7 +113,14 @@
         1 (->HLC ts (inc counter) node))))
   Comparable
   (compareTo [this that]
-    (stagger-compare [:ts :counter :node] this that)))
+    (stagger-compare [:ts :counter :node] this that))
+  CRDTDelta
+  (-init [_] (->HLC ts 0 node))
+  OpCRDT ;; as a LWW where the value is itself 
+  (-value [this] this)
+  (-apply-delta [this delta]
+    (case (compare this delta)
+      -1 delta 0 this 1 this)))
 
 (defn new-hlc
   ([node] (new-hlc node (Date.)))
@@ -159,7 +166,11 @@
               "timestamp wins over counter")
           (is (= -1 (compare a-init merged-later)))
           (is (= -1 (compare b-init merged-later)))
-          (is (= -1 (compare b2 merged-later)))))
+          (is (= -1 (compare b2 merged-later)))
+          (testing "and it works a CRDT"
+            (let [deltas [a-init b-init a2 b2 merged-later]
+                  final (reduce -apply-delta a-init (shuffle deltas))]
+              (is (= merged-later (-value final)))))))
 
       (testing "Both clients have new events, b is later"
         (let [a2 (-increment a-init t0)
