@@ -15,18 +15,18 @@
 
 (defrecord MinWins [value]
   CRDTDelta
-  (-init [_] (->MinWins ::empty))
+  (-init [_] (->MinWins nil))
   OpCRDT
   (-value [_] value)
   (-apply-delta [this delta]
     (let [delta-value (-value delta)]
       (cond
-        (= ::empty delta-value) this
-        (= ::empty value)       delta
+        (nil? delta-value) this
+        (nil? value)       delta
         :else (case (compare value delta-value)
                 -1 this
                 0 this
-                1 delta)))))
+                1 (->MinWins delta-value))))))
 
 (deftest min-wins
   (testing "empty value is always replaced"
@@ -58,7 +58,7 @@
         (= ::empty delta-value) this
         (= ::empty value)       delta
         :else (case (compare value delta-value)
-                -1 delta
+                -1 (->MaxWins delta-value)
                 0 this
                 1 this)))))
 
@@ -187,24 +187,31 @@
       (is (= (set (remove even? (range 10))) (-value final))))))
 
 (extend-protocol CRDTDelta
+  nil
+  (-init [_] nil)
   Object
   (-init [this] this)
   IPersistentMap
   (-init [_] {}))
 
 (extend-protocol OpCRDT
+  nil
+  (-value [_] nil)
+  (-apply-delta [_ delta]
+    (-apply-delta (-init delta) delta))
   Object
   (-value [this] this)
-  (-apply-delta [_ _] (assert false "Applied a delta to a value that is not a CRDT"))
+  (-apply-delta [_ _]
+    (assert false "Applied a delta to a value that is not a CRDT"))
   IPersistentMap
   (-value [this]
     (reduce (fn [m [k v]] (assoc m k (-value v))) {} this))
   (-apply-delta [this delta]
     ;; delta is a {key delta} map
     (reduce (fn [m [k val-delta]]
-              (let [empty (-init val-delta)]
-                (update m k (fnil -apply-delta empty) val-delta)))
-            this delta)))
+              (update m k -apply-delta val-delta))
+            this
+            delta)))
 
 (deftest persistent-map
   (testing "can be serialized"

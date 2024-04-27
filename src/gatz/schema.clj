@@ -126,7 +126,7 @@
    [:message/updated_at inst?]
    ;; grow only set
    [:message/posted_as_discussion [:vector :discussion/id]]
-   ;; Grow only set
+   ;; grow only set
    [:message/edits [:vector message-edits]]
    ;; LWW
    [:message/text string?]
