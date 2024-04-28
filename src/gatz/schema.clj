@@ -40,19 +40,21 @@
   [:map
    [:xt/id #'UserId]
    [:db/type [:enum :gatz/user]]
-   [:user/name string?]
    [:user/created_at inst?]
+   [:user/is_test [:maybe boolean?]]
+   [:user/is_admin [:maybe boolean?]]
+   ;; MaxWins
    [:user/updated_at inst?]
+   ;; LWW
+   [:user/name string?]
    [:user/phone_number string?]
-   [:user/push_tokens [:maybe push-tokens]]
    [:user/avatar [:maybe string?]]
+   ;; {k {k LWW}}
    [:user/settings
     [:map
      [:settings/notifications notification-preferences]]]
-   ;; :user/image is replaced by :user/avatar
-   ;; [:user/image [:maybe string?]]
-   [:user/is_test [:maybe boolean?]]
-   [:user/is_admin [:maybe boolean?]]
+   [:user/push_tokens [:maybe push-tokens]]
+   ;; MaxWins
    [:user/last_active inst?]])
 
 (def discussion
