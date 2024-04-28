@@ -63,18 +63,29 @@
    [:discussion/name [:maybe string?]]
    [:discussion/created_by #'UserId]
    [:discussion/created_at inst?]
-   [:discussion/updated_at inst?]
-   [:discussion/members [:set #'UserId]]
-   [:discussion/subscribers [:set #'UserId]]
    [:discussion/originally_from [:maybe [:map
                                          [:did #'DiscussionId]
                                          [:mid #'MessageId]]]]
    [:discussion/first_message [:maybe #'MessageId]]
+   ;; MaxWins
+   [:discussion/updated_at inst?]
+   ;; AddRemoveSet
+   [:discussion/members [:set #'UserId]]
+   ;; AddRemoveSet
+   [:discussion/subscribers [:set #'UserId]]
+   ;; LWW or MaxWins if mids can be ordered
    [:discussion/latest_message [:maybe #'MessageId]]
+   ;; MaxWins
    [:discussion/latest_activity_ts inst?]
+   ;; {user-id (->MaxWins inst?)}
    [:discussion/seen_at [:map-of #'UserId inst?]]
+   ;; {user-id (->LWW mid)} or MaxWins if mids can be ordered
    [:discussion/last_message_read [:map-of #'UserId #'MessageId]]
-   [:discussion/archived_at [:map-of #'UserId inst?]]])
+   ;; LWW
+   [:discussion/archived_at [:map-of #'UserId inst?]]
+   ;; {id MessageCRDT}
+   ;; [:discussion/messages [:map-of #'MessageId message-crdt]]
+   ])
 
 (def Media
   [:map
