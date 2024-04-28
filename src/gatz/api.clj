@@ -5,6 +5,7 @@
             [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as str]
+            [crdt.core :as crdt]
             [gatz.auth :as auth]
             [gatz.connections :as conns]
             [gatz.db :as db]
@@ -230,7 +231,7 @@
                                      :ts (::xt/tx-time latest-tx)}
                          :discussion discussion
                          :users (map (partial db/user-by-id db) user_ids)
-                         :messages messages}))))))
+                         :messages (mapv crdt/-value messages)}))))))
 
 (defn ^:deprecated
 
@@ -279,7 +280,7 @@
            {:keys [messages user_ids]} (db/discussion-by-id db did)]
        (json-response {:discussion d
                        :users (map (partial db/user-by-id db) user_ids)
-                       :messages messages})))))
+                       :messages (mapv crdt/-value messages)})))))
 
 (defn subscribe-to-discussion!
   [{:keys [biff/db auth/user-id params] :as ctx}]
@@ -347,14 +348,8 @@
         (json-response
          {:discussion discussion
           :users (mapv (partial db/user-by-id db) (:discussion/members discussion))
-          :messages [message]})))
-     ;; TODO: remove this branch
-    (let [{:keys [discussion/members] :as discussion}
-          (db/create-discussion! ctx params)]
-      (json-response
-       {:discussion discussion
-        :users (mapv (partial db/user-by-id db) members)
-        :messages []}))))
+          :messages [(crdt/-value message)]})))
+    (err-resp "invalid_params" "Invalid params: missing post text")))
 
 (defn add-member! [{:keys [params auth/user-id biff/db] :as ctx}]
   (let [did (mt/-string->uuid (:discussion_id params))
@@ -385,17 +380,19 @@
                                         :text text
                                         :reply_to reply-to
                                         :media_id media-id})]
-       (json-response {:message msg})))))
+       (json-response {:message (crdt/-value msg)})))))
 
 (defn edit-message! [{:keys [params biff/db auth/user-id] :as ctx}]
   (let [{:keys [text id discussion_id]} params
         did (mt/-string->uuid discussion_id)
         mid (some-> id mt/-string->uuid)
-        message (some->> mid (db.message/by-id db))]
+        message (some->> mid
+                         (db.message/by-id db)
+                         crdt/-value)]
     (when-authorized-for-message
      [user-id message]
      (let [msg (db.message/edit-message! ctx {:did did :mid mid :text text})]
-       (json-response {:message msg})))))
+       (json-response {:message (crdt/-value msg)})))))
 
 (defn react-to-message! [{:keys [params biff/db auth/user-id] :as ctx}]
   (let [{:keys [reaction mid did]} params
@@ -407,7 +404,7 @@
     (if-authorized-for-discussion
      [user-id d]
      (let [{:keys [message reaction evt]} (db.message/react-to-message! ctx {:did did :mid mid :reaction reaction})]
-       (json-response {:message message})))))
+       (json-response {:message (crdt/-value message)})))))
 
 (defn undo-react-to-message! [{:keys [params biff/db auth/user-id] :as ctx}]
   (let [{:keys [reaction mid did]} params
@@ -418,13 +415,14 @@
     (if-authorized-for-discussion
      [user-id d]
      (let [msg (db.message/undo-react! ctx {:did did :mid mid :reaction reaction})]
-       (json-response {:message msg})))))
+       (json-response {:message (crdt/-value msg)})))))
 
 (defn delete-message! [{:keys [params biff/db auth/user-id] :as ctx}]
   (let [message (some->>
                  (:id params)
                  mt/-string->uuid
-                 (db.message/by-id db))]
+                 (db.message/by-id db)
+                 crdt/-value)]
     ;; TODO: fix
     (if (= user-id (:message/user_id message))
       (when-authorized-for-message
@@ -502,7 +500,7 @@
         ;; did (:evt/did evt)
         mid (:evt/mid evt)
         _ (assert mid)
-        message (db.message/by-id db mid)
+        message (crdt/-value (db.message/by-id db mid))
         reaction (get-in evt [:evt/data :reaction])]
     (try
       (notify/notify-on-reaction! ctx message reaction)
@@ -526,10 +524,10 @@
         (let [[message] args]
            ;; Push notifications for those that are not connected?
           (when (= :gatz/message (:db/type message))
-            (let [new? (nil? (xt/entity db-before (:xt/id message)))
+            (let [new? (nil? (db.message/by-id db-before (:xt/id message)))
                   db-after (xt/db node)
                   did (:message/did message)
-                  full-message (db.message/by-id db-after (:xt/id message))
+                  full-message (crdt/-value (db.message/by-id db-after (:xt/id message)))
                   evt {:event/type (if new? :event/new_message :event/message_edited)
                        :event/data {:message full-message :did did}}
                   wss (conns/did->wss @conns-state did)]
@@ -551,7 +549,8 @@
     (doseq [[op & args] tx-ops]
       (when (= op ::xt/delete)
         (let [[mid] args]
-          (when-let [message (xt/entity db-before mid)]
+          (when-let [message (some-> (db.message/by-id db-before mid)
+                                     crdt/-value)]
             (let [did (:message/did message)
                   payload {:event/type :event/delete_message
                            :event/data {:mid (:xt/id message)
@@ -582,7 +581,7 @@
                   {:keys [discussion messages user_ids]} (db/discussion-by-id db-after did)
                   msg {:event/type :event/new_discussion
                        :event/data {:discussion discussion
-                                    :messages messages
+                                    :messages (mapv crdt/-value messages)
                                     :users (mapv (partial db/user-by-id db-after) user_ids)}}
                   conns @conns-state
                   wss (mapcat (partial conns/user-wss conns) members)]

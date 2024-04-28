@@ -1,8 +1,11 @@
 (ns gatz.crdt.message
   (:require [clojure.test :refer [deftest testing is]]
             [crdt.core :as crdt]
+            [gatz.schema :as schema]
+            [malli.core :as malli]
             [medley.core :refer [map-vals]]
-            #?(:clj [taoensso.nippy :as nippy]))
+            #?(:clj [taoensso.nippy :as nippy])
+            #?(:clj [juxt.clojars-mirrors.nippy.v3v1v1.taoensso.nippy :as juxt-nippy]))
   (:import [java.util Date]))
 
 (def message-defaults
@@ -22,11 +25,14 @@
    :message/created_at])
 
 (defn new-message
-  [{:keys [uid mid did text media reply_to]} {:keys [now cid]}]
-  (let [clock (crdt/new-hlc cid now)]
+  [{:keys [uid mid did text media reply_to]} {:keys [now cid clock]}]
+  {:pre [(inst? now) (or (some? clock) (uuid? cid))
+         (uuid? uid) (uuid? mid) (uuid? did) (string? text)]}
+  (let [clock (or clock (crdt/new-hlc cid now))]
     {:xt/id mid
      :db/doc-type :gatz.crdt/message
-     :db/type :gatz.crdt/message
+     :db/type :gatz/message
+     :db/version 1
      :crdt/clock clock
      :message/did did
      :message/user_id uid
@@ -94,10 +100,20 @@
         final (reduce crdt/-apply-delta msg (shuffle deltas))
         final-value (crdt/-value final)]
 
+    (testing "it conforms to the schemas"
+      (is (malli/validate schema/message-crdt msg)
+          (malli/explain schema/message-crdt msg))
+      (is (malli/validate schema/message (crdt/-value msg))
+          (malli/explain schema/message (crdt/-value msg)))
+      (is (malli/validate schema/message-crdt final))
+      (is (malli/validate schema/message final-value)))
+
     #?(:clj
        (testing "messages can be freezed and thawed"
          (is (= msg (nippy/thaw (nippy/freeze msg))))
-         (is (= final (nippy/thaw (nippy/freeze final))))))
+         (is (= final (nippy/thaw (nippy/freeze final))))
+         (is (= msg (juxt-nippy/thaw (juxt-nippy/freeze msg))))
+         (is (= final (juxt-nippy/thaw (juxt-nippy/freeze final))))))
 
     (testing "message deltas are idempotent"
       (let [second-final (->> (concat deltas deltas)
@@ -127,44 +143,5 @@
       (is (= (last (sort (map :message/updated_at deltas)))
              (:message/updated_at final-value))))))
 
-
-;; ========================================================================
-;; Versions
-
-;; I want to have versions of serialized files so that I can 
-;; do more complicated migrations and know that I'll be dealing with the same
-
-(def migration-client-id #uuid "08f711cd-1d4d-4f61-b157-c36a8be8ef95")
-
-(defn v0->v1 [data]
-  (let [clock (crdt/new-hlc migration-client-id)]
-    (-> data
-        (assoc :crdt/clock clock)
-        (update :message/deleted_at #(crdt/->MinWins %))
-        (update :message/updated_at #(crdt/->MaxWins %))
-        (update :message/posted_as_discussion #(crdt/->GrowOnlySet (or % #{})))
-        (update :message/edits #(crdt/->GrowOnlySet (or % #{})))
-        (update :message/text #(crdt/->LWW clock %))
-        (update :message/reactions
-                (fn [uid->emoji->ts]
-                  (map-vals (fn [emoji->ts]
-                              (map-vals (fn [ts] (crdt/->LWW clock ts)) emoji->ts))
-                            uid->emoji->ts))))))
-
-(def migrations
-  [{:from 0 :to 1 :transform v0->v1}])
-
-(def last-version (count migrations))
-
-(defn deserialize [raw-data]
-  ;; TODO: should I handle the unthawable case from
-  ;; TODO: what should the version system look like
-  (let [version (or (:db/version raw-data) 0)
-        transforms (subvec migrations version last-version)]
-    (reduce (fn [data {:keys [from to transform]}]
-              (assert (= from (:db/version data))
-                      "Applying migration to the wrong version")
-              (-> (transform data)
-                  (assoc :db/version to)))
-            raw-data
-            transforms)))
+(defn apply-delta [msg delta]
+  (crdt/-apply-delta msg delta))

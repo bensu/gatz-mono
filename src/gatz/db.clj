@@ -2,8 +2,10 @@
   (:require [com.biffweb :as biff :refer [q]]
             [clojure.set :as set]
             [clojure.string :as str]
-            [gatz.schema :as schema]
+            [crdt.core :as crdt]
+            [gatz.crdt.message :as crdt.message]
             [gatz.db.message :as db.message]
+            [gatz.schema :as schema]
             [malli.core :as m]
             [malli.transform :as mt]
             [xtdb.api :as xtdb]))
@@ -291,32 +293,6 @@
        (assoc :db/doc-type :gatz/discussion)
        (assoc :discussion/updated_at now))))
 
-;; TODO: deprecate and remove
-(defn create-discussion!
-
-  [{:keys [auth/user-id] :as ctx} {:keys [name selected_users]}]
-
-  {:pre [(or (nil? name)
-             (and (string? name) (not (empty? name))))]}
-
-  (let [now (java.util.Date.)
-        did (random-uuid)
-        member-uids (keep mt/-string->uuid selected_users)
-        d {:db/doc-type :gatz/discussion
-           :db/type :gatz/discussion
-           :xt/id did
-           :discussion/did did
-           :discussion/name name
-           :discussion/created_by user-id
-           :discussion/created_at now
-           :discussion/latest_activity_ts now
-           :discussion/subscribers #{user-id}
-           ;; We'll let the user see their own discussion in the feed as new
-           ;; :discussion/seen_at {user-id now}
-           :discussion/members (conj (set member-uids) user-id)}]
-    (biff/submit-tx ctx [(update-discussion d now)])
-    d))
-
 (defn seen-by-user?
   "Has the user seen this discussion?
  
@@ -337,7 +313,7 @@
 
 (defn create-discussion-with-message!
 
-  [{:keys [auth/user-id biff/db] :as ctx}
+  [{:keys [auth/user-id biff/db] :as ctx} ;; TODO: get the real connection id
    {:keys [name selected_users text media_id originally_from]}]
 
   {:pre [(or (nil? name)
@@ -353,6 +329,8 @@
         did (random-uuid)
         mid (random-uuid)
         member-uids (set (keep mt/-string->uuid selected_users))
+        ;; TODO: get real connection id
+        clock (crdt/new-hlc user-id now)
         ;; TODO: embed msg in discussion
         d {:db/type :gatz/discussion
            :xt/id did
@@ -371,20 +349,18 @@
         media (some->> media_id
                        mt/-string->uuid
                        (media-by-id db))
-        msg {:db/type :gatz/message
-             :xt/id mid
-             :message/did did
-             :message/created_at now
-             :message/updated_at now
-             :message/user_id user-id
-             :message/media (when media [media])
-             :message/text (or text "")}
+        msg (crdt.message/new-message
+             {:uid user-id :mid mid :did did
+              :text (or text "") :reply_to nil
+              :media (when media [media])}
+             {:now now :cid user-id :clock clock})
         txns [(update-discussion d now)
-              (db.message/update-message msg now)
+              msg
               ;; TODO: update other discussion, not just message for it
               (some-> original-msg
-                      (db.message/update-message now)
-                      (update :message/posted_as_discussion conj did))
+                      (crdt.message/apply-delta {:message/potsed_as_discussion did
+                                                 :message/updated_at now
+                                                 :crdt/clock clock}))
               (some-> media
                       (assoc :media/message_id mid)
                       (update-media))]]
@@ -614,7 +590,7 @@
 
 (defn create-message!
 
-  [{:keys [auth/user-id biff/db] :as ctx}
+  [{:keys [auth/user-id biff/db] :as ctx} ;; TODO: get connection id
    {:keys [text mid did media_id reply_to]}]
 
   {:pre [(string? text)
@@ -636,16 +612,12 @@
                               (assoc :media/message_id mid)
                               (update-media))
         ;; TODO: put directly in discussion
-        msg {:xt/id mid
-             :message/did did
-             :message/created_at now
-             :message/user_id user-id
-             :message/reply_to reply_to
-             :message/edits [{:message/text text :message/edited_at now}]
-             ;; we inline the media so that no joins are needed when pulling it out
-             ;; because media is immutable after it has been added to a message
-             :message/media (when updated-media [updated-media])
-             :message/text text}
+        msg (crdt.message/new-message
+             {:uid user-id :mid mid :did did
+              :text text  :reply_to reply_to
+              :media (when updated-media [updated-media])}
+             ;; TODO: get real connection id
+             {:now now :cid user-id})
         d (d-by-id db did)
         ;; TODO: the first message of the discussion is all wrong
         updated-discussion (cond-> d
@@ -654,8 +626,6 @@
                              true (assoc :discussion/latest_activity_ts now)
                              true (update :discussion/seen_at assoc user-id now)
                              true (update-discussion now))]
-    (biff/submit-tx ctx (vec (remove nil? [(db.message/update-message msg now)
-                                           updated-discussion
-                                           updated-media])))
+    (biff/submit-tx ctx (vec (remove nil? [msg updated-discussion updated-media])))
     msg))
 
