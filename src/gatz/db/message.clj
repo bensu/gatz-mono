@@ -5,7 +5,7 @@
             [gatz.crdt.message :as crdt.message]
             [juxt.clojars-mirrors.nippy.v3v1v1.taoensso.nippy :as juxt-nippy]
             [taoensso.nippy :as taoensso-nippy]
-            [medley.core :refer [dissoc-in map-vals]]
+            [medley.core :refer [map-vals]]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
@@ -95,7 +95,7 @@
 
 (defn delete-message!
   "Marks a message as deleted with :message/deleted_at"
-  [{:keys [biff/db auth/user-id] :as ctx} mid]
+  [{:keys [biff/db auth/user-id] :as ctx} mid] ;; TODO: use cid
   {:pre [(uuid? mid) (uuid? user-id)]}
   (if-let [m (by-id db mid)]
     (let [now (Date.)
@@ -194,20 +194,16 @@
 
   {:pre [(string? text) (uuid? mid) (uuid? did) (uuid? user-id)]}
   (if-let [msg (by-id db mid)]
-    (let [now (java.util.Date.)
-          new-edit {:message/text text
-                    :message/edited_at now}
-          first-edit? (empty? (:message/edits msg))
-          original-edit {:message/text (:message/text msg)
-                         :message/edited_at (:message/created_at msg)}
-          new-msg (cond-> msg
-                    first-edit? (update :message/edits (fnil conj []) original-edit))
-          new-msg (-> new-msg
-                      (update :message/edits conj new-edit)
-                      (assoc :message/text text)
-                      (update-message now))]
-      (biff/submit-tx ctx [new-msg])
-      new-msg)
+    (let [now (Date.)
+          ;; TODO: use cid
+          clock (crdt/new-hlc user-id now)
+          delta {:message/edits {:message/text text
+                                 :message/edited_at now}
+                 :message/text (crdt/->LWW clock text)
+                 :message/updated_at now}
+          updated-m (crdt.message/apply-delta msg delta)]
+      (biff/submit-tx ctx [(assoc updated-m :db/doc-type :gatz.crdt/message)])
+      updated-m)
     (assert false "Tried to update a non-existent message")))
 
 (defn test-node  []
