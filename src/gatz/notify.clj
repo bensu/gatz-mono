@@ -2,6 +2,7 @@
   (:require [clojure.set :as set]
             [chime.core :as chime]
             [gatz.db :as db]
+            [gatz.db.message :as db.message]
             [sdk.expo :as expo]
             [xtdb.api :as xt])
   (:import [java.time LocalDateTime ZoneId Instant Duration]
@@ -199,7 +200,7 @@
                      (:settings.notification/suggestions_from_gatz settings))
             (let [mid (:xt/id message)
                   did (:message/did message)
-                  flat-reactions (db/flatten-reactions mid did (:message/reactions message))
+                  flat-reactions (db.message/flatten-reactions mid did (:message/reactions message))
                   n-reactions (count (filter #(and (contains? trigger-emoji (:reaction/emoji %))
                                                    (not= (:xt/id user) (:reaction/by_uid %)))
                                              flat-reactions))]

@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [xtdb.api :as xtdb]
             [gatz.db :as db]
+            [gatz.db.message :as db.message]
             [gatz.system]
             [gatz.notify :as notify]))
 
@@ -246,7 +247,7 @@
 
       (testing "First reaction doesn't trigger notifications"
         ;; Poster reacts
-        (let [{:keys [reaction message evt]} (db/react-to-message!
+        (let [{:keys [reaction message evt]} (db.message/react-to-message!
                                               (with-db ctx)
                                               {:reaction  "❓"
                                                :mid  mid
@@ -257,7 +258,7 @@
 
       (testing "Second reaction doesn't trigger notifications"
          ;; Lurker
-        (let [{:keys [reaction message evt]} (db/react-to-message!
+        (let [{:keys [reaction message evt]} (db.message/react-to-message!
                                               (with-db (->auth-ctx node (:xt/id lurker)))
                                               {:reaction "❓"
                                                :mid  mid
@@ -267,7 +268,7 @@
 
       (testing "Third reaction doesn't trigger notifications if it is from the commenter"
          ;; Commenter reacts
-        (let [{:keys [reaction message evt]} (db/react-to-message!
+        (let [{:keys [reaction message evt]} (db.message/react-to-message!
                                               (with-db (->auth-ctx node (:xt/id commenter)))
                                               {:reaction "❓"
                                                :mid  mid
@@ -277,7 +278,7 @@
 
       (testing "Third reaction does trigger notifications"
          ;; Second lurker reacts
-        (let [{:keys [reaction message evt]} (db/react-to-message!
+        (let [{:keys [reaction message evt]} (db.message/react-to-message!
                                               (with-db (->auth-ctx node (:xt/id lurker2)))
                                               {:reaction "❓"
                                                :mid  mid
@@ -340,7 +341,7 @@
 
       (testing "First reaction doesn't trigger notifications"
         ;; Poster reacts
-        (let [{:keys [reaction message evt]} (db/react-to-message!
+        (let [{:keys [reaction message evt]} (db.message/react-to-message!
                                               (with-db ctx)
                                               {:reaction  "❓"
                                                :mid  mid
@@ -351,7 +352,7 @@
 
       (testing "Second reaction doesn't trigger notifications"
          ;; Lurker
-        (let [{:keys [reaction message evt]} (db/react-to-message!
+        (let [{:keys [reaction message evt]} (db.message/react-to-message!
                                               (with-db (->auth-ctx node (:xt/id lurker)))
                                               {:reaction "❗"
                                                :mid  mid
@@ -361,7 +362,7 @@
 
       (testing "Third reaction doesn't trigger notifications if it is from the commenter"
          ;; Commenter reacts
-        (let [{:keys [reaction message evt]} (db/react-to-message!
+        (let [{:keys [reaction message evt]} (db.message/react-to-message!
                                               (with-db (->auth-ctx node (:xt/id commenter)))
                                               {:reaction "❓"
                                                :mid  mid
@@ -371,7 +372,7 @@
 
       (testing "Third reaction does trigger notifications"
          ;; Second lurker reacts
-        (let [{:keys [reaction message evt]} (db/react-to-message!
+        (let [{:keys [reaction message evt]} (db.message/react-to-message!
                                               (with-db (->auth-ctx node (:xt/id lurker2)))
                                               {:reaction "❗"
                                                :mid  mid
@@ -395,7 +396,7 @@
 
       (testing "Unrelated reactions don't trigger notifications"
          ;; Third lurker reacts
-        (let [{:keys [reaction message evt]} (db/react-to-message!
+        (let [{:keys [reaction message evt]} (db.message/react-to-message!
                                               (with-db (->auth-ctx node (:xt/id lurker3)))
                                               {:reaction "😭"
                                                :mid  mid
@@ -405,7 +406,7 @@
 
       (testing "Further reactions don't trigger notifications"
          ;; Third lurker reacts
-        (let [{:keys [reaction message evt]} (db/react-to-message!
+        (let [{:keys [reaction message evt]} (db.message/react-to-message!
                                               (with-db (->auth-ctx node (:xt/id lurker3)))
                                               {:reaction "❗"
                                                :mid  mid
