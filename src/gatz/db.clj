@@ -355,12 +355,13 @@
               :media (when media [media])}
              {:now now :cid user-id :clock clock})
         txns [(update-discussion d now)
-              msg
+              (assoc msg :db/doc-type :gatz.crdt/message)
               ;; TODO: update other discussion, not just message for it
               (some-> original-msg
-                      (crdt.message/apply-delta {:message/potsed_as_discussion did
+                      (crdt.message/apply-delta {:message/posted_as_discussion did
                                                  :message/updated_at now
-                                                 :crdt/clock clock}))
+                                                 :crdt/clock clock})
+                      (assoc :db/doc-type :gatz.crdt/message))
               (some-> media
                       (assoc :media/message_id mid)
                       (update-media))]]
@@ -440,7 +441,7 @@
     (assert discussion)
     {:discussion discussion
      :user_ids (:discussion/members discussion)
-     :messages messages}))
+     :messages (mapv crdt/-value messages)}))
 
 (defn add-member! [ctx p]
   (let [d (discussion-by-id (:biff/db ctx) (:discussion/id p))
@@ -626,6 +627,8 @@
                              true (assoc :discussion/latest_activity_ts now)
                              true (update :discussion/seen_at assoc user-id now)
                              true (update-discussion now))]
-    (biff/submit-tx ctx (vec (remove nil? [msg updated-discussion updated-media])))
+    (biff/submit-tx ctx (vec (remove nil? [(assoc msg :db/doc-type :gatz.crdt/message)
+                                           updated-discussion
+                                           updated-media])))
     msg))
 

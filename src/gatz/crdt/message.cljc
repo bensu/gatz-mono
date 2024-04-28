@@ -30,7 +30,6 @@
          (uuid? uid) (uuid? mid) (uuid? did) (string? text)]}
   (let [clock (or clock (crdt/new-hlc cid now))]
     {:xt/id mid
-     :db/doc-type :gatz.crdt/message
      :db/type :gatz/message
      :db/version 1
      :crdt/clock clock

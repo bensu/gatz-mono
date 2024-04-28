@@ -50,7 +50,7 @@
                 (fn [uid->emoji->ts]
                   (map-vals (fn [emoji->ts]
                               (map-vals (fn [ts] (crdt/->LWW clock ts)) emoji->ts))
-                            uid->emoji->ts))))))
+                            (or uid->emoji->ts {})))))))
 
 (def all-migrations
   [{:from 0 :to 1 :transform v0->v1}])
