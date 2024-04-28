@@ -1,6 +1,8 @@
 (ns crdt.core
   (:require [clojure.set :as set]
             [clojure.test :as test :refer [deftest testing is]]
+            [malli.core :as malli]
+            [juxt.clojars-mirrors.nippy.v3v1v1.taoensso.nippy :as juxt-nippy]
             [taoensso.nippy :as nippy])
   (:import [java.util Date UUID]
            [clojure.lang IPersistentMap]
@@ -26,9 +28,22 @@
         :else (case (compare value delta-value)
                 -1 this
                 0 this
-                1 (->MinWins delta-value))))))
+                1 (->MinWins delta-value)))))
+  juxt-nippy/IFreezable1
+  (-freeze-without-meta! [this out]
+    (nippy/freeze-to-out! out this)))
+
+(defn min-wins-instance? [x]
+  (instance? MinWins x))
+
+(defn min-wins-schema [value-schema]
+  [:map
+   [:value value-schema]])
 
 (deftest min-wins
+  (testing "can check its schema"
+    (is (malli/validate (min-wins-schema string?) (->MinWins "0")))
+    (is (not (true? (malli/validate (min-wins-schema integer?) (->MinWins "0"))))))
   (testing "empty value is always replaced"
     (let [initial (-init (->MinWins 0))]
       (is (= 1 (-value (-apply-delta initial (->MinWins 1))))))
@@ -62,9 +77,22 @@
         :else (case (compare value delta-value)
                 -1 (->MaxWins delta-value)
                 0 this
-                1 this)))))
+                1 this))))
+  juxt-nippy/IFreezable1
+  (-freeze-without-meta! [this out]
+    (nippy/freeze-to-out! out this)))
+
+(defn max-wins-instance? [x]
+  (instance? MaxWins x))
+
+(defn max-wins-schema [value-schema]
+  [:map
+   [:value value-schema]])
 
 (deftest max-wins
+  (testing "can check its schema"
+    (is (malli/validate (max-wins-schema string?) (->MaxWins "0")))
+    (is (not (true? (malli/validate (max-wins-schema integer?) (->MaxWins "0"))))))
   (testing "empty value is always replaced"
     (let [initial (-init (->MaxWins 0))]
       (is (= 1 (-value (-apply-delta initial (->MaxWins 1))))))
@@ -124,7 +152,19 @@
   (-value [this] this)
   (-apply-delta [this delta]
     (case (compare this delta)
-      -1 delta 0 this 1 this)))
+      -1 delta 0 this 1 this))
+  juxt-nippy/IFreezable1
+  (-freeze-without-meta! [this out]
+    (nippy/freeze-to-out! out this)))
+
+(defn hlc-instance? [x]
+  (instance? HLC x))
+
+(def hlc-schema
+  [:map
+   [:ts inst?]
+   [:counter integer?]
+   [:node :uuid]])
 
 (defn new-hlc
   ([node] (new-hlc node (Date.)))
@@ -134,6 +174,9 @@
   (Date. (inc (.getTime d))))
 
 (deftest hlc
+  (testing "you can check the schema"
+    (is (malli/validate hlc-schema (new-hlc (random-uuid))))
+    (is (not (true? (malli/validate hlc-schema (new-hlc "1"))))))
   (testing "You can generate HLCs"
     (let [t0 (Date.)
           aid (random-uuid)
@@ -207,12 +250,27 @@
         :else (case (compare clock delta-clock)
                 -1 delta
                 0 this ;; TODO: if the clocks are equal, the values should be equal too?
-                1 this)))))
+                1 this))))
+  juxt-nippy/IFreezable1
+  (-freeze-without-meta! [this out]
+    (nippy/freeze-to-out! out this)))
+
+(defn lww-instance? [x]
+  (instance? LWW x))
+
+(defn lww-schema [clock-schema value-schema]
+  [:map
+   [:clock clock-schema]
+   [:value value-schema]])
 
 (deftest lww
   (testing "empty value is always replaced"
     (let [initial (-init (->LWW 0 0))]
       (is (= 1 (-value (-apply-delta initial (->LWW 1 1)))))))
+  (testing "can check the schema"
+    (let [schema (lww-schema integer? integer?)]
+      (is (malli/validate schema (->LWW 0 0)))
+      (is (not (malli/validate schema (->LWW 0 "0"))))))
   (testing "any order yields the same final value"
     (testing "with integer clocks"
       (let [initial (->LWW 0 0)
@@ -258,9 +316,23 @@
   OpCRDT
   (-value [_] xs)
   (-apply-delta [_ delta]
-    (->GrowOnlySet (conj xs (-value delta)))))
+    (->GrowOnlySet (conj xs (-value delta))))
+  juxt-nippy/IFreezable1
+  (-freeze-without-meta! [this out]
+    (nippy/freeze-to-out! out this)))
+
+(defn grow-only-set-instance? [x]
+  (instance? GrowOnlySet x))
+
+(defn grow-only-set-schema [value-schema]
+  [:map
+   [:xs [:set value-schema]]])
 
 (deftest grow-only-set
+  (testing "can check its schema"
+    (let [schema (grow-only-set-schema string?)]
+      (is (malli/validate schema (->GrowOnlySet #{"0"})))
+      (is (not (true? (malli/validate schema (->GrowOnlySet #{"0" 1})))))))
   (testing "You can only add elements to a grow only set"
     (let [initial (->GrowOnlySet #{})
           deltas (shuffle (range 10))
@@ -294,7 +366,10 @@
                            (update-in xs [x :removes] (fnil conj #{}) unique-id))
                          after-adds
                          (:crdt.add-remove-set/remove delta))]
-      (->AddRemoveSet after-removes))))
+      (->AddRemoveSet after-removes)))
+  juxt-nippy/IFreezable1
+  (-freeze-without-meta! [this out]
+    (nippy/freeze-to-out! out this)))
 
 ;; This is not super ergonomic! 
 ;; The API you want knows which id you are removing

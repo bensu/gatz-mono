@@ -5,8 +5,9 @@
         ;; TODO: inline biff
  :deps {com.biffweb/biff {:git/url "https://github.com/jacobobryant/biff", :sha "3ff1256dde3ca0a99c2dc3797cdea89503ce0fae", :tag "v0.7.4"}
         com.xtdb/xtdb-jdbc {:mvn/version "1.24.3"}
-        com.taoensso/nippy {:mvn/version "3.3.0"} ;; same as xtdb's dependency
+        com.taoensso/nippy {:mvn/version "3.1.1"}
         org.postgresql/postgresql {:mvn/version "42.2.18"}
+        metosin/malli {:mvn/version "0.16.0"}
         camel-snake-kebab/camel-snake-kebab {:mvn/version "0.4.3"}
         dev.weavejester/medley {:mvn/version "1.7.0"}
         remus/remus {:mvn/version "0.2.2"}
