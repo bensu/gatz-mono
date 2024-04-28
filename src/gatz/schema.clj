@@ -1,5 +1,12 @@
 (ns gatz.schema
-  (:require [malli.core :as m]))
+  (:require [malli.core :as m]
+            [crdt.core :as crdt]))
+
+(def UserId :uuid)
+(def MediaId :uuid)
+(def MessageId :uuid)
+(def DiscussionId :uuid)
+(def EvtId :uuid)
 
 (def push-token
   [:map
@@ -31,7 +38,7 @@
 
 (def user
   [:map
-   [:xt/id :user/id]
+   [:xt/id #'UserId]
    [:db/type [:enum :gatz/user]]
    [:user/name string?]
    [:user/created_at inst?]
@@ -50,33 +57,33 @@
 
 (def discussion
   [:map
-   [:xt/id :discussion/id]
+   [:xt/id #'DiscussionId]
    [:db/type [:enum :gatz/discussion]]
-   [:discussion/did :discussion/id]
+   [:discussion/did #'DiscussionId]
    [:discussion/name [:maybe string?]]
-   [:discussion/created_by :user/id]
+   [:discussion/created_by #'UserId]
    [:discussion/created_at inst?]
    [:discussion/updated_at inst?]
-   [:discussion/members [:set :user/id]]
-   [:discussion/subscribers [:set :user/id]]
+   [:discussion/members [:set #'UserId]]
+   [:discussion/subscribers [:set #'UserId]]
    [:discussion/originally_from [:maybe [:map
-                                         [:did :discussion/id]
-                                         [:mid :message/id]]]]
-   [:discussion/first_message [:maybe :message/id]]
-   [:discussion/latest_message [:maybe :message/id]]
+                                         [:did #'DiscussionId]
+                                         [:mid #'MessageId]]]]
+   [:discussion/first_message [:maybe #'MessageId]]
+   [:discussion/latest_message [:maybe #'MessageId]]
    [:discussion/latest_activity_ts inst?]
-   [:discussion/seen_at [:map-of :user/id inst?]]
-   [:discussion/last_message_read [:map-of :user/id :message/id]]
-   [:discussion/archived_at [:map-of :user/id inst?]]])
+   [:discussion/seen_at [:map-of #'UserId inst?]]
+   [:discussion/last_message_read [:map-of #'UserId #'MessageId]]
+   [:discussion/archived_at [:map-of #'UserId inst?]]])
 
-(def media
+(def Media
   [:map
-   [:xt/id :media/id]
+   [:xt/id #'MediaId]
    [:db/type [:enum :gatz/media]]
-   [:media/user_id :user/id]
+   [:media/user_id #'UserId]
    ;; we don't have the message when creating the media
    ;; this is added later
-   [:media/message_id [:maybe :message/id]]
+   [:media/message_id [:maybe #'MessageId]]
    [:media/kind [:enum :media/img :media/vid :media/aud]]
    [:media/url string?]
   ;;  [:media/mime string?]
@@ -94,17 +101,17 @@
   [:map
    [:reaction/emoji string?]
    [:reaction/created_at inst?]
-   [:reaction/did :discussion/id]
-   [:reaction/to_mid :message/id]
-   [:reaction/by_uid :user/id]])
+   [:reaction/did #'DiscussionId]
+   [:reaction/to_mid #'MessageId]
+   [:reaction/by_uid #'UserId]])
 
 (def event
   [:map
-   [:evt/id :evt/id]
-   [:evt/uid :user/id]
-   [:evt/did :discussion/id]
+   [:evt/id #'EvtId]
+   [:evt/uid #'UserId]
+   [:evt/did #'DiscussionId]
    [:db/type [:enum :gatz/evt]]
-   [:evt/mid [:maybe :message/id]]
+   [:evt/mid [:maybe #'MessageId]]
    [:evt/ts  inst?]
    [:evt/type [:enum :evt.message/add-reaction]]
    [:evt/data [:map
@@ -113,38 +120,67 @@
 (def message
   [:map
     ;; final
-   [:xt/id :message/id]
+   [:xt/id #'MessageId]
    [:db/type [:enum :gatz/message]]
-   [:message/did :discussion/id]
-   [:message/user_id :user/id]
-   [:message/reply_to [:maybe :message/id]]
-   [:message/media [:maybe [:vector :gatz/media]]]
+   [:message/did #'DiscussionId]
+   [:message/user_id #'UserId]
+   [:message/reply_to [:maybe #'MessageId]]
+   [:message/media [:maybe [:vector #'Media]]]
    [:message/created_at inst?]
    ;; min wins
    [:message/deleted_at [:maybe inst?]]
    ;; max wins
    [:message/updated_at inst?]
    ;; grow only set
-   [:message/posted_as_discussion [:vector :discussion/id]]
+   [:message/posted_as_discussion [:set #'DiscussionId]]
    ;; grow only set
-   [:message/edits [:vector message-edits]]
+   [:message/edits [:set message-edits]]
    ;; LWW
    [:message/text string?]
    ;; {user-id {emoji (->LWW ts?)}
-   [:message/reactions [:map-of :user/id [:map-of string? inst?]]]])
+   [:message/reactions
+    [:map-of #'UserId [:map-of string? [:maybe inst?]]]]])
+
+(def message-crdt
+  [:map
+    ;; final
+   [:xt/id #'MessageId]
+   [:db/type [:enum :gatz/message]]
+   [:db/version [:enum 1]]
+   [:crdt/clock crdt/hlc-schema]
+   [:message/did #'DiscussionId]
+   [:message/user_id #'UserId]
+   [:message/reply_to [:maybe #'MessageId]]
+   [:message/media [:maybe [:vector #'Media]]]
+   [:message/created_at inst?]
+   ;; min wins
+   [:message/deleted_at (crdt/min-wins-schema [:maybe inst?])]
+   ;; max wins
+   [:message/updated_at (crdt/max-wins-schema inst?)]
+   ;; grow only set
+   [:message/posted_as_discussion (crdt/grow-only-set-schema #'DiscussionId)]
+   ;; grow only set
+   [:message/edits (crdt/grow-only-set-schema message-edits)]
+   ;; LWW
+   [:message/text (crdt/lww-schema crdt/hlc-schema string?)]
+   ;; {user-id {emoji (->LWW ts?)}
+   [:message/reactions
+    [:map-of #'UserId
+     [:map-of string? (crdt/lww-schema crdt/hlc-schema [:maybe inst?])]]]])
 
 (def schema
-  {:discussion/id :uuid
-   :user/id :uuid
-   :message/id :uuid
-   :media/id :uuid
+  {:discussion/id #'DiscussionId
+   :user/id #'UserId
+   :message/id #'MessageId
+   :media/id #'MediaId
    :evt/id :uuid
    :gatz/evt event
    :gatz/user user
    :gatz/discussion discussion
    :gatz/reaction message-reaction
-   :gatz/media media
+   :gatz/media #'Media
    :gatz/message message
+   :gatz.crdt/message message-crdt
    :gatz/push push-token})
 
 (def plugin {:schema schema})
