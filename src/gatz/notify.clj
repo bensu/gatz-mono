@@ -4,6 +4,7 @@
             [gatz.db :as db]
             [gatz.db.discussion :as db.discussion]
             [gatz.db.message :as db.message]
+            [gatz.db.user :as db.user]
             [sdk.expo :as expo]
             [xtdb.api :as xt])
   (:import [java.time LocalDateTime ZoneId Instant Duration]
@@ -31,10 +32,10 @@
         id (:xt/id d)
         ;; _ (assert message "No messages in discussion")
         ;; creator doesn't need a notification
-        creator (db/user-by-id db created_by)
+        creator (db.user/by-id db created_by)
         users (->> members
                    (remove (partial = created_by))
-                   (keep (partial db/user-by-id db))
+                   (keep (partial db.user/by-id db))
                    vec)
         title (format "%s started a discussion" (:user/name creator))
         body (message-preview message)
@@ -114,12 +115,12 @@
 (defn notifications-for-comment [db m]
   (let [d (db.discussion/by-id db (:message/did m))
         _ (assert d "No discussion for message")
-        commenter (db/user-by-id db (:message/user_id m))
-        poster (db/user-by-id db (:discussion/created_by d))
+        commenter (db.user/by-id db (:message/user_id m))
+        poster (db.user/by-id db (:discussion/created_by d))
         m-preview (message-preview m)
         data {:url (discussion-url (:message/did m))}]
     (->> (:discussion/subscribers d)
-         (keep (partial db/user-by-id db))
+         (keep (partial db.user/by-id db))
          (keep (fn [receiver]
                  (when-not (= (:xt/id commenter) (:xt/id receiver))
                    (when-let [token (->token receiver)]
@@ -138,8 +139,8 @@
   (let [db (xtdb.api/db node)
         d (db.discussion/by-id db (:message/did comment))
         _ (assert d "No discussion for message")
-        ;; commenter (db/user-by-id db (:message/user_id comment))
-        ;; poster (db/user-by-id db (:discussion/created_by d))
+        ;; commenter (db.user/by-id db (:message/user_id comment))
+        ;; poster (db.user/by-id db (:discussion/created_by d))
         ;; m-preview (message-preview comment)
         ;; data {:url (discussion-url (:message/did comment))}
 
@@ -147,7 +148,7 @@
         ;; notification-to-og-commenter
         ;; (when-let [reply-to (some->> (:message/reply_to comment)
         ;;                              (db/message-by-id db))]
-        ;;   (let [og-commenter (db/user-by-id db (:message/user_id reply-to))
+        ;;   (let [og-commenter (db.user/by-id db (:message/user_id reply-to))
         ;;         settings (get-in og-commenter [:user/settings :settings/notifications])]
         ;;     (when-let [token (->token og-commenter)]
         ;;       (when (and (:settings.notification/overall settings)
@@ -194,7 +195,7 @@
 
 (defn notification-on-reaction [db message reaction]
   (when (contains? trigger-emoji (:reaction/emoji reaction))
-    (let [user (db/user-by-id db (:message/user_id message))]
+    (let [user (db.user/by-id db (:message/user_id message))]
       (when-let [token (->token user)]
         (let [settings (get-in user [:user/settings :settings/notifications])]
           (when (and (:settings.notification/overall settings)
@@ -233,7 +234,7 @@
     (Date/from (.toInstant zone-date))))
 
 (defn activity-notification-for-user [db uid]
-  (let [to-user (db/user-by-id db uid)
+  (let [to-user (db.user/by-id db uid)
         settings (get-in to-user [:user/settings :settings/notifications])
         since-ts (or (:user/last_active to-user) (hours-ago 8))]
     (when-let [expo-token (->token to-user)]
@@ -256,12 +257,12 @@
 
   (let [db (xtdb.api/db node)
         ctx (assoc ctx :biff/db db)]
-    (doseq [user (db/get-all-users db)]
+    (doseq [user (db.user/get-all-users db)]
       (try
         (let [uid (:xt/id user)]
           (when-let [notification (activity-notification-for-user db uid)]
             (expo/push-many! secret [notification]))
-          (db/mark-user-active! ctx uid))
+          (db.user/mark-user-active! ctx uid))
         (catch Throwable e
             ;; TODO: handle
           (println "Error in activity-for-all-users!")

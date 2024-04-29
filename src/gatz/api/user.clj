@@ -3,6 +3,7 @@
             [clojure.string :as str]
             [gatz.auth :as auth]
             [gatz.db :as db]
+            [gatz.db.user :as db.user]
             [gatz.schema :as schema]
             [malli.transform :as mt]
             [medley.core :refer [map-keys]]
@@ -21,21 +22,21 @@
 
 (defn get-me
   [{:keys [biff/db auth/user-id] :as _ctx}]
-  (let [user (db/user-by-id db user-id)]
+  (let [user (db.user/by-id db user-id)]
     (json-response {:user user})))
 
 (defn get-user
   [{:keys [params biff/db] :as _ctx}]
   (if-let [user-id (some-> (:id params) mt/-string->uuid)]
-    (let [user (db/user-by-id db user-id)]
+    (let [user (db.user/by-id db user-id)]
       (json-response {:user user}))
     {:status 400 :body "invalid params"}))
 
 (defn create-user!
   [{:keys [params] :as ctx}]
   (if-let [username (some-> (:username params) str/trim)]
-    (if (db/valid-username? username)
-      (let [user (db/create-user! ctx {:username username})]
+    (if (db.user/valid-username? username)
+      (let [user (db.user/create-user! ctx {:username username})]
         (json-response {:user user}))
       (err-resp "invalid_username" "Username is invalid"))
     (err-resp "username_taken" "Username is already taken")))
@@ -46,14 +47,14 @@
     (let [new-token {:push/service :push/expo
                      :push/token push-token
                      :push/created_at (java.util.Date.)}
-          user (db/add-push-token! ctx {:user-id user-id
-                                        :push-token {:push/expo new-token}})]
+          user (db.user/add-push-token! ctx {:user-id user-id
+                                             :push-token {:push/expo new-token}})]
       (json-response {:status "success" :user user}))
     (err-resp "push_token_missing" "Missing push token parameter")))
 
 (defn disable-push!
   [{:keys [auth/user-id] :as ctx}]
-  (let [user (db/remove-push-tokens! ctx user-id)]
+  (let [user (db.user/remove-push-tokens! ctx user-id)]
     (json-response {:status "success" :user user})))
 
 (defn params->notification-settings [params]
@@ -66,9 +67,9 @@
   [{:keys [params auth/user-id] :as ctx}]
   (if-let [notification-settings (some-> (:settings params)
                                          params->notification-settings)]
-    (let [user (db/edit-notifications! ctx
-                                       user-id
-                                       notification-settings)]
+    (let [user (db.user/edit-notifications! ctx
+                                            user-id
+                                            notification-settings)]
       (json-response {:status "success" :user user}))
     (err-resp "invalid_params" "Invalid parameters")))
 
@@ -77,7 +78,7 @@
   [{:keys [params biff/db] :as _ctx}]
   ;; TODO: do params validation
   (if-let [username (:username params)]
-    (if-let [user (db/user-by-name db username)]
+    (if-let [user (db.user/by-name db username)]
       (json-response {:user user
                       :token (auth/create-auth-token (:xt/id user))})
       (err-resp "user_not_found" "Username not found"))
@@ -109,17 +110,17 @@
   (if-let [username (some-> (:username params) clean-username)]
     (if-let [phone (some-> (:phone_number params) clean-phone)]
       (cond
-        (some? (db/user-by-name db username))
+        (some? (db.user/by-name db username))
         (err-resp "username_taken" "Username is already taken")
 
-        (some? (db/user-by-phone db phone))
+        (some? (db.user/by-phone db phone))
         (err-resp "phone_taken" "Phone is already taken")
 
-        (not (db/valid-username? username))
+        (not (db.user/valid-username? username))
         (err-resp "invalid_username" "Username is invalid")
 
         :else
-        (let [user (db/create-user! ctx {:username username :phone phone})]
+        (let [user (db.user/create-user! ctx {:username username :phone phone})]
           (json-response {:type "sign_up"
                           :user user
                           :token (auth/create-auth-token (:xt/id user))})))
@@ -141,7 +142,7 @@
       (let [v (twilio/start-verification! secret {:phone phone})]
         (json-response (merge {:phone_number phone}
                               (twilio-to-response v)
-                              (when-let [user (db/user-by-phone db phone)]
+                              (when-let [user (db.user/by-phone db phone)]
                                 {:user user})))))))
 
 (defn verify-code! [{:keys [params biff/secret biff/db] :as _ctx}]
@@ -156,19 +157,19 @@
             (when-not approved?
               {:status "wrong_code"})
             (when approved?
-              (when-let [user (db/user-by-phone db phone)]
+              (when-let [user (db.user/by-phone db phone)]
                 {:user user
                  :token (auth/create-auth-token (:xt/id user))}))))))
 
 (defn check-username [{:keys [params biff/db] :as _ctx}]
   (let [{:keys [username]} params
-        existing-user (db/user-by-name db username)]
+        existing-user (db.user/by-name db username)]
     (json-response {:username username :available (nil? existing-user)})))
 
 (defn update-avatar!
   [{:keys [params auth/user-id] :as ctx}]
   (if-let [url (:file_url params)]
-    (let [user (db/update-user-avatar! ctx user-id url)]
+    (let [user (db.user/update-user-avatar! ctx user-id url)]
       (json-response {:user user}))
     (err-resp "invalid_file_url" "Invalid file url")))
 

@@ -2,6 +2,7 @@
   (:require [clojure.data.json :as json]
             [gatz.db :as db]
             [gatz.db.discussion :as db.discussion]
+            [gatz.db.user :as db.user]
             [gatz.crdt.message :as crdt.message]
             [malli.transform :as mt]
             [xtdb.api :as xt]))
@@ -70,7 +71,7 @@
                          :latest_tx {:id (::xt/tx-id latest-tx)
                                      :ts (::xt/tx-time latest-tx)}
                          :discussion discussion
-                         :users (map (partial db/user-by-id db) user_ids)
+                         :users (map (partial db.user/by-id db) user_ids)
                          :messages (mapv crdt.message/->value messages)}))))))
 
 (defn ^:deprecated
@@ -119,7 +120,7 @@
      (let [d (db.discussion/archive! ctx user-id did (java.util.Date.))
            {:keys [messages user_ids]} (db/discussion-by-id db did)]
        (json-response {:discussion d
-                       :users (map (partial db/user-by-id db) user_ids)
+                       :users (map (partial db.user/by-id db) user_ids)
                        :messages (mapv crdt.message/->value messages)})))))
 
 (defn subscribe-to-discussion!
@@ -168,7 +169,7 @@
               ;; This second function might not be sorting according to what the user saw
                   (db/discussions-by-user-id-up-to db user-id))
             ds (map (partial db/discussion-by-id db) dis)
-            users (db/all-users db)]
+            users (db.user/all-users db)]
         (json-response {:discussions ds
                         :users users
                         :current false
@@ -185,7 +186,7 @@
         ;; TODO: change shape of response
         (json-response
          {:discussion discussion
-          :users (mapv (partial db/user-by-id db) (:discussion/members discussion))
+          :users (mapv (partial db.user/by-id db) (:discussion/members discussion))
           :messages [(crdt.message/->value message)]})))
     (err-resp "invalid_params" "Invalid params: missing post text")))
 

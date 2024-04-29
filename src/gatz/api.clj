@@ -8,10 +8,11 @@
             [gatz.api.message :as api.message]
             [gatz.api.user :as api.user]
             [gatz.connections :as conns]
+            [gatz.crdt.message :as crdt.message]
             [gatz.db :as db]
             [gatz.db.discussion :as db.discussion]
             [gatz.db.message :as db.message]
-            [gatz.crdt.message :as crdt.message]
+            [gatz.db.user :as db.user]
             [gatz.notify :as notify]
             [malli.transform :as mt]
             [ring.adapter.jetty9 :as jetty]
@@ -49,7 +50,7 @@
   (when (jetty/ws-upgrade-request? ctx)
     ;; TODO: asert this user is actually in the database
     (try-print
-     (if-let [user (some->> user-id (db/user-by-id db))]
+     (if-let [user (some->> user-id (db.user/by-id db))]
        (let [user-id (:xt/id user)
              conn-id (random-uuid)]
          (jetty/ws-upgrade-response
@@ -62,7 +63,7 @@
                                                               :user-discussions ds}))
                          (jetty/send! ws (json/write-str
                                           (connection-response user-id conn-id)))
-                         (db/mark-user-active! ctx user-id))
+                         (db.user/mark-user-active! ctx user-id))
            :on-close (fn [ws status-code reason]
                        (let [db (xt/db node)
                              ds (or (db/discussions-by-user-id db user-id) #{})]
@@ -74,7 +75,7 @@
                                          :status status-code
                                          :conn-id conn-id
                                          :user-id user-id}))
-                       (db/mark-user-active! ctx user-id))
+                       (db.user/mark-user-active! ctx user-id))
            :on-text (fn [ws text]
                       (jetty/send! ws (json/write-str {:conn-id conn-id :user-id user-id :echo text :state @conns-state}))
                       ;; TODO: create discussion or add member 
@@ -121,7 +122,7 @@
         msg {:event/type :event/new_discussion
              :event/data {:discussion discussion
                           :messages (mapv crdt.message/->value messages)
-                          :users (mapv (partial db/user-by-id db) user_ids)}}
+                          :users (mapv (partial db.user/by-id db) user_ids)}}
         conns @conns-state
         wss (mapcat (partial conns/user-wss conns) members)]
     ;; register these users to listen to the discussion
@@ -148,39 +149,9 @@
           (handle-evt! ctx evt))))))
 
 
-;; TODO: if a user is added to a discussion, they should be registered too
-
-#_(defn on-new-discussion
-
-    [{:keys [biff.xtdb/node conns-state] :as _ctx} tx]
-
-    (let [db-after (xt/db node)
-          db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
-      (doseq [[op & args] (::xt/tx-ops tx)]
-        (when (= op ::xt/put)
-          (let [[d] args]
-          ;; TODO: replace with :db/type = :gatz/message
-          ;; TODO: this way of detecting if the discussion is new is not reliable
-            (when (and (contains? d :discussion/members)
-                       (nil? (xt/entity db-before (:xt/id d))))
-              (let [members (:discussion/members d)
-                    did (:xt/id d)
-                    {:keys [discussion messages user_ids]} (db/discussion-by-id db-after did)
-                    msg {:event/type :event/new_discussion
-                         :event/data {:discussion discussion
-                                      :messages (mapv crdt.message/->value messages)
-                                      :users (mapv (partial db/user-by-id db-after) user_ids)}}
-                    conns @conns-state
-                    wss (mapcat (partial conns/user-wss conns) members)]
-              ;; register these users to listen to the discussion
-                (swap! conns-state conns/add-users-to-d {:did did :user-ids members})
-                (doseq [ws wss]
-                  (jetty/send! ws (json/write-str msg))))))))))
-
 ;; TODO: if one of these throws an exception, the rest of the on-tx should still run
 (defn on-tx [ctx tx]
   (on-evt! ctx tx))
-
 
 (defn headers->file [headers]
   (let [url (get headers "arena-url")

@@ -1,6 +1,8 @@
 (ns gatz.db.migrations
   (:require [gatz.db :refer :all]
             [gatz.db.message :as db.message]
+            [gatz.db.user :as db.user]
+            [gatz.db.discussion :as db.discussion]
             [clojure.string :as str]
             [com.biffweb :as biff :refer [q]]
             [xtdb.api :as xtdb]))
@@ -23,7 +25,7 @@
 (defn delete-bad-users! [ctx]
   (let [node (:biff.xtdb/node ctx)
         db (xtdb/db node)
-        all-users (get-all-users db)
+        all-users (db.user/get-all-users db)
         txns (->> all-users
                   (remove (fn [user]
                             (contains? good-users (:user/name user))))
@@ -36,7 +38,7 @@
   [{:keys [biff.xtdb/node] :as ctx}]
   (let [db (xtdb/db node)
         txns (for [[username phone] good-users]
-               (some-> (user-by-name db username)
+               (some-> (db.user/by-name db username)
                        (assoc :db/doc-type :gatz/user)
                        (assoc :user/phone_number phone)))]
     (biff/submit-tx ctx (vec (remove nil? txns)))))
@@ -57,13 +59,13 @@
                        (-> d
                            (assoc :discussion/first_message first-message
                                   :discussion/latest_message last-message)
-                           (update-discussion)))))))]
+                           (db.discussion/update-discussion)))))))]
     (biff/submit-tx ctx (vec (remove nil? txns)))))
 
 (defn lower-case-usernames!
   [{:keys [biff.xtdb/node] :as ctx}]
   (let [db (xtdb/db node)
-        txns (for [u (get-all-users db)]
+        txns (for [u (db.user/get-all-users db)]
                (let [username (:user/name u)]
                  (when (not= username (str/lower-case username))
                    (-> u
@@ -72,7 +74,7 @@
     (biff/submit-tx ctx (vec (remove nil? txns)))))
 
 (defn get-users-without-push-notifications [db]
-  (let [users (get-all-users db)]
+  (let [users (db.user/get-all-users db)]
     (->> users
          (remove :user/push_tokens)
          (map :user/name)
@@ -84,20 +86,20 @@
 (defn add-admin-and-test-to-all-users!
   [{:keys [biff.xtdb/node] :as ctx}]
   (let [db (xtdb/db node)
-        txns (for [u (get-all-users db)]
+        txns (for [u (db.user/get-all-users db)]
                (let [username (:user/name u)]
                  (cond
                    (contains? admin-usernames username)
                    (-> u
                        (assoc :user/is_admin true)
-                       (update-user))
+                       (db.user/update-user))
 
                    (contains? test-usernames username)
                    (-> u
                        (assoc :user/is_test true)
-                       (update-user))
+                       (db.user/update-user))
 
-                   :else (update-user u))))]
+                   :else (db.user/update-user u))))]
     #_(vec (remove nil? txns))
     (biff/submit-tx ctx (vec (remove nil? txns)))))
 
@@ -127,14 +129,14 @@
 (defn add-user-images!
   [{:keys [biff.xtdb/node] :as ctx}]
   (let [db (xtdb/db node)
-        users (all-users db)
+        users (db.user/all-users db)
         txns (for [u users]
                (let [username (:user/name u)]
                  (when (contains? picture-in-cloudflare username)
                    (let [img (username-img username)]
                      (-> u
                          (assoc :user/avatar img)
-                         (update-user)
+                         (db.user/update-user)
                          (dissoc :user/image))))))]
     (biff/submit-tx ctx (vec (remove nil? txns)))))
 
@@ -152,7 +154,7 @@
                                              [m last-message]))]
                      (-> d
                          (assoc :discussion/last_message_read all-read)
-                         (update-discussion last-update))))))]
+                         (db.discussion/update-discussion last-update))))))]
     #_(vec (remove nil? txns))
     (biff/submit-tx ctx (vec (remove nil? txns)))))
 
@@ -174,17 +176,17 @@
 (defn add-notification-settings-to-users!
   [{:keys [biff.xtdb/node] :as ctx}]
   (let [db (xtdb/db node)
-        all-users (get-all-users db)
+        all-users (db.user/get-all-users db)
         now (java.util.Date.)
         txns (for [u all-users]
                (when (nil? (get-in u [:user/settings :settings/notifications]))
                  (let [token (get-in u [:user/push_tokens :push/expo :push/token])
                        new-nts (if (nil? token)
-                                 notifications-off
-                                 notifications-on)]
+                                 db.user/notifications-off
+                                 db.user/notifications-on)]
                    (-> u
                        (update :user/settings merge {:settings/notifications new-nts})
-                       (update-user now)))))]
+                       (db.user/update-user now)))))]
     (vec (remove nil? txns))))
 
 (defn get-discussions-without-last-message [db]
@@ -218,7 +220,7 @@
                    (-> d
                        (assoc :discussion/latest_message (:xt/id latest-message))
                        (assoc :discussion/latest_activity_ts latest-activity-ts)
-                       (update-discussion now)))))]
+                       (db.discussion/update-discussion now)))))]
     (biff/submit-tx ctx (vec (remove nil? txns)))))
 
 (defn add-latest-activity-ts!
@@ -230,7 +232,7 @@
                (let [latest-activity-ts (:message/created_at latest-message)]
                  (-> d
                      (assoc :discussion/latest_activity_ts latest-activity-ts)
-                     (update-discussion now))))]
+                     (db.discussion/update-discussion now))))]
     (biff/submit-tx ctx (vec (remove nil? txns)))))
 
 
@@ -245,15 +247,15 @@
                  (-> d
                      (assoc :discussion/first_message (:xt/id first-message)
                             :discussion/latest_message (:xt/id last-message))
-                     (update-discussion now))))
+                     (db.discussion/update-discussion now))))
         txns (vec (remove nil? txns))]
     (biff/submit-tx ctx txns)))
 
 (defn rename-user! [{:keys [biff.xtdb/node] :as ctx} old-name new-name]
   (let [db (xtdb/db node)
-        user (user-by-name db old-name)
+        user (db.user/by-name db old-name)
         now (java.util.Date.)
         new-user (-> user
                      (assoc :user/name new-name)
-                     (update-user now))]
+                     (db.user/update-user now))]
     (biff/submit-tx ctx [new-user])))
