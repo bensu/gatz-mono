@@ -81,7 +81,7 @@
                       )}))
        {:status 400 :body "Invalid user"}))))
 
-(defn propage-message-delta!
+(defn propagate-message-delta!
   [{:keys [conns-state] :as _ctx} m delta]
   (let [did (:message/did m)
         evt-type (case (:message.crdt/action delta)
@@ -102,8 +102,24 @@
         mid (:evt/mid evt)
         discussion (db/d-by-id db did)
         message (crdt.message/->value (db.message/by-id db mid))]
-    (propage-message-delta! ctx message (:message.crdt/delta evt))
+    (propagate-message-delta! ctx message (:message.crdt/delta evt))
     (api.message/handle-message-evt! ctx discussion message evt)))
+
+(defn propagate-new-message!
+  [{:keys [conns-state] :as _ctx} did m]
+  (let [evt {:event/type :event/new_message
+             :event/data {:message m :did did :mid (:xt/id m)}}]
+    (doseq [ws (conns/did->wss @conns-state did)]
+      (jetty/send! ws (json/write-str evt)))))
+
+(defmethod handle-evt! :discussion.crdt/delta
+  [ctx evt]
+  (when (= :discussion.crdt/new-message
+           (get-in evt [:evt/data :discussion.crdt/action]))
+    (let [did (:evt/did evt)
+          delta (get-in evt [:evt/data :discussion.crdt/delta])]
+      (doseq [[_mid m] (:discussion/messages delta)]
+        (propagate-new-message! ctx did (crdt.message/->value m))))))
 
 (defn on-evt! [ctx tx]
   (doseq [[op & args] (::xt/tx-ops tx)]
@@ -111,29 +127,6 @@
       (let [[evt] args]
         (when (= :gatz/evt (:db/type evt))
           (handle-evt! ctx evt))))))
-
-(defn on-new-message!
-
-  [{:keys [biff.xtdb/node conns-state] :as ctx} tx]
-
-  (let [db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
-    (doseq [[op & args] (::xt/tx-ops tx)]
-      (when (= op ::xt/put)
-        (let [[message] args]
-          (when (= :gatz/message (:db/type message))
-            (when  (nil? (db.message/by-id db-before (:xt/id message)))
-              (let [db-after (xt/db node)
-                    did (:message/did message)
-                    full-message (crdt.message/->value (db.message/by-id db-after (:xt/id message)))
-                    evt {:event/type :event/new_message
-                         :event/data {:message full-message :did did}}
-                    wss (conns/did->wss @conns-state did)]
-                (doseq [ws wss]
-                  (jetty/send! ws (json/write-str evt)))
-                (try
-                  (notify/notify-comment! ctx full-message)
-                  (catch Exception e
-                    (println "notificaitons failed" e)))))))))))
 
 
 ;; TODO: if a user is added to a discussion, they should be registered too
@@ -176,7 +169,7 @@
 
 ;; TODO: if one of these throws an exception, the rest of the on-tx should still run
 (defn on-tx [ctx tx]
-  (on-new-message! ctx tx)
+  #_(on-new-message! ctx tx)
   (on-evt! ctx tx)
   (on-new-discussion ctx tx))
 

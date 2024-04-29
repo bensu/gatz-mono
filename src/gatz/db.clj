@@ -5,6 +5,7 @@
             [crdt.core :as crdt]
             [gatz.crdt.message :as crdt.message]
             [gatz.db.message :as db.message]
+            [gatz.db.evt :as db.evt]
             [gatz.schema :as schema]
             [malli.core :as m]
             [malli.transform :as mt]
@@ -591,7 +592,7 @@
 
 (defn create-message!
 
-  [{:keys [auth/user-id biff/db] :as ctx} ;; TODO: get connection id
+  [{:keys [auth/user-id auth/cid biff/db] :as ctx} ;; TODO: get connection id
    {:keys [text mid did media_id reply_to]}]
 
   {:pre [(string? text)
@@ -620,14 +621,22 @@
              ;; TODO: get real connection id
              {:now now :cid user-id})
         d (d-by-id db did)
-        ;; TODO: the first message of the discussion is all wrong
         updated-discussion (cond-> d
                              auto-subscribe? (update :discussion/subscribers conj user-id)
                              true (assoc :discussion/latest_message mid)
                              true (assoc :discussion/latest_activity_ts now)
                              true (update :discussion/seen_at assoc user-id now)
-                             true (update-discussion now))]
+                             true (update-discussion now))
+        evt-data {:discussion.crdt/action :discussion.crdt/new-message
+                  :discussion.crdt/delta  {:discussion/messages {mid msg}}}
+        evt (db.evt/new-evt {:evt/type :discussion.crdt/delta
+                             :evt/uid user-id
+                             :evt/did did
+                             :evt/mid mid
+                             :evt/cid cid
+                             :evt/data evt-data})]
     (biff/submit-tx ctx (vec (remove nil? [(assoc msg :db/doc-type :gatz.crdt/message)
+                                           (assoc evt :db/doc-type :gatz/evt)
                                            updated-discussion
                                            updated-media])))
     msg))

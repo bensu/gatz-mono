@@ -199,6 +199,15 @@
                      [:message/text string?]
                      [:message/edited_at inst?]]]]))
 
+(def DiscussionAction
+  (mu/closed-schema
+   [:or
+    [:map
+     [:discussion.crdt/action [:enum :discussion.crdt/new-message]]
+     [:discussion.crdt/delta [:map
+                              [:discussion/messages
+                               [:map-of #'MessageId message-crdt]]]]]]))
+
 (def MessageAction
   (mu/closed-schema
    [:or
@@ -224,8 +233,8 @@
    [:evt/cid [:maybe #'ClientId]]
    [:evt/did #'DiscussionId]
    [:evt/mid #'MessageId] ;; for message events, this is required
-   [:evt/type [:enum :message.crdt/delta]]
-   [:evt/data #'MessageAction]])
+   [:evt/type [:enum :message.crdt/delta :discussion.crdt/delta]]
+   [:evt/data [:or #'MessageAction #'DiscussionAction]]])
 
 (def message-reaction
   [:map
