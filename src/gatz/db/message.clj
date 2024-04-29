@@ -4,6 +4,7 @@
             [crdt.core :as crdt]
             [gatz.crdt.message :as crdt.message]
             [gatz.schema :as schema]
+            [gatz.db.evt :as db.evt]
             [malli.core :as malli]
             [medley.core :refer [map-vals]]
             [juxt.clojars-mirrors.nippy.v3v1v1.taoensso.nippy :as juxt-nippy]
@@ -121,23 +122,16 @@
 (defn discussion-by-id [db did]
   (xtdb/entity db did))
 
-(defn new-evt [evt]
-  (merge {:db/doc-type :gatz/evt
-          :evt/ts (Date.)
-          :db/type :gatz/evt
-          :evt/id (random-uuid)}
-         evt))
-
 (defn apply-action!
   "Applies a delta to the message and stores it. Assumes it is authorized to do so"
   [{:keys [biff/db auth/user-id auth/cid] :as ctx} did mid action] ;; TODO: use cid
   {:pre [(uuid? did) (uuid? mid) (uuid? user-id)]}
-  (let [evt (new-evt {:evt/type :message.crdt/delta
-                      :evt/uid user-id
-                      :evt/did did
-                      :evt/mid mid
-                      :evt/cid cid
-                      :evt/data action})]
+  (let [evt (db.evt/new-evt {:evt/type :message.crdt/delta
+                             :evt/uid user-id
+                             :evt/did did
+                             :evt/mid mid
+                             :evt/cid cid
+                             :evt/data action})]
     (if (true? (malli/validate schema/MessageEvent evt))
       (if-let [d (discussion-by-id db did)]
         (if-let [m (by-id db mid)]
