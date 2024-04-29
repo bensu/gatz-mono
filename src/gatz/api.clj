@@ -112,14 +112,32 @@
     (doseq [ws (conns/did->wss @conns-state did)]
       (jetty/send! ws (json/write-str evt)))))
 
+(defn register-new-discussion!
+  [{:keys [conns-state biff.xtdb/node] :as _ctx} did]
+  (let [db (xtdb.api/db node)
+        {:keys [discussion messages user_ids]} (db/discussion-by-id db did)
+        members (:discussion/members discussion)
+        msg {:event/type :event/new_discussion
+             :event/data {:discussion discussion
+                          :messages (mapv crdt.message/->value messages)
+                          :users (mapv (partial db/user-by-id db) user_ids)}}
+        conns @conns-state
+        wss (mapcat (partial conns/user-wss conns) members)]
+    ;; register these users to listen to the discussion
+    (swap! conns-state conns/add-users-to-d {:did did :user-ids members})
+    (doseq [ws wss]
+      (jetty/send! ws (json/write-str msg)))))
+
 (defmethod handle-evt! :discussion.crdt/delta
   [ctx evt]
-  (when (= :discussion.crdt/new-message
-           (get-in evt [:evt/data :discussion.crdt/action]))
-    (let [did (:evt/did evt)
-          delta (get-in evt [:evt/data :discussion.crdt/delta])]
-      (doseq [[_mid m] (:discussion/messages delta)]
-        (propagate-new-message! ctx did (crdt.message/->value m))))))
+  (let [action-type (get-in evt [:evt/data :discussion.crdt/action])]
+    (when (= :discussion.crdt/new action-type)
+      (register-new-discussion! ctx (:evt/did evt)))
+    (when (= :discussion.crdt/new-message action-type)
+      (let [did (:evt/did evt)
+            delta (get-in evt [:evt/data :discussion.crdt/delta])]
+        (doseq [[_mid m] (:discussion/messages delta)]
+          (propagate-new-message! ctx did (crdt.message/->value m)))))))
 
 (defn on-evt! [ctx tx]
   (doseq [[op & args] (::xt/tx-ops tx)]
@@ -131,47 +149,36 @@
 
 ;; TODO: if a user is added to a discussion, they should be registered too
 
-(defn on-new-discussion
+#_(defn on-new-discussion
 
-  [{:keys [biff.xtdb/node conns-state] :as _ctx} tx]
+    [{:keys [biff.xtdb/node conns-state] :as _ctx} tx]
 
-  (let [db-after (xt/db node)
-        db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
-    (doseq [[op & args] (::xt/tx-ops tx)]
-      (when (= op ::xt/put)
-        (let [[d] args]
+    (let [db-after (xt/db node)
+          db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
+      (doseq [[op & args] (::xt/tx-ops tx)]
+        (when (= op ::xt/put)
+          (let [[d] args]
           ;; TODO: replace with :db/type = :gatz/message
           ;; TODO: this way of detecting if the discussion is new is not reliable
-          (when (and (contains? d :discussion/members)
-                     (nil? (xt/entity db-before (:xt/id d))))
-            (let [members (:discussion/members d)
-                  did (:xt/id d)
-                  {:keys [discussion messages user_ids]} (db/discussion-by-id db-after did)
-                  msg {:event/type :event/new_discussion
-                       :event/data {:discussion discussion
-                                    :messages (mapv crdt.message/->value messages)
-                                    :users (mapv (partial db/user-by-id db-after) user_ids)}}
-                  conns @conns-state
-                  wss (mapcat (partial conns/user-wss conns) members)]
+            (when (and (contains? d :discussion/members)
+                       (nil? (xt/entity db-before (:xt/id d))))
+              (let [members (:discussion/members d)
+                    did (:xt/id d)
+                    {:keys [discussion messages user_ids]} (db/discussion-by-id db-after did)
+                    msg {:event/type :event/new_discussion
+                         :event/data {:discussion discussion
+                                      :messages (mapv crdt.message/->value messages)
+                                      :users (mapv (partial db/user-by-id db-after) user_ids)}}
+                    conns @conns-state
+                    wss (mapcat (partial conns/user-wss conns) members)]
               ;; register these users to listen to the discussion
-              (swap! conns-state conns/add-users-to-d {:did did :user-ids members})
-              (doseq [ws wss]
-                (jetty/send! ws (json/write-str msg))))))))))
-
-#_(defn on-new-subscription [{:keys [biff.xtdb/node] :as ctx} tx]
-    (let [db-before (xt/db node {::xt/tx-id (dec (::xt/tx-id tx))})]
-      (doseq [[op & args] (::xt/tx-ops tx)
-              :when (= op ::xt/put)
-              :let [[doc] args]
-              :when (and (contains? doc :sub/url)
-                         (nil? (xt/entity db-before (:xt/id doc))))]
-        (biff/submit-job ctx :fetch-rss (assoc doc :biff/priority 0)))))
+                (swap! conns-state conns/add-users-to-d {:did did :user-ids members})
+                (doseq [ws wss]
+                  (jetty/send! ws (json/write-str msg))))))))))
 
 ;; TODO: if one of these throws an exception, the rest of the on-tx should still run
 (defn on-tx [ctx tx]
-  #_(on-new-message! ctx tx)
-  (on-evt! ctx tx)
-  (on-new-discussion ctx tx))
+  (on-evt! ctx tx))
 
 
 (defn headers->file [headers]

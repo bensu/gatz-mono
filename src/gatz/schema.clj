@@ -59,38 +59,6 @@
    ;; MaxWins
    [:user/last_active inst?]])
 
-(def discussion
-  [:map
-   [:xt/id #'DiscussionId]
-   [:db/type [:enum :gatz/discussion]]
-   [:discussion/did #'DiscussionId]
-   [:discussion/name [:maybe string?]]
-   [:discussion/created_by #'UserId]
-   [:discussion/created_at inst?]
-   [:discussion/originally_from [:maybe [:map
-                                         [:did #'DiscussionId]
-                                         [:mid #'MessageId]]]]
-   [:discussion/first_message [:maybe #'MessageId]]
-   ;; MaxWins
-   [:discussion/updated_at inst?]
-   ;; AddRemoveSet
-   [:discussion/members [:set #'UserId]]
-   ;; AddRemoveSet
-   [:discussion/subscribers [:set #'UserId]]
-   ;; LWW or MaxWins if mids can be ordered
-   [:discussion/latest_message [:maybe #'MessageId]]
-   ;; MaxWins
-   [:discussion/latest_activity_ts inst?]
-   ;; {user-id (->MaxWins inst?)}
-   [:discussion/seen_at [:map-of #'UserId inst?]]
-   ;; {user-id (->LWW mid)} or MaxWins if mids can be ordered
-   [:discussion/last_message_read [:map-of #'UserId #'MessageId]]
-   ;; LWW
-   [:discussion/archived_at [:map-of #'UserId inst?]]
-   ;; {id MessageCRDT}
-   ;; [:discussion/messages [:map-of #'MessageId message-crdt]]
-   ])
-
 (def Media
   [:map
    [:xt/id #'MediaId]
@@ -136,7 +104,7 @@
    [:message/reactions
     [:map-of #'UserId [:map-of string? [:maybe inst?]]]]])
 
-(def message-crdt
+(def MessageCRDT
   [:map
     ;; final
    [:xt/id #'MessageId]
@@ -162,6 +130,37 @@
    [:message/reactions
     [:map-of #'UserId
      [:map-of string? (crdt/lww-schema crdt/hlc-schema [:maybe inst?])]]]])
+
+(def Discussion
+  [:map
+   [:xt/id #'DiscussionId]
+   [:db/type [:enum :gatz/discussion]]
+   [:discussion/did #'DiscussionId]
+   [:discussion/name [:maybe string?]]
+   [:discussion/created_by #'UserId]
+   [:discussion/created_at inst?]
+   [:discussion/originally_from [:maybe [:map
+                                         [:did #'DiscussionId]
+                                         [:mid #'MessageId]]]]
+   [:discussion/first_message [:maybe #'MessageId]]
+   ;; MaxWins
+   [:discussion/updated_at inst?]
+   ;; AddRemoveSet
+   [:discussion/members [:set #'UserId]]
+   ;; AddRemoveSet
+   [:discussion/subscribers [:set #'UserId]]
+   ;; LWW or MaxWins if mids can be ordered
+   [:discussion/latest_message [:maybe #'MessageId]]
+   ;; MaxWins
+   [:discussion/latest_activity_ts inst?]
+   ;; {user-id (->MaxWins inst?)}
+   [:discussion/seen_at [:map-of #'UserId inst?]]
+   ;; {user-id (->LWW mid)} or MaxWins if mids can be ordered
+   [:discussion/last_message_read [:map-of #'UserId #'MessageId]]
+   ;; LWW
+   [:discussion/archived_at [:map-of #'UserId inst?]]
+   ;; {id MessageCRDT}
+   [:discussion/messages {:optional true} [:map-of #'MessageId #'MessageCRDT]]])
 
 ;; ====================================================================== 
 ;; Events
@@ -199,15 +198,6 @@
                      [:message/text string?]
                      [:message/edited_at inst?]]]]))
 
-(def DiscussionAction
-  (mu/closed-schema
-   [:or
-    [:map
-     [:discussion.crdt/action [:enum :discussion.crdt/new-message]]
-     [:discussion.crdt/delta [:map
-                              [:discussion/messages
-                               [:map-of #'MessageId message-crdt]]]]]]))
-
 (def MessageAction
   (mu/closed-schema
    [:or
@@ -233,8 +223,32 @@
    [:evt/cid [:maybe #'ClientId]]
    [:evt/did #'DiscussionId]
    [:evt/mid #'MessageId] ;; for message events, this is required
-   [:evt/type [:enum :message.crdt/delta :discussion.crdt/delta]]
-   [:evt/data [:or #'MessageAction #'DiscussionAction]]])
+   [:evt/type [:enum :message.crdt/delta]]
+   [:evt/data [:or #'MessageAction]]])
+
+(def DiscussionAction
+  (mu/closed-schema
+   [:or
+    [:map
+     [:discussion.crdt/action [:enum :discussion.crdt/new]]
+     [:discussion.crdt/delta #'Discussion]]
+    [:map
+     [:discussion.crdt/action [:enum :discussion.crdt/new-message]]
+     [:discussion.crdt/delta [:map
+                              [:discussion/messages
+                               [:map-of #'MessageId #'MessageCRDT]]]]]]))
+
+(def DiscussionEvt
+  [:map
+   [:evt/id #'EvtId]
+   [:evt/ts inst?]
+   [:db/type [:enum :gatz/evt]]
+   [:evt/uid #'UserId]
+   [:evt/cid [:maybe #'ClientId]]
+   [:evt/did #'DiscussionId]
+   [:evt/mid #'MessageId] ;; for message events, this is required
+   [:evt/type [:enum :discussion.crdt/delta]]
+   [:evt/data [:or #'DiscussionAction]]])
 
 (def message-reaction
   [:map
@@ -244,7 +258,7 @@
    [:reaction/to_mid #'MessageId]
    [:reaction/by_uid #'UserId]])
 
-(def reaction-event
+(def ReactionEvt
   [:map
    [:evt/id #'EvtId]
    [:evt/uid #'UserId]
@@ -257,7 +271,7 @@
                [:reaction message-reaction]]]])
 
 (def Event
-  [:or #'MessageEvent reaction-event])
+  [:or #'DiscussionEvt #'MessageEvent #'ReactionEvt])
 
 ;; ====================================================================== 
 ;; Final schema
@@ -270,11 +284,11 @@
    :evt/id :uuid
    :gatz/evt #'Event
    :gatz/user user
-   :gatz/discussion discussion
+   :gatz/discussion #'Discussion
    :gatz/reaction message-reaction
    :gatz/media #'Media
    :gatz/message message
-   :gatz.crdt/message message-crdt
+   :gatz.crdt/message #'MessageCRDT
    :gatz/push push-token})
 
 (def plugin {:schema schema})

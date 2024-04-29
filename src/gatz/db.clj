@@ -314,7 +314,7 @@
 
 (defn create-discussion-with-message!
 
-  [{:keys [auth/user-id biff/db] :as ctx} ;; TODO: get the real connection id
+  [{:keys [auth/user-id auth/cid biff/db] :as ctx} ;; TODO: get the real connection id
    {:keys [name selected_users text media_id originally_from]}]
 
   {:pre [(or (nil? name)
@@ -347,6 +347,7 @@
            :discussion/members (conj member-uids user-id)
            :discussion/latest_activity_ts now
            :discussion/created_at now}
+        d (update-discussion d now)
         media (some->> media_id
                        mt/-string->uuid
                        (media-by-id db))
@@ -355,8 +356,17 @@
               :text (or text "") :reply_to nil
               :media (when media [media])}
              {:now now :cid user-id :clock clock})
-        txns [(update-discussion d now)
+        evt-data {:discussion.crdt/action :discussion.crdt/new
+                  :discussion.crdt/delta (assoc d :discussion/messages {mid msg})}
+        evt (db.evt/new-evt {:evt/type :discussion.crdt/delta
+                             :evt/uid user-id
+                             :evt/did did
+                             :evt/mid mid
+                             :evt/cid cid
+                             :evt/data evt-data})
+        txns [(assoc d :db/doc-type :gatz/discussion)
               (assoc msg :db/doc-type :gatz.crdt/message)
+              (assoc evt :db/doct-type :gatz/evt)
               ;; TODO: update other discussion, not just message for it
               (some-> original-msg
                       (crdt.message/apply-delta {:message/posted_as_discussion did
@@ -365,7 +375,8 @@
                       (assoc :db/doc-type :gatz.crdt/message))
               (some-> media
                       (assoc :media/message_id mid)
-                      (update-media))]]
+                      (update-media)
+                      (assoc :db/doct-type :gatz/media))]]
     (biff/submit-tx ctx (vec (remove nil? txns)))
     {:discussion d :message msg}))
 
