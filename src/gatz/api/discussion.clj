@@ -1,6 +1,7 @@
 (ns gatz.api.discussion
   (:require [clojure.data.json :as json]
             [gatz.db :as db]
+            [gatz.db.discussion :as db.discussion]
             [gatz.crdt.message :as crdt.message]
             [malli.transform :as mt]
             [xtdb.api :as xt]))
@@ -82,40 +83,40 @@
 
   {:pre [(uuid? user-id)]}
   (let [did (mt/-string->uuid (:did params))
-        d (db/d-by-id db did)]
+        d (gatz.db.discussion/by-id db did)]
     (if-authorized-for-discussion
      [user-id d]
      (do
-       (db/mark-as-seen! ctx user-id [did] (java.util.Date.))
+       (db.discussion/mark-as-seen! ctx user-id [did] (java.util.Date.))
        (json-response {:status "ok"})))))
 
 (defn mark-many-seen! [{:keys [biff/db auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
   (let [dids (map mt/-string->uuid (:dids params))
-        ds (mapv (partial db/d-by-id db) dids)]
+        ds (mapv (partial db.discussion/by-id db) dids)]
     (when-authorized-for-discussions
      [user-id ds]
      (do
-       (db/mark-as-seen! ctx user-id dids (java.util.Date.))
+       (db.discussion/mark-as-seen! ctx user-id dids (java.util.Date.))
        (json-response {:status "ok"})))))
 
 (defn mark-message-seen! [{:keys [biff/db auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
   (let [did (mt/-string->uuid (:did params))
         mid (mt/-string->uuid (:mid params))
-        d (db/d-by-id db did)]
+        d (db.discussion/by-id db did)]
     (if-authorized-for-discussion
      [user-id d]
-     (let [new-d (db/mark-message-seen! ctx user-id did mid (java.util.Date.))]
+     (let [new-d (db.discussion/mark-message-seen! ctx user-id did mid (java.util.Date.))]
        (json-response {:discussion new-d})))))
 
 (defn archive! [{:keys [biff/db auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
   (let [did (mt/-string->uuid (:did params))
-        d (db/d-by-id db did)]
+        d (db.discussion/by-id db did)]
     (if-authorized-for-discussion
      [user-id d]
-     (let [d (db/archive! ctx user-id did (java.util.Date.))
+     (let [d (db.discussion/archive! ctx user-id did (java.util.Date.))
            {:keys [messages user_ids]} (db/discussion-by-id db did)]
        (json-response {:discussion d
                        :users (map (partial db/user-by-id db) user_ids)
@@ -125,20 +126,20 @@
   [{:keys [biff/db auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
   (let [did (mt/-string->uuid (:did params))
-        d (db/d-by-id db did)]
+        d (db.discussion/by-id db did)]
     (if-authorized-for-discussion
      [user-id d]
-     (let [d (db/subscribe! ctx user-id did (java.util.Date.))]
+     (let [d (db.discussion/subscribe! ctx user-id did (java.util.Date.))]
        (json-response {:discussion d})))))
 
 (defn unsubscribe-to-discussion!
   [{:keys [biff/db auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
   (let [did (mt/-string->uuid (:did params))
-        d (db/d-by-id db did)]
+        d (db.discussion/by-id db did)]
     (if-authorized-for-discussion
      [user-id d]
-     (let [d (db/unsubscribe! ctx user-id did (java.util.Date.))]
+     (let [d (db.discussion/unsubscribe! ctx user-id did (java.util.Date.))]
        (json-response {:discussion d})))))
 
 ;; The cut-off for discussions is when they were created but the feed sorting is
@@ -192,10 +193,10 @@
   (let [did (mt/-string->uuid (:discussion_id params))
         uid (mt/-string->uuid (:user_id params))]
     (if (and (uuid? did) (uuid? did))
-      (let [d (db/d-by-id db did)]
+      (let [d (db.discussion/by-id db did)]
         (if-admin-for-discussion
          [user-id d]
-         (let [d (db/add-member! ctx {:discussion/id did :user/id uid})]
+         (let [d (db.discussion/add-member! ctx {:discussion/id did :user/id uid})]
            (json-response {:discussion d}))))
       {:status 400 :body "invalid params"})))
 
@@ -206,7 +207,7 @@
         media-id (some-> (:media_id params) mt/-string->uuid)
         reply-to (some-> (:reply_to params) mt/-string->uuid)
         did (mt/-string->uuid discussion_id)
-        d (db/d-by-id db did)]
+        d (db.discussion/by-id db did)]
     (if-authorized-for-discussion
      [user-id d]
      (let [msg (db/create-message! ctx {:did did

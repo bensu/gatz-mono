@@ -1,6 +1,6 @@
 (ns gatz.api.message
   (:require [clojure.data.json :as json]
-            [gatz.db :as db]
+            [gatz.db.discussion :as db.discussion]
             [gatz.db.message :as db.message]
             [gatz.crdt.message :as crdt.message]
             [gatz.notify :as notify]
@@ -25,7 +25,7 @@
 (defn react-to-message! [{:keys [params biff/db] :as ctx}]
   (let [{:keys [reaction mid did]} params
         did (mt/-string->uuid did)
-        d (db/d-by-id db did)
+        d (db.discussion/by-id db did)
         mid (or (some-> mid mt/-string->uuid)
                 (:discussion/first_message d))]
     (assert (string? reaction) "reaction must be a string")

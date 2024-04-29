@@ -2,6 +2,7 @@
   (:require [clojure.set :as set]
             [chime.core :as chime]
             [gatz.db :as db]
+            [gatz.db.discussion :as db.discussion]
             [gatz.db.message :as db.message]
             [sdk.expo :as expo]
             [xtdb.api :as xt])
@@ -111,7 +112,7 @@
       (set (map second (re-seq re text)))))
 
 (defn notifications-for-comment [db m]
-  (let [d (db/d-by-id db (:message/did m))
+  (let [d (db.discussion/by-id db (:message/did m))
         _ (assert d "No discussion for message")
         commenter (db/user-by-id db (:message/user_id m))
         poster (db/user-by-id db (:discussion/created_by d))
@@ -135,7 +136,7 @@
 (defn notify-comment!
   [{:keys [biff/secret biff.xtdb/node] :as _ctx} comment]
   (let [db (xtdb.api/db node)
-        d (db/d-by-id db (:message/did comment))
+        d (db.discussion/by-id db (:message/did comment))
         _ (assert d "No discussion for message")
         ;; commenter (db/user-by-id db (:message/user_id comment))
         ;; poster (db/user-by-id db (:discussion/created_by d))

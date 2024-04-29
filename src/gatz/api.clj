@@ -9,6 +9,7 @@
             [gatz.api.user :as api.user]
             [gatz.connections :as conns]
             [gatz.db :as db]
+            [gatz.db.discussion :as db.discussion]
             [gatz.db.message :as db.message]
             [gatz.crdt.message :as crdt.message]
             [gatz.notify :as notify]
@@ -100,7 +101,7 @@
   (let [db (xt/db node)
         did (:evt/did evt)
         mid (:evt/mid evt)
-        discussion (db/d-by-id db did)
+        discussion (db.discussion/by-id db did)
         message (crdt.message/->value (db.message/by-id db mid))]
     (propagate-message-delta! ctx message (:message.crdt/delta evt))
     (api.message/handle-message-evt! ctx discussion message evt)))

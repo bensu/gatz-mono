@@ -100,11 +100,11 @@
         final-value (crdt/-value final)]
 
     (testing "it conforms to the schemas"
-      (is (malli/validate schema/message-crdt msg)
-          (malli/explain schema/message-crdt msg))
+      (is (malli/validate schema/MessageCRDT msg)
+          (malli/explain schema/MessageCRDT msg))
       (is (malli/validate schema/message (crdt/-value msg))
           (malli/explain schema/message (crdt/-value msg)))
-      (is (malli/validate schema/message-crdt final))
+      (is (malli/validate schema/MessageCRDT final))
       (is (malli/validate schema/message final-value)))
 
     #?(:clj

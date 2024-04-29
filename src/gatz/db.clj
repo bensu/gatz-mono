@@ -4,8 +4,9 @@
             [clojure.string :as str]
             [crdt.core :as crdt]
             [gatz.crdt.message :as crdt.message]
-            [gatz.db.message :as db.message]
+            [gatz.db.discussion :as db.discussion]
             [gatz.db.evt :as db.evt]
+            [gatz.db.message :as db.message]
             [gatz.schema :as schema]
             [malli.core :as m]
             [malli.transform :as mt]
@@ -272,42 +273,8 @@
 ;; ====================================================================== 
 ;; Discussion 
 
-(defn d-by-id [db did]
-  (xtdb/entity db did))
-
-(def discussion-defaults
-  {:discussion/seen_at {}
-   :discussion/archived_at {}
-   :discussion/last_message_read {}
-   :discussion/subscribers #{}
-   :discussion/originally_from nil
-   :discussion/first_message nil
-   :discussion/latest_message nil})
-
-(defn update-discussion
-  ([d] (update-discussion d (java.util.Date.)))
-  ([d now]
-   (-> (merge discussion-defaults
-              ;; TODO: remove when migration is complete
-              {:discussion/latest_activity_ts now}
-              d)
-       (assoc :db/doc-type :gatz/discussion)
-       (assoc :discussion/updated_at now))))
-
-(defn seen-by-user?
-  "Has the user seen this discussion?
- 
-  Should be kept in-sync with the client version of this function"
-  [user-id d]
-  {:pre [(uuid? user-id)]
-   :post [(boolean? %)]}
-  (let [seen-at (get-in d [:discussion/seen_at user-id])
-        updated-at (get-in d [:discussion/updated_at])]
-    (boolean (or (nil? seen-at)
-                 (< seen-at updated-at)))))
-
 (defn sort-feed [user-id discussions]
-  (let [seen-discussions (group-by (partial seen-by-user? user-id) discussions)]
+  (let [seen-discussions (group-by (partial db.discussion/seen-by-user? user-id) discussions)]
     (concat
      (sort-by :discussion/updated_at (get seen-discussions true))
      (sort-by :discussion/updated_at (get seen-discussions false)))))
@@ -347,7 +314,7 @@
            :discussion/members (conj member-uids user-id)
            :discussion/latest_activity_ts now
            :discussion/created_at now}
-        d (update-discussion d now)
+        d (db.discussion/update-discussion d now)
         media (some->> media_id
                        mt/-string->uuid
                        (media-by-id db))
@@ -380,59 +347,6 @@
     (biff/submit-tx ctx (vec (remove nil? txns)))
     {:discussion d :message msg}))
 
-(defn mark-as-seen! [{:keys [biff/db] :as ctx} uid dids now]
-  {:pre [(every? uuid? dids) (uuid? uid) (inst? now)]}
-  (let [txns (mapv (fn [did]
-                     (let [d (d-by-id db did)
-                           seen-at (-> (:discussion/seen_at d {})
-                                       (assoc uid now))]
-                       (-> d
-                           (assoc :discussion/seen_at seen-at)
-                           (update-discussion))))
-                   dids)]
-    (biff/submit-tx ctx txns)))
-
-(defn mark-message-seen!
-  [{:keys [biff/db] :as ctx} uid did mid now]
-  {:pre [(uuid? mid) (uuid? uid) (uuid? did) (inst? now)]}
-  (let [d (d-by-id db did)
-        new-d (-> d
-                  (update :discussion/last_message_read assoc uid mid)
-                  (update-discussion now))]
-    (biff/submit-tx ctx [new-d])
-    new-d))
-
-(defn archive! [{:keys [biff/db] :as ctx} uid did now]
-  {:pre [(uuid? did) (uuid? uid) (inst? now)]}
-  (let [d (d-by-id db did)
-        archive-at (:discussion/archived_at d {})
-        d (assoc d :discussion/archived_at (assoc archive-at uid now))]
-    (biff/submit-tx ctx [(update-discussion d now)])
-    d))
-
-(defn subscribe!
-  ([ctx uid did]
-   (subscribe! ctx uid did (java.util.Date.)))
-  ([{:keys [biff/db] :as ctx} uid did now]
-   {:pre [(uuid? did) (uuid? uid) (inst? now)]}
-   (let [d (d-by-id db did)
-         _ (assert d)
-         updated-d (-> d
-                       (update :discussion/subscribers conj uid)
-                       (update-discussion now))]
-     (biff/submit-tx ctx [updated-d])
-     updated-d)))
-
-(defn unsubscribe! [{:keys [biff/db] :as ctx} uid did now]
-  {:pre [(uuid? did) (uuid? uid) (inst? now)]}
-  (let [d (d-by-id db did)
-        _ (assert d)
-        updated-d (-> d
-                      (update :discussion/subscribers disj uid)
-                      (update-discussion now))]
-    (biff/submit-tx ctx [updated-d])
-    updated-d))
-
 (defn get-all-discussions [db]
   (q db
      '{:find (pull d [*])
@@ -448,27 +362,12 @@
 (defn discussion-by-id [db did]
   {:pre [(uuid? did)]}
   ;; TODO: change shape
-  (let [discussion (d-by-id db did)
+  (let [discussion (db.discussion/by-id db did)
         messages (db.message/by-did db did)]
     (assert discussion)
     {:discussion discussion
      :user_ids (:discussion/members discussion)
      :messages (mapv crdt.message/->value messages)}))
-
-(defn add-member! [ctx p]
-  (let [d (discussion-by-id (:biff/db ctx) (:discussion/id p))
-        new-d (-> (:discussion d)
-                  (assoc :db/doc-type :gatz/discussion)
-                  (update :discussion/members conj (:user/id p)))]
-    (biff/submit-tx ctx [(update-discussion new-d)])))
-
-(defn remove-members! [ctx did uids]
-  {:pre [(uuid? did) (every? uuid? uids)]}
-  (let [d (discussion-by-id (:biff/db ctx) did)
-        new-d (-> (:discussion d)
-                  (assoc :db/doc-type :gatz/discussion)
-                  (update :discussion/members set/difference (set uids)))]
-    (biff/submit-tx ctx [(update-discussion new-d)])))
 
 ;; TODO: add a max limit
 (defn discussions-by-user-id [db user-id]
@@ -631,13 +530,13 @@
               :media (when updated-media [updated-media])}
              ;; TODO: get real connection id
              {:now now :cid user-id})
-        d (d-by-id db did)
+        d (db.discussion/by-id db did)
         updated-discussion (cond-> d
                              auto-subscribe? (update :discussion/subscribers conj user-id)
                              true (assoc :discussion/latest_message mid)
                              true (assoc :discussion/latest_activity_ts now)
                              true (update :discussion/seen_at assoc user-id now)
-                             true (update-discussion now))
+                             true (db.discussion/update-discussion now))
         evt-data {:discussion.crdt/action :discussion.crdt/new-message
                   :discussion.crdt/delta  {:discussion/messages {mid msg}}}
         evt (db.evt/new-evt {:evt/type :discussion.crdt/delta
