@@ -441,7 +441,7 @@
     (assert discussion)
     {:discussion discussion
      :user_ids (:discussion/members discussion)
-     :messages (mapv crdt/-value messages)}))
+     :messages (mapv crdt.message/->value messages)}))
 
 (defn add-member! [ctx p]
   (let [d (discussion-by-id (:biff/db ctx) (:discussion/id p))

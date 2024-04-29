@@ -3,7 +3,7 @@
             [crdt.core :as crdt]
             [gatz.schema :as schema]
             [malli.core :as malli]
-            [medley.core :refer [map-vals]]
+            [medley.core :refer [map-vals filter-vals]]
             #?(:clj [taoensso.nippy :as nippy])
             #?(:clj [juxt.clojars-mirrors.nippy.v3v1v1.taoensso.nippy :as juxt-nippy]))
   (:import [java.util Date]))
@@ -144,3 +144,13 @@
 
 (defn apply-delta [msg delta]
   (crdt/-apply-delta msg delta))
+
+
+(defn ->value
+  "To make the CRDT messages backwards compatible for older clients"
+  [msg]
+  (-> (crdt/-value msg)
+      (update :message/reactions (fn [uid->emoji->ts]
+                                   (map-vals (fn [emoji->ts]
+                                               (filter-vals some? emoji->ts))
+                                             uid->emoji->ts)))))

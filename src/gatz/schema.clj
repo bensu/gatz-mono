@@ -1,5 +1,6 @@
 (ns gatz.schema
   (:require [malli.core :as m]
+            [malli.util :as mu]
             [crdt.core :as crdt]))
 
 (def UserId :uuid)
@@ -7,6 +8,7 @@
 (def MessageId :uuid)
 (def DiscussionId :uuid)
 (def EvtId :uuid)
+(def ClientId :uuid)
 
 (def push-token
   [:map
@@ -110,26 +112,6 @@
    [:message/text string?]
    [:message/edited_at inst?]])
 
-(def message-reaction
-  [:map
-   [:reaction/emoji string?]
-   [:reaction/created_at inst?]
-   [:reaction/did #'DiscussionId]
-   [:reaction/to_mid #'MessageId]
-   [:reaction/by_uid #'UserId]])
-
-(def event
-  [:map
-   [:evt/id #'EvtId]
-   [:evt/uid #'UserId]
-   [:evt/did #'DiscussionId]
-   [:db/type [:enum :gatz/evt]]
-   [:evt/mid [:maybe #'MessageId]]
-   [:evt/ts  inst?]
-   [:evt/type [:enum :evt.message/add-reaction]]
-   [:evt/data [:map
-               [:reaction message-reaction]]]])
-
 (def message
   [:map
     ;; final
@@ -181,13 +163,103 @@
     [:map-of #'UserId
      [:map-of string? (crdt/lww-schema crdt/hlc-schema [:maybe inst?])]]]])
 
+;; ====================================================================== 
+;; Events
+
+(def delete-delta
+  (mu/closed-schema
+   [:map
+    [:crdt/clock crdt/hlc-schema]
+    [:message/updated_at inst?]
+    [:message/deleted_at inst?]]))
+
+(def add-reaction-delta
+  (mu/closed-schema
+   [:map
+    [:crdt/clock crdt/hlc-schema]
+    [:message/updated_at inst?]
+    [:message/reactions
+     [:map-of #'UserId [:map-of string? (crdt/lww-schema crdt/hlc-schema inst?)]]]]))
+
+(def remove-reaction-delta
+  (mu/closed-schema
+   [:map
+    [:crdt/clock crdt/hlc-schema]
+    [:message/updated_at inst?]
+    [:message/reactions
+     [:map-of #'UserId [:map-of string? (crdt/lww-schema crdt/hlc-schema nil?)]]]]))
+
+(def edit-message-delta
+  (mu/closed-schema
+   [:map
+    [:crdt/clock crdt/hlc-schema]
+    [:message/updated_at inst?]
+    [:message/text (crdt/lww-schema crdt/hlc-schema string?)]
+    [:message/edits [:map
+                     [:message/text string?]
+                     [:message/edited_at inst?]]]]))
+
+(def MessageAction
+  (mu/closed-schema
+   [:or
+    [:map
+     [:message.crdt/action [:enum :message.crdt/edit]]
+     [:message.crdt/delta edit-message-delta]]
+    [:map
+     [:message.crdt/action [:enum :message.crdt/delete]]
+     [:message.crdt/delta delete-delta]]
+    [:map
+     [:message.crdt/action [:enum :message.crdt/remove-reaction]]
+     [:message.crdt/delta remove-reaction-delta]]
+    [:map
+     [:message.crdt/action [:enum :message.crdt/add-reaction]]
+     [:message.crdt/delta add-reaction-delta]]]))
+
+(def MessageEvent
+  [:map
+   [:evt/id #'EvtId]
+   [:evt/ts inst?]
+   [:db/type [:enum :gatz/evt]]
+   [:evt/uid #'UserId]
+   [:evt/cid [:maybe #'ClientId]]
+   [:evt/did #'DiscussionId]
+   [:evt/mid #'MessageId] ;; for message events, this is required
+   [:evt/type [:enum :message.crdt/delta]]
+   [:evt/data #'MessageAction]])
+
+(def message-reaction
+  [:map
+   [:reaction/emoji string?]
+   [:reaction/created_at inst?]
+   [:reaction/did #'DiscussionId]
+   [:reaction/to_mid #'MessageId]
+   [:reaction/by_uid #'UserId]])
+
+(def reaction-event
+  [:map
+   [:evt/id #'EvtId]
+   [:evt/uid #'UserId]
+   [:evt/did #'DiscussionId]
+   [:db/type [:enum :gatz/evt]]
+   [:evt/mid #'MessageId]
+   [:evt/ts inst?]
+   [:evt/type [:enum :evt.message/add-reaction]]
+   [:evt/data [:map
+               [:reaction message-reaction]]]])
+
+(def Event
+  [:or #'MessageEvent reaction-event])
+
+;; ====================================================================== 
+;; Final schema
+
 (def schema
   {:discussion/id #'DiscussionId
    :user/id #'UserId
    :message/id #'MessageId
    :media/id #'MediaId
    :evt/id :uuid
-   :gatz/evt event
+   :gatz/evt #'Event
    :gatz/user user
    :gatz/discussion discussion
    :gatz/reaction message-reaction

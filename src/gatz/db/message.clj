@@ -1,11 +1,13 @@
 (ns gatz.db.message
   (:require [com.biffweb :as biff :refer [q]]
-            [clojure.test :refer [deftest testing is]]
+            [clojure.test :refer [deftest testing is are]]
             [crdt.core :as crdt]
             [gatz.crdt.message :as crdt.message]
+            [gatz.schema :as schema]
+            [malli.core :as malli]
+            [medley.core :refer [map-vals]]
             [juxt.clojars-mirrors.nippy.v3v1v1.taoensso.nippy :as juxt-nippy]
             [taoensso.nippy :as taoensso-nippy]
-            [medley.core :refer [map-vals]]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
@@ -74,14 +76,12 @@
                        (assoc :db/version to))))
           msg)))))
 
-;; TODO: can't query messages
 (defn by-id [db mid]
   {:pre [(uuid? mid)]}
   (let [raw-msg (xtdb/entity db mid)]
     ;; This could be any version of the message
     (->latest-version raw-msg)))
 
-;; TODO: can't query messages
 (defn by-did [db did]
   (->> (q db '{:find m
                :in [did]
@@ -93,21 +93,33 @@
        (sort-by :message/created_at)
        vec))
 
-(defn delete-message!
-  "Marks a message as deleted with :message/deleted_at"
-  [{:keys [biff/db auth/user-id] :as ctx} mid] ;; TODO: use cid
-  {:pre [(uuid? mid) (uuid? user-id)]}
-  (if-let [m (by-id db mid)]
-    (let [now (Date.)
-          clock (crdt/new-hlc user-id now)
-          ;; TODO: this delta could go in the event system
-          delta {:crdt/clock clock
-                 :message/deleted_at now
-                 :message/updated_at now}
-          updated-m (crdt.message/apply-delta m delta)]
-      (biff/submit-tx ctx [(assoc updated-m :db/doc-type :gatz.crdt/message)])
-      updated-m)
-    (assert false "Tried to delete a non-existing message")))
+;; ====================================================================== 
+;; Events
+
+(defmulti authorized-for-message-delta?
+  (fn msg-action [_ctx _d _m evt]
+    (get-in evt [:evt/data :message.crdt/action])))
+
+(defmethod authorized-for-message-delta? :message.crdt/add-reaction
+  [{:keys [auth/user-id] :as _ctx} d _m _evt]
+  (contains? (:discussion/members d) user-id))
+
+(defmethod authorized-for-message-delta? :message.crdt/remove-reaction
+  [{:keys [auth/user-id] :as _ctx} d _m _evt]
+  (contains? (:discussion/members d) user-id))
+
+(defmethod authorized-for-message-delta? :message.crdt/edit
+  [{:keys [auth/user-id] :as _ctx} d m _evt]
+  (and (= user-id (:message/user_id m))
+       (contains? (:discussion/members d) user-id)))
+
+(defmethod authorized-for-message-delta? :message.crdt/delete
+  [{:keys [auth/user-id] :as _ctx} d m _evt]
+  (and (= user-id (:message/user_id m))
+       (contains? (:discussion/members d) user-id)))
+
+(defn discussion-by-id [db did]
+  (xtdb/entity db did))
 
 (defn new-evt [evt]
   (merge {:db/doc-type :gatz/evt
@@ -116,56 +128,133 @@
           :evt/id (random-uuid)}
          evt))
 
+(defn apply-action!
+  "Applies a delta to the message and stores it. Assumes it is authorized to do so"
+  [{:keys [biff/db auth/user-id auth/cid] :as ctx} did mid action] ;; TODO: use cid
+  {:pre [(uuid? did) (uuid? mid) (uuid? user-id)]}
+  (let [evt (new-evt {:evt/type :message.crdt/delta
+                      :evt/uid user-id
+                      :evt/did did
+                      :evt/mid mid
+                      :evt/cid cid
+                      :evt/data action})]
+    (if (true? (malli/validate schema/MessageEvent evt))
+      (if-let [d (discussion-by-id db did)]
+        (if-let [m (by-id db mid)]
+          (if (authorized-for-message-delta? ctx d m evt)
+            (let [updated-m (crdt.message/apply-delta m (:message.crdt/delta action))]
+              (biff/submit-tx ctx [(assoc updated-m :db/doc-type :gatz.crdt/message)
+                                   (assoc evt :db/doc-type :gatz/evt)])
+              {:discussion d
+               :message updated-m
+               :evt evt})
+            (assert false "Not authorized to apply this action"))
+          (assert false "Tried to delete a non-existing message"))
+        (assert false "Tried to update a message in a non-existing discussion"))
+      (assert false "Invaild event"))))
+
+(deftest message-events
+  (testing "Events can be validated"
+    (let [now (Date.)
+          [uid did mid cid] (repeatedly 4 random-uuid)
+          clock (crdt/new-hlc cid now)]
+      (are [action] (malli/validate schema/MessageAction action)
+        {:message.crdt/action :message.crdt/edit
+         :message.crdt/delta {:crdt/clock clock
+                              :message/updated_at now
+                              :message/text (crdt/->LWW clock "new text")
+                              :message/edits {:message/text "new text"
+                                              :message/edited_at now}}}
+        {:message.crdt/action :message.crdt/delete
+         :message.crdt/delta {:crdt/clock clock
+                              :message/updated_at now
+                              :message/deleted_at now}}
+        {:message.crdt/action :message.crdt/add-reaction
+         :message.crdt/delta {:crdt/clock clock
+                              :message/updated_at now
+                              :message/reactions {uid {"like" (crdt/->LWW clock now)}}}}
+        {:message.crdt/action :message.crdt/remove-reaction
+         :message.crdt/delta {:crdt/clock clock
+                              :message/updated_at now
+                              :message/reactions {uid {"like" (crdt/->LWW clock nil)}}}})
+      (are [action] (false? (malli/validate schema/MessageAction action))
+        {:message.crdt/action :message.crdt/edit
+         :message.crdt/delta {:crdt/clock clock
+                              :message/deleted_at now
+                              :message/updated_at now
+                              :message/text (crdt/->LWW clock "new text")
+                              :message/edits {:message/text "new text"
+                                              :message/edited_at now}}}
+        {:message.crdt/action :message.crdt/delete
+         :message.crdt/delta {:crdt/clock clock
+                              :message/text (crdt/->LWW clock "new text")
+                              :message/edits {:message/text "new text"
+                                              :message/edited_at now}
+                              :message/updated_at now
+                              :message/deleted_at now}}
+        {:message.crdt/action :message.crdt/add-reaction
+         :message.crdt/delta {:crdt/clock clock
+                              :message/deleted_at now
+                              :message/updated_at now
+                              :message/reactions {uid {"like" (crdt/->LWW clock now)}}}}
+        {:message.crdt/action :message.crdt/remove-reaction
+         :message.crdt/delta {:crdt/clock clock
+                              :message/deleted_at now
+                              :message/updated_at now
+                              :message/reactions {uid {"like" (crdt/->LWW clock nil)}}}}))))
+
+;; ====================================================================== 
+;; Pre-CRDT clients
+
+(defn delete-message!
+  "Marks a message as deleted with :message/deleted_at"
+  [{:keys [auth/user-id] :as ctx}
+   did
+   mid] ;; TODO: use cid
+  {:pre [(uuid? did) (uuid? mid) (uuid? user-id)]}
+  (let [now (Date.)
+        clock (crdt/new-hlc user-id now)
+        delta {:crdt/clock clock
+               :message/deleted_at now
+               :message/updated_at now}
+        action {:message.crdt/action :message.crdt/delete
+                :message.crdt/delta delta}]
+    (apply-action! ctx did mid action)))
+
 ;; TODO: update into discussion
 (defn react-to-message!
 
-  [{:keys [auth/user-id biff/db] :as ctx}
+  [{:keys [auth/user-id] :as ctx}
    {:keys [reaction mid did]}]
 
   {:pre [(string? reaction) (uuid? mid) (uuid? did) (uuid? user-id)]}
 
-  (if-let [msg (by-id db mid)]
-    (let [now (Date.)
+  (let [now (Date.)
           ;; TODO: use cid instead
-          clock (crdt/new-hlc user-id now)
-          full-reaction {:reaction/emoji reaction
-                         :reaction/created_at now
-                         :reaction/did did
-                         :reaction/to_mid mid
-                         :reaction/by_uid user-id}
-          delta {:message/updated_at now
-                 :message/reactions {user-id {reaction (crdt/->LWW clock now)}}}
-          updated-m (crdt.message/apply-delta msg delta)
-          evt (new-evt
-               {:evt/type :evt.message/add-reaction
-                :evt/uid user-id
-                :evt/did did
-                :evt/mid mid
-                :evt/data {:reaction full-reaction}})]
-      (biff/submit-tx ctx [(assoc updated-m :db/doc-type :gatz.crdt/message)
-                           evt])
-      {:message updated-m :reaction full-reaction :evt evt})
-    (assert false "Tried to update a non-existent message")))
+        clock (crdt/new-hlc user-id now)
+        delta {:crdt/clock clock
+               :message/updated_at now
+               :message/reactions {user-id {reaction (crdt/->LWW clock now)}}}
+        action {:message.crdt/action :message.crdt/add-reaction
+                :message.crdt/delta delta}]
+    (apply-action! ctx did mid action)))
 
 
 ;; TODO: update into discussion
 (defn undo-react!
-
-  [{:keys [auth/user-id biff/db] :as ctx}
+  [{:keys [auth/user-id] :as ctx}
    {:keys [reaction mid did]}]
 
   {:pre [(string? reaction) (uuid? mid) (uuid? did) (uuid? user-id)]}
 
-  (if-let [msg (by-id db mid)]
-    (let [now (java.util.Date.)
-          ;; TODO: use cid instead
-          clock (crdt/new-hlc user-id now)
-          delta {:message/updated_at now
-                 :message/reactions {user-id {reaction (crdt/->LWW clock nil)}}}
-          updated-m (crdt.message/apply-delta msg delta)]
-      (biff/submit-tx ctx [(assoc updated-m :db/doc-type :gatz.crdt/message)])
-      updated-m)
-    (assert false "Tried to update a non-existent message")))
+  (let [now (Date.)
+        clock (crdt/new-hlc user-id now)
+        delta {:crdt/clock clock
+               :message/updated_at now
+               :message/reactions {user-id {reaction (crdt/->LWW clock nil)}}}
+        action {:message.crdt/action :message.crdt/remove-reaction
+                :message.crdt/delta delta}]
+    (apply-action! ctx did mid action)))
 
 (defn flatten-reactions [did mid reactions]
   {:pre [(uuid? did) (uuid? mid)]}
@@ -189,22 +278,22 @@
 ;; TODO: update into discussion
 (defn edit-message!
 
-  [{:keys [auth/user-id biff/db] :as ctx}
+  [{:keys [auth/user-id] :as ctx}
    {:keys [text mid did]}]
 
   {:pre [(string? text) (uuid? mid) (uuid? did) (uuid? user-id)]}
-  (if-let [msg (by-id db mid)]
-    (let [now (Date.)
+
+  (let [now (Date.)
           ;; TODO: use cid
-          clock (crdt/new-hlc user-id now)
-          delta {:message/edits {:message/text text
-                                 :message/edited_at now}
-                 :message/text (crdt/->LWW clock text)
-                 :message/updated_at now}
-          updated-m (crdt.message/apply-delta msg delta)]
-      (biff/submit-tx ctx [(assoc updated-m :db/doc-type :gatz.crdt/message)])
-      updated-m)
-    (assert false "Tried to update a non-existent message")))
+        clock (crdt/new-hlc user-id now)
+        delta {:crdt/clock clock
+               :message/edits {:message/text text
+                               :message/edited_at now}
+               :message/text (crdt/->LWW clock text)
+               :message/updated_at now}
+        action {:message.crdt/action :message.crdt/edit
+                :message.crdt/delta delta}]
+    (apply-action! ctx did mid action)))
 
 (defn test-node  []
   (xtdb/start-node
