@@ -6,6 +6,7 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [gatz.auth :as auth]
+            [gatz.api.message :as api.message]
             [gatz.connections :as conns]
             [gatz.db :as db]
             [gatz.db.message :as db.message]
@@ -362,9 +363,6 @@
            (json-response {:discussion d}))))
       {:status 400 :body "invalid params"})))
 
-;; ====================================================================== 
-;; Messages
-
 (defn create-message! [{:keys [params biff/db auth/user-id] :as ctx}]
   (let [{:keys [text id discussion_id]} params
         mid (let [mid (some-> id mt/-string->uuid)]
@@ -382,47 +380,6 @@
                                         :media_id media-id})]
        (json-response {:message (crdt.message/->value msg)})))))
 
-(defn edit-message! [{:keys [params] :as ctx}]
-  (let [{:keys [text id discussion_id]} params
-        did (some-> discussion_id mt/-string->uuid)
-        mid (some-> id mt/-string->uuid)
-        {:keys [message]}
-        (db.message/edit-message! ctx {:did did :mid mid :text text})]
-    (json-response {:message (crdt.message/->value message)})))
-
-(defn react-to-message! [{:keys [params biff/db] :as ctx}]
-  (let [{:keys [reaction mid did]} params
-        did (mt/-string->uuid did)
-        d (db/d-by-id db did)
-        mid (or (some-> mid mt/-string->uuid)
-                (:discussion/first_message d))]
-    (assert (string? reaction) "reaction must be a string")
-    (let [{:keys [message]}
-          (db.message/react-to-message! ctx {:did did :mid mid :reaction reaction})]
-      (json-response {:message (crdt.message/->value message)}))))
-
-(defn undo-react-to-message! [{:keys [params] :as ctx}]
-  (let [{:keys [reaction mid did]} params
-        did (mt/-string->uuid did)
-        mid (some-> mid mt/-string->uuid)]
-    (assert (string? reaction) "reaction must be a string")
-    (let [{:keys [message]}
-          (db.message/undo-react! ctx {:did did :mid mid :reaction reaction})]
-      (json-response {:message (crdt.message/->value message)}))))
-
-(defn delete-message! [{:keys [params biff/db] :as ctx}]
-  (let [message (some->> (:id params)
-                         mt/-string->uuid
-                         (db.message/by-id db)
-                         crdt.message/->value)]
-    (db.message/delete-message! ctx (:message/did message) (:xt/id message))
-    (json-response {:status "success"})))
-
-(defn fetch-messages [db]
-  (q db
-     '{:find (pull msg [*])
-                 ;; TODO: better index to get all the messages
-       :where [[msg :text _]]}))
 
 ;; ====================================================================== 
 ;; Websocket
@@ -493,11 +450,6 @@
 (defmulti handle-evt! (fn [_ctx evt]
                         (:evt/type evt)))
 
-(defmulti handle-message-evt! (fn [_ctx _d _m evt]
-                                (get-in evt [:evt/data :message.crdt/action])))
-
-(defmethod handle-message-evt! :default [_ _ _ _] nil)
-
 (defmethod handle-evt! :message.crdt/delta
   [{:keys [biff.xtdb/node] :as ctx} evt]
   (let [db (xt/db node)
@@ -506,19 +458,7 @@
         discussion (db/d-by-id db did)
         message (crdt.message/->value (db.message/by-id db mid))]
     (propage-message-delta! ctx message (:message.crdt/delta evt))
-    (handle-message-evt! ctx discussion message evt)))
-
-(defmethod handle-message-evt! :message.crdt/add-reaction
-  [ctx _d m evt]
-  (let [delta (get-in evt [:evt/data :message.crdt/delta])
-        did (:evt/did evt)
-        mid (:evt/mid evt)
-        reactions (db.message/flatten-reactions did mid (:message/reactions delta))]
-    (doseq [reaction reactions]
-      (try
-        (notify/notify-on-reaction! ctx m reaction)
-        (catch Exception e
-          (println "notificaitons failed" e))))))
+    (api.message/handle-message-evt! ctx discussion message evt)))
 
 (defn on-evt! [ctx tx]
   (doseq [[op & args] (::xt/tx-ops tx)]
@@ -718,10 +658,10 @@
                  ["/media" {:post create-media!}]
 
                  ["/message" {:post create-message!}]
-                 ["/message/delete" {:post delete-message!}]
-                 ["/message/edit" {:post edit-message!}]
-                 ["/message/react" {:post react-to-message!}]
-                 ["/message/undo-react" {:post undo-react-to-message!}]
+                 ["/message/delete" {:post api.message/delete-message!}]
+                 ["/message/edit" {:post  api.message/edit-message!}]
+                 ["/message/react" {:post api.message/react-to-message!}]
+                 ["/message/undo-react" {:post api.message/undo-react-to-message!}]
 
                  ["/discussions" {:get get-full-discussions
                                   :post create-discussion!}]
