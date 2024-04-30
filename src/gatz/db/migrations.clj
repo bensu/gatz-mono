@@ -259,3 +259,15 @@
                      (assoc :user/name new-name)
                      (db.user/update-user now))]
     (biff/submit-tx ctx [new-user])))
+
+(defn all-messages [db]
+  (q db '{:find (pull m [*])
+          :where [[m :db/type :gatz/message]]}))
+
+(defn messages-v0->v1! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)]
+    (doseq [msg (all-messages db)]
+      (when (nil? (:db/version msg))
+        (biff/submit-tx ctx [(-> msg
+                                 (db.message/v0->v1)
+                                 (assoc :db/version 1))])))))
