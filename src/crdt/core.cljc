@@ -195,16 +195,24 @@
   (.write writer "#crdt/hlc ")
   (print-method [(.ts hlc) (.counter hlc) (.node hlc)] writer))
 
+(defn new-hlc
+  ([node] (new-hlc node (Date.)))
+  ([node now] (->HLC now 0 node)))
+
 (defn read-hlc
   "Used by the reader like so:
   
+   #crdt/hlc [#uuid \"08f711cd-1d4d-4f61-b157-c36a8be8ef95\"]
+   #crdt/hlc [1 #uuid \"08f711cd-1d4d-4f61-b157-c36a8be8ef95\"]
    #crdt/hlc [#inst \"2021-06-01\" 1 #uuid \"08f711cd-1d4d-4f61-b157-c36a8be8ef95\"]"
   [value]
-  (let [[ts counter node] value]
-    (assert (inst? ts) "HLC timestamp must be a date")
-    (assert (integer? counter) "HLC counter must be an integer")
-    (assert (uuid? node) "HLC node must be a UUID")
-    (->HLC ts counter node)))
+  (assert (vector? value) "HLC must be a vector")
+  (assert (<= (count value) 3) "HLC must have 0, 1, 2, or 3 elements")
+  (case (count value)
+    0 (->HLC (Date.) 0 (random-uuid))
+    1 (->HLC (Date.) 0 (first value))
+    2 (->HLC (Date.) (first value) (second value))
+    3 (->HLC (first value) (second value) (nth value 2))))
 
 (defn hlc-instance? [x]
   (instance? HLC x))
@@ -215,21 +223,16 @@
    [:counter integer?]
    [:node :uuid]])
 
-(defn new-hlc
-  ([node] (new-hlc node (Date.)))
-  ([node now] (->HLC now 0 node)))
-
 (defn inc-time [^Date d]
   (Date. (inc (.getTime d))))
 
 (deftest hlc
   (testing "you can serialize the clocks"
-    (let [clock #crdt/hlc [#inst "2021-06-01" 1 #uuid "08f711cd-1d4d-4f61-b157-c36a8be8ef95"]]
+    (let [clock #crdt/hlc [#inst "2024-04-30T06:32:48.978-00:00" 1 #uuid "08f711cd-1d4d-4f61-b157-c36a8be8ef95"]]
       (is (= clock (nippy/thaw (nippy/freeze clock))))
       (is (= clock (read-string (pr-str clock))))))
   (testing "you can check the schema"
-    (is (malli/validate hlc-schema (new-hlc (random-uuid))))
-    (is (not (true? (malli/validate hlc-schema (new-hlc "1"))))))
+    (is (malli/validate hlc-schema #crdt/hlc [])))
   (testing "You can generate HLCs"
     (let [t0 (Date.)
           aid (random-uuid)
