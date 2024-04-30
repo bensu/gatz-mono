@@ -33,6 +33,16 @@
   (-freeze-without-meta! [this out]
     (nippy/freeze-to-out! out this)))
 
+(defn read-min-wins
+  "Used by the reader like so:
+  
+   #crdt/min-wins 1
+   #crdt/min-wins \"a\"
+   #crdt/min-wins #inst \"2021-06-01\"
+   #crdt/min-wins #uuid \"08f711cd-1d4d-4f61-b157-c36a8be8ef95\""
+  [value]
+  (->MinWins value))
+
 (defn min-wins-instance? [x]
   (instance? MinWins x))
 
@@ -42,13 +52,13 @@
 
 (deftest min-wins
   (testing "can check its schema"
-    (is (malli/validate (min-wins-schema string?) (->MinWins "0")))
-    (is (not (true? (malli/validate (min-wins-schema integer?) (->MinWins "0"))))))
+    (is (malli/validate (min-wins-schema string?) #crdt/min-wins "0"))
+    (is (not (true? (malli/validate (min-wins-schema integer?) #crdt/min-wins "0")))))
   (testing "empty value is always replaced"
-    (let [initial (-init (->MinWins 0))]
-      (is (= 1 (-value (-apply-delta initial (->MinWins 1))))))
+    (let [initial (-init #crdt/min-wins 0)]
+      (is (= 1 (-value (-apply-delta initial #crdt/min-wins 1)))))
     (let [initial (->MinWins nil)]
-      (is (= 1 (-value (-apply-delta initial (->MinWins 1)))))))
+      (is (= 1 (-value (-apply-delta initial #crdt/min-wins 1))))))
   (testing "any order yields the same final value with integers"
     (let [values (shuffle (map #(->MinWins %) (range 10)))
           initial (->MinWins 3)
@@ -61,7 +71,7 @@
           final (reduce -apply-delta initial values)]
       (is (= (-value final) (first instants)))))
   (testing "can be serialized"
-    (is (= (->MinWins 0) (nippy/thaw (nippy/freeze (->MinWins 0)))))))
+    (is (= #crdt/min-wins 0 (nippy/thaw (nippy/freeze #crdt/min-wins 0))))))
 
 (defrecord MaxWins [value]
   CRDTDelta
@@ -82,6 +92,16 @@
   (-freeze-without-meta! [this out]
     (nippy/freeze-to-out! out this)))
 
+(defn read-max-wins
+  "Used by the reader like so:
+  
+   #crdt/max-wins 1
+   #crdt/max-wins \"a\"
+   #crdt/max-wins #inst \"2021-06-01\"
+   #crdt/max-wins #uuid \"08f711cd-1d4d-4f61-b157-c36a8be8ef95\""
+  [value]
+  (->MaxWins value))
+
 (defn max-wins-instance? [x]
   (instance? MaxWins x))
 
@@ -91,13 +111,13 @@
 
 (deftest max-wins
   (testing "can check its schema"
-    (is (malli/validate (max-wins-schema string?) (->MaxWins "0")))
-    (is (not (true? (malli/validate (max-wins-schema integer?) (->MaxWins "0"))))))
+    (is (malli/validate (max-wins-schema string?) #crdt/max-wins "0"))
+    (is (not (true? (malli/validate (max-wins-schema integer?) #crdt/max-wins "0")))))
   (testing "empty value is always replaced"
-    (let [initial (-init (->MaxWins 0))]
-      (is (= 1 (-value (-apply-delta initial (->MaxWins 1))))))
+    (let [initial (-init #crdt/max-wins 0)]
+      (is (= 1 (-value (-apply-delta initial #crdt/max-wins 1)))))
     (let [initial (->MaxWins nil)]
-      (is (= 1 (-value (-apply-delta initial (->MaxWins 1)))))))
+      (is (= 1 (-value (-apply-delta initial #crdt/max-wins 1))))))
   (testing "any order yields the same final value with integers"
     (let [values (shuffle (map #(->MaxWins %) (range 10)))
           initial (->MaxWins 0)
@@ -110,7 +130,7 @@
           final (reduce -apply-delta initial values)]
       (is (= (-value final) (last instants)))))
   (testing "can be serialized"
-    (is (= (->MaxWins 0) (nippy/thaw (nippy/freeze (->MaxWins 0)))))))
+    (is (= #crdt/max-wins 0 (nippy/thaw (nippy/freeze #crdt/max-wins 0))))))
 
 (defmacro stagger-compare [ks a b]
   (let [k (first ks)]
