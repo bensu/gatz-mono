@@ -101,6 +101,10 @@
   (fn msg-action [_ctx _d _m evt]
     (get-in evt [:evt/data :message.crdt/action])))
 
+(defmethod authorized-for-message-delta? :default
+  [_ctx _d _m _evt]
+  false)
+
 (defmethod authorized-for-message-delta? :message.crdt/add-reaction
   [{:keys [auth/user-id] :as _ctx} d _m _evt]
   (contains? (:discussion/members d) user-id))
