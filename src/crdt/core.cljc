@@ -311,6 +311,24 @@
   (-freeze-without-meta! [this out]
     (nippy/freeze-to-out! out this)))
 
+(defmethod print-method LWW
+  [^LWW lww ^java.io.Writer writer]
+  (.write writer "#crdt/lww ")
+  (print-method [(.clock lww) (.value lww)] writer))
+
+(defn read-lww
+  "Used by the reader like so:
+
+   #crdt/lww [clock value]
+  
+   #crdt/lww [1 \"a\"]
+   #crdt/lww [#inst \"2021-06-01\" nil]
+   #crdt/lww [#crdt/hlc [#uuid \"08f711cd-1d4d-4f61-b157-c36a8be8ef95\"] 3]"
+  [value]
+  (assert (vector? value) "LWW must be a vector")
+  (assert (= (count value) 2) "LWW must have 2 elements")
+  (->LWW (first value) (second value)))
+
 (defn lww-instance? [x]
   (instance? LWW x))
 
@@ -321,15 +339,15 @@
 
 (deftest lww
   (testing "empty value is always replaced"
-    (let [initial (-init (->LWW 0 0))]
-      (is (= 1 (-value (-apply-delta initial (->LWW 1 1)))))))
+    (let [initial (-init #crdt/lww [0 0])]
+      (is (= 1 (-value (-apply-delta initial #crdt/lww [1 1]))))))
   (testing "can check the schema"
     (let [schema (lww-schema integer? integer?)]
-      (is (malli/validate schema (->LWW 0 0)))
-      (is (not (malli/validate schema (->LWW 0 "0"))))))
+      (is (malli/validate schema #crdt/lww [0 0]))
+      (is (not (malli/validate schema #crdt/lww [0 "0"])))))
   (testing "any order yields the same final value"
     (testing "with integer clocks"
-      (let [initial (->LWW 0 0)
+      (let [initial #crdt/lww [0 0]
             clocks (range 1 10)
             values (shuffle (range 1 10))
             deltas (map #(->LWW %1 %2) clocks values)
@@ -360,13 +378,14 @@
         (testing "which can be serialized"
           (is (every? #(= % (nippy/thaw (nippy/freeze %))) values)))))
     (testing "with nil"
-      (let [initial (->LWW 0 1)
-            delta   (->LWW 1 nil)
+      (let [initial #crdt/lww [0 1]
+            delta   #crdt/lww [1 nil]
             final (-apply-delta initial delta)]
         (is (= 1 (-value initial)))
         (is (= nil (-value final)))))
     (testing "can be serialized"
-      (is (= (->LWW 0 0) (nippy/thaw (nippy/freeze (->LWW 0 0))))))))
+      (is (= #crdt/lww [0 0] (read-string (pr-str #crdt/lww [0 0]))))
+      (is (= #crdt/lww [0 0] (nippy/thaw (nippy/freeze #crdt/lww [0 0])))))))
 
 (defrecord GrowOnlySet [xs]
   OpCRDT
