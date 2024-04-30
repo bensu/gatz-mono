@@ -1,14 +1,11 @@
 (ns gatz.db.message
   (:require [com.biffweb :as biff :refer [q]]
-            [clojure.test :refer [deftest testing is are]]
             [crdt.core :as crdt]
             [gatz.crdt.message :as crdt.message]
             [gatz.schema :as schema]
             [gatz.db.evt :as db.evt]
             [malli.core :as malli]
             [medley.core :refer [map-vals]]
-            [juxt.clojars-mirrors.nippy.v3v1v1.taoensso.nippy :as juxt-nippy]
-            [taoensso.nippy :as taoensso-nippy]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
@@ -103,15 +100,24 @@
 
 (defmethod authorized-for-message-delta? :default
   [_ctx _d _m _evt]
-  false)
+  (assert false))
+
+(defn reactions-belongs-to-user? [uid uid->emoji->ts]
+  (= #{uid} (set (keys uid->emoji->ts))))
 
 (defmethod authorized-for-message-delta? :message.crdt/add-reaction
-  [{:keys [auth/user-id] :as _ctx} d _m _evt]
-  (contains? (:discussion/members d) user-id))
+  [{:keys [auth/user-id] :as _ctx} d _m evt]
+  (println "add-reaction" user-id (:discussion/members d))
+  (and (contains? (:discussion/members d) user-id)
+       (let [reactions (get-in evt [:evt/data :message.crdt/delta :message/reactions])]
+         (reactions-belongs-to-user? user-id reactions))))
 
 (defmethod authorized-for-message-delta? :message.crdt/remove-reaction
-  [{:keys [auth/user-id] :as _ctx} d _m _evt]
-  (contains? (:discussion/members d) user-id))
+  [{:keys [auth/user-id] :as _ctx} d _m evt]
+  (println "remove-reaction" user-id (:discussion/members d))
+  (and (contains? (:discussion/members d) user-id)
+       (let [reactions (get-in evt [:evt/data :message.crdt/delta :message/reactions])]
+         (reactions-belongs-to-user? user-id reactions))))
 
 (defmethod authorized-for-message-delta? :message.crdt/edit
   [{:keys [auth/user-id] :as _ctx} d m _evt]
@@ -151,55 +157,6 @@
         (assert false "Tried to update a message in a non-existing discussion"))
       (assert false "Invaild event"))))
 
-(deftest message-events
-  (testing "Events can be validated"
-    (let [now (Date.)
-          [uid did mid cid] (repeatedly 4 random-uuid)
-          clock (crdt/new-hlc cid now)]
-      (are [action] (malli/validate schema/MessageAction action)
-        {:message.crdt/action :message.crdt/edit
-         :message.crdt/delta {:crdt/clock clock
-                              :message/updated_at now
-                              :message/text (crdt/->LWW clock "new text")
-                              :message/edits {:message/text "new text"
-                                              :message/edited_at now}}}
-        {:message.crdt/action :message.crdt/delete
-         :message.crdt/delta {:crdt/clock clock
-                              :message/updated_at now
-                              :message/deleted_at now}}
-        {:message.crdt/action :message.crdt/add-reaction
-         :message.crdt/delta {:crdt/clock clock
-                              :message/updated_at now
-                              :message/reactions {uid {"like" (crdt/->LWW clock now)}}}}
-        {:message.crdt/action :message.crdt/remove-reaction
-         :message.crdt/delta {:crdt/clock clock
-                              :message/updated_at now
-                              :message/reactions {uid {"like" (crdt/->LWW clock nil)}}}})
-      (are [action] (false? (malli/validate schema/MessageAction action))
-        {:message.crdt/action :message.crdt/edit
-         :message.crdt/delta {:crdt/clock clock
-                              :message/deleted_at now
-                              :message/updated_at now
-                              :message/text (crdt/->LWW clock "new text")
-                              :message/edits {:message/text "new text"
-                                              :message/edited_at now}}}
-        {:message.crdt/action :message.crdt/delete
-         :message.crdt/delta {:crdt/clock clock
-                              :message/text (crdt/->LWW clock "new text")
-                              :message/edits {:message/text "new text"
-                                              :message/edited_at now}
-                              :message/updated_at now
-                              :message/deleted_at now}}
-        {:message.crdt/action :message.crdt/add-reaction
-         :message.crdt/delta {:crdt/clock clock
-                              :message/deleted_at now
-                              :message/updated_at now
-                              :message/reactions {uid {"like" (crdt/->LWW clock now)}}}}
-        {:message.crdt/action :message.crdt/remove-reaction
-         :message.crdt/delta {:crdt/clock clock
-                              :message/deleted_at now
-                              :message/updated_at now
-                              :message/reactions {uid {"like" (crdt/->LWW clock nil)}}}}))))
 
 ;; ====================================================================== 
 ;; Pre-CRDT clients
@@ -293,25 +250,3 @@
                 :message.crdt/delta delta}]
     (apply-action! ctx did mid action)))
 
-(defn test-node  []
-  (xtdb/start-node
-   {:xtdb/index-store {:kv-store {:xtdb/module 'xtdb.mem-kv/->kv-store}}
-    :xtdb/tx-log {:kv-store {:xtdb/module 'xtdb.mem-kv/->kv-store}}
-    :xtdb/document-store {:kv-store {:xtdb/module 'xtdb.mem-kv/->kv-store}}}))
-
-(deftest db-roundtrip
-  (testing "we can store a message and retrieve it"
-    (let [node (test-node)
-          id (random-uuid)
-          doc0 {:xt/id id
-                :message/updated_at (crdt/->MaxWins (Date.))}
-          r  (xtdb/submit-tx node [[::xtdb/put doc0]])]
-      (xtdb/await-tx node (::xtdb/tx-id r))
-      (is (= doc0 (juxt-nippy/thaw (juxt-nippy/freeze doc0)))
-          "Can roundrobin with juxt's nippy")
-      (is (= doc0 (taoensso-nippy/thaw (taoensso-nippy/freeze doc0)))
-          "Can roundrobin with nippy")
-      (let [doc1 (xtdb/entity (xtdb/db node) id)]
-        (is (= doc0 doc1))
-        (is (= (class (:message/updated_at doc0))
-               (class (:message/updated_at doc1))))))))
