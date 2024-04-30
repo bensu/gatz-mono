@@ -1,15 +1,12 @@
 (ns gatz.db
   (:require [com.biffweb :as biff :refer [q]]
-            [clojure.set :as set]
-            [clojure.string :as str]
             [crdt.core :as crdt]
             [gatz.crdt.message :as crdt.message]
             [gatz.db.discussion :as db.discussion]
             [gatz.db.evt :as db.evt]
+            [gatz.db.media :as db.media]
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
-            [gatz.schema :as schema]
-            [malli.core :as m]
             [malli.transform :as mt]
             [xtdb.api :as xtdb]))
 
@@ -20,57 +17,6 @@
   (and (string? s)
        (or (not (empty? s))
            (some? media-id))))
-
-
-;; ====================================================================== 
-;; Media
-
-(def media-kinds
-  #{;;  :media/aud 
-    :media/img
-                  ;;  :media/vid
-    })
-
-(defn media-by-id [db id]
-  (q db '{:find [(pull m [*])]
-          :in [id]
-          :where [[m :db/type :gatz/media]
-                  [m :xt/id id]]}
-     id))
-
-(def default-media
-  {:media/size nil :media/height nil :media/width nil})
-
-(defn update-media [media]
-  (assoc (merge default-media media)
-         :db/type :gatz/media
-         :db/doc-type :gatz/media))
-
-(defn create-media!
-  [{:keys [auth/user-id] :as ctx}
-   {:keys [id kind url size width height] :as params}]
-
-  {:pre [(uuid? user-id)
-         (uuid? id)
-         (contains? media-kinds kind)
-         (string? url)
-          ;; (string? mime) (number? size)
-         ]}
-
-  (let [now (java.util.Date.)
-        media-id (or id (random-uuid))
-        media {:xt/id media-id
-               :media/user_id user-id
-               :media/message_id nil
-               :media/kind kind
-               :media/url url
-               :media/width width
-               :media/height height
-               :media/size size
-               ;; :media/mime mime
-               :media/created_at now}]
-    (biff/submit-tx ctx [(update-media media)])
-    media))
 
 ;; ====================================================================== 
 ;; Discussion 
@@ -119,7 +65,7 @@
         d (db.discussion/update-discussion d now)
         media (some->> media_id
                        mt/-string->uuid
-                       (media-by-id db))
+                       (db.media/by-id db))
         msg (crdt.message/new-message
              {:uid user-id :mid mid :did did
               :text (or text "") :reply_to nil
@@ -144,7 +90,7 @@
                       (assoc :db/doc-type :gatz.crdt/message))
               (some-> media
                       (assoc :media/message_id mid)
-                      (update-media)
+                      (db.media/update-media)
                       (assoc :db/doct-type :gatz/media))]]
     (biff/submit-tx ctx (vec (remove nil? txns)))
     {:discussion d :message msg}))
@@ -278,10 +224,6 @@
 ;; ====================================================================== 
 ;; Messages
 
-(defn media-by-id [db id]
-  {:pre [(uuid? id)]}
-  (xtdb/entity db id))
-
 #_(defn ->uuid [s]
     (if (string? s)
       (try
@@ -307,10 +249,10 @@
                                       :settings.notification/subscribe_on_comment]
                                 false)
         media (when media_id
-                (media-by-id db media_id))
+                (db.media/by-id db media_id))
         updated-media (some-> media
                               (assoc :media/message_id mid)
-                              (update-media))
+                              (db.media/update-media))
         ;; TODO: put directly in discussion
         msg (crdt.message/new-message
              {:uid user-id :mid mid :did did

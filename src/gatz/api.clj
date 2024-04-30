@@ -5,6 +5,7 @@
             [clojure.java.io :as io]
             [gatz.auth :as auth]
             [gatz.api.discussion :as api.discussion]
+            [gatz.api.media :as api.media]
             [gatz.api.message :as api.message]
             [gatz.api.user :as api.user]
             [gatz.connections :as conns]
@@ -13,11 +14,8 @@
             [gatz.db.discussion :as db.discussion]
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
-            [gatz.notify :as notify]
-            [malli.transform :as mt]
             [ring.adapter.jetty9 :as jetty]
-            [sdk.s3 :as s3]
-            [xtdb.api :as xt])
+            [xtdb.api :as xtdb])
   (:import [java.time Instant Duration]))
 
 (defn json-response [body]
@@ -55,7 +53,7 @@
              conn-id (random-uuid)]
          (jetty/ws-upgrade-response
           {:on-connect (fn [ws]
-                         (let [db (xt/db node)
+                         (let [db (xtdb/db node)
                                ds (or (db/discussions-by-user-id db user-id) #{})]
                            (swap! conns-state conns/add-conn {:ws ws
                                                               :user-id user-id
@@ -65,7 +63,7 @@
                                           (connection-response user-id conn-id)))
                          (db.user/mark-user-active! ctx user-id))
            :on-close (fn [ws status-code reason]
-                       (let [db (xt/db node)
+                       (let [db (xtdb/db node)
                              ds (or (db/discussions-by-user-id db user-id) #{})]
                          (swap! conns-state conns/remove-conn {:user-id user-id
                                                                :conn-id conn-id
@@ -99,7 +97,7 @@
 
 (defmethod handle-evt! :message.crdt/delta
   [{:keys [biff.xtdb/node] :as ctx} evt]
-  (let [db (xt/db node)
+  (let [db (xtdb/db node)
         did (:evt/did evt)
         mid (:evt/mid evt)
         discussion (db.discussion/by-id db did)
@@ -116,7 +114,7 @@
 
 (defn register-new-discussion!
   [{:keys [conns-state biff.xtdb/node] :as _ctx} did]
-  (let [db (xtdb.api/db node)
+  (let [db (xtdb/db node)
         {:keys [discussion messages user_ids]} (db/discussion-by-id db did)
         members (:discussion/members discussion)
         msg {:event/type :event/new_discussion
@@ -142,11 +140,14 @@
           (propagate-new-message! ctx did (crdt.message/->value m)))))))
 
 (defn on-evt! [ctx tx]
-  (doseq [[op & args] (::xt/tx-ops tx)]
-    (when (= op ::xt/put)
+  (doseq [[op & args] (::xtdb/tx-ops tx)]
+    (when (= op ::xtdb/put)
       (let [[evt] args]
         (when (= :gatz/evt (:db/type evt))
-          (handle-evt! ctx evt))))))
+          (try
+            (handle-evt! ctx evt)
+            (catch Exception e
+              (println "Exception handler threw an error" e))))))))
 
 
 ;; TODO: if one of these throws an exception, the rest of the on-tx should still run
@@ -178,49 +179,6 @@
     {:status 200
     ;;  :headers (get contents "headers")
      :body (json/write-str (get contents "body"))}))
-
-(def folders #{"media" "avatars"})
-
-(defn presigned-url! [{:keys [params biff/secret] :as ctx}]
-  (let [folder (get params :folder)]
-    (if (contains? folders folder)
-      (let [id (random-uuid)
-            k  (format "%s/%s" folder id)
-            presigned (.toString
-                       (s3/presigned-url! ctx k))]
-        (json-response {:id id
-                        :presigned_url presigned
-                        :url (s3/make-path secret k)}))
-      (err-resp "invalid_folder" "Invalid folder"))))
-
-(def media-kinds (set (map name db/media-kinds)))
-
-(defn str->media-kind [s]
-  {:pre [(string? s)
-         (contains? media-kinds s)]}
-  (keyword "media" s))
-
-;; TODO: fill in the other elements of the media type
-;; TODO: this should be authenticated
-(defn create-media!
-  [{:keys [params] :as ctx}]
-  (def -media-ctx ctx)
-  (if (and (string? (:file_url params))
-           (string? (:kind params))
-           (contains? media-kinds (:kind params)))
-    (if-let [id (some-> (:id params) mt/-string->uuid)]
-      (if-let [media-kind (str->media-kind (:kind params))]
-        (let [media (db/create-media! ctx {:kind media-kind
-                                           :id id
-                                      ;; :mime (:mime params)
-                                           :size (:size params)
-                                           :height (:height params)
-                                           :width (:width params)
-                                           :url (:file_url params)})]
-          (json-response {:media media}))
-        (err-resp "invalid_media_type" "Invalid media type"))
-      (err-resp "invalid_id" "Invalid id"))
-    (err-resp "invalid_params" "Invalid params")))
 
 (def alive-message {:status "ok"})
 
@@ -262,8 +220,8 @@
                  ["/user/settings/notifications" {:post api.user/update-notification-settings!}]
 
 
-                 ["/file/presign" {:post presigned-url!}]
-                 ["/media" {:post create-media!}]
+                 ["/file/presign" {:post api.media/presigned-url!}]
+                 ["/media" {:post api.media/create-media!}]
 
                  ["/message" {:post api.discussion/create-message!}]
                  ["/message/delete" {:post api.message/delete-message!}]
