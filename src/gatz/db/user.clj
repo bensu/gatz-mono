@@ -1,15 +1,8 @@
 (ns gatz.db.user
   (:require [com.biffweb :as biff :refer [q]]
-            [clojure.set :as set]
             [clojure.string :as str]
-            [crdt.core :as crdt]
-            [gatz.crdt.message :as crdt.message]
-            [gatz.db.discussion :as db.discussion]
-            [gatz.db.evt :as db.evt]
-            [gatz.db.message :as db.message]
             [gatz.schema :as schema]
             [malli.core :as m]
-            [malli.transform :as mt]
             [xtdb.api :as xtdb]))
 
 ;; ====================================================================== 
@@ -148,7 +141,7 @@
   [{:keys [biff/db] :as ctx} {:keys [user-id push-token]}]
 
   {:pre [(uuid? user-id)
-         (m/validate schema/push-tokens push-token)]}
+         (m/validate schema/PushTokens push-token)]}
 
   (if-let [user (by-id db user-id)]
     (let [updated-user (-> user

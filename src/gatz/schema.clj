@@ -10,18 +10,18 @@
 (def EvtId :uuid)
 (def ClientId :uuid)
 
-(def push-token
+(def PushToken
   [:map
    [:push/token string?]
    [:push/created_at inst?]
    [:push/service [:enum :push/expo]]])
 
-(def push-tokens
+(def PushTokens
   [:map
-   [:push/expo push-token]])
+   [:push/expo PushToken]])
 
 
-(def notification-preferences
+(def NotificationPreferences
   [:map
    [:settings.notification/overall boolean?]
    [:settings.notification/activity
@@ -36,9 +36,9 @@
    ;; [:settings.notification/at_mentions boolean?]
    ])
 
-(def notification-keys (set (map first (rest notification-preferences))))
+(def notification-keys (set (map first (rest NotificationPreferences))))
 
-(def user
+(def User
   [:map
    [:xt/id #'UserId]
    [:db/type [:enum :gatz/user]]
@@ -47,6 +47,7 @@
    [:user/is_admin [:maybe boolean?]]
    ;; MaxWins
    [:user/updated_at inst?]
+   [:user/last_active inst?]
    ;; LWW
    [:user/name string?]
    [:user/phone_number string?]
@@ -54,10 +55,8 @@
    ;; {k {k LWW}}
    [:user/settings
     [:map
-     [:settings/notifications notification-preferences]]]
-   [:user/push_tokens [:maybe push-tokens]]
-   ;; MaxWins
-   [:user/last_active inst?]])
+     [:settings/notifications NotificationPreferences]]]
+   [:user/push_tokens [:maybe PushTokens]]])
 
 (def Media
   [:map
@@ -75,12 +74,12 @@
    [:media/size [:maybe int?]]
    [:media/created_at inst?]])
 
-(def message-edits
+(def MessageEdit
   [:map
    [:message/text string?]
    [:message/edited_at inst?]])
 
-(def message
+(def Message
   [:map
     ;; final
    [:xt/id #'MessageId]
@@ -97,7 +96,7 @@
    ;; grow only set
    [:message/posted_as_discussion [:set #'DiscussionId]]
    ;; grow only set
-   [:message/edits [:set message-edits]]
+   [:message/edits [:set MessageEdit]]
    ;; LWW
    [:message/text string?]
    ;; {user-id {emoji (->LWW ts?)}
@@ -123,7 +122,7 @@
    ;; grow only set
    [:message/posted_as_discussion (crdt/grow-only-set-schema #'DiscussionId)]
    ;; grow only set
-   [:message/edits (crdt/grow-only-set-schema message-edits)]
+   [:message/edits (crdt/grow-only-set-schema MessageEdit)]
    ;; LWW
    [:message/text (crdt/lww-schema crdt/hlc-schema string?)]
    ;; {user-id {emoji (->LWW ts?)}
@@ -165,14 +164,14 @@
 ;; ====================================================================== 
 ;; Events
 
-(def delete-delta
+(def DeleteDelta
   (mu/closed-schema
    [:map
     [:crdt/clock crdt/hlc-schema]
     [:message/updated_at inst?]
     [:message/deleted_at inst?]]))
 
-(def add-reaction-delta
+(def AddReactionDelta
   (mu/closed-schema
    [:map
     [:crdt/clock crdt/hlc-schema]
@@ -180,7 +179,7 @@
     [:message/reactions
      [:map-of #'UserId [:map-of string? (crdt/lww-schema crdt/hlc-schema inst?)]]]]))
 
-(def remove-reaction-delta
+(def RemoveReactionDelta
   (mu/closed-schema
    [:map
     [:crdt/clock crdt/hlc-schema]
@@ -188,7 +187,7 @@
     [:message/reactions
      [:map-of #'UserId [:map-of string? (crdt/lww-schema crdt/hlc-schema nil?)]]]]))
 
-(def edit-message-delta
+(def EditMessageDelta
   (mu/closed-schema
    [:map
     [:crdt/clock crdt/hlc-schema]
@@ -203,16 +202,16 @@
    [:or
     [:map
      [:message.crdt/action [:enum :message.crdt/edit]]
-     [:message.crdt/delta edit-message-delta]]
+     [:message.crdt/delta EditMessageDelta]]
     [:map
      [:message.crdt/action [:enum :message.crdt/delete]]
-     [:message.crdt/delta delete-delta]]
+     [:message.crdt/delta DeleteDelta]]
     [:map
      [:message.crdt/action [:enum :message.crdt/remove-reaction]]
-     [:message.crdt/delta remove-reaction-delta]]
+     [:message.crdt/delta RemoveReactionDelta]]
     [:map
      [:message.crdt/action [:enum :message.crdt/add-reaction]]
-     [:message.crdt/delta add-reaction-delta]]]))
+     [:message.crdt/delta AddReactionDelta]]]))
 
 (def MessageEvent
   [:map
@@ -250,7 +249,7 @@
    [:evt/type [:enum :discussion.crdt/delta]]
    [:evt/data [:or #'DiscussionAction]]])
 
-(def message-reaction
+(def MessageReaction
   [:map
    [:reaction/emoji string?]
    [:reaction/created_at inst?]
@@ -268,7 +267,7 @@
    [:evt/ts inst?]
    [:evt/type [:enum :evt.message/add-reaction]]
    [:evt/data [:map
-               [:reaction message-reaction]]]])
+               [:reaction MessageReaction]]]])
 
 (def Event
   [:or #'DiscussionEvt #'MessageEvent #'ReactionEvt])
@@ -283,12 +282,12 @@
    :media/id #'MediaId
    :evt/id :uuid
    :gatz/evt #'Event
-   :gatz/user user
+   :gatz/user User
    :gatz/discussion #'Discussion
-   :gatz/reaction message-reaction
+   :gatz/reaction #'MessageReaction
    :gatz/media #'Media
-   :gatz/message message
+   :gatz/message Message
    :gatz.crdt/message #'MessageCRDT
-   :gatz/push push-token})
+   :gatz/push PushToken})
 
 (def plugin {:schema schema})
