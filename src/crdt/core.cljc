@@ -3,7 +3,8 @@
             [clojure.test :as test :refer [deftest testing is]]
             [malli.core :as malli]
             [juxt.clojars-mirrors.nippy.v3v1v1.taoensso.nippy :as juxt-nippy]
-            [taoensso.nippy :as nippy])
+            [taoensso.nippy :as nippy]
+            [clojure.core :refer [print-method read-string]])
   (:import [java.util Date UUID]
            [clojure.lang IPersistentMap]
            [java.lang Comparable Thread]))
@@ -33,6 +34,11 @@
   (-freeze-without-meta! [this out]
     (nippy/freeze-to-out! out this)))
 
+(defmethod print-method MinWins
+  [^MinWins min-wins ^java.io.Writer writer]
+  (.write writer "#crdt/min-wins ")
+  (print-method (.value min-wins) writer))
+
 (defn read-min-wins
   "Used by the reader like so:
   
@@ -57,7 +63,7 @@
   (testing "empty value is always replaced"
     (let [initial (-init #crdt/min-wins 0)]
       (is (= 1 (-value (-apply-delta initial #crdt/min-wins 1)))))
-    (let [initial (->MinWins nil)]
+    (let [initial #crdt/min-wins nil]
       (is (= 1 (-value (-apply-delta initial #crdt/min-wins 1))))))
   (testing "any order yields the same final value with integers"
     (let [values (shuffle (map #(->MinWins %) (range 10)))
@@ -71,7 +77,8 @@
           final (reduce -apply-delta initial values)]
       (is (= (-value final) (first instants)))))
   (testing "can be serialized"
-    (is (= #crdt/min-wins 0 (nippy/thaw (nippy/freeze #crdt/min-wins 0))))))
+    (is (= #crdt/min-wins 0 (nippy/thaw (nippy/freeze #crdt/min-wins 0))))
+    (is (= #crdt/min-wins 0 (read-string (pr-str #crdt/min-wins 0))))))
 
 (defrecord MaxWins [value]
   CRDTDelta
@@ -91,6 +98,11 @@
   juxt-nippy/IFreezable1
   (-freeze-without-meta! [this out]
     (nippy/freeze-to-out! out this)))
+
+(defmethod print-method MaxWins
+  [^MaxWins max-wins ^java.io.Writer writer]
+  (.write writer "#crdt/max-wins ")
+  (print-method (.value max-wins) writer))
 
 (defn read-max-wins
   "Used by the reader like so:
@@ -130,7 +142,8 @@
           final (reduce -apply-delta initial values)]
       (is (= (-value final) (last instants)))))
   (testing "can be serialized"
-    (is (= #crdt/max-wins 0 (nippy/thaw (nippy/freeze #crdt/max-wins 0))))))
+    (is (= #crdt/max-wins 0 (nippy/thaw (nippy/freeze #crdt/max-wins 0))))
+    (is (= #crdt/max-wins 0 (read-string (pr-str #crdt/max-wins 0))))))
 
 (defmacro stagger-compare [ks a b]
   (let [k (first ks)]
@@ -177,6 +190,22 @@
   (-freeze-without-meta! [this out]
     (nippy/freeze-to-out! out this)))
 
+(defmethod print-method HLC
+  [^HLC hlc ^java.io.Writer writer]
+  (.write writer "#crdt/hlc ")
+  (print-method [(.ts hlc) (.counter hlc) (.node hlc)] writer))
+
+(defn read-hlc
+  "Used by the reader like so:
+  
+   #crdt/hlc [#inst \"2021-06-01\" 1 #uuid \"08f711cd-1d4d-4f61-b157-c36a8be8ef95\"]"
+  [value]
+  (let [[ts counter node] value]
+    (assert (inst? ts) "HLC timestamp must be a date")
+    (assert (integer? counter) "HLC counter must be an integer")
+    (assert (uuid? node) "HLC node must be a UUID")
+    (->HLC ts counter node)))
+
 (defn hlc-instance? [x]
   (instance? HLC x))
 
@@ -194,6 +223,10 @@
   (Date. (inc (.getTime d))))
 
 (deftest hlc
+  (testing "you can serialize the clocks"
+    (let [clock #crdt/hlc [#inst "2021-06-01" 1 #uuid "08f711cd-1d4d-4f61-b157-c36a8be8ef95"]]
+      (is (= clock (nippy/thaw (nippy/freeze clock))))
+      (is (= clock (read-string (pr-str clock))))))
   (testing "you can check the schema"
     (is (malli/validate hlc-schema (new-hlc (random-uuid))))
     (is (not (true? (malli/validate hlc-schema (new-hlc "1"))))))
