@@ -396,6 +396,19 @@
   (-freeze-without-meta! [this out]
     (nippy/freeze-to-out! out this)))
 
+(defmethod print-method GrowOnlySet
+  [^GrowOnlySet gos ^java.io.Writer writer]
+  (.write writer "#crdt/gos ")
+  (print-method (.xs gos) writer))
+
+(defn read-gos
+  "Used by the reader like so:
+
+   #crdt/gos #{1 2 3}"
+  [xs]
+  (assert (set? xs) "GrowOnlySet must be a set")
+  (->GrowOnlySet xs))
+
 (defn grow-only-set-instance? [x]
   (instance? GrowOnlySet x))
 
@@ -415,8 +428,10 @@
       (is (= #{} (-value initial)))
       (is (= (set (range 10)) (-value final)))))
   (testing "can be serialized"
-    (is (= (->GrowOnlySet #{1 2 3})
-           (nippy/thaw (nippy/freeze (->GrowOnlySet #{1 2 3})))))))
+    (is (= #crdt/gos #{1 2 3}
+           (read-string (pr-str #crdt/gos #{1 2 3}))))
+    (is (= #crdt/gos #{1 2 3}
+           (nippy/thaw (nippy/freeze #crdt/gos #{1 2 3}))))))
 
 ;; {x {:adds #{unique-ids} :removes #{unique-ids}}
 (defrecord AddRemoveSet [xs]
