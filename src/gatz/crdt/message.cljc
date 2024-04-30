@@ -38,9 +38,9 @@
      :message/reply_to reply_to
      :message/media media
      :message/created_at now
-     :message/deleted_at (crdt/->MinWins nil)
+     :message/deleted_at #crdt/min-wins nil
      :message/updated_at (crdt/->MaxWins now)
-     :message/posted_as_discussion (crdt/->GrowOnlySet #{})
+     :message/posted_as_discussion #crdt/gos #{}
      :message/edits (crdt/->GrowOnlySet #{{:message/text text
                                            :message/edited_at now}})
      :message/text (crdt/->LWW clock text)
