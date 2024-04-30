@@ -107,14 +107,12 @@
 
 (defmethod authorized-for-message-delta? :message.crdt/add-reaction
   [{:keys [auth/user-id] :as _ctx} d _m evt]
-  (println "add-reaction" user-id (:discussion/members d))
   (and (contains? (:discussion/members d) user-id)
        (let [reactions (get-in evt [:evt/data :message.crdt/delta :message/reactions])]
          (reactions-belongs-to-user? user-id reactions))))
 
 (defmethod authorized-for-message-delta? :message.crdt/remove-reaction
   [{:keys [auth/user-id] :as _ctx} d _m evt]
-  (println "remove-reaction" user-id (:discussion/members d))
   (and (contains? (:discussion/members d) user-id)
        (let [reactions (get-in evt [:evt/data :message.crdt/delta :message/reactions])]
          (reactions-belongs-to-user? user-id reactions))))
