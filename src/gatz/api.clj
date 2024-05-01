@@ -139,8 +139,20 @@
         (doseq [[_mid m] (:discussion/messages delta)]
           (propagate-new-message! ctx did (crdt.message/->value m)))))))
 
+(defn flatten-tx-ops
+  "Returns a sequence of 'final' tx-ops without nesting"
+  [tx]
+  (if-let [tx-ops (:xtdb.api/tx-ops tx)]
+    (mapcat (fn [[_op _args nested-tx :as tx-op]]
+              (if (and (map? nested-tx)
+                       (contains? nested-tx :xtdb.api/tx-ops))
+                (cons tx-op (flatten-tx-ops nested-tx))
+                [tx-op]))
+            tx-ops)
+    tx))
+
 (defn on-evt! [ctx tx]
-  (doseq [[op & args] (::xtdb/tx-ops tx)]
+  (doseq [[op & args] (flatten-tx-ops tx)]
     (when (= op ::xtdb/put)
       (let [[evt] args]
         (when (= :gatz/evt (:db/type evt))

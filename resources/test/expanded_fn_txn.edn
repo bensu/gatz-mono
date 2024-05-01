@@ -1,0 +1,39 @@
+{:xtdb.api/tx-id 43068,
+ :xtdb.api/tx-time #inst "2024-05-01T02:56:08.525-00:00",
+ :xtdb.api/tx-ops
+ [[:xtdb.api/fn #xtdb/id "db093e7b10a6c2ed74e6aff196402efb317cf502"
+   {:xtdb.api/tx-ops
+    [[:xtdb.api/put
+      {:evt/mid #uuid "53d837c3-749b-42df-ae4c-07e348b1b0c5",
+       :db/type :gatz/evt,
+       :evt/uid #uuid "fb0a361e-9380-429a-839d-3906c7dc5a57",
+       :evt/ts #inst "2024-05-01T02:56:08.498-00:00",
+       :evt/type :message.crdt/delta,
+       :evt/did #uuid "11966bbc-f109-45cf-959b-10ceb2530365",
+       :xt/id #uuid "29b6d345-fff7-4346-a918-3596b71bf84a",
+       :evt/cid nil,
+       :evt/data {:message.crdt/action :message.crdt/add-reaction,
+                  :message.crdt/delta {:crdt/clock #crdt/hlc [#inst "2024-05-01T02:56:08.498-00:00" 0 #uuid "fb0a361e-9380-429a-839d-3906c7dc5a57"],
+                                       :message/updated_at #inst "2024-05-01T02:56:08.498-00:00",
+                                       :message/reactions {#uuid "fb0a361e-9380-429a-839d-3906c7dc5a57"
+                                                           {"👍" #crdt/lww [#crdt/hlc [#inst "2024-05-01T02:56:08.498-00:00" 0 #uuid "fb0a361e-9380-429a-839d-3906c7dc5a57"] #inst "2024-05-01T02:56:08.498-00:00"]}}}},
+       :db/doc-type :gatz/evt}]
+     [:xtdb.api/put {:crdt/clock #crdt/hlc [#inst "2024-05-01T02:56:08.571-00:00" 0 #uuid "08f711cd-1d4d-4f61-b157-c36a8be8ef95"],
+                     :message/text #crdt/lww [#crdt/hlc [#inst "2024-05-01T02:56:08.571-00:00" 0 #uuid "08f711cd-1d4d-4f61-b157-c36a8be8ef95"] "New comment"],
+                     :message/created_at #inst "2024-03-27T22:25:27.841-00:00",
+                     :message/posted_as_discussion #crdt/gos #{},
+                     :db/type :gatz/message,
+                     :message/deleted_at #crdt/min-wins nil,
+                     :message/user_id #uuid "1f4fe8fa-c6a6-4118-8c49-f8d296153f66",
+                     :message/edits #crdt/gos #{{:message/text "New comment 6 :24 and 6 :25",
+                                                 :message/edited_at #inst "2024-03-27T22:25:27.841-00:00"}},
+                     :message/did #uuid "11966bbc-f109-45cf-959b-10ceb2530365",
+                     :message/updated_at #crdt/max-wins #inst "2024-05-01T02:56:08.498-00:00",
+                     :xt/id #uuid "53d837c3-749b-42df-ae4c-07e348b1b0c5",
+                     :message/reply_to nil,
+                     :message/reactions {#uuid "fb0a361e-9380-429a-839d-3906c7dc5a57"
+                                         {"👍" #crdt/lww [#crdt/hlc [#inst "2024-05-01T02:56:08.498-00:00" 0 #uuid "fb0a361e-9380-429a-839d-3906c7dc5a57"]
+                                                          #inst "2024-05-01T02:56:08.498-00:00"]}},
+                     :message/media nil,
+                     :db/version 1,
+                     :db/doc-type :gatz.crdt/message}]]}]]}
