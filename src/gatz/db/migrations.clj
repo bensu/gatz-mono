@@ -295,6 +295,15 @@
 
 (comment
 
+  ;; 2024-05-01
+  ;; Cleanup of messages that had old data
+
   (def -ctx @gatz.system/system)
 
-  (messages-v0->v1! -ctx))
+  (messages-v0->v1! -ctx)
+  (biff/submit-tx -ctx [{:db/op :delete :xt/id #uuid "08446f46-8238-41aa-943e-627fa3dadecc"}
+                        {:db/op :delete :xt/id #uuid "e166c6ca-d96b-4a83-8307-5df2ac761f18"}
+                        {:db/op :delete :xt/id  #uuid "ffc636e6-4811-48c1-81e0-d08c91af4b9d"}])
+  (clojure.pprint/pprint
+   (xtdb.api/entity (xtdb.api/db (:biff.xtdb/node -ctx)) #uuid "e166c6ca-d96b-4a83-8307-5df2ac761f18")
+   (xtdb.api/entity (xtdb.api/db (:biff.xtdb/node -ctx)) #uuid "e166c6ca-d96b-4a83-8307-5df2ac761f18")))
