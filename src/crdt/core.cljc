@@ -4,7 +4,7 @@
             [malli.core :as malli]
             [juxt.clojars-mirrors.nippy.v3v1v1.taoensso.nippy :as juxt-nippy]
             [taoensso.nippy :as nippy]
-            [clojure.core :refer [print-method read-string]])
+            [clojure.core :refer [print-method read-string format]])
   (:import [java.util Date UUID]
            [clojure.lang IPersistentMap]
            [java.lang Comparable Thread]))
@@ -496,8 +496,8 @@
   Object
   (-value [this] this)
   (-apply-delta [this delta]
-    (assert false
-            (str "Applied a delta to a value that is not a CRDT: " (type this) delta)))
+    (assert false (format "Applied a delta to a value that is not a CRDT: %s \n %s"
+                          (type this) (pr-str delta))))
   IPersistentMap
   (-value [this]
     (reduce (fn [m [k v]] (assoc m k (-value v))) {} this))

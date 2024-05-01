@@ -102,7 +102,7 @@
         mid (:evt/mid evt)
         discussion (db.discussion/by-id db did)
         message (crdt.message/->value (db.message/by-id db mid))]
-    (propagate-message-delta! ctx message (:message.crdt/delta evt))
+    (propagate-message-delta! ctx message (:evt/data evt))
     (api.message/handle-message-evt! ctx discussion message evt)))
 
 (defn propagate-new-message!
