@@ -128,30 +128,32 @@
   (and (= uid (:message/user_id m))
        (contains? (:discussion/members d) uid)))
 
-(defn discussion-by-id [db did]
+(defn discussion-by-id
+  "used in the expression below"
+  [db did]
   (xtdb/entity db did))
 
-(comment
+(def ^{:doc "This function will be stored in the db which is why it is an expression"}
+  message-apply-delta-expr
+  '(fn message-apply-delta [ctx {:keys [evt] :as _args}]
+     (let [mid (:evt/mid evt)
+           did (:evt/did evt)
+           db (xtdb.api/db ctx)
+           d (gatz.db.message/discussion-by-id db did)
+           msg (gatz.db.message/by-id db mid)]
+       (when (gatz.db.message/authorized-for-message-delta? d msg evt)
+         (let [delta (get-in evt [:evt/data :message.crdt/delta])
+               new-msg (gatz.crdt.message/apply-delta msg delta)]
+           [[:xtdb.api/put evt]
+            [:xtdb.api/put new-msg]])))))
 
-  ;; You check to see if the fn is already registered
+(def message-apply-delta-fn (eval message-apply-delta-expr))
 
-  (xtdb.api/submit-tx
-   node
-   [[:xtdb.api/put {:xt/id :gatz.db.message/apply-delta
-                    :xt/fn '(fn message-apply-delta [ctx evt]
-                              (let [mid (:evt/mid evt)
-                                    did (:evt/did evt)
-                                    db (xtdb.api/db ctx)
-                                    d (gatz.db.message/discussion-by-id db did)
-                                    msg (gatz.db.message/by-id db mid)]
-                                (when (gatz.db.message/authorized-for-message-delta? d msg evt)
-                                  (let [new-msg (gatz.crdt.message/apply-delta msg delta)]
-                                    [[:xtdb.api/put evt]
-                                     [:xtdb.api/put new-msg]]))))}]]))
-
+(def tx-fns
+  {:gatz.db.message/apply-delta message-apply-delta-expr})
 
 (defn apply-action!
-  "Applies a delta to the message and stores it. Assumes it is authorized to do so"
+  "Applies a delta to the message and stores it"
   [{:keys [biff/db auth/user-id auth/cid] :as ctx} did mid action] ;; TODO: use cid
   {:pre [(uuid? did) (uuid? mid) (uuid? user-id)]}
   (let [evt (db.evt/new-evt {:evt/type :message.crdt/delta
@@ -161,20 +163,15 @@
                              :evt/cid cid
                              :evt/data action})]
     (if (true? (malli/validate schema/MessageEvent evt))
-      (if-let [d (discussion-by-id db did)]
-        (if-let [m (by-id db mid)]
-          (if (authorized-for-message-delta? d m evt)
-            (let [updated-m (crdt.message/apply-delta m (:message.crdt/delta action))]
-              (biff/submit-tx ctx [(assoc updated-m :db/doc-type :gatz.crdt/message)
-                                   (assoc evt :db/doc-type :gatz/evt)])
-              {:discussion d
-               :message updated-m
-               :evt evt})
-            (assert false "Not authorized to apply this action"))
-          (assert false "Tried to delete a non-existing message"))
-        (assert false "Tried to update a message in a non-existing discussion"))
+      (let [txs [[:xtdb.api/fn :gatz.db.message/apply-delta {:evt evt}]]]
+        ;; Try the transaction before submitting it
+        (if-let [db-after (xtdb.api/with-tx db txs)]
+          (do
+            (biff/submit-tx ctx txs)
+            {:evt (xtdb.api/entity db-after (:evt/id evt))
+             :message (by-id db-after mid)})
+          (assert false "Transaction would've failed")))
       (assert false "Invaild event"))))
-
 
 ;; ====================================================================== 
 ;; Pre-CRDT clients

@@ -215,7 +215,7 @@
 
 (def MessageEvent
   [:map
-   [:evt/id #'EvtId]
+   [:xt/id #'EvtId]
    [:evt/ts inst?]
    [:db/type [:enum :gatz/evt]]
    [:evt/uid #'UserId]
@@ -239,7 +239,7 @@
 
 (def DiscussionEvt
   [:map
-   [:evt/id #'EvtId]
+   [:xt/id #'EvtId]
    [:evt/ts inst?]
    [:db/type [:enum :gatz/evt]]
    [:evt/uid #'UserId]
@@ -259,7 +259,7 @@
 
 (def ReactionEvt
   [:map
-   [:evt/id #'EvtId]
+   [:xt/id #'EvtId]
    [:evt/uid #'UserId]
    [:evt/did #'DiscussionId]
    [:db/type [:enum :gatz/evt]]
