@@ -91,44 +91,64 @@
        (sort-by :message/created_at)
        vec))
 
+
 ;; ====================================================================== 
 ;; Events
 
 (defmulti authorized-for-message-delta?
-  (fn msg-action [_ctx _d _m evt]
+  (fn msg-action [_d _m evt]
     (get-in evt [:evt/data :message.crdt/action])))
 
 (defmethod authorized-for-message-delta? :default
-  [_ctx _d _m _evt]
+  [_d _m _evt]
   (assert false))
 
 (defn reactions-belongs-to-user? [uid uid->emoji->ts]
   (= #{uid} (set (keys uid->emoji->ts))))
 
 (defmethod authorized-for-message-delta? :message.crdt/add-reaction
-  [{:keys [auth/user-id] :as _ctx} d _m evt]
-  (and (contains? (:discussion/members d) user-id)
-       (let [reactions (get-in evt [:evt/data :message.crdt/delta :message/reactions])]
-         (reactions-belongs-to-user? user-id reactions))))
+  [d _m {:keys [evt/uid evt/data] :as _evt}]
+  (and (contains? (:discussion/members d) uid)
+       (let [reactions (get-in data [:message.crdt/delta :message/reactions])]
+         (reactions-belongs-to-user? uid reactions))))
 
 (defmethod authorized-for-message-delta? :message.crdt/remove-reaction
-  [{:keys [auth/user-id] :as _ctx} d _m evt]
-  (and (contains? (:discussion/members d) user-id)
-       (let [reactions (get-in evt [:evt/data :message.crdt/delta :message/reactions])]
-         (reactions-belongs-to-user? user-id reactions))))
+  [d _m {:keys [evt/uid evt/data] :as _evt}]
+  (and (contains? (:discussion/members d) uid)
+       (let [reactions (get-in data [:message.crdt/delta :message/reactions])]
+         (reactions-belongs-to-user? uid reactions))))
 
 (defmethod authorized-for-message-delta? :message.crdt/edit
-  [{:keys [auth/user-id] :as _ctx} d m _evt]
-  (and (= user-id (:message/user_id m))
-       (contains? (:discussion/members d) user-id)))
+  [d m {:keys [evt/uid] :as _evt}]
+  (and (= uid (:message/user_id m))
+       (contains? (:discussion/members d) uid)))
 
 (defmethod authorized-for-message-delta? :message.crdt/delete
-  [{:keys [auth/user-id] :as _ctx} d m _evt]
-  (and (= user-id (:message/user_id m))
-       (contains? (:discussion/members d) user-id)))
+  [d m {:keys [evt/uid] :as _evt}]
+  (and (= uid (:message/user_id m))
+       (contains? (:discussion/members d) uid)))
 
 (defn discussion-by-id [db did]
   (xtdb/entity db did))
+
+(comment
+
+  ;; You check to see if the fn is already registered
+
+  (xtdb.api/submit-tx
+   node
+   [[:xtdb.api/put {:xt/id :gatz.db.message/apply-delta
+                    :xt/fn '(fn message-apply-delta [ctx evt]
+                              (let [mid (:evt/mid evt)
+                                    did (:evt/did evt)
+                                    db (xtdb.api/db ctx)
+                                    d (gatz.db.message/discussion-by-id db did)
+                                    msg (gatz.db.message/by-id db mid)]
+                                (when (gatz.db.message/authorized-for-message-delta? d msg evt)
+                                  (let [new-msg (gatz.crdt.message/apply-delta msg delta)]
+                                    [[:xtdb.api/put evt]
+                                     [:xtdb.api/put new-msg]]))))}]]))
+
 
 (defn apply-action!
   "Applies a delta to the message and stores it. Assumes it is authorized to do so"
@@ -143,7 +163,7 @@
     (if (true? (malli/validate schema/MessageEvent evt))
       (if-let [d (discussion-by-id db did)]
         (if-let [m (by-id db mid)]
-          (if (authorized-for-message-delta? ctx d m evt)
+          (if (authorized-for-message-delta? d m evt)
             (let [updated-m (crdt.message/apply-delta m (:message.crdt/delta action))]
               (biff/submit-tx ctx [(assoc updated-m :db/doc-type :gatz.crdt/message)
                                    (assoc evt :db/doc-type :gatz/evt)])

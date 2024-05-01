@@ -75,11 +75,6 @@
           [poster-uid commenter-uid outsider-uid cid mid did]
           (repeatedly 6 random-uuid)
           clock (crdt/new-hlc cid now)
-          node (test-node)
-          ctx {:auth/user-id poster-uid
-               :auth/cid cid
-               :biff.xtdb/node node
-               :biff/db (xtdb/db node)}
           message {:xt/id mid
                    :message/user_id poster-uid}
           discussion {:xt/id did
@@ -88,9 +83,9 @@
       (testing "the poster has access to all the operations"
         (are [action]
              (let [evt {:evt/id (random-uuid)
-                        :evt/data action}
-                   ctx (assoc ctx :auth/user-id poster-uid :biff/db (xtdb/db node))]
-               (authorized-for-message-delta? ctx discussion message evt))
+                        :evt/uid poster-uid
+                        :evt/data action}]
+               (authorized-for-message-delta? discussion message evt))
 
           {:message.crdt/action :message.crdt/edit
            :message.crdt/delta {:crdt/clock clock
@@ -115,9 +110,8 @@
                                 :message/reactions {poster-uid {"like" (crdt/->LWW clock nil)}}}}))
       (testing "the subscribed has access to some operations"
         (are [action]
-             (let [evt {:evt/id (random-uuid) :evt/data action}
-                   ctx (assoc ctx :auth/user-id commenter-uid :biff/db (xtdb/db node))]
-               (authorized-for-message-delta? ctx discussion message evt))
+             (let [evt {:evt/id (random-uuid) :evt/uid commenter-uid :evt/data action}]
+               (authorized-for-message-delta? discussion message evt))
 
           {:message.crdt/action :message.crdt/add-reaction
            :message.crdt/delta {:crdt/clock clock
@@ -130,9 +124,8 @@
                                 :message/reactions {commenter-uid {"like" (crdt/->LWW clock nil)}}}})
         (testing "but not others"
           (are [action]
-               (let [evt {:evt/id (random-uuid) :evt/data action}
-                     ctx (assoc ctx :auth/user-id commenter-uid :biff/db (xtdb/db node))]
-                 (not (authorized-for-message-delta? ctx discussion message evt)))
+               (let [evt {:evt/id (random-uuid) :evt/uid commenter-uid :evt/data action}]
+                 (not (authorized-for-message-delta? discussion message evt)))
 
             {:message.crdt/action :message.crdt/edit
              :message.crdt/delta {:crdt/clock clock
@@ -158,9 +151,8 @@
                                                       poster-uid {"like" (crdt/->LWW clock nil)}}}})))
       (testing "the outside has no access"
         (are [action]
-             (let [evt {:evt/id (random-uuid) :evt/data action}
-                   ctx (assoc ctx :auth/user-id outsider-uid :biff/db (xtdb/db node))]
-               (not (authorized-for-message-delta? ctx discussion message evt)))
+             (let [evt {:evt/id (random-uuid) :evt/uid outsider-uid :evt/data action}]
+               (not (authorized-for-message-delta? discussion message evt)))
 
           {:message.crdt/action :message.crdt/edit
            :message.crdt/delta {:crdt/clock clock
