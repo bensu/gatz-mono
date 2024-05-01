@@ -1,8 +1,12 @@
 (ns gatz.db.migrations
-  (:require [gatz.db :refer :all]
+  (:require [clojure.set :as set]
+            [clojure.pprint :as pp]
+            [gatz.db :refer :all]
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
             [gatz.db.discussion :as db.discussion]
+            [gatz.schema :as schema]
+            [malli.core :as malli]
             [clojure.string :as str]
             [com.biffweb :as biff :refer [q]]
             [xtdb.api :as xtdb]))
@@ -265,9 +269,32 @@
           :where [[m :db/type :gatz/message]]}))
 
 (defn messages-v0->v1! [{:keys [biff.xtdb/node] :as ctx}]
-  (let [db (xtdb/db node)]
-    (doseq [msg (all-messages db)]
-      (when (nil? (:db/version msg))
-        (biff/submit-tx ctx [(-> msg
-                                 (db.message/v0->v1)
-                                 (assoc :db/version 1))])))))
+  (let [bad-txn-ids (agent #{})
+        db (xtdb/db node)]
+    (doseq [msgs (partition-all 50 (all-messages db))]
+      (let [txn (->> msgs
+                     (remove :db/version)
+                     (map (fn [msg]
+                            (-> msg
+                                (db.message/v0->v1)
+                                (assoc :db/version 1)))))
+            {:keys [good bad]} (group-by (fn [txn]
+                                           (if (malli.core/validate gatz.schema/MessageCRDT txn)
+                                             :good
+                                             :bad))
+                                         txn)]
+        (println "transaction for " (count good) " messages")
+        (println "ignoring bad " (count bad))
+        (when-not (empty? bad)
+          (doseq [b bad]
+            (clojure.pprint/pprint (:errors (malli.core/explain gatz.schema/MessageCRDT b)))))
+        (send bad-txn-ids clojure.set/union (set (map :xt/id bad)))
+        (biff/submit-tx ctx (vec good))))
+    @bad-txn-ids))
+
+
+(comment
+
+  (def -ctx @gatz.system/system)
+
+  (messages-v0->v1! -ctx))

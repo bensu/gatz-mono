@@ -36,13 +36,13 @@
 
 (defn v0->v1 [data]
   (let [clock (crdt/new-hlc migration-client-id)]
-    (-> data
+    (-> (merge message-defaults data)
         (assoc :crdt/clock clock
                :db/version 1
                :db/doc-type :gatz.crdt/message
                :db/type :gatz/message)
-        (update :message/deleted_at #(crdt/->MinWins %))
         (update :message/updated_at #(crdt/->MaxWins %))
+        (update :message/deleted_at #(crdt/->MinWins %))
         (update :message/posted_as_discussion #(crdt/->GrowOnlySet (or (set %) #{})))
         (update :message/edits #(crdt/->GrowOnlySet (or (set %) #{})))
         (update :message/text #(crdt/->LWW clock %))
