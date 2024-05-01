@@ -129,25 +129,27 @@
        (contains? (:discussion/members d) uid)))
 
 (defn discussion-by-id
-  "used in the expression below"
   [db did]
   (xtdb/entity db did))
 
+(defn message-apply-delta
+  "Used in the expression below"
+  [ctx {:keys [evt] :as _args}]
+  (let [mid (:evt/mid evt)
+        did (:evt/did evt)
+        db (xtdb.api/db ctx)
+        d (gatz.db.message/discussion-by-id db did)
+        msg (gatz.db.message/by-id db mid)]
+    (when (gatz.db.message/authorized-for-message-delta? d msg evt)
+      (let [delta (get-in evt [:evt/data :message.crdt/delta])
+            new-msg (gatz.crdt.message/apply-delta msg delta)]
+        [[:xtdb.api/put evt]
+         [:xtdb.api/put new-msg]]))))
+
 (def ^{:doc "This function will be stored in the db which is why it is an expression"}
   message-apply-delta-expr
-  '(fn message-apply-delta [ctx {:keys [evt] :as _args}]
-     (let [mid (:evt/mid evt)
-           did (:evt/did evt)
-           db (xtdb.api/db ctx)
-           d (gatz.db.message/discussion-by-id db did)
-           msg (gatz.db.message/by-id db mid)]
-       (when (gatz.db.message/authorized-for-message-delta? d msg evt)
-         (let [delta (get-in evt [:evt/data :message.crdt/delta])
-               new-msg (gatz.crdt.message/apply-delta msg delta)]
-           [[:xtdb.api/put evt]
-            [:xtdb.api/put new-msg]])))))
-
-(def message-apply-delta-fn (eval message-apply-delta-expr))
+  '(fn message-apply-delta-fn [ctx args]
+     (gatz.db.message/message-apply-delta ctx args)))
 
 (def tx-fns
   {:gatz.db.message/apply-delta message-apply-delta-expr})
