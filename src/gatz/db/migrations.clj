@@ -5,6 +5,7 @@
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
             [gatz.db.discussion :as db.discussion]
+            [gatz.crdt.user :as crdt.user]
             [gatz.schema :as schema]
             [malli.core :as malli]
             [clojure.string :as str]
@@ -96,14 +97,14 @@
                    (contains? admin-usernames username)
                    (-> u
                        (assoc :user/is_admin true)
-                       (db.user/update-user))
+                       (crdt.user/update-user))
 
                    (contains? test-usernames username)
                    (-> u
                        (assoc :user/is_test true)
-                       (db.user/update-user))
+                       (crdt.user/update-user))
 
-                   :else (db.user/update-user u))))]
+                   :else (crdt.user/update-user u))))]
     #_(vec (remove nil? txns))
     (biff/submit-tx ctx (vec (remove nil? txns)))))
 
@@ -140,7 +141,7 @@
                    (let [img (username-img username)]
                      (-> u
                          (assoc :user/avatar img)
-                         (db.user/update-user)
+                         (crdt.user/update-user)
                          (dissoc :user/image))))))]
     (biff/submit-tx ctx (vec (remove nil? txns)))))
 
@@ -186,11 +187,11 @@
                (when (nil? (get-in u [:user/settings :settings/notifications]))
                  (let [token (get-in u [:user/push_tokens :push/expo :push/token])
                        new-nts (if (nil? token)
-                                 db.user/notifications-off
-                                 db.user/notifications-on)]
+                                 crdt.user/notifications-off
+                                 crdt.user/notifications-on)]
                    (-> u
                        (update :user/settings merge {:settings/notifications new-nts})
-                       (db.user/update-user now)))))]
+                       (crdt.user/update-user now)))))]
     (vec (remove nil? txns))))
 
 (defn get-discussions-without-last-message [db]
@@ -261,7 +262,7 @@
         now (java.util.Date.)
         new-user (-> user
                      (assoc :user/name new-name)
-                     (db.user/update-user now))]
+                     (crdt.user/update-user now))]
     (biff/submit-tx ctx [new-user])))
 
 (defn all-messages [db]
@@ -307,3 +308,36 @@
   (clojure.pprint/pprint
    (xtdb.api/entity (xtdb.api/db (:biff.xtdb/node -ctx)) #uuid "e166c6ca-d96b-4a83-8307-5df2ac761f18")
    (xtdb.api/entity (xtdb.api/db (:biff.xtdb/node -ctx)) #uuid "e166c6ca-d96b-4a83-8307-5df2ac761f18")))
+
+(defn users-v0->v1! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [bad-txn-ids (agent #{})
+        db (xtdb/db node)]
+    (doseq [users (partition-all 50 (db.user/all-users db))]
+      (let [txn (->> users
+                     (remove :db/version)
+                     (map (fn [user]
+                            (-> user
+                                (db.user/v0->v1)
+                                (assoc :db/doc-type :gatz.crdt/user)
+                                (assoc :db/version 1)))))
+            {:keys [good bad]}
+            (group-by (fn [txn]
+                        (if (malli.core/validate gatz.schema/UserCRDT txn)
+                          :good
+                          :bad))
+                      txn)]
+        (println "transaction for " (count good) " users")
+        (println "ignoring bad " (count bad) " users")
+        (when-not (empty? bad)
+          (doseq [b bad]
+            (clojure.pprint/pprint (:errors (malli.core/explain gatz.schema/UserCRDT b)))))
+        (send bad-txn-ids clojure.set/union (set (map :xt/id bad)))
+        (biff/submit-tx ctx (vec good))))
+    @bad-txn-ids))
+
+
+
+(comment
+  (def -ctx @gatz.system/system)
+
+  (users-v0->v1! -ctx))

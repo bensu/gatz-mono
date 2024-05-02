@@ -1,6 +1,8 @@
 (ns gatz.db.user
   (:require [com.biffweb :as biff :refer [q]]
             [clojure.string :as str]
+            [clojure.test :refer [deftest testing is]]
+            [clojure.java.io :as io]
             [crdt.core :as crdt]
             [gatz.crdt.user :as crdt.user]
             [gatz.db.util :as db.util]
@@ -27,11 +29,22 @@
         (update :user/last_active #(crdt/->MaxWins %))
         (update :user/avatar #(crdt/->LWW clock %))
         (update :user/push_tokens #(crdt/->LWW clock %))
-        (update-in [:user/settings :settings/notfications]
-                   #(crdt/->lww-map % clock)))))
+        (update-in [:user/settings :settings/notifications]
+                   #(crdt/->lww-map (merge crdt.user/notifications-off %)
+                                    clock)))))
 
 (def all-migrations
   [{:from 0 :to 1 :transform v0->v1}])
+
+(deftest migrate-existing-users
+  (testing "We can migrate users we already have"
+    (let [v0-users (read-string (slurp (io/resource "test/users_v0.edn")))
+          v1-users (mapv #(db.util/->latest-version % all-migrations)
+                         v0-users)]
+      (is (= (count v0-users) (count v1-users)))
+      (doseq [user v1-users]
+        (is (malli/validate schema/UserCRDT user)
+            (vec (:errors (malli/explain schema/UserCRDT user))))))))
 
 ;; ====================================================================== 
 ;; User
