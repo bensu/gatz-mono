@@ -99,6 +99,13 @@
     [:map
      [:settings/notifications NotificationPreferencesCRDT]]]])
 
+(def friend-keys [:xt/id :user/name :user/avatar])
+
+(def Friend
+  (mu/select-keys User schema/friend-keys))
+
+(def FriendCRDT
+  (mu/select-keys UserCRDT schema/friend-keys))
 
 (def Media
   [:map
