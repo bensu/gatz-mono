@@ -77,27 +77,28 @@
      true (assoc :db/doc-type :gatz/user)
      true (assoc :user/updated_at now))))
 
-(defn new-user [{:keys [id phone username]}]
+(defn new-user [{:keys [id phone username now]}]
 
   {:pre [(valid-username? username)]}
 
   (let [uid (or id (random-uuid))
-        now (Date.)
+        now (or now (Date.))
         clock (crdt/new-hlc uid now)
-        u {:xt/id uid
-           :db/type :gatz/user
-           :db/version 1
-           :crdt/clock clock
-           :user/created_at now
-           :user/is_test false
-           :user/is_admin false
-           :user/name username
-           :user/phone_number phone
-           :user/updated_at (crdt/->MaxWins now)
-           :user/last_active (crdt/->MaxWins now)
-           :user/avatar (crdt/->LWW clock nil)
-           :user/push_tokens (crdt/->LWW clock nil)
-           :user/settings {:settings/notfications (notifications-off-crdt clock)}}]
+        u
+        {:xt/id uid
+         :db/type :gatz/user
+         :db/version 1
+         :crdt/clock clock
+         :user/created_at now
+         :user/is_test false
+         :user/is_admin false
+         :user/name username
+         :user/phone_number phone
+         :user/updated_at (crdt/->MaxWins now)
+         :user/last_active (crdt/->MaxWins now)
+         :user/avatar (crdt/->LWW clock nil)
+         :user/push_tokens (crdt/->LWW clock nil)
+         :user/settings {:settings/notifications (notifications-off-crdt clock)}}]
     u))
 
 
@@ -109,3 +110,78 @@
 
 (defn ->friend [u]
   (select-keys u schema/friend-keys))
+
+(deftest user-crdt
+  (testing "We can apply changes in any order"
+    (let [t0 (Date.)
+          now t0
+          uid (random-uuid)
+          initial (new-user {:id uid :now now :phone "111" :username "test"})
+          clock (crdt/new-hlc uid now)
+          [t1 t2 t3 t4 t5] [(crdt/inc-time now)
+                            (crdt/inc-time (crdt/inc-time now))
+                            (crdt/inc-time (crdt/inc-time (crdt/inc-time now)))
+                            (crdt/inc-time (crdt/inc-time (crdt/inc-time (crdt/inc-time now))))
+                            (crdt/inc-time (crdt/inc-time (crdt/inc-time (crdt/inc-time (crdt/inc-time now)))))]
+          [c1 c2 c3 c4 c5] (mapv #(crdt/new-hlc uid %) [t1 t2 t3 t4 t5])
+          avatar "https://assets.gatz.chat/test-profile-pic"
+          push-tokens {:push/expo {:push/token "EXPO[TOKEN]"
+                                   :push/created_at t3
+                                   :push/service :push/expo}}
+          np-t4 {:settings.notification/overall true
+                 :settings.notification/activity :settings.notification/daily}
+          np-t5 {:settings.notification/subscribe_on_comment false
+                 :settings.notification/suggestions_from_gatz true}
+          deltas [{:crdt/clock c1
+                   :user/updated_at t1
+                   :user/last_active t1
+                   :user/push_tokens (crdt/->LWW c1 {:push/expo {:push/token "EXPO!"
+                                                                 :push/created_at t1
+                                                                 :push/service :push/expo}})
+                   :user/avatar (crdt/->LWW c1 avatar)}
+                  {:crdt/clock c2
+                   :user/updated_at t2
+                   :user/last_active t2
+                   :user/settings {:settings/notifications (crdt/->lww-map np-t4 c2)}}
+                  {:crdt/clock c3
+                   :user/updated_at t3
+                   :user/settings {:settings/notifications (crdt/->lww-map np-t5 c3)}
+                   :user/push_tokens (crdt/->LWW c3 push-tokens)}
+                  {:crdt/clock c4
+                   :user/updated_at t4
+                   :user/settings {:settings/notifications (crdt/->lww-map np-t4 c4)}}
+                  {:crdt/clock c5
+                   :user/updated_at t5
+                   :user/settings {:settings/notifications (crdt/->lww-map np-t5 c5)}}]
+          final (reduce apply-delta initial (shuffle deltas))]
+      (is (= {:xt/id uid
+              :db/type :gatz/user
+              :db/version 1
+              :crdt/clock clock
+              :user/created_at t0
+              :user/is_test false
+              :user/is_admin false
+              :user/name "test"
+              :user/phone_number "111"
+              :user/updated_at now
+              :user/last_active now
+              :user/avatar nil
+              :user/push_tokens nil
+              :user/settings {:settings/notifications notifications-off}}
+             (->value initial)))
+      (is (= {:xt/id uid
+              :db/type :gatz/user
+              :db/version 1
+              :crdt/clock c5
+              :user/created_at t0
+              :user/is_test false
+              :user/is_admin false
+              :user/name "test"
+              :user/phone_number "111"
+              :user/updated_at t5
+              :user/last_active t2
+              :user/avatar avatar
+              :user/push_tokens push-tokens
+              :user/settings {:settings/notifications (merge np-t4 np-t5)}}
+             (->value final)
+             (->value (reduce apply-delta initial (shuffle (shuffle deltas)))))))))
