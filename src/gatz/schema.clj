@@ -102,10 +102,10 @@
 (def friend-keys [:xt/id :user/name :user/avatar])
 
 (def Friend
-  (mu/select-keys User schema/friend-keys))
+  (mu/select-keys User friend-keys))
 
 (def FriendCRDT
-  (mu/select-keys UserCRDT schema/friend-keys))
+  (mu/select-keys UserCRDT friend-keys))
 
 (def Media
   [:map

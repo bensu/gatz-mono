@@ -207,3 +207,7 @@
   (vec (q db '{:find (pull user [*])
                :where [[user :db/type :gatz/user]]})))
 
+
+(defn get-friend-ids [db uid]
+  ;; TOOD: change with friendship
+  (all-ids db))

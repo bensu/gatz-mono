@@ -107,5 +107,5 @@
 (defn apply-delta [user delta]
   (crdt/-apply-delta user delta))
 
-(def ->friend [u]
+(defn ->friend [u]
   (select-keys u schema/friend-keys))

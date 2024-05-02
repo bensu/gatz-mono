@@ -27,6 +27,7 @@
 (def state-schema
   [:map
    [:user-id->conn-id->ws [:map-of :uuid [:map-of :uuid ws-schema]]]
+   ;; did->user-ids is not needed: can read discussion/members instead
    [:did->user-ids [:map-of :uuid [:map-of :uuid :any]]]
 ;;    [:user-ids #{:uuid}]
 ;;    [:dids #{:uuid}]
@@ -53,6 +54,9 @@
 
 (defn user-wss [state user-id]
   (set (vals (get-in state [:user-id->conn-id->ws user-id]))))
+
+(defn uids->wss [state uids]
+  (set (mapcat (partial user-wss state) uids)))
 
 (defn add-conn [state {:keys [user-id conn-id ws user-discussions]}]
   {:pre [(some? ws) (uuid? user-id) (uuid? conn-id)
