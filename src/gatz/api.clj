@@ -10,6 +10,7 @@
             [gatz.api.user :as api.user]
             [gatz.connections :as conns]
             [gatz.crdt.message :as crdt.message]
+            [gatz.crdt.user :as crdt.user]
             [gatz.db :as db]
             [gatz.db.discussion :as db.discussion]
             [gatz.db.message :as db.message]
@@ -120,7 +121,9 @@
         msg {:event/type :event/new_discussion
              :event/data {:discussion discussion
                           :messages (mapv crdt.message/->value messages)
-                          :users (mapv (partial db.user/by-id db) user_ids)}}
+                          :users (mapv (comp crdt.user/->value
+                                             (partial db.user/by-id db))
+                                       user_ids)}}
         conns @conns-state
         wss (mapcat (partial conns/user-wss conns) members)]
     ;; register these users to listen to the discussion

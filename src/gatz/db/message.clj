@@ -4,6 +4,7 @@
             [gatz.crdt.message :as crdt.message]
             [gatz.schema :as schema]
             [gatz.db.evt :as db.evt]
+            [gatz.db.util :as db.util]
             [malli.core :as malli]
             [medley.core :refer [map-vals]]
             [xtdb.api :as xtdb])
@@ -55,30 +56,11 @@
 (def all-migrations
   [{:from 0 :to 1 :transform v0->v1}])
 
-(def last-version (count all-migrations))
-
-(defn ->latest-version [raw-data]
-  ;; TODO: should I handle the unthawable case from
-  ;; TODO: what should the version system look like
-  (let [original-version (or (:db/version raw-data) 0)]
-    (if (= original-version last-version)
-      raw-data ;; already up to date, no migrations needed
-      (loop [migrations (subvec all-migrations original-version last-version)
-             msg (assoc raw-data :db/version original-version)]
-        (if-let [migration (first migrations)]
-          (let [{:keys [from to transform]} migration]
-            (assert (= from (:db/version msg))
-                    "Applying migration to the wrong version")
-            (recur (rest migrations)
-                   (-> (transform msg)
-                       (assoc :db/version to))))
-          msg)))))
-
 (defn by-id [db mid]
   {:pre [(uuid? mid)]}
   (let [raw-msg (xtdb/entity db mid)]
     ;; This could be any version of the message
-    (->latest-version raw-msg)))
+    (db.util/->latest-version raw-msg all-migrations)))
 
 (defn by-did [db did]
   (->> (q db '{:find m

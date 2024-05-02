@@ -1,9 +1,36 @@
 (ns gatz.db.user
   (:require [com.biffweb :as biff :refer [q]]
             [clojure.string :as str]
+            [crdt.core :as crdt]
+            [gatz.crdt.user :as crdt.user]
+            [gatz.db.util :as db.util]
             [gatz.schema :as schema]
             [malli.core :as m]
+            [medley.core :refer [map-vals]]
             [xtdb.api :as xtdb]))
+
+;; ======================================================================
+;; Migrations
+
+(def migration-client-id #uuid "08f711cd-1d4d-4f61-b157-c36a8be8ef95")
+
+(defn v0->v1 [data]
+  (let [clock (crdt/new-hlc migration-client-id)]
+    (-> (merge crdt.user/user-defaults data)
+        (assoc :crdt/clock clock
+               :db/version 1
+               :db/doc-type :gatz.crdt/user
+               :db/type :gatz/user)
+        (update :user/updated_at #(crdt/->MinWins %))
+        (update :user/last_active #(crdt/->MaxWins %))
+        (update :user/avatar #(crdt/->LWW clock %))
+        (update :user/push_tokens #(crdt/->LWW clock %))
+        (update-in [:user/settings :settings/notfications]
+                   (fn [np]
+                     (map-vals  #(crdt/->LWW clock %) np))))))
+
+(def all-migrations
+  [{:from 0 :to 1 :transform v0->v1}])
 
 ;; ====================================================================== 
 ;; User
@@ -16,11 +43,12 @@
                    :where [[u :user/name username]
                            [u :db/type :gatz/user]]}
                  username)]
-           ;; XXX: we can't guarantee uniqueness of usernames
+    ;; TODO: there is a way to guarantee uniqueness of usernames with biff
     (->> users
          (remove nil?)
          (sort-by (comp :user/created_at #(.getTime %)))
-         first)))
+         first
+         (db.util/->latest-version all-migrations))))
 
 (defn by-phone [db phone]
   {:pre [(string? phone) (not (empty? phone))]}
@@ -30,11 +58,12 @@
                    :where [[u :user/phone_number phone]
                            [u :db/type :gatz/user]]}
                  phone)]
-           ;; XXX: we can't guarantee uniqueness of phones
+    ;; TODO: there is a way to guarantee uniqueness of phones with biff
     (->> users
          (remove nil?)
          (sort-by (comp :user/created_at #(.getTime %)))
-         first)))
+         first
+         (db.util/->latest-version all-migrations))))
 
 (defn get-all-users [db]
   (q db
@@ -42,86 +71,21 @@
        :where [[u :db/type :gatz/user]]}))
 
 
-(def MIN_LENGTH_USERNAME 3)
-(def MAX_LENGTH_USERNAME 20)
+(defn create-user!
+  [{:keys [biff/db] :as ctx} {:keys [username phone id]}]
 
-(defn valid-username? [s]
-  (boolean
-   (and (string? s)
-        (= s (str/lower-case s))
-        (<= (count s) MAX_LENGTH_USERNAME)
-        (<= MIN_LENGTH_USERNAME (count s))
-        (re-matches #"^[a-z0-9._-]+$" s))))
-
-(def notifications-off
-  {:settings.notification/overall false
-   :settings.notification/activity :settings.notification/none
-   :settings.notification/subscribe_on_comment false
-   :settings.notification/suggestions_from_gatz false
-
-   ;; :settings.notification/comments_to_own_post false
-   ;; :settings.notification/reactions_to_own_post false
-   ;; :settings.notification/replies_to_comment false
-   ;; :settings.notification/reactions_to_comment false
-   ;; :settings.notification/at_mentions false
-   })
-
-(def notifications-on
-  {:settings.notification/overall true
-   :settings.notification/activity :settings.notification/daily
-   :settings.notification/subscribe_on_comment true
-   :settings.notification/suggestions_from_gatz true
-
-   ;; :settings.notification/comments_to_own_post true
-   ;; :settings.notification/reactions_to_own_post true
-   ;; :settings.notification/replies_to_comment true
-   ;; :settings.notification/reactions_to_comment true
-   ;; :settings.notification/at_mentions true
-   })
-
-(def user-defaults
-  {:db/type :gatz/user
-   :db/doc-type :gatz/user
-   :user/avatar nil
-   :user/push_tokens nil
-   :user/is_test false
-   :user/is_admin false})
-
-(defn update-user
-  ([u] (update-user u (java.util.Date.)))
-  ([u now]
-   (cond-> (merge user-defaults
-                  {:user/last_active now}
-                  u)
-
-     (nil? (:user/settings u))
-     (update-in [:user/settings :settings/notifications]
-                #(merge (if (:user/push_tokens u)
-                          notifications-on
-                          notifications-off)
-                        %))
-
-     true (assoc :db/doc-type :gatz/user)
-     true (assoc :user/updated_at now))))
-
-(defn create-user! [{:keys [biff/db] :as ctx} {:keys [username phone id]}]
-
-  {:pre [(valid-username? username)]}
+  {:pre [(crdt.user/valid-username? username)]}
 
   (assert (nil? (by-name db username)))
 
-  (let [now (java.util.Date.)
-        user-id (or id (random-uuid))
-        user {:xt/id user-id
-              :user/name username
-              :user/phone_number phone
-              :user/created_at now}]
-    (biff/submit-tx ctx [(update-user user now)])
+  (let [user (crdt.user/new-user {:id id :phone phone :username username})]
+    (biff/submit-tx ctx [(assoc user :db/doc-type :gatz.crdt/user)])
     user))
 
 (defn by-id [db user-id]
   {:pre [(uuid? user-id)]}
-  (xtdb/entity db user-id))
+  (-> (xtdb/entity db user-id)
+      (db.util/->latest-version all-migrations)))
 
 (defn mark-user-active!
   [{:keys [biff/db] :as ctx} user-id]
@@ -131,7 +95,7 @@
   (if-let [user (by-id db user-id)]
     (let [updated-user (-> user
                            (assoc :user/last_active (java.util.Date.))
-                           (update-user))]
+                           (crdt.user/update-user))]
       (biff/submit-tx ctx [updated-user])
       updated-user)
     (assert false "User not found")))
@@ -146,8 +110,8 @@
   (if-let [user (by-id db user-id)]
     (let [updated-user (-> user
                            (assoc :user/push_tokens push-token)
-                           (update :user/settings assoc :settings/notifications notifications-on)
-                           (update-user))]
+                           (update :user/settings assoc :settings/notifications crdt.user/notifications-on)
+                           (crdt.user/update-user))]
       (biff/submit-tx ctx [updated-user])
       updated-user)
     (assert false "User not found")))
@@ -160,8 +124,8 @@
   (if-let [user (by-id db user-id)]
     (let [updated-user (-> user
                            (assoc :user/push_tokens nil)
-                           (update :user/settings assoc :settings/notifications notifications-off)
-                           (update-user))]
+                           (update :user/settings assoc :settings/notifications crdt.user/notifications-off)
+                           (crdt.user/update-user))]
       (biff/submit-tx ctx [updated-user])
       updated-user)
     (assert false "User not found")))
@@ -170,8 +134,8 @@
   {:pre [(uuid? uid)]}
   (let [user (by-id db uid)
         updated-user (-> user
-                         (update :user/settings assoc :settings/notifications notifications-off)
-                         (update-user))]
+                         (update :user/settings assoc :settings/notifications crdt.user/notifications-off)
+                         (crdt.user/update-user))]
     (biff/submit-tx ctx [updated-user])
     updated-user))
 
@@ -182,7 +146,7 @@
          #_(m/validate schema/notification-preferences notification-settings)]}
   (let [user (by-id db uid)
         updated-user (-> user
-                         (update-user)
+                         (crdt.user/update-user)
                          (update-in [:user/settings :settings/notifications] #(merge % notification-settings)))]
     (biff/submit-tx ctx [updated-user])
     updated-user))
@@ -195,7 +159,7 @@
   (if-let [user (by-id db user-id)]
     (let [updated-user (-> user
                            (assoc :user/avatar avatar–url)
-                           (update-user))]
+                           (crdt.user/update-user))]
       (biff/submit-tx ctx [updated-user])
       updated-user)
     (assert false "User not found")))

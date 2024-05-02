@@ -20,6 +20,25 @@
   [:map
    [:push/expo PushToken]])
 
+(def NotificationPreferencesCRDT
+  [:map
+   [:settings.notification/overall
+    (crdt/lww-schema crdt/hlc-schema boolean?)]
+   [:settings.notification/activity
+    (crdt/lww-schema crdt/hlc-schema
+                     [:enum :settings.notification/daily :settings.notification/none])]
+   [:settings.notification/subscribe_on_comment
+    (crdt/lww-schema crdt/hlc-schema boolean?)]
+   [:settings.notification/suggestions_from_gatz
+    (crdt/lww-schema crdt/hlc-schema boolean?)]
+   ;; These below are unused:
+   ;; [:settings.notification/comments_to_own_post boolean?]
+   ;; [:settings.notification/reactions_to_own_post boolean?]
+   ;; [:settings.notification/replies_to_comment boolean?]
+   ;; [:settings.notification/reactions_to_comment boolean?]
+   ;; [:settings.notification/at_mentions boolean?]
+   ])
+
 
 (def NotificationPreferences
   [:map
@@ -57,6 +76,29 @@
     [:map
      [:settings/notifications NotificationPreferences]]]
    [:user/push_tokens [:maybe PushTokens]]])
+
+(def UserCRDT
+  [:map
+   [:xt/id #'UserId]
+   [:db/type [:enum :gatz/user]]
+   [:db/version [:enum 1]]
+   [:crdt/clock crdt/hlc-schema]
+   [:user/created_at inst?]
+   [:user/is_test [:maybe boolean?]]
+   [:user/is_admin [:maybe boolean?]]
+   [:user/name string?]
+   [:user/phone_number string?]
+   ;; MaxWins
+   [:user/updated_at (crdt/max-wins-schema inst?)]
+   [:user/last_active (crdt/max-wins-schema inst?)]
+   ;; LWW
+   [:user/avatar (crdt/lww-schema crdt/hlc-schema [:maybe string?])]
+   ;; {k {k LWW}}
+   [:user/push_tokens (crdt/lww-schema crdt/hlc-schema [:maybe PushTokens])]
+   [:user/settings
+    [:map
+     [:settings/notifications NotificationPreferencesCRDT]]]])
+
 
 (def Media
   [:map
@@ -282,7 +324,8 @@
    :media/id #'MediaId
    :evt/id :uuid
    :gatz/evt #'Event
-   :gatz/user User
+   :gatz/user #'User
+   :gatz.crdt/user #'UserCRDT
    :gatz/discussion #'Discussion
    :gatz/reaction #'MessageReaction
    :gatz/media #'Media

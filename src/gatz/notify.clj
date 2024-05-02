@@ -1,6 +1,7 @@
 (ns gatz.notify
   (:require [clojure.set :as set]
             [chime.core :as chime]
+            [gatz.crdt.user :as crdt.user]
             [gatz.db :as db]
             [gatz.db.discussion :as db.discussion]
             [gatz.db.message :as db.message]
@@ -32,10 +33,10 @@
         id (:xt/id d)
         ;; _ (assert message "No messages in discussion")
         ;; creator doesn't need a notification
-        creator (db.user/by-id db created_by)
+        creator (crdt.user/->value (db.user/by-id db created_by))
         users (->> members
                    (remove (partial = created_by))
-                   (keep (partial db.user/by-id db))
+                   (keep (comp crdt.user/->value (partial db.user/by-id db)))
                    vec)
         title (format "%s started a discussion" (:user/name creator))
         body (message-preview message)
@@ -115,12 +116,12 @@
 (defn notifications-for-comment [db m]
   (let [d (db.discussion/by-id db (:message/did m))
         _ (assert d "No discussion for message")
-        commenter (db.user/by-id db (:message/user_id m))
-        poster (db.user/by-id db (:discussion/created_by d))
+        commenter (crdt.user/->value (db.user/by-id db (:message/user_id m)))
+        poster (crdt.user/->value (db.user/by-id db (:discussion/created_by d)))
         m-preview (message-preview m)
         data {:url (discussion-url (:message/did m))}]
     (->> (:discussion/subscribers d)
-         (keep (partial db.user/by-id db))
+         (keep (comp crdt.user/->value (partial db.user/by-id db)))
          (keep (fn [receiver]
                  (when-not (= (:xt/id commenter) (:xt/id receiver))
                    (when-let [token (->token receiver)]
@@ -195,7 +196,7 @@
 
 (defn notification-on-reaction [db message reaction]
   (when (contains? trigger-emoji (:reaction/emoji reaction))
-    (let [user (db.user/by-id db (:message/user_id message))]
+    (let [user (crdt.user/->value (db.user/by-id db (:message/user_id message)))]
       (when-let [token (->token user)]
         (let [settings (get-in user [:user/settings :settings/notifications])]
           (when (and (:settings.notification/overall settings)

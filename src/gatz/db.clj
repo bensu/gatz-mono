@@ -2,6 +2,7 @@
   (:require [com.biffweb :as biff :refer [q]]
             [crdt.core :as crdt]
             [gatz.crdt.message :as crdt.message]
+            [gatz.crdt.user :as crdt.user]
             [gatz.db.discussion :as db.discussion]
             [gatz.db.evt :as db.evt]
             [gatz.db.media :as db.media]
@@ -243,9 +244,10 @@
 
   (let [now (java.util.Date.)
         mid (or mid (random-uuid))
-        user (db.user/by-id db user-id)
+        user (crdt.user/->value (db.user/by-id db user-id))
         _ (assert user)
-        auto-subscribe? (get-in user [:user/settings :settings/notifications
+        auto-subscribe? (get-in user [:user/settings
+                                      :settings/notifications
                                       :settings.notification/subscribe_on_comment]
                                 false)
         media (when media_id
