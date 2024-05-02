@@ -211,12 +211,53 @@
    [:crdt/clock crdt/hlc-schema]
    [:user/last_active inst?]])
 
+(def UserUpdateAvatar
+  [:map
+   [:crdt/clock crdt/hlc-schema]
+   [:user/avatar string?]])
+
+(def UserAddPushToken
+  [:map
+   [:crdt/clock crdt/hlc-schema]
+   [:user/settings
+    [:map
+     [:settings/notfications NotificationPreferencesCRDT]]]
+   [:user/push_tokens (crdt/lww-schema crdt/hlc-schema PushTokens)]])
+
+(def UserRemovePushToken
+  [:map
+   [:crdt/clock crdt/hlc-schema]
+   [:user/settings
+    [:map
+     [:settings/notfications NotificationPreferencesCRDT]]]
+   [:user/push_tokens (crdt/lww-schema crdt/hlc-schema nil?)]])
+
+(def UserUpdateNotifications
+  [:map
+   [:crdt/clock crdt/hlc-schema]
+   [:user/settings
+    [:map
+      ;; TODO: partial where all keys are optional
+     [:settings/notfications NotificationPreferencesCRDT]]]])
+
 (def UserAction
   (mu/closed-schema
    [:or
     [:map
      [:gatz.crdt.user/action [:enum :gatz.crdt.user/mark-active]]
-     [:gatz.crdt.user/delta #'UserMarkActiveDelta]]]))
+     [:gatz.crdt.user/delta UserMarkActiveDelta]]
+    [:map
+     [:gatz.crdt.user/action [:enum :gatz.crdt.user/update-avatar]]
+     [:gatz.crdt.user/delta UserUpdateAvatar]]
+    [:map
+     [:gatz.crdt.user/action [:enum :gatz.crdt.user/add-push-token]]
+     [:gatz.crdt.user/delta UserAddPushToken]]
+    [:map
+     [:gatz.crdt.user/action [:enum :gatz.crdt.user/remove-push-token]]
+     [:gatz.crdt.user/delta UserRemovePushToken]]
+    [:map
+     [:gatz.crdt.user/action [:enum :gatz.crdt.user/update-notifications]]
+     [:gatz.crdt.user/delta UserUpdateNotifications]]]))
 
 (def UserEvent
   [:map

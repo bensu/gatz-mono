@@ -48,15 +48,15 @@
     (let [new-token {:push/service :push/expo
                      :push/token push-token
                      :push/created_at (java.util.Date.)}
-          user (db.user/add-push-token! ctx {:user-id user-id
-                                             :push-token {:push/expo new-token}})]
+          {:keys [user]} (db.user/add-push-token! ctx {:user-id user-id
+                                                       :push-token {:push/expo new-token}})]
       (json-response {:status "success"
                       :user (crdt.user/->value user)}))
     (err-resp "push_token_missing" "Missing push token parameter")))
 
 (defn disable-push!
   [{:keys [auth/user-id] :as ctx}]
-  (let [user (db.user/remove-push-tokens! ctx user-id)]
+  (let [{:keys [user]} (db.user/remove-push-tokens! ctx user-id)]
     (json-response {:status "success"
                     :user (crdt.user/->value user)})))
 
@@ -71,9 +71,9 @@
   [{:keys [params auth/user-id] :as ctx}]
   (if-let [notification-settings (some-> (:settings params)
                                          params->notification-settings)]
-    (let [user (db.user/edit-notifications! ctx
-                                            user-id
-                                            notification-settings)]
+    (let [{:keys [user]} (db.user/edit-notifications! ctx
+                                                      user-id
+                                                      notification-settings)]
       (json-response {:status "success"
                       :user (crdt.user/->value user)}))
     (err-resp "invalid_params" "Invalid parameters")))

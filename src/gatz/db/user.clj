@@ -28,8 +28,7 @@
         (update :user/avatar #(crdt/->LWW clock %))
         (update :user/push_tokens #(crdt/->LWW clock %))
         (update-in [:user/settings :settings/notfications]
-                   (fn [np]
-                     (map-vals #(crdt/->LWW clock %) np))))))
+                   #(crdt/->lww-map % clock)))))
 
 (def all-migrations
   [{:from 0 :to 1 :transform v0->v1}])
@@ -88,7 +87,6 @@
   {:pre [(uuid? user-id)]}
   (-> (xtdb/entity db user-id)
       (db.util/->latest-version all-migrations)))
-
 
 ;; ====================================================================== 
 ;; Actions
@@ -149,54 +147,49 @@
     (apply-action! ctx uid action)))
 
 (defn add-push-token!
-  [{:keys [biff/db] :as ctx} {:keys [user-id push-token]}]
+  [ctx {:keys [uid push-token]}]
 
-  {:pre [(uuid? user-id)
+  {:pre [(uuid? uid)
          (malli/validate schema/PushTokens push-token)]}
 
-  (if-let [user (by-id db user-id)]
-    (let [updated-user (-> user
-                           (assoc :user/push_tokens push-token)
-                           (update :user/settings assoc :settings/notifications crdt.user/notifications-on)
-                           (crdt.user/update-user))]
-      (biff/submit-tx ctx [updated-user])
-      updated-user)
-    (assert false "User not found")))
+  (let [now (Date.)
+        clock (crdt/new-hlc uid now)
+        delta {:crdt/clock clock
+               :user/push_tokens (crdt/->LWW clock push-token)
+               :user/settings {:settings/notfications (crdt.user/notifications-on-crdt clock)}}
+        action {:gatz.crdt.user/action :gatz.crdt.user/add-push-token
+                :gatz.crdt.user/delta delta}]
+    (apply-action! ctx uid action)))
 
 (defn remove-push-tokens!
-  [{:keys [biff/db] :as ctx} user-id]
+  [ctx {:keys [uid]}]
 
-  {:pre [(uuid? user-id)]}
-
-  (if-let [user (by-id db user-id)]
-    (let [updated-user (-> user
-                           (assoc :user/push_tokens nil)
-                           (update :user/settings assoc :settings/notifications crdt.user/notifications-off)
-                           (crdt.user/update-user))]
-      (biff/submit-tx ctx [updated-user])
-      updated-user)
-    (assert false "User not found")))
-
-(defn turn-off-notifications! [{:keys [biff/db] :as ctx} uid]
   {:pre [(uuid? uid)]}
-  (let [user (by-id db uid)
-        updated-user (-> user
-                         (update :user/settings assoc :settings/notifications crdt.user/notifications-off)
-                         (crdt.user/update-user))]
-    (biff/submit-tx ctx [updated-user])
-    updated-user))
+
+  (let [now (Date.)
+        clock (crdt/new-hlc uid now)
+        delta {:crdt/clock clock
+               :user/push_tokens (crdt/->LWW clock nil)
+               :user/settings {:settings/notfications (crdt.user/notifications-off-crdt clock)}}
+        action {:gatz.crdt.user/action :gatz.crdt.user/remove-push-token
+                :gatz.crdt.user/delta delta}]
+    (apply-action! ctx uid action)))
 
 (defn edit-notifications!
-  [{:keys [biff/db] :as ctx} uid notification-settings]
-  {:pre [(uuid? uid)
-         ;; TODO: This should allow a subset of the notification-preferences schema
-         #_(malli/validate schema/notification-preferences notification-settings)]}
-  (let [user (by-id db uid)
-        updated-user (-> user
-                         (crdt.user/update-user)
-                         (update-in [:user/settings :settings/notifications] #(merge % notification-settings)))]
-    (biff/submit-tx ctx [updated-user])
-    updated-user))
+  [ctx uid notification-settings]
+
+  {:pre [(uuid? uid)]}
+
+  (let [now (Date.)
+        clock (crdt/new-hlc uid now)
+        delta {:crdt/clock clock
+               :user/settings {:settings/notfications (crdt/->lww-map notification-settings clock)}}
+        action {:gatz.crdt.user/action :gatz.crdt.user/remove-push-token
+                :gatz.crdt.user/delta delta}]
+    (apply-action! ctx uid action)))
+
+(defn turn-off-notifications! [ctx uid]
+  (edit-notifications! ctx uid crdt.user/notifications-off))
 
 (defn all-users [db]
   (vec (q db '{:find (pull user [*])

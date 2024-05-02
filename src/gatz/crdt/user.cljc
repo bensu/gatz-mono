@@ -42,7 +42,7 @@
    })
 
 (defn notifications-off-crdt [clock]
-  (map-vals #(crdt/->LWW clock %) notifications-off))
+  (crdt/->lww-map notifications-off clock))
 
 (def notifications-on
   {:settings.notification/overall true
@@ -56,6 +56,9 @@
    ;; :settings.notification/reactions_to_comment true
    ;; :settings.notification/at_mentions true
    })
+
+(defn notifications-on-crdt [clock]
+  (crdt/->lww-map notifications-on clock))
 
 (defn update-user
   ([u] (update-user u (java.util.Date.)))
