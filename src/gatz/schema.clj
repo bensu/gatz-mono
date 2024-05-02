@@ -206,6 +206,28 @@
 ;; ====================================================================== 
 ;; Events
 
+(def UserMarkActiveDelta
+  [:map
+   [:crdt/clock crdt/hlc-schema]
+   [:user/last_active inst?]])
+
+(def UserAction
+  (mu/closed-schema
+   [:or
+    [:map
+     [:gatz.crdt.user/action [:enum :gatz.crdt.user/mark-active]]
+     [:gatz.crdt.user/delta #'UserMarkActiveDelta]]]))
+
+(def UserEvent
+  [:map
+   [:xt/id #'EvtId]
+   [:evt/ts inst?]
+   [:db/type [:enum :gatz/evt]]
+   [:evt/uid #'UserId]
+   [:evt/cid [:maybe #'ClientId]]
+   [:evt/type [:enum :gatz.crdt.user/delta]]
+   [:evt/data [:or #'UserAction]]])
+
 (def DeleteDelta
   (mu/closed-schema
    [:map

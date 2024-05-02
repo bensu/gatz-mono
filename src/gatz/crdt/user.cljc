@@ -100,3 +100,6 @@
 
 (defn ->value [u]
   (crdt/-value u))
+
+(defn apply-delta [user delta]
+  (crdt/-apply-delta user delta))

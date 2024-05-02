@@ -4,10 +4,12 @@
             [crdt.core :as crdt]
             [gatz.crdt.user :as crdt.user]
             [gatz.db.util :as db.util]
+            [gatz.db.evt :as db.evt]
             [gatz.schema :as schema]
-            [malli.core :as m]
+            [malli.core :as malli]
             [medley.core :refer [map-vals]]
-            [xtdb.api :as xtdb]))
+            [xtdb.api :as xtdb])
+  (:import [java.util Date]))
 
 ;; ======================================================================
 ;; Migrations
@@ -27,7 +29,7 @@
         (update :user/push_tokens #(crdt/->LWW clock %))
         (update-in [:user/settings :settings/notfications]
                    (fn [np]
-                     (map-vals  #(crdt/->LWW clock %) np))))))
+                     (map-vals #(crdt/->LWW clock %) np))))))
 
 (def all-migrations
   [{:from 0 :to 1 :transform v0->v1}])
@@ -87,25 +89,70 @@
   (-> (xtdb/entity db user-id)
       (db.util/->latest-version all-migrations)))
 
-(defn mark-user-active!
-  [{:keys [biff/db] :as ctx} user-id]
 
-  {:pre [(uuid? user-id) (some? db)]}
+;; ====================================================================== 
+;; Actions
 
-  (if-let [user (by-id db user-id)]
-    (let [updated-user (-> user
-                           (assoc :user/last_active (java.util.Date.))
-                           (crdt.user/update-user))]
-      (biff/submit-tx ctx [updated-user])
-      updated-user)
-    (assert false "User not found")))
+(defn user-apply-delta
+  [ctx {:keys [evt] :as _args}]
+  (let [uid (:evt/uid evt)
+        db (xtdb.api/db ctx)
+        user (gatz.db.user/by-id db uid)
+        delta (get-in evt [:evt/data :gatz.crdt.user/delta])
+        new-user (gatz.crdt.user/apply-delta user delta)]
+    [[:xtdb.api/put evt]
+     [:xtdb.api/put new-user]]))
 
+(def ^{:doc "This function will be stored in the db which is why it is an expression"}
+  user-apply-delta-expr
+  '(fn user-apply-delta-fn [ctx args]
+     (gatz.db.user/user-apply-delta ctx args)))
+
+(def tx-fns
+  {:gatz.db.user/apply-delta user-apply-delta-expr})
+
+(defn apply-action!
+  "Applies a delta to the user and stores it"
+  [{:keys [biff/db auth/user-id auth/cid] :as ctx} uid action] ;; TODO: use cid
+  {:pre [(uuid? uid)]}
+  (let [evt (db.evt/new-evt {:evt/type :gatz.crdt.user/delta
+                             :evt/uid user-id
+                             :evt/cid cid
+                             :evt/data action})]
+    (if (true? (malli/validate schema/UserEvent evt))
+      (let [txs [[:xtdb.api/fn :gatz.db.user/apply-delta {:evt evt}]]]
+        ;; Try the transaction before submitting it
+        (if-let [db-after (xtdb.api/with-tx db txs)]
+          (do
+            (biff/submit-tx ctx txs)
+            {:evt (xtdb.api/entity db-after (:evt/id evt))
+             :user (by-id db-after uid)})
+          (assert false "Transaction would've failed")))
+      (assert false "Invaild event"))))
+
+(defn mark-active! [ctx uid]
+  {:pre [(uuid? uid)]}
+  (let [now (Date.)
+        clock (crdt/new-hlc uid now)
+        action {:gatz.crdt.user/action :gatz.crdt.user/mark-active
+                :gatz.crdt.user/delta {:crdt/clock clock
+                                       :user/last_active now}}]
+    (apply-action! ctx uid action)))
+
+(defn update-avatar! [ctx uid avatar–url]
+  {:pre [(uuid? uid) (string? avatar–url)]}
+  (let [now (Date.)
+        clock (crdt/new-hlc uid now)
+        action {:gatz.crdt.user/action :gatz.crdt.user/update-avatar
+                :gatz.crdt.user/delta {:crdt/clock clock
+                                       :user/avatar avatar–url}}]
+    (apply-action! ctx uid action)))
 
 (defn add-push-token!
   [{:keys [biff/db] :as ctx} {:keys [user-id push-token]}]
 
   {:pre [(uuid? user-id)
-         (m/validate schema/PushTokens push-token)]}
+         (malli/validate schema/PushTokens push-token)]}
 
   (if-let [user (by-id db user-id)]
     (let [updated-user (-> user
@@ -143,26 +190,13 @@
   [{:keys [biff/db] :as ctx} uid notification-settings]
   {:pre [(uuid? uid)
          ;; TODO: This should allow a subset of the notification-preferences schema
-         #_(m/validate schema/notification-preferences notification-settings)]}
+         #_(malli/validate schema/notification-preferences notification-settings)]}
   (let [user (by-id db uid)
         updated-user (-> user
                          (crdt.user/update-user)
                          (update-in [:user/settings :settings/notifications] #(merge % notification-settings)))]
     (biff/submit-tx ctx [updated-user])
     updated-user))
-
-(defn update-user-avatar!
-
-  [{:keys [biff/db] :as ctx} user-id avatar–url]
-  {:pre [(uuid? user-id) (string? avatar–url)]}
-
-  (if-let [user (by-id db user-id)]
-    (let [updated-user (-> user
-                           (assoc :user/avatar avatar–url)
-                           (crdt.user/update-user))]
-      (biff/submit-tx ctx [updated-user])
-      updated-user)
-    (assert false "User not found")))
 
 (defn all-users [db]
   (vec (q db '{:find (pull user [*])
@@ -178,7 +212,7 @@
                   :order-by [[activity-ts :desc]]
                   :where [[uid :xt/id user-id]
                           [uid :db/type :gatz/user]
+                          ;; TODO: does this work if it is a CRDT?
                           [uid :user/last_active activity-ts]]}
              uid)]
     (ffirst r)))
-

@@ -4,6 +4,7 @@
             [gatz.email :as email]
             [gatz.api :as api]
             [gatz.db.message :as db.message]
+            [gatz.db.user :as db.user]
             [gatz.schema :as schema]
             [gatz.connections :as conns]
             [gatz.notify :as notify]
@@ -67,7 +68,7 @@
    :biff/handler #'handler
    :biff/malli-opts #'malli-opts
    :biff.beholder/on-save #'on-save
-   :biff.xtdb/tx-fns (merge biff/tx-fns db.message/tx-fns)})
+   :biff.xtdb/tx-fns (merge biff/tx-fns db.message/tx-fns db.user/tx-fns)})
 
 (defonce system (atom {}))
 

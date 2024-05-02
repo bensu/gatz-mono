@@ -173,7 +173,7 @@
                (notify/activity-notification-for-user (xtdb/db node) cid))
             "Friends get notifications from your activity")
 
-        (db.user/mark-user-active! (with-db ctx) cid)
+        (db.user/mark-active! (with-db ctx) cid)
 
         (is (empty? (notify/activity-notification-for-user (xtdb/db node) cid))
             "They don't get notified if they were active after the activity")

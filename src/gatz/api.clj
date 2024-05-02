@@ -62,7 +62,7 @@
                                                               :user-discussions ds}))
                          (jetty/send! ws (json/write-str
                                           (connection-response user-id conn-id)))
-                         (db.user/mark-user-active! ctx user-id))
+                         (db.user/mark-active! ctx user-id))
            :on-close (fn [ws status-code reason]
                        (let [db (xtdb/db node)
                              ds (or (db/discussions-by-user-id db user-id) #{})]
@@ -74,7 +74,7 @@
                                          :status status-code
                                          :conn-id conn-id
                                          :user-id user-id}))
-                       (db.user/mark-user-active! ctx user-id))
+                       (db.user/mark-active! ctx user-id))
            :on-text (fn [ws text]
                       (jetty/send! ws (json/write-str {:conn-id conn-id :user-id user-id :echo text :state @conns-state}))
                       ;; TODO: create discussion or add member 
@@ -95,6 +95,11 @@
 
 (defmulti handle-evt! (fn [_ctx evt]
                         (:evt/type evt)))
+
+(defmethod handle-evt! :gatz.crdt.user/delta
+  [{:keys [] :as ctx} evt]
+  ;; TODO: propagate to user clients
+  nil)
 
 (defmethod handle-evt! :message.crdt/delta
   [{:keys [biff.xtdb/node] :as ctx} evt]

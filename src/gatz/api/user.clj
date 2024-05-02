@@ -175,7 +175,7 @@
 (defn update-avatar!
   [{:keys [params auth/user-id] :as ctx}]
   (if-let [url (:file_url params)]
-    (let [user (db.user/update-user-avatar! ctx user-id url)]
+    (let [{:keys [user]} (db.user/update-avatar! ctx user-id url)]
       (json-response {:user (crdt.user/->value user)}))
     (err-resp "invalid_file_url" "Invalid file url")))
 
