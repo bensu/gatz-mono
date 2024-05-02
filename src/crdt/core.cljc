@@ -2,6 +2,7 @@
   (:require [clojure.set :as set]
             [clojure.test :as test :refer [deftest testing is]]
             [malli.core :as malli]
+            [medley.core :refer [map-vals]]
             [juxt.clojars-mirrors.nippy.v3v1v1.taoensso.nippy :as juxt-nippy]
             [taoensso.nippy :as nippy]
             [clojure.core :refer [print-method read-string format]])
@@ -538,3 +539,31 @@
                                        "like"  (not (even? user-id))}])
                            user-ids))
              (-value final))))))
+
+(defn ->lww-map
+  "Recursively walks the map turning all its leaf nodes to LWW"
+  [m clock]
+  {:pre [(map? m)]}
+  (map-vals (fn [v]
+              (if (map? v)
+                (->lww-map v clock)
+                (->LWW clock v)))
+            m))
+
+(deftest lww-map
+  (testing "Can turn a map to lww"
+    (let [m {:a "a" :b "b"}
+          lww-m (->lww-map m 0)]
+      (is (= m (-value lww-m)))
+      (is (= {:a #crdt/lww [0 "a"]
+              :b #crdt/lww [0 "b"]}
+             lww-m)))
+    (testing "recursively"
+      (let [m {:a "a" :b "b" :c {:c1 "c1" :c2 {:c3 "c3"}}}
+            lww-m (->lww-map m 0)]
+        (is (= m (-value lww-m)))
+        (is (= {:a #crdt/lww [0 "a"]
+                :b #crdt/lww [0 "b"]
+                :c {:c1 #crdt/lww [0 "c1"]
+                    :c2 {:c3 #crdt/lww [0 "c3"]}}}
+               lww-m))))))
