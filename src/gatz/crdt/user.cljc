@@ -118,11 +118,7 @@
           uid (random-uuid)
           initial (new-user {:id uid :now now :phone "111" :username "test"})
           clock (crdt/new-hlc uid now)
-          [t1 t2 t3 t4 t5] [(crdt/inc-time now)
-                            (crdt/inc-time (crdt/inc-time now))
-                            (crdt/inc-time (crdt/inc-time (crdt/inc-time now)))
-                            (crdt/inc-time (crdt/inc-time (crdt/inc-time (crdt/inc-time now))))
-                            (crdt/inc-time (crdt/inc-time (crdt/inc-time (crdt/inc-time (crdt/inc-time now)))))]
+          [_ t1 t2 t3 t4 t5] (reduce (fn [acc _] (conj acc (crdt/inc-time (last acc)))) [now] (range 5))
           [c1 c2 c3 c4 c5] (mapv #(crdt/new-hlc uid %) [t1 t2 t3 t4 t5])
           avatar "https://assets.gatz.chat/test-profile-pic"
           push-tokens {:push/expo {:push/token "EXPO[TOKEN]"
