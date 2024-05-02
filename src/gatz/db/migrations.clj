@@ -27,10 +27,15 @@
   (biff/use-xt {:biff.xtdb/topology :standalone
                 :biff.xtdb.jdbc/jdbcUrl (get-env "DATABASE_URL")}))
 
+(defn get-all-users [db]
+  (q db
+     '{:find (pull u [*])
+       :where [[u :db/type :gatz/user]]}))
+
 (defn delete-bad-users! [ctx]
   (let [node (:biff.xtdb/node ctx)
         db (xtdb/db node)
-        all-users (db.user/get-all-users db)
+        all-users (get-all-users db)
         txns (->> all-users
                   (remove (fn [user]
                             (contains? good-users (:user/name user))))
@@ -70,7 +75,7 @@
 (defn lower-case-usernames!
   [{:keys [biff.xtdb/node] :as ctx}]
   (let [db (xtdb/db node)
-        txns (for [u (db.user/get-all-users db)]
+        txns (for [u (get-all-users db)]
                (let [username (:user/name u)]
                  (when (not= username (str/lower-case username))
                    (-> u
@@ -79,7 +84,7 @@
     (biff/submit-tx ctx (vec (remove nil? txns)))))
 
 (defn get-users-without-push-notifications [db]
-  (let [users (db.user/get-all-users db)]
+  (let [users (get-all-users db)]
     (->> users
          (remove :user/push_tokens)
          (map :user/name)
@@ -91,7 +96,7 @@
 (defn add-admin-and-test-to-all-users!
   [{:keys [biff.xtdb/node] :as ctx}]
   (let [db (xtdb/db node)
-        txns (for [u (db.user/get-all-users db)]
+        txns (for [u (get-all-users db)]
                (let [username (:user/name u)]
                  (cond
                    (contains? admin-usernames username)
@@ -181,7 +186,7 @@
 (defn add-notification-settings-to-users!
   [{:keys [biff.xtdb/node] :as ctx}]
   (let [db (xtdb/db node)
-        all-users (db.user/get-all-users db)
+        all-users (get-all-users db)
         now (java.util.Date.)
         txns (for [u all-users]
                (when (nil? (get-in u [:user/settings :settings/notifications]))

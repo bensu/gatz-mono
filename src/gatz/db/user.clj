@@ -79,11 +79,10 @@
                   first)]
     (db.util/->latest-version user all-migrations)))
 
-(defn get-all-users [db]
+(defn all-ids [db]
   (q db
-     '{:find (pull u [*])
+     '{:find  u
        :where [[u :db/type :gatz/user]]}))
-
 
 (defn create-user!
   [{:keys [biff/db] :as ctx} {:keys [username phone id]}]

@@ -4,6 +4,7 @@
             [gatz.db.discussion :as db.discussion]
             [gatz.db.user :as db.user]
             [gatz.crdt.message :as crdt.message]
+            [gatz.crdt.user :as crdt.user]
             [malli.transform :as mt]
             [xtdb.api :as xt]))
 
@@ -71,7 +72,9 @@
                          :latest_tx {:id (::xt/tx-id latest-tx)
                                      :ts (::xt/tx-time latest-tx)}
                          :discussion discussion
-                         :users (map (partial db.user/by-id db) user_ids)
+                         :users (map (comp crdt.user/->value
+                                           (partial db.user/by-id db))
+                                     user_ids)
                          :messages (mapv crdt.message/->value messages)}))))))
 
 (defn ^:deprecated
@@ -120,7 +123,9 @@
      (let [d (db.discussion/archive! ctx user-id did (java.util.Date.))
            {:keys [messages user_ids]} (db/discussion-by-id db did)]
        (json-response {:discussion d
-                       :users (map (partial db.user/by-id db) user_ids)
+                       :users (mapv (comp crdt.user/->value
+                                          (partial db.user/by-id db))
+                                    user_ids)
                        :messages (mapv crdt.message/->value messages)})))))
 
 (defn subscribe-to-discussion!
@@ -169,9 +174,10 @@
               ;; This second function might not be sorting according to what the user saw
                   (db/discussions-by-user-id-up-to db user-id))
             ds (map (partial db/discussion-by-id db) dis)
+            ;; TODO: this should be a union of the right users, not all users
             users (db.user/all-users db)]
         (json-response {:discussions ds
-                        :users users
+                        :users (mapv crdt.user/->value users)
                         :current false
                         :latest_tx {:id (::xt/tx-id latest-tx)
                                     :ts (::xt/tx-time latest-tx)}})))))
@@ -186,7 +192,8 @@
         ;; TODO: change shape of response
         (json-response
          {:discussion discussion
-          :users (mapv (partial db.user/by-id db) (:discussion/members discussion))
+          :users (mapv (comp crdt.user/->value (partial db.user/by-id db))
+                       (:discussion/members discussion))
           :messages [(crdt.message/->value message)]})))
     (err-resp "invalid_params" "Invalid params: missing post text")))
 
