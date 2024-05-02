@@ -71,13 +71,13 @@
                    :in [phone]
                    :where [[u :user/phone_number phone]
                            [u :db/type :gatz/user]]}
-                 phone)]
-    ;; TODO: there is a way to guarantee uniqueness of phones with biff
-    (->> users
-         (remove nil?)
-         (sort-by (comp :user/created_at #(.getTime %)))
-         first
-         (db.util/->latest-version all-migrations))))
+                 phone)
+        ;; TODO: there is a way to guarantee uniqueness of phones with biff
+        user (->> users
+                  (remove nil?)
+                  (sort-by (comp :user/created_at #(.getTime %)))
+                  first)]
+    (db.util/->latest-version user all-migrations)))
 
 (defn get-all-users [db]
   (q db
