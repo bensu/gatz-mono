@@ -56,13 +56,13 @@
                    :in [username]
                    :where [[u :user/name username]
                            [u :db/type :gatz/user]]}
-                 username)]
-    ;; TODO: there is a way to guarantee uniqueness of usernames with biff
-    (->> users
-         (remove nil?)
-         (sort-by (comp :user/created_at #(.getTime %)))
-         first
-         (db.util/->latest-version all-migrations))))
+                 username)
+        ;; TODO: there is a way to guarantee uniqueness of usernames with biff
+        user (->> users
+                  (remove nil?)
+                  (sort-by (comp :user/created_at #(.getTime %)))
+                  first)]
+    (db.util/->latest-version user all-migrations)))
 
 (defn by-phone [db phone]
   {:pre [(string? phone) (not (empty? phone))]}
@@ -208,17 +208,3 @@
   (vec (q db '{:find (pull user [*])
                :where [[user :db/type :gatz/user]]})))
 
-(defn user-last-active [db uid]
-
-  {:pre [(uuid? uid)]
-   :post [(or (nil? %) (inst? %))]}
-
-  (let [r (q db '{:find [activity-ts]
-                  :in [user-id]
-                  :order-by [[activity-ts :desc]]
-                  :where [[uid :xt/id user-id]
-                          [uid :db/type :gatz/user]
-                          ;; TODO: does this work if it is a CRDT?
-                          [uid :user/last_active activity-ts]]}
-             uid)]
-    (ffirst r)))

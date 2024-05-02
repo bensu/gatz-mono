@@ -99,6 +99,8 @@
 (defmethod handle-evt! :gatz.crdt.user/delta
   [{:keys [] :as ctx} evt]
   ;; TODO: propagate to user clients
+  ;; 1. Connections for the same user want to hear everything
+  ;; 2. Connections for friends want to hear about avatar, username changes
   nil)
 
 (defmethod handle-evt! :message.crdt/delta
