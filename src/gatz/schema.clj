@@ -64,12 +64,12 @@
    [:user/created_at inst?]
    [:user/is_test [:maybe boolean?]]
    [:user/is_admin [:maybe boolean?]]
+   [:user/name string?]
+   [:user/phone_number string?]
    ;; MaxWins
    [:user/updated_at inst?]
    [:user/last_active inst?]
    ;; LWW
-   [:user/name string?]
-   [:user/phone_number string?]
    [:user/avatar [:maybe string?]]
    ;; {k {k LWW}}
    [:user/settings
@@ -216,16 +216,19 @@
 (def UserMarkActiveDelta
   [:map
    [:crdt/clock crdt/hlc-schema]
+   [:user/updated_at inst?]
    [:user/last_active inst?]])
 
 (def UserUpdateAvatar
   [:map
    [:crdt/clock crdt/hlc-schema]
+   [:user/updated_at inst?]
    [:user/avatar (crdt/lww-schema crdt/hlc-schema string?)]])
 
 (def UserAddPushToken
   [:map
    [:crdt/clock crdt/hlc-schema]
+   [:user/updated_at inst?]
    [:user/settings
     [:map
      [:settings/notifications (mu/optional-keys NotificationPreferencesCRDT)]]]
@@ -234,6 +237,7 @@
 (def UserRemovePushToken
   [:map
    [:crdt/clock crdt/hlc-schema]
+   [:user/updated_at inst?]
    [:user/settings
     [:map
      [:settings/notifications (mu/optional-keys NotificationPreferencesCRDT)]]]
@@ -242,6 +246,7 @@
 (def UserUpdateNotifications
   [:map
    [:crdt/clock crdt/hlc-schema]
+   [:user/updated_at inst?]
    [:user/settings
     [:map
       ;; TODO: partial where all keys are optional

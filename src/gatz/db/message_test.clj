@@ -7,6 +7,7 @@
             [gatz.db :as db]
             [gatz.schema :as schema]
             [gatz.db.message :refer :all]
+            [gatz.db.util :as db.util]
             [malli.core :as malli]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
@@ -62,12 +63,6 @@
                               :message/reactions {uid {"like" (crdt/->LWW clock nil)}}}}))))
 
 
-
-(defn test-node  []
-  (xtdb/start-node
-   {:xtdb/index-store {:kv-store {:xtdb/module 'xtdb.mem-kv/->kv-store}}
-    :xtdb/tx-log {:kv-store {:xtdb/module 'xtdb.mem-kv/->kv-store}}
-    :xtdb/document-store {:kv-store {:xtdb/module 'xtdb.mem-kv/->kv-store}}}))
 
 (deftest message-authorization
   (testing "Deltas have to be authorized"
@@ -178,7 +173,7 @@
 
 (deftest db-roundtrip
   (testing "we can store a message and retrieve it"
-    (let [node (test-node)
+    (let [node (db.util/test-node)
           id (random-uuid)
           doc0 {:xt/id id
                 :message/updated_at (crdt/->MaxWins (Date.))}

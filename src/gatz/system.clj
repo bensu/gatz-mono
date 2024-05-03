@@ -62,13 +62,15 @@
               (apply biff/safe-merge
                      (keep :schema plugins)))})
 
+(def tx-fns (merge biff/tx-fns db.message/tx-fns db.user/tx-fns))
+
 (def initial-system
   {:biff/plugins #'plugins
    :biff/send-email #'email/send-email
    :biff/handler #'handler
    :biff/malli-opts #'malli-opts
    :biff.beholder/on-save #'on-save
-   :biff.xtdb/tx-fns (merge biff/tx-fns db.message/tx-fns db.user/tx-fns)})
+   :biff.xtdb/tx-fns tx-fns})
 
 (defonce system (atom {}))
 
