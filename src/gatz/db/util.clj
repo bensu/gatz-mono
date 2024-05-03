@@ -1,6 +1,10 @@
 (ns gatz.db.util
   (:require [xtdb.api :as xtdb]))
 
+(defmacro is-equal [a b]
+  `(clojure.test/is (= ~a ~b)
+                    (pr-str (clojure.data/diff ~a ~b))))
+
 (defn test-node  []
   (xtdb/start-node
    {:xtdb/index-store {:kv-store {:xtdb/module 'xtdb.mem-kv/->kv-store}}

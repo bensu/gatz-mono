@@ -223,6 +223,7 @@
           c2 (crdt/new-hlc cid t2)
           actions [{:gatz.crdt.user/action :gatz.crdt.user/mark-active
                     :gatz.crdt.user/delta {:crdt/clock clock
+                                           :user/updated_at now
                                            :user/last_active now}}
                    {:gatz.crdt.user/action :gatz.crdt.user/update-avatar
                     :gatz.crdt.user/delta
@@ -242,10 +243,10 @@
                                      (crdt.user/notifications-on-crdt clock)}}}
                    {:gatz.crdt.user/action :gatz.crdt.user/remove-push-token
                     :gatz.crdt.user/delta
-                    :crdt/clock c1
-                    :user/updated_at t1
-                    :user/push_tokens (crdt/->LWW c1 nil)
-                    :user/settings {:settings/notifications (crdt.user/notifications-off-crdt c1)}}
+                    {:crdt/clock c1
+                     :user/updated_at t1
+                     :user/push_tokens (crdt/->LWW c1 nil)
+                     :user/settings {:settings/notifications (crdt.user/notifications-off-crdt c1)}}}
                    {:gatz.crdt.user/action :gatz.crdt.user/update-notifications
                     :gatz.crdt.user/delta
                     {:crdt/clock c2
@@ -268,28 +269,28 @@
                                     :phone "4159499932"
                                     :now now})]
         (doseq [action actions]
-          (apply-action! (assoc ctx :biff/db (xtdb/db node))
-                         uid action))
-
+          (let [tx (apply-action! (assoc ctx :biff/db (xtdb/db node))
+                                  uid action)]
+            (xtdb/await-tx node (:xtdb.api/tx-id tx))))
         (let [final-user (by-id (xtdb/db node) uid)]
-          (is (= {:crdt/clock c2
-                  :xt/id uid
-                  :db/type :gatz/user,
-                  :user/is_test false,
-                  :user/is_admin false,
-                  :user/name "test_123",
-                  :user/avatar "https://example.com/avatar.jpg",
-                  :db/version 1,
-                  :user/push_tokens nil,
-                  :user/phone_number "4159499932",
-                  :user/created_at now
-                  :user/last_active now
-                  :user/updated_at t2
-                  :user/settings
-                  #:settings{:notifications
-                             #:settings.notification{:overall false,
-                                                     :activity :settings.notification/daily,
-                                                     :subscribe_on_comment false,
-                                                     :suggestions_from_gatz false}}}
+          (db.util/is-equal {:crdt/clock c2
+                             :xt/id uid
+                             :db/type :gatz/user,
+                             :user/is_test false,
+                             :user/is_admin false,
+                             :user/name "test_123",
+                             :user/avatar "https://example.com/avatar.jpg",
+                             :db/version 1,
+                             :user/push_tokens nil,
+                             :user/phone_number "4159499932",
+                             :user/created_at now
+                             :user/last_active now
+                             :user/updated_at t2
+                             :user/settings
+                             #:settings{:notifications
+                                        #:settings.notification{:overall false,
+                                                                :activity :settings.notification/daily,
+                                                                :subscribe_on_comment false,
+                                                                :suggestions_from_gatz false}}}
 
-                 (crdt.user/->value final-user))))))))
+                            (crdt.user/->value final-user)))))))
