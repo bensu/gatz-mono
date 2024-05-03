@@ -221,14 +221,14 @@
 (def UserUpdateAvatar
   [:map
    [:crdt/clock crdt/hlc-schema]
-   [:user/avatar string?]])
+   [:user/avatar (crdt/lww-schema crdt/hlc-schema string?)]])
 
 (def UserAddPushToken
   [:map
    [:crdt/clock crdt/hlc-schema]
    [:user/settings
     [:map
-     [:settings/notfications NotificationPreferencesCRDT]]]
+     [:settings/notifications (mu/optional-keys NotificationPreferencesCRDT)]]]
    [:user/push_tokens (crdt/lww-schema crdt/hlc-schema PushTokens)]])
 
 (def UserRemovePushToken
@@ -236,7 +236,7 @@
    [:crdt/clock crdt/hlc-schema]
    [:user/settings
     [:map
-     [:settings/notfications NotificationPreferencesCRDT]]]
+     [:settings/notifications (mu/optional-keys NotificationPreferencesCRDT)]]]
    [:user/push_tokens (crdt/lww-schema crdt/hlc-schema nil?)]])
 
 (def UserUpdateNotifications
@@ -245,7 +245,7 @@
    [:user/settings
     [:map
       ;; TODO: partial where all keys are optional
-     [:settings/notfications NotificationPreferencesCRDT]]]])
+     [:settings/notifications (mu/optional-keys NotificationPreferencesCRDT)]]]])
 
 (def UserAction
   (mu/closed-schema

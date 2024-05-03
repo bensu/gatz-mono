@@ -211,3 +211,41 @@
 (defn get-friend-ids [db uid]
   ;; TOOD: change with friendship
   (all-ids db))
+
+(deftest user-actions
+  (testing "The user actions have the right schema"
+    (let [now (Date.)
+          cid (random-uuid)
+          clock (crdt/new-hlc cid now)
+          actions [{:gatz.crdt.user/action :gatz.crdt.user/mark-active
+                    :gatz.crdt.user/delta {:crdt/clock clock
+                                           :user/last_active now}}
+                   {:gatz.crdt.user/action :gatz.crdt.user/update-avatar
+                    :gatz.crdt.user/delta
+                    {:crdt/clock clock
+                     :user/avatar (crdt/->LWW clock "https://example.com/avatar.jpg")}}
+                   {:gatz.crdt.user/action :gatz.crdt.user/add-push-token
+                    :gatz.crdt.user/delta
+                    {:crdt/clock clock
+                     :user/push_tokens (crdt/->LWW clock
+                                                   {:push/expo
+                                                    {:push/service :push/expo
+                                                     :push/token "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]"
+                                                     :push/created_at now}})
+                     :user/settings {:settings/notifications
+                                     (crdt.user/notifications-on-crdt clock)}}}
+                   {:gatz.crdt.user/action :gatz.crdt.user/remove-push-token
+                    :gatz.crdt.user/delta
+                    {:crdt/clock clock
+                     :user/push_tokens (crdt/->LWW clock nil)
+                     :user/settings {:settings/notifications
+                                     (crdt.user/notifications-off-crdt clock)}}}
+                   {:gatz.crdt.user/action :gatz.crdt.user/update-notifications
+                    :gatz.crdt.user/delta
+                    {:crdt/clock clock
+                     :user/settings {:settings/notifications
+                                     (crdt/->lww-map {:settings.notification/activity :settings.notification/daily}
+                                                     clock)}}}]]
+      (doseq [action actions]
+        (is (malli/validate schema/UserAction action)
+            (malli/explain schema/UserAction action))))))
