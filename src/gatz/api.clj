@@ -127,10 +127,11 @@
 
 (defmethod handle-evt! :gatz.crdt.user/delta
   [{:keys [biff.xtdb/node] :as ctx} evt]
-  (let [db (xtdb/db node)
-        u (db.user/by-id db (:evt/uid evt))]
-    (propagate-user-delta-to-user! ctx u (:evt/data evt))
-    (propagate-user-delta-to-friends! ctx u (:evt/data evt)))
+  (comment
+    (let [db (xtdb/db node)
+          u (db.user/by-id db (:evt/uid evt))]
+      (propagate-user-delta-to-user! ctx u (:evt/data evt))
+      (propagate-user-delta-to-friends! ctx u (:evt/data evt))))
   nil)
 
 (defmethod handle-evt! :message.crdt/delta
