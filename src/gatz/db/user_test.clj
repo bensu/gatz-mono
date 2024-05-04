@@ -3,6 +3,7 @@
             [clojure.string :as str]
             [clojure.test :refer [deftest testing is]]
             [clojure.java.io :as io]
+            [clojure.data :as data]
             [crdt.core :as crdt]
             [gatz.crdt.user :as crdt.user]
             [gatz.db.util :as db.util]
