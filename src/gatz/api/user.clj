@@ -48,8 +48,7 @@
     (let [new-token {:push/service :push/expo
                      :push/token push-token
                      :push/created_at (java.util.Date.)}
-          {:keys [user]} (db.user/add-push-token! ctx {:user-id user-id
-                                                       :push-token {:push/expo new-token}})]
+          {:keys [user]} (db.user/add-push-token! ctx user-id {:push-token {:push/expo new-token}})]
       (json-response {:status "success"
                       :user (crdt.user/->value user)}))
     (err-resp "push_token_missing" "Missing push token parameter")))

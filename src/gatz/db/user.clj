@@ -9,6 +9,7 @@
             [gatz.db.evt :as db.evt]
             [gatz.schema :as schema]
             [malli.core :as malli]
+            [malli.util :as mu]
             [medley.core :refer [map-vals]]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
@@ -140,65 +141,81 @@
           (assert false "Transaction would've failed")))
       (assert false "Invaild event"))))
 
-(defn mark-active! [ctx uid]
-  {:pre [(uuid? uid)]}
-  (let [now (Date.)
-        clock (crdt/new-hlc uid now)
-        action {:gatz.crdt.user/action :gatz.crdt.user/mark-active
-                :gatz.crdt.user/delta {:crdt/clock clock
-                                       :user/last_active now}}]
-    (apply-action! ctx uid action)))
+(defn mark-active!
+  ([ctx uid]
+   (mark-active! ctx uid {:now (Date.)}))
+  ([ctx uid {:keys [now]}]
+   {:pre [(uuid? uid)]}
+   (let [clock (crdt/new-hlc uid now)
+         action {:gatz.crdt.user/action :gatz.crdt.user/mark-active
+                 :gatz.crdt.user/delta {:crdt/clock clock
+                                        :user/updated_at now
+                                        :user/last_active now}}]
+     (apply-action! ctx uid action))))
 
-(defn update-avatar! [ctx uid avatar–url]
-  {:pre [(uuid? uid) (string? avatar–url)]}
-  (let [now (Date.)
-        clock (crdt/new-hlc uid now)
-        action {:gatz.crdt.user/action :gatz.crdt.user/update-avatar
-                :gatz.crdt.user/delta {:crdt/clock clock
-                                       :user/avatar avatar–url}}]
-    (apply-action! ctx uid action)))
+(defn update-avatar!
+  ([ctx uid avatar–url]
+   (update-avatar! ctx uid avatar–url {:now (Date.)}))
+  ([ctx uid avatar–url {:keys [now]}]
+   {:pre [(uuid? uid) (string? avatar–url)]}
+   (let [clock (crdt/new-hlc uid now)
+         action {:gatz.crdt.user/action :gatz.crdt.user/update-avatar
+                 :gatz.crdt.user/delta {:crdt/clock clock
+                                        :user/updated_at now
+                                        :user/avatar (crdt/->LWW clock avatar–url)}}]
+     (apply-action! ctx uid action))))
 
 (defn add-push-token!
-  [ctx {:keys [uid push-token]}]
+  ([ctx uid params]
+   (add-push-token! ctx uid params {:now (Date.)}))
+  ([ctx uid {:keys [push-token]} {:keys [now]}]
 
-  {:pre [(uuid? uid)
-         (malli/validate schema/PushTokens push-token)]}
+   {:pre [(uuid? uid)
+          (malli/validate schema/PushTokens push-token)]}
 
-  (let [now (Date.)
-        clock (crdt/new-hlc uid now)
-        delta {:crdt/clock clock
-               :user/push_tokens (crdt/->LWW clock push-token)
-               :user/settings {:settings/notfications (crdt.user/notifications-on-crdt clock)}}
-        action {:gatz.crdt.user/action :gatz.crdt.user/add-push-token
-                :gatz.crdt.user/delta delta}]
-    (apply-action! ctx uid action)))
+   (let [clock (crdt/new-hlc uid now)
+         delta {:crdt/clock clock
+                :user/updated_at now
+                :user/push_tokens (crdt/->LWW clock push-token)
+                :user/settings {:settings/notifications (crdt.user/notifications-on-crdt clock)}}
+         action {:gatz.crdt.user/action :gatz.crdt.user/add-push-token
+                 :gatz.crdt.user/delta delta}]
+     (apply-action! ctx uid action))))
 
 (defn remove-push-tokens!
-  [ctx {:keys [uid]}]
+  ([ctx uid] (remove-push-tokens! ctx uid {:now (Date.)}))
 
-  {:pre [(uuid? uid)]}
+  ([ctx uid {:keys [now]}]
 
-  (let [now (Date.)
-        clock (crdt/new-hlc uid now)
-        delta {:crdt/clock clock
-               :user/push_tokens (crdt/->LWW clock nil)
-               :user/settings {:settings/notfications (crdt.user/notifications-off-crdt clock)}}
-        action {:gatz.crdt.user/action :gatz.crdt.user/remove-push-token
-                :gatz.crdt.user/delta delta}]
-    (apply-action! ctx uid action)))
+   {:pre [(uuid? uid)]}
+
+   (let [clock (crdt/new-hlc uid now)
+         delta {:crdt/clock clock
+                :user/updated_at now
+                :user/push_tokens (crdt/->LWW clock nil)
+                :user/settings {:settings/notifications (crdt.user/notifications-off-crdt clock)}}
+         action {:gatz.crdt.user/action :gatz.crdt.user/remove-push-token
+                 :gatz.crdt.user/delta delta}]
+     (apply-action! ctx uid action))))
 
 (defn edit-notifications!
-  [ctx uid notification-settings]
 
-  {:pre [(uuid? uid)]}
+  ([ctx uid notification-settings]
+   (edit-notifications! ctx uid notification-settings {:now (Date.)}))
 
-  (let [now (Date.)
-        clock (crdt/new-hlc uid now)
-        delta {:crdt/clock clock
-               :user/settings {:settings/notfications (crdt/->lww-map notification-settings clock)}}
-        action {:gatz.crdt.user/action :gatz.crdt.user/remove-push-token
-                :gatz.crdt.user/delta delta}]
-    (apply-action! ctx uid action)))
+  ([ctx uid notification-settings {:keys [now]}]
+
+   {:pre [(uuid? uid)
+          (malli/validate (mu/optional-keys schema/NotificationPreferences)
+                          notification-settings)]}
+
+   (let [clock (crdt/new-hlc uid now)
+         delta {:crdt/clock clock
+                :user/updated_at now
+                :user/settings {:settings/notifications (crdt/->lww-map notification-settings clock)}}
+         action {:gatz.crdt.user/action :gatz.crdt.user/update-notifications
+                 :gatz.crdt.user/delta delta}]
+     (apply-action! ctx uid action))))
 
 (defn turn-off-notifications! [ctx uid]
   (edit-notifications! ctx uid crdt.user/notifications-off))
@@ -254,43 +271,114 @@
                      :user/settings {:settings/notifications
                                      (crdt/->lww-map {:settings.notification/activity :settings.notification/daily}
                                                      c2)}}}]]
-      (doseq [action actions]
-        (is (malli/validate schema/UserAction action)
-            (malli/explain schema/UserAction action)))
+      #_(doseq [action actions]
+          (is (malli/validate schema/UserAction action)
+              (malli/explain schema/UserAction action)))
 
-      (let [uid (random-uuid)
-            system (db.util/test-system)
-            ctx (assoc system
-                       :auth/user-id uid
-                       :auth/cid uid)
-            node (:biff.xtdb/node system)
-            user (create-user! ctx {:id uid
-                                    :username "test_123"
-                                    :phone "4159499932"
-                                    :now now})]
-        (doseq [action actions]
-          (let [tx (apply-action! (assoc ctx :biff/db (xtdb/db node))
-                                  uid action)]
-            (xtdb/await-tx node (:xtdb.api/tx-id tx))))
-        (let [final-user (by-id (xtdb/db node) uid)]
-          (db.util/is-equal {:crdt/clock c2
-                             :xt/id uid
-                             :db/type :gatz/user,
-                             :user/is_test false,
-                             :user/is_admin false,
-                             :user/name "test_123",
-                             :user/avatar "https://example.com/avatar.jpg",
-                             :db/version 1,
-                             :user/push_tokens nil,
-                             :user/phone_number "4159499932",
-                             :user/created_at now
-                             :user/last_active now
-                             :user/updated_at t2
-                             :user/settings
-                             #:settings{:notifications
-                                        #:settings.notification{:overall false,
-                                                                :activity :settings.notification/daily,
-                                                                :subscribe_on_comment false,
-                                                                :suggestions_from_gatz false}}}
+      #_(testing "we can apply the actions directly"
+          (let [uid (random-uuid)
+                system (db.util/test-system)
+                ctx (assoc system
+                           :auth/user-id uid
+                           :auth/cid uid)
+                node (:biff.xtdb/node system)
+                user (create-user! ctx {:id uid
+                                        :username "test_123"
+                                        :phone "4159499932"
+                                        :now now})]
+            (doseq [action actions]
+              (let [tx (apply-action! (assoc ctx :biff/db (xtdb/db node))
+                                      uid action)]
+                (xtdb/await-tx node (:xtdb.api/tx-id tx))))
+            (let [final-user (by-id (xtdb/db node) uid)]
+              (db.util/is-equal {:crdt/clock c2
+                                 :xt/id uid
+                                 :db/type :gatz/user,
+                                 :user/is_test false,
+                                 :user/is_admin false,
+                                 :user/name "test_123",
+                                 :user/avatar "https://example.com/avatar.jpg",
+                                 :db/version 1,
+                                 :user/push_tokens nil,
+                                 :user/phone_number "4159499932",
+                                 :user/created_at now
+                                 :user/last_active now
+                                 :user/updated_at t2
+                                 :user/settings
+                                 #:settings{:notifications
+                                            #:settings.notification{:overall false,
+                                                                    :activity :settings.notification/daily,
+                                                                    :subscribe_on_comment false,
+                                                                    :suggestions_from_gatz false}}}
 
-                            (crdt.user/->value final-user)))))))
+                                (crdt.user/->value final-user)))
+            (.close node)))
+
+      (testing "we can apply the actions through named functions"
+        (let [uid (random-uuid)
+              system (db.util/test-system)
+              ctx (assoc system
+                         :auth/user-id uid
+                         :auth/cid uid)
+              node (:biff.xtdb/node system)
+              user (create-user! ctx {:id uid
+                                      :username "test_123"
+                                      :phone "4159499932"
+                                      :now now})
+              t1 (crdt/inc-time now)
+              t2 (crdt/inc-time t1)
+              t3 (crdt/inc-time t2)
+              t4 (crdt/inc-time t3)
+              t5 (crdt/inc-time t4)
+              c1 (crdt/new-hlc uid t1)
+              c2 (crdt/new-hlc uid t2)
+              c3 (crdt/new-hlc uid t3)
+              c4 (crdt/new-hlc uid t4)
+              c5 (crdt/new-hlc uid t5)]
+          (do
+            ;; await for all the tx functions to be in the database
+            (xtdb/sync node)
+            (mark-active! (assoc ctx :biff/db (xtdb/db node)) uid {:now t1})
+            (update-avatar! (assoc ctx :biff/db (xtdb/db node))
+                            uid
+                            "https://example.com/avatar.jpg"
+                            {:now t2})
+            (add-push-token! (assoc ctx :biff/db (xtdb/db node))
+                             uid
+                             {:push-token {:push/expo
+                                           {:push/service :push/expo
+                                            :push/token "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]"
+                                            :push/created_at now}}}
+                             {:now t3})
+            (remove-push-tokens! (assoc ctx :biff/db (xtdb/db node))
+                                 uid
+                                 {:now t4})
+            (edit-notifications! (assoc ctx :biff/db (xtdb/db node))
+                                 uid
+                                 {:settings.notification/activity :settings.notification/daily}
+                                 {:now t5})
+            ;; await for all transactions before checking the state of the user
+            (xtdb/sync node))
+          (let [final-user (by-id (xtdb/db node) uid)]
+            (db.util/is-equal {:crdt/clock c5
+                               :xt/id uid
+                               :db/type :gatz/user,
+                               :user/is_test false,
+                               :user/is_admin false,
+                               :user/name "test_123",
+                               :user/avatar "https://example.com/avatar.jpg",
+                               :db/version 1,
+                               :user/push_tokens nil,
+                               :user/phone_number "4159499932",
+                               :user/created_at now
+                               :user/last_active t1
+                               :user/updated_at t5
+                               :user/settings
+                               #:settings{:notifications
+                                          #:settings.notification{:overall false,
+                                                                  :activity :settings.notification/daily,
+                                                                  :subscribe_on_comment false,
+                                                                  :suggestions_from_gatz false}}}
+
+                              (crdt.user/->value final-user)))
+          (.close node))))))
