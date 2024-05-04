@@ -25,7 +25,7 @@
                :db/version 1
                :db/doc-type :gatz.crdt/user
                :db/type :gatz/user)
-        (update :user/updated_at #(crdt/->MinWins %))
+        (update :user/updated_at #(crdt/->MaxWins %))
         (update :user/last_active #(crdt/->MaxWins %))
         (update :user/avatar #(crdt/->LWW clock %))
         (update :user/push_tokens #(crdt/->LWW clock %))
