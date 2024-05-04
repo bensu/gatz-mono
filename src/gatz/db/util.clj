@@ -1,24 +1,7 @@
 (ns gatz.db.util
   (:require [xtdb.api :as xtdb]))
 
-(defmacro is-equal [a b]
-  `(clojure.test/is (= ~a ~b)
-                    (pr-str (clojure.data/diff ~a ~b))))
-
-(defn test-node  []
-  (xtdb/start-node
-   {:xtdb/index-store {:kv-store {:xtdb/module 'xtdb.mem-kv/->kv-store}}
-    :xtdb/tx-log {:kv-store {:xtdb/module 'xtdb.mem-kv/->kv-store}}
-    :xtdb/document-store {:kv-store {:xtdb/module 'xtdb.mem-kv/->kv-store}}}))
-
-(defn test-system []
-  (let [node (test-node)]
-    (com.biffweb.impl.xtdb/save-tx-fns! node (var-get #'gatz.system/tx-fns))
-    {:biff.xtdb/node node
-     :biff/db (xtdb/db node)
-     :biff/malli-opts #'gatz.system/malli-opts}))
-
-(defn  ->latest-version [raw-data all-migrations]
+(defn ->latest-version [raw-data all-migrations]
   ;; TODO: should I handle the unthawable case from
   ;; TODO: what should the version system look like
   (when raw-data

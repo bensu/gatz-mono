@@ -7,7 +7,7 @@
             [gatz.db :as db]
             [gatz.schema :as schema]
             [gatz.db.message :refer :all]
-            [gatz.db.util :as db.util]
+            [gatz.db.util-test :as db.util-test]
             [malli.core :as malli]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
@@ -173,7 +173,7 @@
 
 (deftest db-roundtrip
   (testing "we can store a message and retrieve it"
-    (let [node (db.util/test-node)
+    (let [node (db.util-test/test-node)
           id (random-uuid)
           doc0 {:xt/id id
                 :message/updated_at (crdt/->MaxWins (Date.))}
