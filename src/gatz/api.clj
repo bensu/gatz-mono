@@ -3,6 +3,7 @@
   (:require [chime.core :as chime]
             [clojure.data.json :as json]
             [clojure.java.io :as io]
+            [crdt.core :as crdt]
             [gatz.auth :as auth]
             [gatz.api.discussion :as api.discussion]
             [gatz.api.media :as api.media]
@@ -99,8 +100,9 @@
 (defn propagate-user-delta-to-user!
   [{:keys [conns-state biff.xtdb/node] :as _ctx} u delta]
   (let [uid (:xt/id u)
-        evt {:event/type (:a delta)
-             :event/data {:user u :delta delta}}]
+        evt {:event/type (:gatz.crdt.user/action delta)
+             :event/data {:user (crdt.user/->value u)
+                          :delta (crdt/-value delta)}}]
     ;; 1. Connections for the same user want to hear everything
     (doseq [ws (conns/user-wss @conns-state uid)]
       (jetty/send! ws (json/write-str evt)))))
@@ -116,20 +118,19 @@
     (let [uid (:xt/id u)
           db (xtdb.api/db node)
           friend-ids (db.user/get-friend-ids db uid)
-          evt {:event/type (:a delta)
-               :event/data {:user (crdt.user/->friend u)
-                            :delta delta}}]
+          evt {:event/type (:gatz.crdt.user/action delta)
+               :event/data {:user (crdt.user/->value (crdt.user/->friend u))
+                            :delta (crdt/-value delta)}}]
       (doseq [ws (conns/uids->wss @conns-state friend-ids)]
         (jetty/send! ws (json/write-str evt))))))
 
 
 (defmethod handle-evt! :gatz.crdt.user/delta
-  [ctx evt]
-  (comment
-    ;; TODO: test and uncomment
-    (let [u (db.user/by-id (:evt/uid evt))]
-      (propagate-user-delta-to-user! ctx u (:evt/data evt))
-      (propagate-user-delta-to-friends! ctx u (:evt/data evt))))
+  [{:keys [biff.xtdb/node] :as ctx} evt]
+  (let [db (xtdb/db node)
+        u (db.user/by-id db (:evt/uid evt))]
+    (propagate-user-delta-to-user! ctx u (:evt/data evt))
+    (propagate-user-delta-to-friends! ctx u (:evt/data evt)))
   nil)
 
 (defmethod handle-evt! :message.crdt/delta
