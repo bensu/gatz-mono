@@ -171,6 +171,21 @@
                  :gatz.crdt.user/delta delta}]
      (apply-action! ctx uid action))))
 
+(defn turn-off-notifications!
+  ([ctx uid] (turn-off-notifications! ctx uid {:now (Date.)}))
+
+  ([ctx uid {:keys [now]}]
+
+   {:pre [(uuid? uid)]}
+
+   (let [clock (crdt/new-hlc uid now)
+         delta {:crdt/clock clock
+                :user/updated_at now
+                :user/settings {:settings/notifications (crdt.user/notifications-off-crdt clock)}}
+         action {:gatz.crdt.user/action :gatz.crdt.user/update-notifications
+                 :gatz.crdt.user/delta delta}]
+     (apply-action! ctx uid action))))
+
 (defn remove-push-tokens!
   ([ctx uid] (remove-push-tokens! ctx uid {:now (Date.)}))
 

@@ -24,7 +24,7 @@
 (defn get-me
   [{:keys [biff/db auth/user-id] :as _ctx}]
   (let [user (db.user/by-id db user-id)]
-    (json-response {:user user})))
+    (json-response {:user (crdt.user/->value user)})))
 
 (defn get-user
   [{:keys [params biff/db] :as _ctx}]
@@ -55,7 +55,7 @@
 
 (defn disable-push!
   [{:keys [auth/user-id] :as ctx}]
-  (let [{:keys [user]} (db.user/remove-push-tokens! ctx user-id)]
+  (let [{:keys [user]} (db.user/turn-off-notifications! ctx user-id)]
     (json-response {:status "success"
                     :user (crdt.user/->value user)})))
 

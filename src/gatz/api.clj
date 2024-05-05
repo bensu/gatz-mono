@@ -265,7 +265,7 @@
                  ["/log-request" {:post log-request}]
                  ["/log-response" {:get cached-log
                                    :post cached-log}]
-                 ["/me" {:get   api.user/get-me}]
+                 ["/me" {:get api.user/get-me}]
                  ["/user" {:get api.user/get-user}]
                  ["/user/push-token" {:post   api.user/add-push-token!}]
                  ["/user/disable-push" {:post api.user/disable-push!}]

@@ -15,8 +15,6 @@
 (defn err-resp [err-type err-msg]
   (json-response {:type "error" :error err-type :message err-msg}))
 
-
-
 (def folders #{"media" "avatars"})
 
 (defn presigned-url! [{:keys [params biff/secret] :as ctx}]
