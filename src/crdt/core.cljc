@@ -461,9 +461,17 @@
   (let [inner (into {} (map (fn [x] [x (->LWW clock true)]) xs))]
     (->LWWSet inner)))
 
+(defn lww-set-schema [value-schema]
+  [:map
+   [:xs [:map-of value-schema (lww-schema hlc-schema boolean?)]]])
+
 ;; This is not super ergonomic! 
 ;; The API you want knows which id you are removing
 (deftest lww-set-test
+  (testing "we can check the schema"
+    (let [schema (lww-set-schema string?)]
+      (is (malli/validate schema (lww-set (new-hlc) #{"0" "1"})))
+      (is (not (true? (malli/validate schema (lww-set (new-hlc) #{"0" 1})))))))
   (testing "You can add and remove"
     (let [node (random-uuid)
           t0 (Date.)
