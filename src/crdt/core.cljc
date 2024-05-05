@@ -338,7 +338,7 @@
    [:clock clock-schema]
    [:value value-schema]])
 
-(deftest lww
+(deftest lww-test
   (testing "empty value is always replaced"
     (let [initial (-init #crdt/lww [0 0])]
       (is (= 1 (-value (-apply-delta initial #crdt/lww [1 1]))))))
@@ -434,48 +434,49 @@
     (is (= #crdt/gos #{1 2 3}
            (nippy/thaw (nippy/freeze #crdt/gos #{1 2 3}))))))
 
-;; {x {:adds #{unique-ids} :removes #{unique-ids}}
-(defrecord AddRemoveSet [xs]
+;; {x #crdt/lww #crdt/clock boolean?}
+(defrecord LWWSet [xs]
   OpCRDT
   (-value [_]
     (->> xs
-         (keep (fn [[x {:keys [adds removes]}]]
-                 (when-not (empty? (set/difference adds removes))
-                   x)))
-         (set)))
+         (filter (fn [[x lww]]
+                   (-value lww)))
+         (map key)
+         set))
   (-apply-delta [_ delta]
-    ;; Should be a record
-    ;; delta is {:crdt.add-remove-set/add {x unique-id}
-    ;;           :crdt.add-remove-set/remove {x unique-id}}
-    (let [after-adds (reduce
-                      (fn [xs [x unique-id]]
-                        (update-in xs [x :adds] (fnil conj #{}) unique-id))
-                      xs
-                      (:crdt.add-remove-set/add delta))
-          after-removes (reduce
-                         (fn [xs [x unique-id]]
-                           (update-in xs [x :removes] (fnil conj #{}) unique-id))
-                         after-adds
-                         (:crdt.add-remove-set/remove delta))]
-      (->AddRemoveSet after-removes)))
+    {:pre [(map? delta)
+           (every? lww-instance? (vals delta))]}
+    ;; delta is {x #crdt/lww #crdt/hlc boolean?}
+    (->LWWSet
+     (reduce (fn [acc [x lww]]
+               (update acc x -apply-delta lww))
+             xs
+             delta)))
   juxt-nippy/IFreezable1
   (-freeze-without-meta! [this out]
     (nippy/freeze-to-out! out this)))
 
+(defn lww-set [clock xs]
+  {:pre [(set? xs)]}
+  (let [inner (into {} (map (fn [x] [x (->LWW clock true)]) xs))]
+    (->LWWSet inner)))
+
 ;; This is not super ergonomic! 
 ;; The API you want knows which id you are removing
-(deftest add-remove-set
+(deftest lww-set-test
   (testing "You can add and remove"
-    (let [initial (->AddRemoveSet {})
-          ;; here causality is important. we only remove what we added
-          adds (map (fn [x] [x (UUID/randomUUID)]) (range 10))
-          removes (filter (comp even? first) adds)
-          adds (map (fn [[x id]]
-                      {:crdt.add-remove-set/add {x id}})
-                    adds)
-          removes  (map (fn [[x id]]
-                          {:crdt.add-remove-set/remove {x id}})
-                        removes)
+    (let [node (random-uuid)
+          t0 (Date.)
+          t1 (inc-time t0)
+          c0 (new-hlc node t0)
+          c1 (new-hlc node t1)
+          initial (lww-set c0 #{})
+          adds (map (fn [x]
+                      {x (->LWW c0 true)})
+                    (range 10))
+          removes (map (fn [x]
+                         {x (->LWW c1 false)})
+                       (filter even? (range 10)))
           deltas (shuffle (concat adds removes adds removes))
           final (reduce -apply-delta initial deltas)]
       (is (= #{} (-value initial)))
