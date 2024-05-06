@@ -10,6 +10,7 @@
             [gatz.api.message :as api.message]
             [gatz.api.user :as api.user]
             [gatz.connections :as conns]
+            [gatz.crdt.discussion :as crdt.discussion]
             [gatz.crdt.message :as crdt.message]
             [gatz.crdt.user :as crdt.user]
             [gatz.db :as db]
@@ -157,7 +158,7 @@
         {:keys [discussion messages user_ids]} (db/discussion-by-id db did)
         members (:discussion/members discussion)
         msg {:event/type :event/new_discussion
-             :event/data {:discussion discussion
+             :event/data {:discussion (crdt.discussion/->value discussion)
                           :messages (mapv crdt.message/->value messages)
                           :users (mapv (comp crdt.user/->value
                                              (partial db.user/by-id db))

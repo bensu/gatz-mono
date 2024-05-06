@@ -179,6 +179,36 @@
     [:map-of #'UserId
      [:map-of string? (crdt/lww-schema crdt/hlc-schema [:maybe inst?])]]]])
 
+(def DiscussionCRDT
+  [:map
+   [:xt/id #'DiscussionId]
+   [:db/type [:enum :gatz/discussion]]
+   [:discussion/did #'DiscussionId]
+   [:discussion/name [:maybe string?]]
+   [:discussion/created_by #'UserId]
+   [:discussion/created_at inst?]
+   [:discussion/originally_from [:maybe [:map
+                                         [:did #'DiscussionId]
+                                         [:mid #'MessageId]]]]
+   [:discussion/first_message #'MessageId]
+   ;; LWW-set
+   [:discussion/members (crdt/lww-set-schema #'UserId)]
+   [:discussion/subscribers (crdt/lww-set-schema #'UserId)]
+   ;; LWW or MaxWins if mids can be ordered
+   [:discussion/latest_message (crdt/lww-schema crdt/hlc-schema #'MessageId)]
+   ;; {user-id (->LWW mid)} or MaxWins if mids can be ordered
+   [:discussion/last_message_read
+    [:map-of #'UserId (crdt/lww-schema crdt/hlc-schema #'MessageId)]]
+   ;; MaxWins
+   [:discussion/updated_at (crdt/max-wins-schema inst?)]
+   [:discussion/latest_activity_ts (crdt/max-wins-schema inst?)]
+   ;; {user-id (->MaxWins inst?)}
+   [:discussion/seen_at [:map-of #'UserId (crdt/max-wins-schema inst?)]]
+    ;; LWW
+   [:discussion/archived_at [:map-of #'UserId (crdt/lww-schema crdt/hlc-schema inst?)]]
+   ;; {id MessageCRDT}
+   [:discussion/messages {:optional true} [:map-of #'MessageId #'MessageCRDT]]])
+
 (def Discussion
   [:map
    [:xt/id #'DiscussionId]
@@ -198,7 +228,7 @@
    ;; AddRemoveSet
    [:discussion/subscribers [:set #'UserId]]
    ;; LWW or MaxWins if mids can be ordered
-   [:discussion/latest_message [:maybe #'MessageId]]
+   [:discussion/latest_message #'MessageId]
    ;; MaxWins
    [:discussion/latest_activity_ts inst?]
    ;; {user-id (->MaxWins inst?)}
@@ -347,7 +377,7 @@
    [:or
     [:map
      [:discussion.crdt/action [:enum :discussion.crdt/new]]
-     [:discussion.crdt/delta #'Discussion]]
+     [:discussion.crdt/delta #'DiscussionCRDT]]
     [:map
      [:discussion.crdt/action [:enum :discussion.crdt/new-message]]
      [:discussion.crdt/delta [:map
@@ -402,6 +432,7 @@
    :gatz/user #'User
    :gatz.crdt/user #'UserCRDT
    :gatz/discussion #'Discussion
+   :gatz.crdt/discussion #'DiscussionCRDT
    :gatz/reaction #'MessageReaction
    :gatz/media #'Media
    :gatz/message Message

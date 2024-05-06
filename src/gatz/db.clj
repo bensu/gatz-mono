@@ -1,6 +1,7 @@
 (ns gatz.db
   (:require [com.biffweb :as biff :refer [q]]
             [crdt.core :as crdt]
+            [gatz.crdt.discussion :as crdt.discussion]
             [gatz.crdt.message :as crdt.message]
             [gatz.crdt.user :as crdt.user]
             [gatz.db.discussion :as db.discussion]
@@ -49,21 +50,11 @@
         ;; TODO: get real connection id
         clock (crdt/new-hlc user-id now)
         ;; TODO: embed msg in discussion
-        d {:db/type :gatz/discussion
-           :xt/id did
-           :discussion/did did
-           :discussion/name name
-           :discussion/created_by user-id
-           :discussion/subscribers #{user-id}
-           :discussion/originally_from originally-from
-           :discussion/first_message mid
-           :discussion/latest_message mid
-           ;; We'll let the user see their own discussion in the feed as new
-           ;; :discussion/seen_at {user-id now}
-           :discussion/members (conj member-uids user-id)
-           :discussion/latest_activity_ts now
-           :discussion/created_at now}
-        d (db.discussion/update-discussion d now)
+        d (crdt.discussion/new-discussion
+           {:did did :mid mid :uid user-id
+            :originally-from originally-from
+            :member-uids member-uids}
+           {:now now})
         media (some->> media_id
                        mt/-string->uuid
                        (db.media/by-id db))
@@ -80,7 +71,7 @@
                              :evt/mid mid
                              :evt/cid cid
                              :evt/data evt-data})
-        txns [(assoc d :db/doc-type :gatz/discussion)
+        txns [(assoc d :db/doc-type :gatz.crdt/discussion)
               (assoc msg :db/doc-type :gatz.crdt/message)
               (assoc evt :db/doct-type :gatz/evt)
               ;; TODO: update other discussion, not just message for it
@@ -114,8 +105,8 @@
   (let [discussion (db.discussion/by-id db did)
         messages (db.message/by-did db did)]
     (assert discussion)
-    {:discussion discussion
-     :user_ids (:discussion/members discussion)
+    {:discussion (crdt.discussion/->value discussion)
+     :user_ids (crdt/-value (:discussion/members discussion))
      :messages (mapv crdt.message/->value messages)}))
 
 ;; TODO: add a max limit
@@ -268,7 +259,7 @@
                              true (assoc :discussion/latest_message mid)
                              true (assoc :discussion/latest_activity_ts now)
                              true (update :discussion/seen_at assoc user-id now)
-                             true (db.discussion/update-discussion now))
+                             true (crdt.discussion/update-discussion now))
         evt-data {:discussion.crdt/action :discussion.crdt/new-message
                   :discussion.crdt/delta  {:discussion/messages {mid msg}}}
         evt (db.evt/new-evt {:evt/type :discussion.crdt/delta

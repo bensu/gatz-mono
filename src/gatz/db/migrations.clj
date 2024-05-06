@@ -5,6 +5,7 @@
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
             [gatz.db.discussion :as db.discussion]
+            [gatz.crdt.discussion :as crdt.discussion]
             [gatz.crdt.user :as crdt.user]
             [gatz.schema :as schema]
             [malli.core :as malli]
@@ -69,7 +70,7 @@
                        (-> d
                            (assoc :discussion/first_message first-message
                                   :discussion/latest_message last-message)
-                           (db.discussion/update-discussion)))))))]
+                           (crdt.discussion/update-discussion)))))))]
     (biff/submit-tx ctx (vec (remove nil? txns)))))
 
 (defn lower-case-usernames!
@@ -164,7 +165,7 @@
                                              [m last-message]))]
                      (-> d
                          (assoc :discussion/last_message_read all-read)
-                         (db.discussion/update-discussion last-update))))))]
+                         (crdt.discussion/update-discussion last-update))))))]
     #_(vec (remove nil? txns))
     (biff/submit-tx ctx (vec (remove nil? txns)))))
 
@@ -230,7 +231,7 @@
                    (-> d
                        (assoc :discussion/latest_message (:xt/id latest-message))
                        (assoc :discussion/latest_activity_ts latest-activity-ts)
-                       (db.discussion/update-discussion now)))))]
+                       (crdt.discussion/update-discussion now)))))]
     (biff/submit-tx ctx (vec (remove nil? txns)))))
 
 (defn add-latest-activity-ts!
@@ -242,7 +243,7 @@
                (let [latest-activity-ts (:message/created_at latest-message)]
                  (-> d
                      (assoc :discussion/latest_activity_ts latest-activity-ts)
-                     (db.discussion/update-discussion now))))]
+                     (crdt.discussion/update-discussion now))))]
     (biff/submit-tx ctx (vec (remove nil? txns)))))
 
 
@@ -257,7 +258,7 @@
                  (-> d
                      (assoc :discussion/first_message (:xt/id first-message)
                             :discussion/latest_message (:xt/id last-message))
-                     (db.discussion/update-discussion now))))
+                     (crdt.discussion/update-discussion now))))
         txns (vec (remove nil? txns))]
     (biff/submit-tx ctx txns)))
 
