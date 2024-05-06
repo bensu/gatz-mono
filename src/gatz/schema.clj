@@ -213,6 +213,7 @@
   [:map
    [:xt/id #'DiscussionId]
    [:db/type [:enum :gatz/discussion]]
+   [:crdt/clock crdt/hlc-schema]
    [:discussion/did #'DiscussionId]
    [:discussion/name [:maybe string?]]
    [:discussion/created_by #'UserId]

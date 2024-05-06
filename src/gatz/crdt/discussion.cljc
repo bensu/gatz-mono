@@ -35,6 +35,7 @@
   (let [clock (crdt/new-hlc uid now)]
 
     {:db/type :gatz/discussion
+     :crdt/clock clock
      :xt/id did
      :discussion/did did
      :discussion/name nil
@@ -59,3 +60,6 @@
 
 (defn ->value [d]
   (crdt/-value d))
+
+(defn apply-delta [d delta]
+  (crdt/-apply-delta d delta))
