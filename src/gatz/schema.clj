@@ -204,7 +204,7 @@
    [:discussion/latest_activity_ts (crdt/max-wins-schema inst?)]
    ;; {user-id (->MaxWins inst?)}
    [:discussion/seen_at [:map-of #'UserId (crdt/max-wins-schema inst?)]]
-    ;; LWW
+    ;; LWW, maybe?
    [:discussion/archived_at [:map-of #'UserId (crdt/lww-schema crdt/hlc-schema inst?)]]
    ;; {id MessageCRDT}
    [:discussion/messages {:optional true} [:map-of #'MessageId #'MessageCRDT]]])
@@ -372,12 +372,42 @@
    [:evt/type [:enum :message.crdt/delta]]
    [:evt/data [:or #'MessageAction]]])
 
+(def ArchiveDiscussion
+  [:map
+   [:crdt/clock crdt/hlc-schema]
+   [:discussion/updated_at inst?]
+   [:discussion/archived_at [:map-of #'UserId (crdt/lww-schema crdt/hlc-schema inst?)]]])
+
+(def MarkMessageRead
+  [:map
+   [:crdt/clock crdt/hlc-schema]
+   [:discussion/updated_at inst?]
+   [:discussion/last_message_read [:map-of #'UserId (crdt/lww-schema crdt/hlc-schema #'MessageId)]]])
+
+(def SubscribeDelta
+  [:map
+   [:crdt/clock crdt/hlc-schema]
+   [:discussion/updated_at inst?]
+   [:discussion/subscribers [:map-of #'UserId (crdt/lww-schema crdt/hlc-schema boolean?)]]])
+
 (def DiscussionAction
   (mu/closed-schema
    [:or
     [:map
      [:discussion.crdt/action [:enum :discussion.crdt/new]]
      [:discussion.crdt/delta #'DiscussionCRDT]]
+    [:map
+     [:discussion.crdt/action [:enum :discussion.crdt/archive]]
+     [:discussion.crdt/delta #'ArchiveDiscussion]]
+    [:map
+     [:discussion.crdt/action [:enum :discussion.crdt/mark-message-read]]
+     [:discussion.crdt/delta #'MarkMessageRead]]
+    [:map
+     [:discussion.crdt/action [:enum :discussion.crdt/subscribe]]
+     [:discussion.crdt/delta #'SubscribeDelta]]
+
+
+
     [:map
      [:discussion.crdt/action [:enum :discussion.crdt/new-message]]
      [:discussion.crdt/delta [:map
@@ -392,7 +422,7 @@
    [:evt/uid #'UserId]
    [:evt/cid [:maybe #'ClientId]]
    [:evt/did #'DiscussionId]
-   [:evt/mid #'MessageId] ;; for message events, this is required
+   [:evt/mid [:maybe #'MessageId]]
    [:evt/type [:enum :discussion.crdt/delta]]
    [:evt/data [:or #'DiscussionAction]]])
 
