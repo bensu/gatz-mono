@@ -37,6 +37,7 @@
     {:db/type :gatz/discussion
      :crdt/clock clock
      :xt/id did
+     :db/version 1
      :discussion/did did
      :discussion/name nil
      :discussion/created_by uid

@@ -3,6 +3,7 @@
   (:require [com.biffweb :as biff]
             [gatz.email :as email]
             [gatz.api :as api]
+            [gatz.db.discussion :as db.discussion]
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
             [gatz.schema :as schema]
@@ -62,7 +63,8 @@
               (apply biff/safe-merge
                      (keep :schema plugins)))})
 
-(def tx-fns (merge biff/tx-fns db.message/tx-fns db.user/tx-fns))
+(def tx-fns
+  (merge biff/tx-fns db.message/tx-fns db.user/tx-fns db.discussion/tx-fns))
 
 (def initial-system
   {:biff/plugins #'plugins

@@ -3,6 +3,7 @@
             [gatz.db :as db]
             [gatz.db.discussion :as db.discussion]
             [gatz.db.user :as db.user]
+            [gatz.crdt.discussion :as crdt.discussion]
             [gatz.crdt.message :as crdt.message]
             [gatz.crdt.user :as crdt.user]
             [malli.transform :as mt]
@@ -87,7 +88,7 @@
 
   {:pre [(uuid? user-id)]}
   (let [did (mt/-string->uuid (:did params))
-        d (gatz.db.discussion/by-id db did)]
+        d (crdt.discussion/->value (gatz.db.discussion/by-id db did))]
     (if-authorized-for-discussion
      [user-id d]
      (do
@@ -97,56 +98,48 @@
 (defn mark-many-seen! [{:keys [biff/db auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
   (let [dids (map mt/-string->uuid (:dids params))
-        ds (mapv (partial db.discussion/by-id db) dids)]
+        ds (mapv (comp crdt.discussion/->value
+                       (partial db.discussion/by-id db))
+                 dids)]
     (when-authorized-for-discussions
      [user-id ds]
      (do
        (db.discussion/mark-as-seen! ctx user-id dids (java.util.Date.))
        (json-response {:status "ok"})))))
 
-(defn mark-message-seen! [{:keys [biff/db auth/user-id params] :as ctx}]
+(defn mark-message-read! [{:keys [biff/db auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
   (let [did (mt/-string->uuid (:did params))
-        mid (mt/-string->uuid (:mid params))
-        d (db.discussion/by-id db did)]
-    (if-authorized-for-discussion
-     [user-id d]
-     (let [new-d (db.discussion/mark-message-seen! ctx user-id did mid (java.util.Date.))]
-       (json-response {:discussion new-d})))))
+        mid (mt/-string->uuid (:mid params))]
+    (let [{:keys [discussion]} (db.discussion/mark-message-read! ctx user-id did mid)]
+      (json-response {:discussion (crdt.discussion/->value discussion)}))))
 
 (defn archive! [{:keys [biff/db auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
   (let [did (mt/-string->uuid (:did params))
-        d (db.discussion/by-id db did)]
-    (if-authorized-for-discussion
-     [user-id d]
-     (let [d (db.discussion/archive! ctx user-id did (java.util.Date.))
-           {:keys [messages user_ids]} (db/discussion-by-id db did)]
-       (json-response {:discussion d
-                       :users (mapv (comp crdt.user/->value
-                                          (partial db.user/by-id db))
-                                    user_ids)
-                       :messages (mapv crdt.message/->value messages)})))))
+        {:keys [discussion]} (db.discussion/archive! ctx did user-id)
+        d (crdt.discussion/->value discussion)
+        {:keys [messages user_ids]} (db/discussion-by-id db did)]
+      ;; TODO: change to only return the discussion
+    (json-response {:discussion d
+                    :users (mapv (comp crdt.user/->value
+                                       (partial db.user/by-id db))
+                                 user_ids)
+                    :messages (mapv crdt.message/->value messages)})))
 
 (defn subscribe-to-discussion!
   [{:keys [biff/db auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
   (let [did (mt/-string->uuid (:did params))
-        d (db.discussion/by-id db did)]
-    (if-authorized-for-discussion
-     [user-id d]
-     (let [d (db.discussion/subscribe! ctx user-id did (java.util.Date.))]
-       (json-response {:discussion d})))))
+        {:keys [discussion]} (db.discussion/subscribe! ctx did user-id)]
+    (json-response {:discussion (crdt.discussion/->value discussion)})))
 
 (defn unsubscribe-to-discussion!
   [{:keys [biff/db auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
   (let [did (mt/-string->uuid (:did params))
-        d (db.discussion/by-id db did)]
-    (if-authorized-for-discussion
-     [user-id d]
-     (let [d (db.discussion/unsubscribe! ctx user-id did (java.util.Date.))]
-       (json-response {:discussion d})))))
+        {:keys [discussion]} (db.discussion/unsubscribe! ctx did user-id)]
+    (json-response {:discussion (crdt.discussion/->value discussion)})))
 
 ;; The cut-off for discussions is when they were created but the feed sorting is
 ;; based on when they were updated. This will close problems when there is more activity
@@ -176,7 +169,7 @@
             ds (map (partial db/discussion-by-id db) dis)
             ;; TODO: this should be a union of the right users, not all users
             users (db.user/all-users db)]
-        (json-response {:discussions ds
+        (json-response {:discussions (mapv crdt.discussion/->value ds)
                         :users (mapv crdt.user/->value users)
                         :current false
                         :latest_tx {:id (::xt/tx-id latest-tx)
@@ -188,25 +181,26 @@
   (if-let [post-text (:text params)]
     (if-not (db/valid-post? post-text (:media_id params))
       (err-resp "invalid_post" "Invalid post")
-      (let [{:keys [discussion message]} (db/create-discussion-with-message! ctx params)]
+      (let [{:keys [discussion message]} (db/create-discussion-with-message! ctx params)
+            d (crdt.discussion/->value discussion)]
         ;; TODO: change shape of response
         (json-response
-         {:discussion discussion
+         {:discussion d
           :users (mapv (comp crdt.user/->value (partial db.user/by-id db))
-                       (:discussion/members discussion))
+                       (:discussion/members d))
           :messages [(crdt.message/->value message)]})))
     (err-resp "invalid_params" "Invalid params: missing post text")))
 
-(defn add-member! [{:keys [params auth/user-id biff/db] :as ctx}]
-  (let [did (mt/-string->uuid (:discussion_id params))
-        uid (mt/-string->uuid (:user_id params))]
-    (if (and (uuid? did) (uuid? did))
-      (let [d (db.discussion/by-id db did)]
-        (if-admin-for-discussion
-         [user-id d]
-         (let [d (db.discussion/add-member! ctx {:discussion/id did :user/id uid})]
-           (json-response {:discussion d}))))
-      {:status 400 :body "invalid params"})))
+#_(defn add-member! [{:keys [params auth/user-id biff/db] :as ctx}]
+    (let [did (mt/-string->uuid (:discussion_id params))
+          uid (mt/-string->uuid (:user_id params))]
+      (if (and (uuid? did) (uuid? did))
+        (let [d (crdt.discussion/->value (db.discussion/by-id db did))]
+          (if-admin-for-discussion
+           [user-id d]
+           (let [{:keys [discussion]} (db.discussion/add-member! ctx did uid)]
+             (json-response {:discussion (crdt.discussion/->value d)}))))
+        {:status 400 :body "invalid params"})))
 
 (defn create-message! [{:keys [params biff/db auth/user-id] :as ctx}]
   (let [{:keys [text id discussion_id]} params
@@ -215,7 +209,7 @@
         media-id (some-> (:media_id params) mt/-string->uuid)
         reply-to (some-> (:reply_to params) mt/-string->uuid)
         did (mt/-string->uuid discussion_id)
-        d (db.discussion/by-id db did)]
+        d (crdt.discussion/->value (db.discussion/by-id db did))]
     (if-authorized-for-discussion
      [user-id d]
      (let [msg (db/create-message! ctx {:did did

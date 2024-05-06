@@ -183,6 +183,7 @@
   [:map
    [:xt/id #'DiscussionId]
    [:db/type [:enum :gatz/discussion]]
+   [:db/version [:enum 1]]
    [:discussion/did #'DiscussionId]
    [:discussion/name [:maybe string?]]
    [:discussion/created_by #'UserId]
@@ -213,6 +214,7 @@
   [:map
    [:xt/id #'DiscussionId]
    [:db/type [:enum :gatz/discussion]]
+   [:db/version [:enum 1]]
    [:crdt/clock crdt/hlc-schema]
    [:discussion/did #'DiscussionId]
    [:discussion/name [:maybe string?]]
@@ -406,9 +408,6 @@
     [:map
      [:discussion.crdt/action [:enum :discussion.crdt/subscribe]]
      [:discussion.crdt/delta #'SubscribeDelta]]
-
-
-
     [:map
      [:discussion.crdt/action [:enum :discussion.crdt/new-message]]
      [:discussion.crdt/delta [:map
