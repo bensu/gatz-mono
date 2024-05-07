@@ -549,10 +549,13 @@
                            user-ids))
              (-value final))))))
 
+(defn clock? [x]
+  (instance? java.lang.Comparable x))
+
 (defn ->lww-map
   "Recursively walks the map turning all its leaf nodes to LWW"
   [m clock]
-  {:pre [(map? m)]}
+  {:pre [(map? m) (clock? clock)] :post [(map? %)]}
   (map-vals (fn [v]
               (if (map? v)
                 (->lww-map v clock)
@@ -560,6 +563,8 @@
             m))
 
 (deftest lww-map
+  (testing "empty maps are left untouched"
+    (is (= {} (-value (->lww-map {} 0)))))
   (testing "Can turn a map to lww"
     (let [m {:a "a" :b "b"}
           lww-m (->lww-map m 0)]
