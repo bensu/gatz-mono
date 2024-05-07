@@ -71,7 +71,9 @@
                              :evt/mid mid
                              :evt/cid cid
                              :evt/data evt-data})
-        txns [(assoc d :db/doc-type :gatz.crdt/discussion)
+        txns [(-> d
+                  (db.discussion/crdt->doc)
+                  (assoc :db/doc-type :gatz.doc/discussion))
               (assoc msg :db/doc-type :gatz.crdt/message)
               (assoc evt :db/doct-type :gatz/evt)
               ;; TODO: update other discussion, not just message for it
@@ -125,6 +127,11 @@
 ;; TODO: figure out how to embed this as a parameter to the query
 (def discussion-fetch-batch 20)
 
+;; These functions assume you can use the CRDT values in the index
+;; XTDB doesn't index nested maps, only top level attributes
+;; So, makes sure that only what you want indexed is indexed at the top level
+;; This is why we have :gatz.doc/discussion which has top level values
+;; for the schema/discussion-indexed-fields and then :db/full-doc for the rest
 (defn discussions-by-user-id-up-to [db user-id]
   (let [dids (q db '{:find [did latest-activity-ts]
                      :in [user-id]
@@ -275,7 +282,9 @@
                              :evt/data evt-data})]
     (biff/submit-tx ctx (vec (remove nil? [(assoc msg :db/doc-type :gatz.crdt/message)
                                            (assoc evt :db/doc-type :gatz/evt)
-                                           (assoc updated-d :db/doc-type :gatz.crdt/discussion)
+                                           (-> updated-d
+                                               (db.discussion/crdt->doc)
+                                               (assoc :db/doc-type :gatz.doc/discussion))
                                            updated-media])))
     msg))
 

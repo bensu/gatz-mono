@@ -243,6 +243,22 @@
    ;; {id MessageCRDT}
    [:discussion/messages {:optional true} [:map-of #'MessageId #'MessageCRDT]]])
 
+(def discussion-indexed-fields
+  [:xt/id
+   :db/type
+   :db/version
+   :discussion/did
+   :discussion/created_at
+   :discussion/updated_at
+   :discussion/latest_activity_ts
+   :discussion/created_by
+   :discussion/members])
+
+(def DiscussionDoc
+  (-> Discussion
+      (mu/select-keys discussion-indexed-fields)
+      (mu/assoc :db/full-doc DiscussionCRDT)))
+
 ;; ====================================================================== 
 ;; Events
 
@@ -461,6 +477,7 @@
    :gatz/evt #'Event
    :gatz/user #'User
    :gatz.crdt/user #'UserCRDT
+   :gatz.doc/discussion #'DiscussionDoc
    :gatz/discussion #'Discussion
    :gatz.crdt/discussion #'DiscussionCRDT
    :gatz/reaction #'MessageReaction

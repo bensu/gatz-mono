@@ -1,8 +1,10 @@
 (ns gatz.db.message
   (:require [com.biffweb :as biff :refer [q]]
             [crdt.core :as crdt]
+            [gatz.crdt.discussion :as crdt.discussion]
             [gatz.crdt.message :as crdt.message]
             [gatz.schema :as schema]
+            [gatz.db.discussion :as db.discussion]
             [gatz.db.evt :as db.evt]
             [gatz.db.util :as db.util]
             [malli.core :as malli]
@@ -120,7 +122,7 @@
   (let [mid (:evt/mid evt)
         did (:evt/did evt)
         db (xtdb.api/db ctx)
-        d (crdt.core/-value (gatz.db.message/discussion-by-id db did))
+        d (crdt.discussion/->value (gatz.db.discussion/by-id db did))
         msg (gatz.db.message/by-id db mid)]
     (when (gatz.db.message/authorized-for-message-delta? d msg evt)
       (let [delta (get-in evt [:evt/data :message.crdt/delta])

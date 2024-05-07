@@ -23,6 +23,21 @@
     (boolean (or (nil? seen-at)
                  (< seen-at updated-at)))))
 
+(defn crdt->doc [dcrdt]
+  {:pre [(malli/validate schema/DiscussionCRDT dcrdt)]
+   :post [(malli/validate schema/DiscussionDoc %)]}
+  (-> dcrdt
+      crdt.discussion/->value
+      (select-keys schema/discussion-indexed-fields)
+      (assoc :db/full-doc dcrdt)))
+
+(defn doc->crdt [ddoc]
+  #_{:pre [(malli/validate schema/DiscussionDoc ddoc)]
+     :post [(malli/validate schema/DiscussionCRDT %)]}
+  (if (contains? ddoc :db/full-doc)
+    (:db/full-doc ddoc)
+    ddoc))
+
 (def migration-client-id #uuid "08f711cd-1d4d-4f61-b157-c36a8be8ef95")
 
 (defn v0->v1 [data]
@@ -47,6 +62,7 @@
 
 (defn by-id [db did]
   (-> (xtdb/entity db did)
+      doc->crdt
       (db.util/->latest-version all-migrations)))
 
 ;; Actions
@@ -95,7 +111,9 @@
         (let [delta (get-in evt [:evt/data :discussion.crdt/delta])
               new-d (gatz.crdt.discussion/apply-delta d delta)]
           [[:xtdb.api/put evt]
-           [:xtdb.api/put new-d]])))))
+           [:xtdb.api/put (-> new-d
+                              (crdt->doc)
+                              (assoc :db/doc-type :gatz.doc/discussion))]])))))
 
 (def ^{:doc "This function will be stored in the db which is why it is an expression"}
   apply-delta-expr
