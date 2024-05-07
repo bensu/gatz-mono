@@ -409,6 +409,10 @@
    [:discussion/updated_at inst?]
    [:discussion/subscribers [:map-of #'UserId (crdt/lww-schema crdt/hlc-schema boolean?)]]])
 
+(def MarkDiscussionAsSeenDelta
+  [:map
+   [:discussion/seen_at [:map-of #'UserId (crdt/max-wins-schema inst?)]]])
+
 (def DiscussionAction
   (mu/closed-schema
    [:or
@@ -424,6 +428,9 @@
     [:map
      [:discussion.crdt/action [:enum :discussion.crdt/subscribe]]
      [:discussion.crdt/delta #'SubscribeDelta]]
+    [:map
+     [:discussion.crdt/action [:enum :discussion.crdt/mark-as-seen]]
+     [:discussion.crdt/delta #'MarkDiscussionAsSeenDelta]]
     [:map
      [:discussion.crdt/action [:enum :discussion.crdt/new-message]]
      [:discussion.crdt/delta [:map

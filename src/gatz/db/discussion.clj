@@ -146,16 +146,18 @@
 
 ;; Wrappers over actions
 
-;; TODO: fix to use CRDTs
 (defn mark-as-seen! [{:keys [biff/db] :as ctx} uid dids now]
   {:pre [(every? uuid? dids) (uuid? uid) (inst? now)]}
-  (let [txns (mapv (fn [did]
+  (let [clock (crdt/new-hlc uid now)
+        txns (mapv (fn [did]
                      (let [d (by-id db did)
-                           seen-at (-> (:discussion/seen_at d {})
-                                       (assoc uid now))]
-                       (-> d
-                           (assoc :discussion/seen_at seen-at)
-                           (crdt.discussion/update-discussion))))
+                           delta {:crdt/clock clock
+                                  :discussion/updated_at now
+                                  :discussion/seen_at {uid (crdt/->MaxWins now)}}
+                           updated-d (crdt/-apply-delta d delta)]
+                       (-> updated-d
+                           crdt->doc
+                           (assoc :db/doc-type :gatz.doc/discussion))))
                    dids)]
     (biff/submit-tx ctx txns)))
 
