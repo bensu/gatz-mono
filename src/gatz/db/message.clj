@@ -120,7 +120,7 @@
   (let [mid (:evt/mid evt)
         did (:evt/did evt)
         db (xtdb.api/db ctx)
-        d (gatz.db.message/discussion-by-id db did)
+        d (crdt.core/-value (gatz.db.message/discussion-by-id db did))
         msg (gatz.db.message/by-id db mid)]
     (when (gatz.db.message/authorized-for-message-delta? d msg evt)
       (let [delta (get-in evt [:evt/data :message.crdt/delta])
