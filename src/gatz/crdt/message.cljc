@@ -26,7 +26,8 @@
 
 (defn new-message
   [{:keys [uid mid did text media reply_to]} {:keys [now cid clock]}]
-  {:pre [(inst? now) (or (some? clock) (uuid? cid))
+  {:pre [(inst? now)
+         (or (uuid? cid) (some? clock))
          (uuid? uid) (uuid? mid) (uuid? did) (string? text)]}
   (let [clock (or clock (crdt/new-hlc cid now))]
     {:xt/id mid

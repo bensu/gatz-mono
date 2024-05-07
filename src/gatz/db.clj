@@ -247,19 +247,24 @@
                               (assoc :media/message_id mid)
                               (db.media/update-media))
         ;; TODO: put directly in discussion
+        clock (crdt/new-hlc user-id now)
         msg (crdt.message/new-message
              {:uid user-id :mid mid :did did
               :text text  :reply_to reply_to
               :media (when updated-media [updated-media])}
              ;; TODO: get real connection id
-             {:now now :cid user-id})
+             {:clock clock :now now})
         d (db.discussion/by-id db did)
-        updated-discussion (cond-> d
-                             auto-subscribe? (update :discussion/subscribers conj user-id)
-                             true (assoc :discussion/latest_message mid)
-                             true (assoc :discussion/latest_activity_ts now)
-                             true (update :discussion/seen_at assoc user-id now)
-                             true (crdt.discussion/update-discussion now))
+        d-delta {:crdt/clock clock
+                 :discussion/updated_at (crdt/->MaxWins now)
+                 :discussion/latest_message (crdt/->LWW clock mid)
+                 :discussion/latest_activity_ts (crdt/->MaxWins now)
+                 :discussion/seen_at {user-id (crdt/->MaxWins now)}}
+        d-delta (cond-> d-delta
+                  auto-subscribe? (assoc :discussion/subscribers
+                                         {user-id (crdt/->LWW clock true)}))
+
+        updated-d (crdt.discussion/apply-delta d d-delta)
         evt-data {:discussion.crdt/action :discussion.crdt/new-message
                   :discussion.crdt/delta  {:discussion/messages {mid msg}}}
         evt (db.evt/new-evt {:evt/type :discussion.crdt/delta
@@ -270,7 +275,7 @@
                              :evt/data evt-data})]
     (biff/submit-tx ctx (vec (remove nil? [(assoc msg :db/doc-type :gatz.crdt/message)
                                            (assoc evt :db/doc-type :gatz/evt)
-                                           updated-discussion
+                                           (assoc updated-d :db/doc-type :gatz.crdt/discussion)
                                            updated-media])))
     msg))
 

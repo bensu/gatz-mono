@@ -35,12 +35,12 @@
         (update :discussion/members #(crdt/lww-set clock %))
         (update :discussion/subscribers #(crdt/lww-set clock %))
         (update :discussion/latest_message #(crdt/->LWW clock %))
-        (update :discussion/last_message_read #(crdt/->lww-map clock %))
+        (update :discussion/last_message_read #(crdt/->lww-map % clock))
         (update :discussion/updated_at crdt/->MaxWins)
         (update :discussion/latest_activity_ts crdt/->MaxWins)
         (update :discussion/seen_at (fn [seen-at]
                                       (map-vals crdt/->MaxWins seen-at)))
-        (update :discussion/archived_at #(crdt/->lww-map clock %)))))
+        (update :discussion/archived_at #(crdt/->lww-map % clock)))))
 
 (def all-migrations
   [{:from 0 :to 1 :transform v0->v1}])
@@ -128,6 +128,7 @@
 
 ;; Wrappers over actions
 
+;; TODO: fix to use CRDTs
 (defn mark-as-seen! [{:keys [biff/db] :as ctx} uid dids now]
   {:pre [(every? uuid? dids) (uuid? uid) (inst? now)]}
   (let [txns (mapv (fn [did]
