@@ -411,6 +411,8 @@
 
 (def MarkDiscussionAsSeenDelta
   [:map
+   [:crdt/clock crdt/hlc-schema]
+   [:discussion/updated_at inst?]
    [:discussion/seen_at [:map-of #'UserId (crdt/max-wins-schema inst?)]]])
 
 (def DiscussionAction

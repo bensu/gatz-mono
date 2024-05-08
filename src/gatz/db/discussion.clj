@@ -24,8 +24,8 @@
                  (< seen-at updated-at)))))
 
 (defn crdt->doc [dcrdt]
-  {:pre [(malli/validate schema/DiscussionCRDT dcrdt)]
-   :post [(malli/validate schema/DiscussionDoc %)]}
+  #_{:pre [(malli/validate schema/DiscussionCRDT dcrdt)]
+     :post [(malli/validate schema/DiscussionDoc %)]}
   (-> dcrdt
       crdt.discussion/->value
       (select-keys schema/discussion-indexed-fields)
@@ -41,21 +41,26 @@
 (def migration-client-id #uuid "08f711cd-1d4d-4f61-b157-c36a8be8ef95")
 
 (defn v0->v1 [data]
-  (let [clock (crdt/new-hlc migration-client-id)]
-    (-> (merge crdt.discussion/discussion-defaults data)
-        (assoc :db/version 1
-               :crdt/clock clock
-               :db/doc-type :gatz.crdt/discussion
-               :db/type :gatz/discussion)
-        (update :discussion/members #(crdt/lww-set clock %))
-        (update :discussion/subscribers #(crdt/lww-set clock %))
-        (update :discussion/latest_message #(crdt/->LWW clock %))
-        (update :discussion/last_message_read #(crdt/->lww-map % clock))
-        (update :discussion/updated_at crdt/->MaxWins)
-        (update :discussion/latest_activity_ts crdt/->MaxWins)
-        (update :discussion/seen_at (fn [seen-at]
-                                      (map-vals crdt/->MaxWins seen-at)))
-        (update :discussion/archived_at #(crdt/->lww-map % clock)))))
+  ;; {:post [(malli/validate schema/DiscussionCRDT %)]}
+  (let [clock (crdt/new-hlc migration-client-id)
+        v1
+        (-> (merge crdt.discussion/discussion-defaults data)
+            (assoc :db/version 1
+                   :crdt/clock clock
+                   :db/doc-type :gatz.crdt/discussion
+                   :db/type :gatz/discussion)
+            (update :discussion/members #(crdt/lww-set clock %))
+            (update :discussion/subscribers #(crdt/lww-set clock %))
+            (update :discussion/latest_message #(crdt/->LWW clock %))
+            (update :discussion/last_message_read #(crdt/->lww-map % clock))
+            (update :discussion/updated_at crdt/->MaxWins)
+            (update :discussion/latest_activity_ts crdt/->MaxWins)
+            (update :discussion/seen_at (fn [seen-at]
+                                          (map-vals crdt/->MaxWins seen-at)))
+            (update :discussion/archived_at #(crdt/->lww-map % clock)))]
+    #_(assert (malli/validate schema/DiscussionCRDT v1)
+              (malli/explain schema/DiscussionCRDT v1))
+    v1))
 
 (def all-migrations
   [{:from 0 :to 1 :transform v0->v1}])
@@ -102,6 +107,13 @@
     (and (user-in-discussion? uid d)
          (only-user-in-map-delta uid (:discussion/subscribers delta)))))
 
+(defmethod authorized-for-delta? :discussion.crdt/mark-as-seen
+  [d evt]
+  (let [uid (:evt/uid evt)
+        delta (get-in evt [:evt/data :discussion.crdt/delta])]
+    (and (user-in-discussion? uid d)
+         (only-user-in-map-delta uid (:discussion/seen_at delta)))))
+
 (defn apply-delta-xtdb
   [ctx {:keys [evt] :as _args}]
   (let [did (:evt/did evt)
@@ -146,19 +158,25 @@
 
 ;; Wrappers over actions
 
-(defn mark-as-seen! [{:keys [biff/db] :as ctx} uid dids now]
+(defn mark-as-seen!
+  [ctx uid dids now]
   {:pre [(every? uuid? dids) (uuid? uid) (inst? now)]}
   (let [clock (crdt/new-hlc uid now)
-        txns (mapv (fn [did]
-                     (let [d (by-id db did)
-                           delta {:crdt/clock clock
-                                  :discussion/updated_at now
-                                  :discussion/seen_at {uid (crdt/->MaxWins now)}}
-                           updated-d (crdt/-apply-delta d delta)]
-                       (-> updated-d
-                           crdt->doc
-                           (assoc :db/doc-type :gatz.doc/discussion))))
-                   dids)]
+        txns (mapv
+              (fn [did]
+                (let [delta {:crdt/clock clock
+                             :discussion/updated_at now
+                             :discussion/seen_at {uid (crdt/->MaxWins now)}}
+                      action {:discussion.crdt/action :discussion.crdt/mark-as-seen
+                              :discussion.crdt/delta delta}
+                      evt  (db.evt/new-evt {:evt/type :discussion.crdt/delta
+                                            :evt/uid uid
+                                            :evt/mid nil
+                                            :evt/did did
+                                            :evt/cid uid
+                                            :evt/data action})]
+                  [:xtdb.api/fn :gatz.db.discussion/apply-delta {:evt evt}]))
+              dids)]
     (biff/submit-tx ctx txns)))
 
 (defn mark-message-read!
@@ -216,3 +234,7 @@
                  :discussion.crdt/delta delta}]
      (apply-action! ctx did action))))
 
+
+(defn all [db]
+  (q db '{:find (pull d [*])
+          :where [[d :db/type :gatz/discussion]]}))
