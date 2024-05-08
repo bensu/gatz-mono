@@ -35,6 +35,9 @@
   (-freeze-without-meta! [this out]
     (nippy/freeze-to-out! out this)))
 
+(defn min-wins [value]
+  (if (instance? MinWins value) value (->MinWins value)))
+
 (defmethod print-method MinWins
   [^MinWins min-wins ^java.io.Writer writer]
   (.write writer "#crdt/min-wins ")
@@ -57,7 +60,7 @@
   [:map
    [:value value-schema]])
 
-(deftest min-wins
+(deftest min-wins-test
   (testing "can check its schema"
     (is (malli/validate (min-wins-schema string?) #crdt/min-wins "0"))
     (is (not (true? (malli/validate (min-wins-schema integer?) #crdt/min-wins "0")))))
@@ -100,6 +103,9 @@
   (-freeze-without-meta! [this out]
     (nippy/freeze-to-out! out this)))
 
+(defn max-wins [value]
+  (if (instance? MaxWins value) value (->MaxWins value)))
+
 (defmethod print-method MaxWins
   [^MaxWins max-wins ^java.io.Writer writer]
   (.write writer "#crdt/max-wins ")
@@ -122,7 +128,7 @@
   [:map
    [:value value-schema]])
 
-(deftest max-wins
+(deftest max-wins-test
   (testing "can check its schema"
     (is (malli/validate (max-wins-schema string?) #crdt/max-wins "0"))
     (is (not (true? (malli/validate (max-wins-schema integer?) #crdt/max-wins "0")))))
@@ -312,6 +318,9 @@
   (-freeze-without-meta! [this out]
     (nippy/freeze-to-out! out this)))
 
+(defn lww [clock value]
+  (if (instance? LWW value) value (->LWW clock value)))
+
 (defmethod print-method LWW
   [^LWW lww ^java.io.Writer writer]
   (.write writer "#crdt/lww ")
@@ -457,9 +466,11 @@
     (nippy/freeze-to-out! out this)))
 
 (defn lww-set [clock xs]
-  {:pre [(set? xs)]}
-  (let [inner (into {} (map (fn [x] [x (->LWW clock true)]) xs))]
-    (->LWWSet inner)))
+  ;; {:pre [(or (nil? xs) (set? xs))]}
+  (if (instance? LWWSet xs)
+    xs
+    (let [inner (into {} (map (fn [x] [x (->LWW clock true)]) (or xs #{})))]
+      (->LWWSet inner))))
 
 (defn lww-set-schema [value-schema]
   [:map
@@ -469,9 +480,10 @@
 ;; The API you want knows which id you are removing
 (deftest lww-set-test
   (testing "we can check the schema"
-    (let [schema (lww-set-schema string?)]
-      (is (malli/validate schema (lww-set (new-hlc) #{"0" "1"})))
-      (is (not (true? (malli/validate schema (lww-set (new-hlc) #{"0" 1})))))))
+    (let [schema (lww-set-schema string?)
+          node (random-uuid)]
+      (is (malli/validate schema (lww-set (new-hlc node) #{"0" "1"})))
+      (is (not (true? (malli/validate schema (lww-set (new-hlc node) #{"0" 1})))))))
   (testing "You can add and remove"
     (let [node (random-uuid)
           t0 (Date.)
