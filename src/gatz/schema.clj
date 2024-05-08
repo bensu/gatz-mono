@@ -434,6 +434,7 @@
    [:discussion/subscribers {:optional true} [:map-of #'UserId (crdt/lww-schema crdt/hlc-schema boolean?)]]
    [:discussion/updated_at inst?]])
 
+;; I need a way for tagged unions to give me better error messages
 (def DiscussionAction
   (mu/closed-schema
    [:or
@@ -454,7 +455,7 @@
      [:discussion.crdt/delta #'MarkDiscussionAsSeenDelta]]
     [:map
      [:discussion.crdt/action [:enum :discussion.crdt/append-message]]
-     [:discussion.delta #'AppendMessageDelta]]
+     [:discussion.crdt/delta #'AppendMessageDelta]]
     [:map
      [:discussion.crdt/action [:enum :discussion.crdt/new-message]]
      [:discussion.crdt/delta [:map

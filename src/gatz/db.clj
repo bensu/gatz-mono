@@ -266,7 +266,7 @@
              ;; TODO: get real connection id
              {:clock clock :now now})
         delta {:crdt/clock clock
-               :discussion/updated_at (crdt/max-wins now)
+               :discussion/updated_at now
                :discussion/latest_message (crdt/lww clock mid)
                :discussion/latest_activity_ts (crdt/max-wins now)
                :discussion/seen_at {user-id (crdt/max-wins now)}}

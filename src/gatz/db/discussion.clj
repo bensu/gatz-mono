@@ -78,7 +78,7 @@
   (fn [_d evt]
     (get-in evt [:evt/data :discussion.crdt/action])))
 
-(defn user-in-discussion? [uid {:keys [discussion/members] :as d}]
+(defn user-in-discussion? [uid {:keys [discussion/members] :as _d}]
   {:pre [(uuid? uid) (set? members) (every? uuid? members)]
    :post [(boolean? %)]}
   (contains? members uid))
@@ -122,7 +122,7 @@
         delta (get-in evt [:evt/data :discussion.crdt/delta])]
     ;; TODO: in the future, check if the message is in the user
     (and (user-in-discussion? uid d)
-         (or (empty? (:discussion/subscribers d))
+         (or (empty? (:discussion/subscribers delta))
              (only-user-in-map-delta uid (:discussion/subscribers delta))))))
 
 (defn apply-delta-xtdb
