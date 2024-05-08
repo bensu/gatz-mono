@@ -159,3 +159,28 @@ Images as are content hashed and addressed from the events.
 ## Costs
 
 At scale, the costs are SMS, file transfer, and servers. You can reduce SMS by depending on other verification methods?
+
+# Local backup
+
+```sh
+heroku pg:backups:capture --app gatz
+heroku pg:backups:download --app gatz
+
+mv latest.bump gatz_prod_2024_05_08.dump
+
+createdb gatz_prod_2024_05_08
+pg_restore -clean --verbose --no-acl --no-owner -h localhost -d gatz_prod_2024_05_08 latest.dump
+```
+
+and then replace that database in `secrets.env`:
+
+```diff
+- export DATABASE_URL=postgres://bensu:@localhost:5432/gatz_dev
++ export DATABASE_URL=postgres://bensu:@localhost:5432/gatz_prod_2024_05_08
+```
+
+and delete `storage` so that the local indeces are all restored:
+
+```
+rm -r storage
+```
