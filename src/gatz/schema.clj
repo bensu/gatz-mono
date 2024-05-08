@@ -363,6 +363,13 @@
                      [:message/text string?]
                      [:message/edited_at inst?]]]]))
 
+(def PostedAsDiscussionDelta
+  (mu/closed-schema
+   [:map
+    [:crdt/clock crdt/hlc-schema]
+    [:discussion/updated_at inst?]
+    [:discussion/posted_as_discussion #'DiscussionId]]))
+
 (def MessageAction
   (mu/closed-schema
    [:or
@@ -377,7 +384,10 @@
      [:message.crdt/delta RemoveReactionDelta]]
     [:map
      [:message.crdt/action [:enum :message.crdt/add-reaction]]
-     [:message.crdt/delta AddReactionDelta]]]))
+     [:message.crdt/delta AddReactionDelta]]
+    [:map
+     [:message.crdt/action [:enum :message.crdt/posted-as-discussion]]
+     [:message.crdt/delta #'PostedAsDiscussionDelta]]]))
 
 (def MessageEvent
   [:map

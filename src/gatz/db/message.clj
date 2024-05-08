@@ -112,6 +112,10 @@
   (and (= uid (:message/user_id m))
        (contains? (:discussion/members d) uid)))
 
+(defmethod authorized-for-message-delta? :message.crdt/posted-as-discussion
+  [d _m {:keys [evt/uid] :as _evt}]
+  (contains? (:discussion/members d) uid))
+
 (defn discussion-by-id
   [db did]
   (xtdb/entity db did))
