@@ -175,11 +175,12 @@
   (let [action-type (get-in evt [:evt/data :discussion.crdt/action])]
     (when (= :discussion.crdt/new action-type)
       (register-new-discussion! ctx (:evt/did evt)))
-    (when (= :discussion.crdt/new-message action-type)
-      (let [did (:evt/did evt)
-            delta (get-in evt [:evt/data :discussion.crdt/delta])]
-        (doseq [[_mid m] (:discussion/messages delta)]
-          (propagate-new-message! ctx did (crdt.message/->value m)))))))
+    (when (= :discussion.crdt/append-message action-type)
+      (let [db (xtdb/db (:biff.xtdb/node ctx))
+            did (:evt/did evt)
+            mid (:evt/mid evt)
+            m (gatz.db.message/by-id db mid)]
+        (propagate-new-message! ctx did (crdt.message/->value m))))))
 
 (defn flatten-tx-ops
   "Returns a sequence of 'final' tx-ops without nesting"

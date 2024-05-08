@@ -261,33 +261,24 @@
               :media (when updated-media [updated-media])}
              ;; TODO: get real connection id
              {:clock clock :now now})
-        d-delta {:crdt/clock clock
-                 :discussion/updated_at (crdt/max-wins now)
-                 :discussion/latest_message (crdt/lww clock mid)
-                 :discussion/latest_activity_ts (crdt/max-wins now)
-                 :discussion/seen_at {user-id (crdt/max-wins now)}}
-        d-delta (cond-> d-delta
-                  subscribe? (assoc :discussion/subscribers {user-id (crdt/lww clock true)}))
-        d-action {:discussion.crdt/action :discussion.crdt/append-message
-                  :discussion.crdt/delta  d-delta}
-        d-evt (db.evt/new-evt {:evt/type :discussion.crdt/delta
-                               :evt/uid user-id
-                               :evt/did did
-                               :evt/mid mid
-                               :evt/cid cid
-                               :evt/data d-action})
-        evt-data {:discussion.crdt/action :discussion.crdt/new-message
-                  :discussion.crdt/delta  {:discussion/messages {mid msg}}}
+        delta {:crdt/clock clock
+               :discussion/updated_at (crdt/max-wins now)
+               :discussion/latest_message (crdt/lww clock mid)
+               :discussion/latest_activity_ts (crdt/max-wins now)
+               :discussion/seen_at {user-id (crdt/max-wins now)}}
+        delta (cond-> delta
+                subscribe? (assoc :discussion/subscribers {user-id (crdt/lww clock true)}))
+        action {:discussion.crdt/action :discussion.crdt/append-message
+                :discussion.crdt/delta  delta}
         evt (db.evt/new-evt {:evt/type :discussion.crdt/delta
                              :evt/uid user-id
                              :evt/did did
                              :evt/mid mid
                              :evt/cid cid
-                             :evt/data evt-data})
+                             :evt/data action})
         txns [(assoc msg :db/doc-type :gatz.crdt/message)
               updated-media
-              [:xtdb.api/fn :gatz.db.discussion/apply-delta {:evt d-evt}]
-              (assoc evt :db/doc-type :gatz/evt)]]
+              [:xtdb.api/fn :gatz.db.discussion/apply-delta {:evt evt}]]]
     (biff/submit-tx ctx (vec (remove nil? txns)))
     msg))
 
