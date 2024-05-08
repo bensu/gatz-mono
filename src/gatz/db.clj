@@ -69,23 +69,25 @@
                              :evt/mid mid
                              :evt/cid cid
                              :evt/data evt-data})
-        original-msg-evt (db.evt/new-evt
-                          {:evt/type :message.crdt/delta
-                           :evt/uid user-id
-                           :evt/did (:did originally-from)
-                           :evt/mid (:mid originally-from)
-                           :evt/cid cid
-                           :evt/data {:message.crdt/action :message.crdt/posted-as-discussion
-                                      :message.crdt/delta {:message/posted_as_discussion did
-                                                           :message/updated_at now
-                                                           :crdt/clock clock}}})
+        original-msg-evt (when originally-from
+                           (db.evt/new-evt
+                            {:evt/type :message.crdt/delta
+                             :evt/uid user-id
+                             :evt/did (:did originally-from)
+                             :evt/mid (:mid originally-from)
+                             :evt/cid cid
+                             :evt/data {:message.crdt/action :message.crdt/posted-as-discussion
+                                        :message.crdt/delta {:message/posted_as_discussion did
+                                                             :message/updated_at now
+                                                             :crdt/clock clock}}}))
         txns [(-> d
                   (db.discussion/crdt->doc)
                   (assoc :db/doc-type :gatz.doc/discussion))
               (assoc msg :db/doc-type :gatz.crdt/message)
               (assoc evt :db/doct-type :gatz/evt)
               ;; TODO: update original discussion, not just message for it
-              [:xtdb.api/fn :gatz.db.message/apply-delta {:evt original-msg-evt}]
+              (when original-msg-evt
+                [:xtdb.api/fn :gatz.db.message/apply-delta {:evt original-msg-evt}])
               (some-> media
                       (assoc :media/message_id mid)
                       (db.media/update-media)
