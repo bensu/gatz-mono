@@ -51,7 +51,9 @@
                    :db/type :gatz/discussion)
             (update :discussion/members #(crdt/lww-set clock %))
             (update :discussion/subscribers #(crdt/lww-set clock %))
-            (update :discussion/latest_message #(crdt/lww clock %))
+            (update :discussion/latest_message #(if (nil? %)
+                                                  nil
+                                                  (crdt/lww clock %)))
             (update :discussion/last_message_read #(crdt/->lww-map % clock))
             (update :discussion/updated_at crdt/max-wins)
             (update :discussion/latest_activity_ts crdt/max-wins)
