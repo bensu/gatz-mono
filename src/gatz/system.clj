@@ -9,6 +9,7 @@
             [gatz.schema :as schema]
             [gatz.connections :as conns]
             [gatz.notify :as notify]
+            [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.test :as test]
             [clojure.tools.logging :as log]
@@ -22,7 +23,8 @@
             [ring.adapter.jetty9]
             [to-jdbc-uri.core :refer [to-jdbc-uri]]
             [xtdb.jdbc.psql])
-  (:import [org.postgresql Driver]))
+  (:import [java.time Duration]
+           [org.postgresql Driver]))
 
 (def plugins
   [api/plugin
@@ -100,6 +102,37 @@
    :headers {"content-type" "text/plain"}
    :body "Loading"})
 
+;; https://v1-docs.xtdb.com/administration/checkpointing/
+;; https://v1-docs.xtdb.com/storage/aws-s3/
+(defn s3-checkpont-store
+  "Used in production. 
+
+   To use in local development edit :biff.xtdb/checkpointer in config.edn"
+  [ctx]
+  (let [bucket (:biff.xtdb.checkpointer/bucket ctx)]
+    (assert (string? bucket))
+    {:xtdb/module 'xtdb.checkpoint/->checkpointer
+     :approx-frequency (Duration/ofHours 6)
+     :retention-policy {:retain-at-least 5 :retain-newer-than (Duration/ofDays 7)}
+     :store {:xtdb/module 'xtdb.s3.checkpoint/->cp-store :bucket bucket}}))
+
+;; https://v1-docs.xtdb.com/administration/checkpointing/
+(defn file-checkpoint-store
+  "Used for local development"
+  [_ctx]
+  {:xtdb/module 'xtdb.checkpoint/->checkpointer
+   :approx-frequency (Duration/ofHours 6)
+   :retention-policy {:retain-newer-than (Duration/ofDays 7) :retain-at-least 5}
+   :store {:xtdb/module 'xtdb.checkpoint/->filesystem-checkpoint-store
+           :path "storage/xtdb/checkpoints"}})
+
+(defn index-store [ctx]
+  {:kv-store {:xtdb/module 'xtdb.rocksdb/->kv-store
+              :db-dir (io/file "storage/xtdb/index")
+              :checkpointer (case (:biff.xtdb/checkpointer ctx)
+                              :biff.xtdb.checkpointer/s3 (s3-checkpont-store ctx)
+                              :biff.xtdb.checkpointer/file (file-checkpoint-store ctx))}})
+
 (def components
   [biff/use-config
    biff/use-secrets
@@ -122,7 +155,8 @@
      (let [jdbc-url (to-jdbc-uri (secret :biff.xtdb.jdbc/jdbcUrl))]
        (assert (some? jdbc-url))
        (-> ctx
-           (assoc :biff.xtdb.jdbc/jdbcUrl jdbc-url)
+           (assoc :biff.xtdb.jdbc/jdbcUrl jdbc-url
+                  :biff.xtdb/opts {:xtdb/index-store (index-store ctx)})
            ;; if biff/secret is present, biff/use-tx tries to pull password out of it, 
            ;; which Heroku doesn't provide
            (dissoc :biff/secret)
