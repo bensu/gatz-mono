@@ -415,6 +415,15 @@
    [:discussion/updated_at inst?]
    [:discussion/seen_at [:map-of #'UserId (crdt/max-wins-schema inst?)]]])
 
+(def AppendMessageDelta
+  [:map
+   [:crdt/clock crdt/hlc-schema]
+   [:discussion/latest_message (crdt/lww-schema crdt/hlc-schema #'MessageId)]
+   [:discussion/latest_activity_ts (crdt/max-wins-schema inst?)]
+   [:discussion/seen_at [:map-of #'UserId (crdt/max-wins-schema inst?)]]
+   [:discussion/subscribers {:optional true} [:map-of #'UserId (crdt/lww-schema crdt/hlc-schema boolean?)]]
+   [:discussion/updated_at inst?]])
+
 (def DiscussionAction
   (mu/closed-schema
    [:or
@@ -433,6 +442,9 @@
     [:map
      [:discussion.crdt/action [:enum :discussion.crdt/mark-as-seen]]
      [:discussion.crdt/delta #'MarkDiscussionAsSeenDelta]]
+    [:map
+     [:discussion.crdt/action [:enum :discussion.crdt/append-message]]
+     [:discussion.delta #'AppendMessageDelta]]
     [:map
      [:discussion.crdt/action [:enum :discussion.crdt/new-message]]
      [:discussion.crdt/delta [:map

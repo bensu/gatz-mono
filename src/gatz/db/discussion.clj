@@ -51,12 +51,12 @@
                    :db/type :gatz/discussion)
             (update :discussion/members #(crdt/lww-set clock %))
             (update :discussion/subscribers #(crdt/lww-set clock %))
-            (update :discussion/latest_message #(crdt/->LWW clock %))
+            (update :discussion/latest_message #(crdt/lww clock %))
             (update :discussion/last_message_read #(crdt/->lww-map % clock))
-            (update :discussion/updated_at crdt/->MaxWins)
-            (update :discussion/latest_activity_ts crdt/->MaxWins)
+            (update :discussion/updated_at crdt/max-wins)
+            (update :discussion/latest_activity_ts crdt/max-wins)
             (update :discussion/seen_at (fn [seen-at]
-                                          (map-vals crdt/->MaxWins seen-at)))
+                                          (map-vals crdt/max-wins seen-at)))
             (update :discussion/archived_at #(crdt/->lww-map % clock)))]
     #_(assert (malli/validate schema/DiscussionCRDT v1)
               (malli/explain schema/DiscussionCRDT v1))
@@ -113,6 +113,15 @@
         delta (get-in evt [:evt/data :discussion.crdt/delta])]
     (and (user-in-discussion? uid d)
          (only-user-in-map-delta uid (:discussion/seen_at delta)))))
+
+(defmethod authorized-for-delta? :discussion.crdt/append-message
+  [d evt]
+  (let [uid (:evt/uid evt)
+        delta (get-in evt [:evt/data :discussion.crdt/delta])]
+    ;; TODO: in the future, check if the message is in the user
+    (and (user-in-discussion? uid d)
+         (or (empty? (:discussion/subscribers d))
+             (only-user-in-map-delta uid (:discussion/subscribers delta))))))
 
 (defn apply-delta-xtdb
   [ctx {:keys [evt] :as _args}]
@@ -233,8 +242,3 @@
          action {:discussion.crdt/action :discussion.crdt/subscribe
                  :discussion.crdt/delta delta}]
      (apply-action! ctx did action))))
-
-
-(defn all [db]
-  (q db '{:find (pull d [*])
-          :where [[d :db/type :gatz/discussion]]}))

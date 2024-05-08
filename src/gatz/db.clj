@@ -244,10 +244,10 @@
         mid (or mid (random-uuid))
         user (crdt.user/->value (db.user/by-id db user-id))
         _ (assert user)
-        auto-subscribe? (get-in user [:user/settings
-                                      :settings/notifications
-                                      :settings.notification/subscribe_on_comment]
-                                false)
+        subscribe? (get-in user [:user/settings
+                                 :settings/notifications
+                                 :settings.notification/subscribe_on_comment]
+                           false)
         media (when media_id
                 (db.media/by-id db media_id))
         updated-media (some-> media
@@ -261,17 +261,21 @@
               :media (when updated-media [updated-media])}
              ;; TODO: get real connection id
              {:clock clock :now now})
-        d (db.discussion/by-id db did)
         d-delta {:crdt/clock clock
-                 :discussion/updated_at (crdt/->MaxWins now)
-                 :discussion/latest_message (crdt/->LWW clock mid)
-                 :discussion/latest_activity_ts (crdt/->MaxWins now)
-                 :discussion/seen_at {user-id (crdt/->MaxWins now)}}
+                 :discussion/updated_at (crdt/max-wins now)
+                 :discussion/latest_message (crdt/lww clock mid)
+                 :discussion/latest_activity_ts (crdt/max-wins now)
+                 :discussion/seen_at {user-id (crdt/max-wins now)}}
         d-delta (cond-> d-delta
-                  auto-subscribe? (assoc :discussion/subscribers
-                                         {user-id (crdt/->LWW clock true)}))
-
-        updated-d (crdt.discussion/apply-delta d d-delta)
+                  subscribe? (assoc :discussion/subscribers {user-id (crdt/lww clock true)}))
+        d-action {:discussion.crdt/action :discussion.crdt/append-message
+                  :discussion.crdt/delta  d-delta}
+        d-evt (db.evt/new-evt {:evt/type :discussion.crdt/delta
+                               :evt/uid user-id
+                               :evt/did did
+                               :evt/mid mid
+                               :evt/cid cid
+                               :evt/data d-action})
         evt-data {:discussion.crdt/action :discussion.crdt/new-message
                   :discussion.crdt/delta  {:discussion/messages {mid msg}}}
         evt (db.evt/new-evt {:evt/type :discussion.crdt/delta
@@ -279,12 +283,11 @@
                              :evt/did did
                              :evt/mid mid
                              :evt/cid cid
-                             :evt/data evt-data})]
-    (biff/submit-tx ctx (vec (remove nil? [(assoc msg :db/doc-type :gatz.crdt/message)
-                                           (assoc evt :db/doc-type :gatz/evt)
-                                           (-> updated-d
-                                               (db.discussion/crdt->doc)
-                                               (assoc :db/doc-type :gatz.doc/discussion))
-                                           updated-media])))
+                             :evt/data evt-data})
+        txns [(assoc msg :db/doc-type :gatz.crdt/message)
+              updated-media
+              [:xtdb.api/fn :gatz.db.discussion/apply-delta {:evt d-evt}]
+              (assoc evt :db/doc-type :gatz/evt)]]
+    (biff/submit-tx ctx (vec (remove nil? txns)))
     msg))
 
