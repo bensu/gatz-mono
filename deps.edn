@@ -2,9 +2,7 @@
  :aliases {:build {:ns-default gatz.tasks
                    :paths ["tasks/src"]
                    :deps {io.github.clojure/tools.build {:mvn/version "0.9.6"}}}}
-        ;; TODO: inline biff
- :deps {com.biffweb/biff {:git/url "https://github.com/jacobobryant/biff", :sha "3ff1256dde3ca0a99c2dc3797cdea89503ce0fae", :tag "v0.7.4"}
-        com.xtdb/xtdb-jdbc {:mvn/version "1.24.3"}
+ :deps {com.xtdb/xtdb-jdbc {:mvn/version "1.24.3"}
         com.taoensso/nippy {:mvn/version "3.1.1"}
         org.postgresql/postgresql {:mvn/version "42.2.18"}
         metosin/malli {:mvn/version "0.16.0"}
@@ -17,4 +15,32 @@
         org.jsoup/jsoup {:mvn/version "1.11.3"}
         org.clojure/clojure {:mvn/version "1.11.1"}
         org.slf4j/slf4j-simple {:mvn/version "2.0.0-alpha5"}
-        com.carouselapps/to-jdbc-uri {:mvn/version "0.5.0"}}}
+        com.carouselapps/to-jdbc-uri {:mvn/version "0.5.0"}
+
+        ;; biff dependencies
+        better-cond/better-cond        {:mvn/version "2.1.4"}
+        buddy/buddy-sign               {:mvn/version "3.4.333"}
+        cider/cider-nrepl              {:mvn/version "0.28.3"}
+        clj-http/clj-http              {:mvn/version "3.12.3"}
+        com.nextjournal/beholder       {:mvn/version "1.0.2"}
+        com.xtdb/xtdb-core             {:mvn/version "1.23.1"}
+       ;;  com.xtdb/xtdb-jdbc             {:mvn/version "1.23.1"}
+        com.xtdb/xtdb-rocksdb          {:mvn/version "1.23.1"}
+        info.sunng/ring-jetty9-adapter {:mvn/version "0.17.2"}
+        jarohen/chime                  {:mvn/version "0.3.3"}
+        lambdaisland/uri               {:mvn/version "1.13.95"}
+       ;;  metosin/malli                  {:mvn/version "0.10.3"}
+        metosin/muuntaja               {:mvn/version "0.6.8"}
+        metosin/reitit-ring            {:mvn/version "0.6.0"}
+        nrepl/nrepl                    {:mvn/version "1.0.0"}
+        org.clojure/tools.deps.alpha   {:git/url "https://github.com/clojure/tools.deps.alpha"
+                                        :sha "8f8fc2571e721301b6d52e191129248355cb8c5a"}
+        org.clojure/tools.logging      {:mvn/version "1.2.4"}
+        org.clojure/tools.namespace    {:mvn/version "1.4.4"}
+       ;;  org.postgresql/postgresql      {:mvn/version "42.6.0"}
+        refactor-nrepl/refactor-nrepl  {:mvn/version "3.6.0"}
+        ring/ring-defaults             {:mvn/version "0.3.4"}
+        rum/rum                        {:mvn/version "0.12.8"
+                                        :exclusions [cljsjs/react cljsjs/react-dom]}
+        ;; deprecated
+        hawk/hawk                      {:mvn/version "0.2.11"}}}
