@@ -2,6 +2,7 @@
  :tasks {:requires ([babashka.fs :as fs])
 
          ;; Used only in local development.
+         test             gatz.test/-main
          dev              com.biffweb.tasks/dev
          format           com.biffweb.tasks/format
          clean            com.biffweb.tasks/clean
