@@ -1,5 +1,5 @@
 {:paths ["src" "test" "resources" "target/resources" "tasks/src"]
- :aliases {:build {:ns-default gatz.tasks
+ :aliases {:build {:ns-default gatz.system
                    :paths ["tasks/src"]
                    :deps {io.github.clojure/tools.build {:mvn/version "0.9.6"}}}}
  :deps {com.taoensso/nippy {:mvn/version "3.1.1"}

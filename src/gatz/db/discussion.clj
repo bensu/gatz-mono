@@ -1,6 +1,5 @@
 (ns gatz.db.discussion
   (:require [com.biffweb :as biff :refer [q]]
-            [clojure.set :as set]
             [crdt.core :as crdt]
             [gatz.crdt.discussion :as crdt.discussion]
             [gatz.db.evt :as db.evt]

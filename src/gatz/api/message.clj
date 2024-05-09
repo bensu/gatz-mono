@@ -59,14 +59,15 @@
 (defmethod handle-message-evt! :default [_ _ _ _] nil)
 
 (defmethod handle-message-evt! :message.crdt/add-reaction
-  [ctx _d m evt]
-  (let [delta (get-in evt [:evt/data :message.crdt/delta])
-        did (:evt/did evt)
-        mid (:evt/mid evt)
-        reactions (db.message/flatten-reactions did mid (:message/reactions delta))]
-    (doseq [reaction reactions]
-      (try
-        (notify/notify-on-reaction! ctx m reaction)
-        (catch Exception e
-          (println "notificaitons failed" e))))))
+  [_ctx _d _m _evt]
+  nil
+  #_(let [delta (get-in evt [:evt/data :message.crdt/delta])
+          did (:evt/did evt)
+          mid (:evt/mid evt)
+          reactions (db.message/flatten-reactions did mid (:message/reactions delta))]
+      (doseq [reaction reactions]
+        (try
+          (notify/notify-on-reaction! ctx m reaction)
+          (catch Exception e
+            (println "notificaitons failed" e))))))
 

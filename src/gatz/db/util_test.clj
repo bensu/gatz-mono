@@ -1,5 +1,6 @@
 (ns gatz.db.util-test
   (:require [gatz.system :as system]
+            [com.biffweb.impl.xtdb :as biff.xtdb]
             [xtdb.api :as xtdb]))
 
 (defmacro is-equal [a b]
@@ -14,7 +15,7 @@
 
 (defn test-system []
   (let [node (test-node)]
-    (com.biffweb.impl.xtdb/save-tx-fns! node system/tx-fns)
+    (biff.xtdb/save-tx-fns! node system/tx-fns)
     {:biff.xtdb/node node
      :biff/db (xtdb/db node)
      :biff/malli-opts #'gatz.system/malli-opts}))

@@ -1,6 +1,8 @@
 (ns gatz.notify
   (:require [clojure.set :as set]
             [chime.core :as chime]
+            [gatz.crdt.discussion :as crdt.discussion]
+            [gatz.crdt.message :as crdt.message]
             [gatz.crdt.user :as crdt.user]
             [gatz.db :as db]
             [gatz.db.discussion :as db.discussion]
@@ -114,7 +116,8 @@
       (set (map second (re-seq re text)))))
 
 (defn notifications-for-comment [db m]
-  (let [d (db.discussion/by-id db (:message/did m))
+  (let [m (crdt.message/->value m)
+        d (crdt.discussion/->value (db.discussion/by-id db (:message/did m)))
         _ (assert d "No discussion for message")
         commenter (crdt.user/->value (db.user/by-id db (:message/user_id m)))
         poster (crdt.user/->value (db.user/by-id db (:discussion/created_by d)))
@@ -138,7 +141,8 @@
 (defn notify-comment!
   [{:keys [biff/secret biff.xtdb/node] :as _ctx} comment]
   (let [db (xtdb.api/db node)
-        d (db.discussion/by-id db (:message/did comment))
+        comment (crdt.message/->value comment)
+        d (crdt.discussion/->value (db.discussion/by-id db (:message/did comment)))
         _ (assert d "No discussion for message")
         ;; commenter (db.user/by-id db (:message/user_id comment))
         ;; poster (db.user/by-id db (:discussion/created_by d))
@@ -190,35 +194,36 @@
     (when-not (empty? notifications)
       (expo/push-many! secret notifications))))
 
-(def trigger-emoji #{"❓" "❗"})
+(comment
+  (def trigger-emoji #{"❓" "❗"})
 
-(def trigger-emoji-threshold 3)
+  (def trigger-emoji-threshold 3)
 
-(defn notification-on-reaction [db message reaction]
-  (when (contains? trigger-emoji (:reaction/emoji reaction))
-    (let [user (crdt.user/->value (db.user/by-id db (:message/user_id message)))]
-      (when-let [token (->token user)]
-        (let [settings (get-in user [:user/settings :settings/notifications])]
-          (when (and (:settings.notification/overall settings)
-                     (:settings.notification/suggestions_from_gatz settings))
-            (let [mid (:xt/id message)
-                  did (:message/did message)
-                  flat-reactions (db.message/flatten-reactions mid did (:message/reactions message))
-                  n-reactions (count (filter #(and (contains? trigger-emoji (:reaction/emoji %))
-                                                   (not= (:xt/id user) (:reaction/by_uid %)))
-                                             flat-reactions))]
-              (when (= trigger-emoji-threshold n-reactions)
-                [{:expo/to token
-                  :expo/uid (:xt/id user)
-                  :expo/data {:url (str "/discussion/" did "/message/" mid)}
-                  :expo/title (format "%s friends are interested in your comment" n-reactions)
-                  :expo/body "Consider posting more about it"}]))))))))
+  (defn notification-on-reaction [db message reaction]
+    (when (contains? trigger-emoji (:reaction/emoji reaction))
+      (let [user (crdt.user/->value (db.user/by-id db (:message/user_id message)))]
+        (when-let [token (->token user)]
+          (let [settings (get-in user [:user/settings :settings/notifications])]
+            (when (and (:settings.notification/overall settings)
+                       (:settings.notification/suggestions_from_gatz settings))
+              (let [mid (:xt/id message)
+                    did (:message/did message)
+                    flat-reactions (db.message/flatten-reactions mid did (:message/reactions message))
+                    n-reactions (count (filter #(and (contains? trigger-emoji (:reaction/emoji %))
+                                                     (not= (:xt/id user) (:reaction/by_uid %)))
+                                               flat-reactions))]
+                (when (= trigger-emoji-threshold n-reactions)
+                  [{:expo/to token
+                    :expo/uid (:xt/id user)
+                    :expo/data {:url (str "/discussion/" did "/message/" mid)}
+                    :expo/title (format "%s friends are interested in your comment" n-reactions)
+                    :expo/body "Consider posting more about it"}]))))))))
 
-(defn notify-on-reaction!
-  [{:keys [biff/db biff/secret]} message reaction]
-  (let [nts (notification-on-reaction db message reaction)]
-    (when-not (empty? nts)
-      (expo/push-many! secret nts))))
+  (defn notify-on-reaction!
+    [{:keys [biff/db biff/secret]} message reaction]
+    (let [nts (notification-on-reaction db message reaction)]
+      (when-not (empty? nts)
+        (expo/push-many! secret nts)))))
 
 ;; sebas, ameesh, and tara are in gatz
 ;; 3 new posts, 2 replies
@@ -235,7 +240,7 @@
     (Date/from (.toInstant zone-date))))
 
 (defn activity-notification-for-user [db uid]
-  (let [to-user (db.user/by-id db uid)
+  (let [to-user (crdt.user/->value (db.user/by-id db uid))
         settings (get-in to-user [:user/settings :settings/notifications])
         since-ts (or (:user/last_active to-user) (hours-ago 8))]
     (when-let [expo-token (->token to-user)]
