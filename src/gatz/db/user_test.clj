@@ -1,7 +1,7 @@
 (ns gatz.db.user-test
   (:require [com.biffweb :as biff :refer [q]]
             [clojure.string :as str]
-            [clojure.test :refer [deftest testing is]]
+            [clojure.test :refer [deftest testing is are]]
             [clojure.java.io :as io]
             [clojure.data :as data]
             [crdt.core :as crdt]
@@ -16,6 +16,15 @@
             [medley.core :refer [map-vals]]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
+
+(deftest test-valid-username?
+  (are [s] (crdt.user/valid-username? s)
+    "ameesh" "grantslatton" "sebas" "devon" "tara" "lachy"
+    "bensu"  "bensu1" "bensu_1" "bensu-1" "abc123")
+  (are [s] (not (crdt.user/valid-username? s))
+    "s" "bensu " "bensu 1" "1 1" "1" "123" "1bensu1"
+    "_bensu_" "bensu." "bensu_" "bensu-"))
+
 
 (deftest migrate-existing-users
   (testing "We can migrate users we already have"

@@ -18,7 +18,7 @@
         (= s (str/lower-case s))
         (<= (count s) MAX_LENGTH_USERNAME)
         (<= MIN_LENGTH_USERNAME (count s))
-        (re-matches #"^[a-z0-9._-]+$" s))))
+        (re-matches #"^[a-z][a-z0-9._-]+[a-z0-9]$" s))))
 
 (def user-defaults
   {:db/type :gatz/user
