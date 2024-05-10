@@ -85,6 +85,39 @@
         (assoc k a)
         (update :biff/stop conj #(reset! a initial-state)))))
 
+;; ====================================================================== 
+;; Fake server
+
+;; I think it can trick Heroku into thinking the app is up and running
+;; but I am not sure
+
+(defn tiny-handler [ctx]
+  {:status 200
+   :headers {"content-type" "text/plain"}
+   :body "Loading"})
+
+(defn start-fake-server [{:keys [biff/secret] :as ctx}]
+     ;; This is here so that heroku is happy with the startup time
+  (let [port (or (Integer/parseInt (System/getenv "PORT"))
+                 (mt/-string->long (secret :biff/port)))
+        _ (println "binding fake server to " port)
+        server (ring.adapter.jetty9/run-jetty
+                tiny-handler
+                {:host "localhost"
+                 :port port
+                 :join? false
+                 :allow-null-path-info true})]
+    (println "server" server)
+    (assoc ctx :fake-server server)))
+
+(defn stop-fake-server [ctx]
+  (println "stopping fake server")
+  (ring.adapter.jetty9/stop-server (:fake-server ctx))
+  (dissoc ctx :fake-server ctx))
+
+;; ======================================================================  
+;; XTDB
+
 (comment
   (defn parse-jdbc-uri [uri-s]
     {:pre [(string? uri-s)]}
@@ -97,11 +130,6 @@
        :user user
        :password password})))
 
-(defn tiny-handler [ctx]
-  {:status 200
-   :headers {"content-type" "text/plain"}
-   :body "Loading"})
-
 ;; https://v1-docs.xtdb.com/administration/checkpointing/
 ;; https://v1-docs.xtdb.com/storage/aws-s3/
 (defn s3-checkpont-store
@@ -111,6 +139,7 @@
   [ctx]
   (let [bucket (:biff.xtdb.checkpointer/bucket ctx)]
     (assert (string? bucket))
+    (println "checkpointing from S3" bucket)
     {:xtdb/module 'xtdb.checkpoint/->checkpointer
      :approx-frequency (Duration/ofHours 6)
      :retention-policy {:retain-at-least 5 :retain-newer-than (Duration/ofDays 7)}
@@ -127,28 +156,20 @@
            :path "storage/xtdb/checkpoints"}})
 
 (defn index-store [ctx]
-  {:kv-store {:xtdb/module 'xtdb.rocksdb/->kv-store
-              :db-dir (io/file "storage/xtdb/index")
-              :checkpointer (case (:biff.xtdb/checkpointer ctx)
-                              :biff.xtdb.checkpointer/s3 (s3-checkpont-store ctx)
-                              :biff.xtdb.checkpointer/file (file-checkpoint-store ctx))}})
+  (let [node-id (or (System/getenv "NODE_ID") "local")]
+    (println (:biff.xtdb/checkpointer ctx))
+    {:kv-store {:xtdb/module 'xtdb.rocksdb/->kv-store
+                :db-dir (io/file (format "storage/%s/xtdb/index" node-id))
+                :checkpointer (case (:biff.xtdb/checkpointer ctx)
+                                :biff.xtdb.checkpointer/s3 (s3-checkpont-store ctx)
+                                :biff.xtdb.checkpointer/file (file-checkpoint-store ctx))}}))
+
+;; ====================================================================== 
+;; Overall system
 
 (def components
   [biff/use-config
    biff/use-secrets
-   (fn start-fake-server [{:keys [biff/secret] :as ctx}]
-     ;; This is here so that heroku is happy with the startup time
-     (let [port (or (Integer/parseInt (System/getenv "PORT"))
-                    (mt/-string->long (secret :biff/port)))
-           _ (println "binding fake server to " port)
-           server (ring.adapter.jetty9/run-jetty
-                   tiny-handler
-                   {:host "localhost"
-                    :port port
-                    :join? false
-                    :allow-null-path-info true})]
-       (println "server" server)
-       (assoc ctx :fake-server server)))
    (fn start-conns-state [ctx]
      (use-atom ctx :conns-state conns/init-state))
    (fn start-xtdb [{:keys [biff/secret] :as ctx}]
@@ -164,15 +185,12 @@
            (assoc :biff/secret secret))))
    biff/use-queues
    biff/use-tx-listener
-   (fn stop-fake-server [ctx]
-     (println "stopping fake server")
-     (ring.adapter.jetty9/stop-server (:fake-server ctx))
-     (dissoc ctx :fake-server ctx))
    (fn start-http-server [{:keys [biff/secret] :as ctx}]
-     (println (secret :biff/port))
-     (let [port (or (Integer/parseInt (System/getenv "PORT"))
-                    (mt/-string->long (secret :biff/port)))]
+     (let [port (or (some-> (System/getenv "PORT") Integer/parseInt)
+                    (some-> (secret :biff/port) mt/-string->long)
+                    8080)]
        (assert (some? port))
+       (println "Binding HTTP to port:" port)
        (biff/use-jetty (assoc ctx :biff/port port :biff/host "0.0.0.0"))))
    biff/use-chime
    biff/use-beholder])
