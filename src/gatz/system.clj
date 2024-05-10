@@ -164,6 +164,18 @@
                                 :biff.xtdb.checkpointer/s3 (s3-checkpont-store ctx)
                                 :biff.xtdb.checkpointer/file (file-checkpoint-store ctx))}}))
 
+(defn xtdb-system [{:keys [biff/secret] :as ctx}]
+  (let [jdbc-url (to-jdbc-uri (secret :biff.xtdb.jdbc/jdbcUrl))]
+    {:xtdb/index-store (index-store ctx)
+     :xtdb/tx-log {:xtdb/module 'xtdb.jdbc/->tx-log
+                   :connection-pool :xtdb.jdbc/connection-pool}
+     :xtdb/document-store {:xtdb/module 'xtdb.jdbc/->document-store
+                           :connection-pool :xtdb.jdbc/connection-pool}
+     :xtdb.jdbc/connection-pool {:dialect {:xtdb/module 'xtdb.jdbc.psql/->dialect}
+                                 :pool-opts {}
+                                 :db-spec {:jdbcUrl jdbc-url}}}))
+
+
 ;; ====================================================================== 
 ;; Overall system
 
@@ -172,17 +184,10 @@
    biff/use-secrets
    (fn start-conns-state [ctx]
      (use-atom ctx :conns-state conns/init-state))
-   (fn start-xtdb [{:keys [biff/secret] :as ctx}]
-     (let [jdbc-url (to-jdbc-uri (secret :biff.xtdb.jdbc/jdbcUrl))]
-       (assert (some? jdbc-url))
-       (-> ctx
-           (assoc :biff.xtdb.jdbc/jdbcUrl jdbc-url
-                  :biff.xtdb/opts {:xtdb/index-store (index-store ctx)})
-           ;; if biff/secret is present, biff/use-tx tries to pull password out of it, 
-           ;; which Heroku doesn't provide
-           (dissoc :biff/secret)
-           (biff/use-xt)
-           (assoc :biff/secret secret))))
+   (fn start-xtdb [ctx]
+     (-> ctx
+         (assoc :biff.xtdb/opts (xtdb-system ctx))
+         (biff/use-xt)))
    biff/use-queues
    biff/use-tx-listener
    (fn start-http-server [{:keys [biff/secret] :as ctx}]
