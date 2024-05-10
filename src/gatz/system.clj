@@ -172,7 +172,7 @@
      :xtdb/document-store {:xtdb/module 'xtdb.jdbc/->document-store
                            :connection-pool :xtdb.jdbc/connection-pool}
      :xtdb.jdbc/connection-pool {:dialect {:xtdb/module 'xtdb.jdbc.psql/->dialect}
-                                 :pool-opts {}
+                                 :pool-opts {:maximumPoolSize 5}
                                  :db-spec {:jdbcUrl jdbc-url}}}))
 
 
