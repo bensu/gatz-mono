@@ -136,8 +136,8 @@
   "Used in production. 
 
    To use in local development edit :biff.xtdb/checkpointer in config.edn"
-  [ctx]
-  (let [bucket (:biff.xtdb.checkpointer/bucket ctx)]
+  [{:keys [biff/secret] :as _ctx}]
+  (let [bucket (secret :biff.xtdb.checkpointer/bucket)]
     (assert (string? bucket))
     (println "checkpointing from S3" bucket)
     {:xtdb/module 'xtdb.checkpoint/->checkpointer

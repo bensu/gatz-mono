@@ -4,8 +4,9 @@
         ;; TODO: set up heroku
         :biff.xtdb.jdbc/dbtype "postgresql"
         :biff.xtdb.jdbc/jdbcUrl "DATABASE_URL"
+        ;; Local jars will use this too
         :biff.xtdb/checkpointer :biff.xtdb.checkpointer/s3
-        :biff.xtdb.checkpointer/bucket "gatz-xtdb-checkpoints"
+        :biff.xtdb.checkpointer/bucket "XTDB_CHECKPOINTS_S3_BUCKET"
         ;; :biff.xtdb.jdbc/password "JDBC_PASSWORD"
 
         :twilio/verify-service "TWILIO_VERIFY_SERVICE"
@@ -49,7 +50,7 @@
        ;; To use S3 uncomment these two lines
 
       ;; :biff.xtdb/checkpointer :biff.xtdb.checkpointer/s3
-      ;;  :biff.xtdb.checkpointer/bucket "gatz-test-xtdb-checkpoints"
+      ;;  :biff.xtdb.checkpointer/bucket "XTDB_CHECKPOINTS_S3_BUCKET"
 
        ;; :biff.xtdb.jdbc/dbtype "postgresql"
        ;; :biff.xtdb.jdbc/dbname "gatz_dev"
