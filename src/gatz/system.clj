@@ -164,6 +164,12 @@
                                 :biff.xtdb.checkpointer/s3 (s3-checkpont-store ctx)
                                 :biff.xtdb.checkpointer/file (file-checkpoint-store ctx))}}))
 
+;; When trying to scale the dynos [here](https://dashboard.heroku.com/apps/gatz/resources), the first constraint is the maximum number of connections for the Heroku PSQL add-on [here](https://data.heroku.com/datastores/73e41c97-1f7d-4799-99bb-1c4404bdfc07#), which is 20 connections.
+;; The default pool size for Hikari is 10 connections, which implies 10 connections per dyno.
+;; To have room to start up to 4 dynos, I changed it to `maximumPoolSize = 5`
+;; More here: https://www.notion.so/bensu/AWS-Heroku-faeae904d27d4970b3470369af4acaa7?pvs=4#110ef5d2b61a40fb8a4fd16d91658d1f
+(def hikari-max-pool-size 5)
+
 (defn xtdb-system [{:keys [biff/secret] :as ctx}]
   (let [jdbc-url (to-jdbc-uri (secret :biff.xtdb.jdbc/jdbcUrl))]
     {:xtdb/index-store (index-store ctx)
@@ -172,7 +178,7 @@
      :xtdb/document-store {:xtdb/module 'xtdb.jdbc/->document-store
                            :connection-pool :xtdb.jdbc/connection-pool}
      :xtdb.jdbc/connection-pool {:dialect {:xtdb/module 'xtdb.jdbc.psql/->dialect}
-                                 :pool-opts {:maximumPoolSize 5}
+                                 :pool-opts {:maximumPoolSize hikari-max-pool-size}
                                  :db-spec {:jdbcUrl jdbc-url}}}))
 
 
