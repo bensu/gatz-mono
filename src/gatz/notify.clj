@@ -287,8 +287,9 @@
   {:queues [{:id :notify/comment
              :consumer #'comment!
              :n-threads 1}]
-   :tasks [{:task activity-for-all-users!
-            :schedule (fn []
-                        (rest
-                         (chime/periodic-seq (Instant/now) (Duration/ofDays 1))))}]})
+   ;; These will be sent by each of the dynos. Needs to be a singleton
+   :tasks [] #_[{:task activity-for-all-users!
+                 :schedule (fn []
+                             (rest
+                              (chime/periodic-seq (Instant/now) (Duration/ofDays 1))))}]})
 
