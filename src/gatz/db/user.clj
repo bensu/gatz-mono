@@ -128,10 +128,7 @@
             {:evt (xtdb.api/entity db-after (:evt/id evt))
              :user (by-id db-after user-id)})
           (assert false "Transaction would've failed")))
-      (do
-        (def -evt evt)
-        (clojure.pprint/pprint (malli/explain schema/UserEvent evt))
-        (assert false "Invaild event")))))
+      (assert false "Invaild event"))))
 
 (defn mark-active!
   ([ctx]
