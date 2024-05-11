@@ -138,7 +138,9 @@
                           :expo/title (render-comment-header poster commenter receiver)}))))))
          vec)))
 
-(defn notify-comment!
+;; TODO: if there are multiple servers, this will be run in all of them
+;; I need a way to dedupe who sends which notifications
+(defn comment!
   [{:keys [biff/secret biff.xtdb/node] :as _ctx} comment]
   (let [db (xtdb.api/db node)
         comment (crdt.message/->value comment)

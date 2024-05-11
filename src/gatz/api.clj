@@ -17,6 +17,7 @@
             [gatz.db.discussion :as db.discussion]
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
+            [gatz.notify :as notify]
             [ring.adapter.jetty9 :as jetty]
             [xtdb.api :as xtdb])
   (:import [java.time Instant Duration]))
@@ -180,7 +181,11 @@
             did (:evt/did evt)
             mid (:evt/mid evt)
             m (gatz.db.message/by-id db mid)]
-        (propagate-new-message! ctx did (crdt.message/->value m))))))
+        (propagate-new-message! ctx did (crdt.message/->value m))
+        (try
+          (notify/comment! ctx m)
+          (catch Exception e
+            (println "error" e)))))))
 
 (defn flatten-tx-ops
   "Returns a sequence of 'final' tx-ops without nesting"
