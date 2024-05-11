@@ -277,7 +277,7 @@
       (try
         (when-let [notification (activity-notification-for-user db uid)]
           (expo/push-many! secret [notification]))
-        (db.user/mark-active! ctx uid)
+        (db.user/mark-active! (assoc ctx :auth/user-id uid))
         (catch Throwable e
             ;; TODO: handle
           (println "Error in activity-for-all-users!")
