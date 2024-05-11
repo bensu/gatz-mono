@@ -6,6 +6,7 @@
             [gatz.crdt.discussion :as crdt.discussion]
             [gatz.crdt.message :as crdt.message]
             [gatz.crdt.user :as crdt.user]
+            [gatz.notify :as notify]
             [malli.transform :as mt]
             [xtdb.api :as xt]))
 
@@ -217,5 +218,9 @@
                                         :text text
                                         :reply_to reply-to
                                         :media_id media-id})]
+       (try
+         (notify/submit-comment-job! ctx (crdt.message/->value msg))
+         (catch Exception e
+           (println "failed submitting the job" e)))
        (json-response {:message (crdt.message/->value msg)})))))
 

@@ -1,13 +1,15 @@
 (ns gatz.notify
   (:require [clojure.set :as set]
+            [com.biffweb :as biff]
             [chime.core :as chime]
             [gatz.crdt.discussion :as crdt.discussion]
             [gatz.crdt.message :as crdt.message]
             [gatz.crdt.user :as crdt.user]
-            [gatz.db :as db]
+            [gatz.db.notify :as db.notify]
             [gatz.db.discussion :as db.discussion]
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
+            [gatz.schema :as schema]
             [sdk.expo :as expo]
             [xtdb.api :as xt])
   (:import [java.time LocalDateTime ZoneId Instant Duration]
@@ -138,12 +140,18 @@
                           :expo/title (render-comment-header poster commenter receiver)}))))))
          vec)))
 
-;; TODO: if there are multiple servers, this will be run in all of them
-;; I need a way to dedupe who sends which notifications
+(def comment-job-schema
+  [:map
+   [:notify/comment #'schema/Message]])
+
+(defn submit-comment-job! [ctx comment]
+  (let [job {:notify/comment comment}]
+    (biff/submit-job ctx :notify/comment job)))
+
 (defn comment!
-  [{:keys [biff/secret biff.xtdb/node] :as _ctx} comment]
+  [{:keys [biff/secret biff.xtdb/node biff/job] :as _ctx}]
   (let [db (xtdb.api/db node)
-        comment (crdt.message/->value comment)
+        comment (:notify/comment job)
         d (crdt.discussion/->value (db.discussion/by-id db (:message/did comment)))
         _ (assert d "No discussion for message")
         ;; commenter (db.user/by-id db (:message/user_id comment))
@@ -248,8 +256,8 @@
     (when-let [expo-token (->token to-user)]
       (when (and (:settings.notification/overall settings)
                  (= :settings.notification/daily (:settings.notification/activity settings)))
-        (let [{:keys [senders mids]} (db/messages-sent-to-user-since db uid since-ts)
-              {:keys [creators dids]} (db/discussions-for-user-since-ts db uid since-ts)
+        (let [{:keys [senders mids]}  (db.notify/messages-sent-to-user-since db uid since-ts)
+              {:keys [creators dids]} (db.notify/discussions-for-user-since-ts db uid since-ts)
               friends-usernames (vec (distinct (concat creators senders)))
               friends (remove #(= % (:user/name to-user)) friends-usernames)]
           (when-not (empty? friends)
@@ -276,9 +284,11 @@
           (println e))))))
 
 (def plugin
-  {:tasks
-   [{:task activity-for-all-users!
-     :schedule (fn []
-                 (rest
-                  (chime/periodic-seq (Instant/now) (Duration/ofDays 1))))}]})
+  {:queues [{:id :notify/comment
+             :consumer #'comment!
+             :n-threads 1}]
+   :tasks [{:task activity-for-all-users!
+            :schedule (fn []
+                        (rest
+                         (chime/periodic-seq (Instant/now) (Duration/ofDays 1))))}]})
 

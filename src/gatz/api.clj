@@ -181,11 +181,7 @@
             did (:evt/did evt)
             mid (:evt/mid evt)
             m (gatz.db.message/by-id db mid)]
-        (propagate-new-message! ctx did (crdt.message/->value m))
-        (try
-          (notify/comment! ctx m)
-          (catch Exception e
-            (println "error" e)))))))
+        (propagate-new-message! ctx did (crdt.message/->value m))))))
 
 (defn flatten-tx-ops
   "Returns a sequence of 'final' tx-ops without nesting"
