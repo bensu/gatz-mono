@@ -113,8 +113,8 @@
 
 (defn apply-action!
   "Applies a delta to the user and stores it"
-  [{:keys [biff/db auth/user-id auth/cid] :as ctx} uid action] ;; TODO: use cid
-  {:pre [(uuid? uid)]}
+  [{:keys [biff/db auth/user-id auth/cid] :as ctx} action] ;; TODO: use cid
+  {:pre [(uuid? user-id)]}
   (let [evt (db.evt/new-evt {:evt/type :gatz.crdt.user/delta
                              :evt/uid user-id
                              :evt/cid cid
@@ -126,103 +126,91 @@
           (do
             (biff/submit-tx ctx txs)
             {:evt (xtdb.api/entity db-after (:evt/id evt))
-             :user (by-id db-after uid)})
+             :user (by-id db-after user-id)})
           (assert false "Transaction would've failed")))
-      (assert false "Invaild event"))))
+      (do
+        (def -evt evt)
+        (clojure.pprint/pprint (malli/explain schema/UserEvent evt))
+        (assert false "Invaild event")))))
 
 (defn mark-active!
-  ([ctx uid]
-   (mark-active! ctx uid {:now (Date.)}))
-  ([ctx uid {:keys [now]}]
-   {:pre [(uuid? uid)]}
-   (let [clock (crdt/new-hlc uid now)
+  ([ctx]
+   (mark-active! ctx {:now (Date.)}))
+  ([{:keys [auth/user-id] :as ctx} {:keys [now]}]
+   {:pre [(uuid? user-id)]}
+   (let [clock (crdt/new-hlc user-id now)
          action {:gatz.crdt.user/action :gatz.crdt.user/mark-active
                  :gatz.crdt.user/delta {:crdt/clock clock
                                         :user/updated_at now
                                         :user/last_active now}}]
-     (apply-action! ctx uid action))))
+     (apply-action! ctx action))))
 
 (defn update-avatar!
-  ([ctx uid avatar–url]
-   (update-avatar! ctx uid avatar–url {:now (Date.)}))
-  ([ctx uid avatar–url {:keys [now]}]
-   {:pre [(uuid? uid) (string? avatar–url)]}
-   (let [clock (crdt/new-hlc uid now)
+  ([ctx avatar–url]
+   (update-avatar! ctx avatar–url {:now (Date.)}))
+  ([{:keys [auth/user-id] :as ctx} avatar–url {:keys [now]}]
+   {:pre [(uuid? user-id) (string? avatar–url) (inst? now)]}
+   (let [clock (crdt/new-hlc user-id now)
          action {:gatz.crdt.user/action :gatz.crdt.user/update-avatar
                  :gatz.crdt.user/delta {:crdt/clock clock
                                         :user/updated_at now
                                         :user/avatar (crdt/->LWW clock avatar–url)}}]
-     (apply-action! ctx uid action))))
+     (apply-action! ctx action))))
 
 (defn add-push-token!
-  ([ctx uid params]
-   (add-push-token! ctx uid params {:now (Date.)}))
-  ([ctx uid {:keys [push-token]} {:keys [now]}]
+  ([ctx params]
+   (add-push-token! ctx params {:now (Date.)}))
+  ([{:keys [auth/user-id] :as ctx} {:keys [push-token]} {:keys [now]}]
 
-   {:pre [(uuid? uid)
+   {:pre [(uuid? user-id)
           (malli/validate schema/PushTokens push-token)]}
 
-   (let [clock (crdt/new-hlc uid now)
+   (let [clock (crdt/new-hlc user-id now)
          delta {:crdt/clock clock
                 :user/updated_at now
                 :user/push_tokens (crdt/->LWW clock push-token)
                 :user/settings {:settings/notifications (crdt.user/notifications-on-crdt clock)}}
          action {:gatz.crdt.user/action :gatz.crdt.user/add-push-token
                  :gatz.crdt.user/delta delta}]
-     (apply-action! ctx uid action))))
-
-(defn turn-off-notifications!
-  ([ctx uid] (turn-off-notifications! ctx uid {:now (Date.)}))
-
-  ([ctx uid {:keys [now]}]
-
-   {:pre [(uuid? uid)]}
-
-   (let [clock (crdt/new-hlc uid now)
-         delta {:crdt/clock clock
-                :user/updated_at now
-                :user/settings {:settings/notifications (crdt.user/notifications-off-crdt clock)}}
-         action {:gatz.crdt.user/action :gatz.crdt.user/update-notifications
-                 :gatz.crdt.user/delta delta}]
-     (apply-action! ctx uid action))))
+     (apply-action! ctx action))))
 
 (defn remove-push-tokens!
-  ([ctx uid] (remove-push-tokens! ctx uid {:now (Date.)}))
+  ([ctx] (remove-push-tokens! ctx {:now (Date.)}))
 
-  ([ctx uid {:keys [now]}]
+  ([{:keys [auth/user-id] :as ctx} {:keys [now]}]
 
-   {:pre [(uuid? uid)]}
+   {:pre [(uuid? user-id)]}
 
-   (let [clock (crdt/new-hlc uid now)
+   (let [clock (crdt/new-hlc user-id now)
          delta {:crdt/clock clock
                 :user/updated_at now
                 :user/push_tokens (crdt/->LWW clock nil)
                 :user/settings {:settings/notifications (crdt.user/notifications-off-crdt clock)}}
          action {:gatz.crdt.user/action :gatz.crdt.user/remove-push-token
                  :gatz.crdt.user/delta delta}]
-     (apply-action! ctx uid action))))
+     (apply-action! ctx action))))
 
 (defn edit-notifications!
 
-  ([ctx uid notification-settings]
-   (edit-notifications! ctx uid notification-settings {:now (Date.)}))
+  ([ctx notification-settings]
+   (edit-notifications! ctx notification-settings {:now (Date.)}))
 
-  ([ctx uid notification-settings {:keys [now]}]
+  ([{:keys [auth/user-id] :as ctx} notification-settings {:keys [now]}]
 
-   {:pre [(uuid? uid)
+   {:pre [(uuid? user-id)
           (malli/validate (mu/optional-keys schema/NotificationPreferences)
                           notification-settings)]}
 
-   (let [clock (crdt/new-hlc uid now)
+   (let [clock (crdt/new-hlc user-id now)
          delta {:crdt/clock clock
                 :user/updated_at now
                 :user/settings {:settings/notifications (crdt/->lww-map notification-settings clock)}}
          action {:gatz.crdt.user/action :gatz.crdt.user/update-notifications
                  :gatz.crdt.user/delta delta}]
-     (apply-action! ctx uid action))))
+     (apply-action! ctx action))))
 
-(defn turn-off-notifications! [ctx uid]
-  (edit-notifications! ctx uid crdt.user/notifications-off))
+(defn turn-off-notifications! [ctx]
+  (edit-notifications! ctx crdt.user/notifications-off))
 
 (defn all-users [db]
   (vec (q db '{:find (pull user [*])

@@ -81,7 +81,6 @@
       (testing "People subscribed to the discussion get notifications"
         (let [ctoken "COMMENTER_TOKEN"
               commenter (db.user/add-push-token! (get-ctx commenter-uid)
-                                                 commenter-uid
                                                  {:push-token {:push/expo {:push/service :push/expo
                                                                            :push/token ctoken
                                                                            :push/created_at (Date.)}}})
@@ -101,7 +100,6 @@
 
           (let [ptoken "POSTER_TOKEN"
                 _poster (db.user/add-push-token! (get-ctx poster-uid)
-                                                 poster-uid
                                                  {:push-token {:push/expo {:push/service :push/expo
                                                                            :push/token ptoken
                                                                            :push/created_at (java.util.Date.)}}})
@@ -117,7 +115,6 @@
                    nts-for-new-comment)))))
       (testing "The lurker auto subscribes and listens to new comments"
         (db.user/add-push-token! (get-ctx lurker-uid)
-                                 lurker-uid
                                  {:push-token {:push/expo {:push/service :push/expo
                                                            :push/token "LURKER_TOKEN"
                                                            :push/created_at (Date.)}}})
@@ -155,7 +152,7 @@
           _ (xtdb/sync node)
           nts (notify/activity-notification-for-user (xtdb/db node) uid)]
       (is (empty? nts) "No notifications if user doesn't have them set up")
-      (db.user/add-push-token! (get-ctx uid) uid
+      (db.user/add-push-token! (get-ctx uid)
                                {:push-token {:push/expo {:push/service :push/expo
                                                          :push/token ptoken
                                                          :push/created_at (java.util.Date.)}}})
@@ -176,7 +173,6 @@
         (is (empty? (notify/activity-notification-for-user (xtdb/db node) cid))
             "Friends dont' get notifications if they haven't set them up")
         (db.user/add-push-token! (get-ctx cid)
-                                 cid
                                  {:push-token {:push/expo {:push/service :push/expo
                                                            :push/token ctoken
                                                            :push/created_at (java.util.Date.)}}})
@@ -190,7 +186,7 @@
                (notify/activity-notification-for-user (xtdb/db node) cid))
             "Friends get notifications from your activity")
 
-        (db.user/mark-active! (get-ctx cid) cid)
+        (db.user/mark-active! (get-ctx cid))
         (xtdb/sync node)
 
         (is (empty? (notify/activity-notification-for-user (xtdb/db node) cid))
@@ -222,7 +218,7 @@
                  (notify/activity-notification-for-user (xtdb/db node) cid))
               "Friends get notifications from your activity")
 
-          (db.user/edit-notifications! (get-ctx cid) cid
+          (db.user/edit-notifications! (get-ctx cid)
                                        {:settings.notification/activity :settings.notification/none})
           (is (empty? (notify/activity-notification-for-user (xtdb/db node) cid))
               "No notifications if you opted out of them"))))))

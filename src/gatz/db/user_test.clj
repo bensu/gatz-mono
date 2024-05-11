@@ -89,14 +89,15 @@
                          :auth/user-id uid
                          :auth/cid uid)
               node (:biff.xtdb/node system)
-              user (create-user! ctx {:id uid
-                                      :username "test_123"
-                                      :phone "4159499932"
-                                      :now now})]
+              get-ctx (fn [uid]
+                        (assoc ctx :biff/db (xtdb/db node) :auth/user-id uid))]
+          (create-user! ctx {:id uid
+                             :username "test_123"
+                             :phone "4159499932"
+                             :now now})
+          (xtdb/sync node)
           (doseq [action actions]
-            (apply-action! (assoc ctx :biff/db (xtdb/db node))
-                           uid
-                           action))
+            (apply-action! (get-ctx uid) action))
           (xtdb/sync node)
           (let [final-user (by-id (xtdb/db node) uid)]
             (is-equal {:crdt/clock c2
@@ -129,40 +130,31 @@
                          :auth/user-id uid
                          :auth/cid uid)
               node (:biff.xtdb/node system)
-              user (create-user! ctx {:id uid
-                                      :username "test_456"
-                                      :phone "4159499932"
-                                      :now now})
+              get-ctx (fn [uid]
+                        (assoc ctx :biff/db (xtdb/db node) :auth/user-id uid))
               t1 (crdt/inc-time now)
               t2 (crdt/inc-time t1)
               t3 (crdt/inc-time t2)
               t4 (crdt/inc-time t3)
               t5 (crdt/inc-time t4)
-              c1 (crdt/new-hlc uid t1)
-              c2 (crdt/new-hlc uid t2)
-              c3 (crdt/new-hlc uid t3)
-              c4 (crdt/new-hlc uid t4)
-              c5 (crdt/new-hlc uid t5)]
+              [_c1 _c2 _c3 _c4 c5] (mapv (partial crdt/new-hlc uid) [t1 t2 t3 t4 t5])]
           (do
+            (create-user! ctx {:id uid
+                               :username "test_456"
+                               :phone "4159499932"
+                               :now now})
             ;; await for all the tx functions to be in the database
             (xtdb/sync node)
-            (mark-active! (assoc ctx :biff/db (xtdb/db node)) uid {:now t1})
-            (update-avatar! (assoc ctx :biff/db (xtdb/db node))
-                            uid
-                            "https://example.com/avatar.jpg"
-                            {:now t2})
-            (add-push-token! (assoc ctx :biff/db (xtdb/db node))
-                             uid
+            (mark-active! (get-ctx uid) {:now t1})
+            (update-avatar! (get-ctx uid) "https://example.com/avatar.jpg" {:now t2})
+            (add-push-token! (get-ctx uid)
                              {:push-token {:push/expo
                                            {:push/service :push/expo
                                             :push/token "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]"
                                             :push/created_at now}}}
                              {:now t3})
-            (remove-push-tokens! (assoc ctx :biff/db (xtdb/db node))
-                                 uid
-                                 {:now t4})
-            (edit-notifications! (assoc ctx :biff/db (xtdb/db node))
-                                 uid
+            (remove-push-tokens! (get-ctx uid) {:now t4})
+            (edit-notifications! (get-ctx uid)
                                  {:settings.notification/activity :settings.notification/daily}
                                  {:now t5})
             ;; await for all transactions before checking the state of the user

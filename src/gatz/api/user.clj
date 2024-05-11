@@ -33,8 +33,7 @@
       (json-response {:user (crdt.user/->value user)}))
     {:status 400 :body "invalid params"}))
 
-(defn create-user!
-  [{:keys [params] :as ctx}]
+(defn create-user! [{:keys [params] :as ctx}]
   (if-let [username (some-> (:username params) str/trim)]
     (if (crdt.user/valid-username? username)
       (let [user (db.user/create-user! ctx {:username username})]
@@ -42,20 +41,18 @@
       (err-resp "invalid_username" "Username is invalid"))
     (err-resp "username_taken" "Username is already taken")))
 
-(defn add-push-token!
-  [{:keys [params auth/user-id] :as ctx}]
+(defn add-push-token! [{:keys [params] :as ctx}]
   (if-let [push-token (:push_token params)]
     (let [new-token {:push/service :push/expo
                      :push/token push-token
                      :push/created_at (java.util.Date.)}
-          {:keys [user]} (db.user/add-push-token! ctx user-id {:push-token {:push/expo new-token}})]
+          {:keys [user]} (db.user/add-push-token! ctx {:push-token {:push/expo new-token}})]
       (json-response {:status "success"
                       :user (crdt.user/->value user)}))
     (err-resp "push_token_missing" "Missing push token parameter")))
 
-(defn disable-push!
-  [{:keys [auth/user-id] :as ctx}]
-  (let [{:keys [user]} (db.user/turn-off-notifications! ctx user-id)]
+(defn disable-push! [ctx]
+  (let [{:keys [user]} (db.user/turn-off-notifications! ctx)]
     (json-response {:status "success"
                     :user (crdt.user/->value user)})))
 
@@ -66,17 +63,16 @@
       (some? (:settings.notification/activity m))
       (update :settings.notification/activity (partial keyword "settings.notification")))))
 
-(defn update-notification-settings!
-  [{:keys [params auth/user-id] :as ctx}]
+(defn update-notification-settings! [{:keys [params] :as ctx}]
   (if-let [notification-settings (some-> (:settings params)
                                          params->notification-settings)]
-    (let [{:keys [user]} (db.user/edit-notifications! ctx
-                                                      user-id
-                                                      notification-settings)]
+    (let [{:keys [user]} (db.user/edit-notifications! ctx notification-settings)]
       (json-response {:status "success"
                       :user (crdt.user/->value user)}))
     (err-resp "invalid_params" "Invalid parameters")))
 
+;; ====================================================================== 
+;; Auth
 
 (defn sign-in!
   [{:keys [params biff/db] :as _ctx}]
@@ -171,10 +167,9 @@
     (json-response {:username (crdt.user/->value username)
                     :available (nil? existing-user)})))
 
-(defn update-avatar!
-  [{:keys [params auth/user-id] :as ctx}]
+(defn update-avatar! [{:keys [params] :as ctx}]
   (if-let [url (:file_url params)]
-    (let [{:keys [user]} (db.user/update-avatar! ctx user-id url)]
+    (let [{:keys [user]} (db.user/update-avatar! ctx url)]
       (json-response {:user (crdt.user/->value user)}))
     (err-resp "invalid_file_url" "Invalid file url")))
 
