@@ -22,6 +22,8 @@
 
         :s3/asset-path "CLOUDFLARE_R2_ASSET_DOMAIN"
 
+        :heroku/dyno-name "DYNO"
+
         :biff/base-url "http://gatz.chat"
         ;; Postmark is used to send email sign-in links. Create an account at
         ;; https://postmarkapp.com

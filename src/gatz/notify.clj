@@ -11,6 +11,7 @@
             [gatz.db.user :as db.user]
             [gatz.schema :as schema]
             [sdk.expo :as expo]
+            [sdk.heroku :as heroku]
             [xtdb.api :as xt])
   (:import [java.time LocalDateTime ZoneId Instant Duration]
            [java.util Date]))
@@ -271,25 +272,30 @@
 (defn activity-for-all-users!
   [{:keys [biff.xtdb/node biff/secret] :as ctx}]
 
-  (let [db (xtdb.api/db node)
-        ctx (assoc ctx :biff/db db)]
-    (doseq [uid (db.user/all-ids db)]
-      (try
-        (when-let [notification (activity-notification-for-user db uid)]
-          (expo/push-many! secret [notification]))
-        (db.user/mark-active! (assoc ctx :auth/user-id uid))
-        (catch Throwable e
+  ;; This task is executed by all dynos. 
+  ;; Needs to be a singleton, so we check for web.1
+
+  (println "activity for all users")
+  (when (= "web.1" (heroku/dyno-name ctx))
+    (println "in singleton dyno")
+    (let [db (xtdb.api/db node)
+          ctx (assoc ctx :biff/db db)]
+      (doseq [uid (db.user/all-ids db)]
+        (try
+          (when-let [notification (activity-notification-for-user db uid)]
+            (expo/push-many! secret [notification]))
+          (db.user/mark-active! (assoc ctx :auth/user-id uid))
+          (catch Throwable e
             ;; TODO: handle
-          (println "Error in activity-for-all-users!")
-          (println e))))))
+            (println "Error in activity-for-all-users!")
+            (println e)))))))
 
 (def plugin
   {:queues [{:id :notify/comment
              :consumer #'comment!
              :n-threads 1}]
-   ;; These will be sent by each of the dynos. Needs to be a singleton
-   :tasks [] #_[{:task activity-for-all-users!
-                 :schedule (fn []
-                             (rest
-                              (chime/periodic-seq (Instant/now) (Duration/ofDays 1))))}]})
+   :tasks [{:task activity-for-all-users!
+            :schedule (fn []
+                        (rest
+                         (chime/periodic-seq (Instant/now) (Duration/ofDays 1))))}]})
 
