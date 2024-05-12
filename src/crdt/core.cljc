@@ -487,6 +487,8 @@
     (is (= #crdt/gos #{1 2 3}
            (nippy/thaw (nippy/freeze #crdt/gos #{1 2 3}))))))
 
+;; This needs to be wrapped so that it behaves like a set
+;; when you ask for its value
 ;; {x #crdt/lww #crdt/clock boolean?}
 (defrecord LWWSet [xs]
   OpCRDT
@@ -505,6 +507,9 @@
                (update acc x -apply-delta lww))
              xs
              delta)))
+  StateCRDT
+  (-merge [this that]
+    (-apply-delta this (:xs that)))
   juxt-nippy/IFreezable1
   (-freeze-without-meta! [this out]
     (nippy/freeze-to-out! out this)))
@@ -544,6 +549,23 @@
           deltas (shuffle (concat adds removes adds removes))
           final (reduce -apply-delta initial deltas)]
       (is (= #{} (-value initial)))
+      (is (= (set (remove even? (range 10))) (-value final)))))
+  (testing "You can add and remove"
+    (let [node (random-uuid)
+          t0 (Date.)
+          t1 (inc-time t0)
+          c0 (new-hlc node t0)
+          c1 (new-hlc node t1)
+          initial (lww-set c0 #{})
+          adds (map (fn [x]
+                      (->LWWSet {x (->LWW c0 true)}))
+                    (range 10))
+          removes (map (fn [x]
+                         (->LWWSet {x (->LWW c1 false)}))
+                       (filter even? (range 10)))
+          deltas (shuffle (concat adds removes adds removes))
+          final (reduce -merge initial deltas)]
+      (is (= #{} (-value initial)))
       (is (= (set (remove even? (range 10))) (-value final))))))
 
 (extend-protocol CRDTDelta
@@ -574,6 +596,11 @@
             this
             delta)))
 
+(extend-protocol StateCRDT
+  IPersistentMap
+  (-merge [this that]
+    (merge-with -merge this that)))
+
 (deftest persistent-map
   (testing "can be serialized"
     (let [init {:a (->MaxWins 0) :b (->LWW 0 0) :c (->GrowOnlySet #{1 2 3})}]
@@ -584,6 +611,14 @@
                                  {:b (->MaxWins x) :c (->LWW x x)})
                                (range 10)))
           final (reduce -apply-delta initial deltas)]
+      (is (= {:a 1 :b 0 :c 0} (-value initial)))
+      (is (= {:a 1 :b 9 :c 9} (-value final)))))
+  (testing "you can merge maps"
+    (let [initial {:a 1 :b (->MaxWins 0) :c (->LWW 0 0)}
+          deltas (shuffle (map (fn [x]
+                                 {:b (->MaxWins x) :c (->LWW x x)})
+                               (range 10)))
+          final (reduce -merge initial deltas)]
       (is (= {:a 1 :b 0 :c 0} (-value initial)))
       (is (= {:a 1 :b 9 :c 9} (-value final)))))
   (testing "you can apply deltas recursively"
@@ -603,10 +638,28 @@
                              [user-id {"heart" true
                                        "like"  (not (even? user-id))}])
                            user-ids))
+             (-value final)))))
+  (testing "you can merge recursively"
+    (let [initial {}
+          user-ids (range 10)
+          adds (map (fn [user-id]
+                      {user-id {"heart" (->LWW (Date.) true)
+                                "like" (->LWW (Date.) true)}})
+                    user-ids)
+          removes (map (fn [user-id]
+                         {user-id {"like" (->LWW (Date.) false)}})
+                       (filter even? user-ids))
+          deltas (shuffle (concat adds removes))
+          final (reduce -merge initial deltas)]
+      (is (= {} (-value initial))
+          (= (into {} (map (fn [user-id]
+                             [user-id {"heart" true
+                                       "like"  (not (even? user-id))}])
+                           user-ids))
              (-value final))))))
 
 (defn clock? [x]
-  (instance? java.lang.Comparable x))
+  (instance? Comparable x))
 
 (defn ->lww-map
   "Recursively walks the map turning all its leaf nodes to LWW"
