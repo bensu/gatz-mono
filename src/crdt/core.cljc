@@ -1,14 +1,17 @@
 (ns crdt.core
-  (:require [clojure.set :as set]
+  (:require [clojure.core :refer [print-method read-string format]]
+            [clojure.set :as set]
             [clojure.test :as test :refer [deftest testing is]]
             [malli.core :as malli]
             [medley.core :refer [map-vals]]
             [juxt.clojars-mirrors.nippy.v3v1v1.taoensso.nippy :as juxt-nippy]
-            [taoensso.nippy :as nippy]
-            [clojure.core :refer [print-method read-string format]])
+            [taoensso.nippy :as nippy])
   (:import [java.util Date UUID]
            [clojure.lang IPersistentMap]
            [java.lang Comparable Thread]))
+
+(defprotocol StateCRDT
+  (-merge [this that]))
 
 (defprotocol OpCRDT
   (-value [this] "Returns the EDN value without the CRDT tracking")
@@ -31,6 +34,9 @@
                 -1 this
                 0 this
                 1 (->MinWins delta-value)))))
+  StateCRDT
+  (-merge [this that]
+    (-apply-delta this that))
   juxt-nippy/IFreezable1
   (-freeze-without-meta! [this out]
     (nippy/freeze-to-out! out this)))
@@ -74,6 +80,11 @@
           initial (->MinWins 3)
           final (reduce -apply-delta initial values)]
       (is (= 0 (-value final)))))
+  (testing "merge is the same as apply-delta"
+    (let [values (shuffle (map #(->MinWins %) (range 10)))
+          initial (->MinWins 3)
+          final (reduce -merge initial values)]
+      (is (= 0 (-value final)))))
   (testing "any order yields the same final value with dates"
     (let [instants (take 10 (repeatedly (fn [] (Date.))))
           values  (map ->MinWins (shuffle instants))
@@ -99,6 +110,9 @@
                 -1 (->MaxWins delta-value)
                 0 this
                 1 this))))
+  StateCRDT
+  (-merge [this that]
+    (-apply-delta this that))
   juxt-nippy/IFreezable1
   (-freeze-without-meta! [this out]
     (nippy/freeze-to-out! out this)))
@@ -141,6 +155,11 @@
     (let [values (shuffle (map #(->MaxWins %) (range 10)))
           initial (->MaxWins 0)
           final (reduce -apply-delta initial values)]
+      (is (= 9 (-value final)))))
+  (testing "merge is the same as apply-delta"
+    (let [values (shuffle (map #(->MaxWins %) (range 10)))
+          initial (->MaxWins 0)
+          final (reduce -merge initial values)]
       (is (= 9 (-value final)))))
   (testing "any order yields the same final value with dates"
     (let [instants (take 10 (repeatedly (fn [] (Date.))))
@@ -190,9 +209,14 @@
   (-init [_] (->HLC ts 0 node))
   OpCRDT ;; as a LWW where the value is itself 
   (-value [this] this)
+  ;; TODO: shouldn't this move things forward by using 
+  ;; either -increment or -receive?
   (-apply-delta [this delta]
     (case (compare this delta)
       -1 delta 0 this 1 this))
+  StateCRDT
+  (-merge [this that]
+    (-apply-delta this that))
   juxt-nippy/IFreezable1
   (-freeze-without-meta! [this out]
     (nippy/freeze-to-out! out this)))
@@ -214,7 +238,8 @@
    #crdt/hlc [#inst \"2021-06-01\" 1 #uuid \"08f711cd-1d4d-4f61-b157-c36a8be8ef95\"]"
   [value]
   (assert (vector? value) "HLC must be a vector")
-  (assert (<= (count value) 3) "HLC must have 0, 1, 2, or 3 elements")
+  (assert (<= (count value) 3)
+          "HLC must have 0, 1, 2, or 3 elements")
   (case (count value)
     0 (->HLC (Date.) 0 (random-uuid))
     1 (->HLC (Date.) 0 (first value))
@@ -314,6 +339,9 @@
                 -1 delta
                 0 this ;; TODO: if the clocks are equal, the values should be equal too?
                 1 this))))
+  StateCRDT
+  (-merge [this that]
+    (-apply-delta this that))
   juxt-nippy/IFreezable1
   (-freeze-without-meta! [this out]
     (nippy/freeze-to-out! out this)))
@@ -372,6 +400,14 @@
             final (reduce -apply-delta initial (shuffle deltas))]
         (is (= 0 (-value initial)))
         (is (= (last values) (-value final)))))
+    (testing "merge is the same as -apply-delta"
+      (let [initial (->LWW (Date.) 0)
+            clocks (take 9 (repeatedly #(do (Thread/sleep 1) (Date.))))
+            values (shuffle (range 1 10))
+            deltas (map #(->LWW %1 %2) clocks values)
+            final (reduce -merge initial (shuffle deltas))]
+        (is (= 0 (-value initial)))
+        (is (= (last values) (-value final)))))
     (testing "with ClientClocks"
       (let [uid (random-uuid) cid (random-uuid)
             tick! (let [event-number (atom 0)]
@@ -402,6 +438,9 @@
   (-value [_] xs)
   (-apply-delta [_ delta]
     (->GrowOnlySet (conj xs (-value delta))))
+  StateCRDT
+  (-merge [this that]
+    (->GrowOnlySet (set/union (:xs this) (:xs that))))
   juxt-nippy/IFreezable1
   (-freeze-without-meta! [this out]
     (nippy/freeze-to-out! out this)))
@@ -437,6 +476,11 @@
           final (reduce -apply-delta initial deltas)]
       (is (= #{} (-value initial)))
       (is (= (set (range 10)) (-value final)))))
+  (testing "You can merge them"
+    (let [a #crdt/gos #{1 2 3}
+          b #crdt/gos #{3 4 5}]
+      (is (= #{1 2 3 4 5} (-value (-merge a b))))
+      (is (= #{1 2 3 4 5} (-value (-merge b a))))))
   (testing "can be serialized"
     (is (= #crdt/gos #{1 2 3}
            (read-string (pr-str #crdt/gos #{1 2 3}))))
