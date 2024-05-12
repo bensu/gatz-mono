@@ -75,12 +75,12 @@
 ;; Auth
 
 (defn sign-in!
-  [{:keys [params biff/db] :as _ctx}]
+  [{:keys [params biff/db] :as ctx}]
   ;; TODO: do params validation
   (if-let [username (:username params)]
     (if-let [user (db.user/by-name db username)]
       (json-response {:user  (crdt.user/->value user)
-                      :token (auth/create-auth-token (:xt/id user))})
+                      :token (auth/create-auth-token ctx (:xt/id user))})
       (err-resp "user_not_found" "Username not found"))
     (err-resp "invalid_username" "Invalid username")))
 
@@ -123,7 +123,7 @@
         (let [user (db.user/create-user! ctx {:username username :phone phone})]
           (json-response {:type "sign_up"
                           :user  (crdt.user/->value user)
-                          :token (auth/create-auth-token (:xt/id user))})))
+                          :token (auth/create-auth-token ctx (:xt/id user))})))
       (err-resp "invalid_phone" "Invalid phone number"))
     (err-resp "invalid_username" "Invalid username")))
 
@@ -145,7 +145,7 @@
                               (when-let [user (db.user/by-phone db phone)]
                                 {:user (crdt.user/->value user)})))))))
 
-(defn verify-code! [{:keys [params biff/secret biff/db] :as _ctx}]
+(defn verify-code! [{:keys [params biff/secret biff/db] :as ctx}]
   (let [{:keys [phone_number code]} params
         phone (clean-phone phone_number)
         code (clean-code code)
@@ -159,7 +159,7 @@
             (when approved?
               (when-let [user (db.user/by-phone db phone)]
                 {:user  (crdt.user/->value user)
-                 :token (auth/create-auth-token (:xt/id user))}))))))
+                 :token (auth/create-auth-token ctx (:xt/id user))}))))))
 
 (defn check-username [{:keys [params biff/db] :as _ctx}]
   (let [{:keys [username]} params

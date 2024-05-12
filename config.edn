@@ -13,6 +13,8 @@
         :twilio/sid "TWILIO_SID"
         :twilio/auth-token "TWILIO_AUTH_TOKEN"
 
+        :gatz.auth/jwt-secret "GATZ_JWT_SECRET_OLD"
+
         :expo/push-token "EXPO_PUSH_NOTIFICATION_TOKEN"
 
         :s3/origin "CLOUDFLARE_R2_ENDPOINT"
