@@ -1,4 +1,5 @@
 (ns crdt.core
+  {:clojure.tools.namespace.repl/load false}
   (:require [clojure.core :refer [print-method read-string format]]
             [clojure.set :as set]
             [clojure.test :as test :refer [deftest testing is]]
