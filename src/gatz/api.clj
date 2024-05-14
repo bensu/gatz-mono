@@ -2,7 +2,6 @@
   "All the operations but in an API"
   (:require [chime.core :as chime]
             [clojure.data.json :as json]
-            [clojure.java.io :as io]
             [crdt.core :as crdt]
             [gatz.auth :as auth]
             [gatz.api.discussion :as api.discussion]
@@ -210,32 +209,6 @@
 (defn on-tx [ctx tx]
   (on-evt! ctx tx))
 
-(defn headers->file [headers]
-  (let [url (get headers "arena-url")
-        method (get headers "arena-method")]
-    (assert (and url method))
-    (io/file (str "logs/" url "/" method ".log"))))
-
-(defn log-request [{:keys [params headers] :as _ctx}]
-  (let [log-id (random-uuid)
-        file (headers->file headers)]
-    (io/make-parents file)
-
-    (spit file (str (json/write-str params) "\n\n"))
-    #_(biff/submit-tx ctx
-                      [{:db/doc-type :log
-                        :xt/id log-id
-                        :log/params params}])
-    {:status 200
-     :body (json/write-str {:log/id (str log-id) :params params})}))
-
-(defn cached-log [{:keys [headers] :as _ctx}]
-  (let [file (headers->file headers)
-        contents (json/read-str (slurp file))]
-    {:status 200
-    ;;  :headers (get contents "headers")
-     :body (json/write-str (get contents "body"))}))
-
 (def alive-message {:status "ok"})
 
 (defn ping-every-connection!
@@ -269,9 +242,6 @@
 
                 ;; authenticated
                 ["/api" {:middleware [auth/wrap-api-auth]}
-                 ["/log-request" {:post log-request}]
-                 ["/log-response" {:get cached-log
-                                   :post cached-log}]
                  ["/me" {:get api.user/get-me}]
                  ["/user" {:get api.user/get-user}]
                  ["/user/push-token" {:post   api.user/add-push-token!}]
