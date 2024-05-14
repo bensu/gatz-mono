@@ -17,7 +17,7 @@
             [gatz.db.discussion :as db.discussion]
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
-            [gatz.notify :as notify]
+            [gatz.settings :as settings]
             [ring.adapter.jetty9 :as jetty]
             [xtdb.api :as xtdb])
   (:import [java.time Instant Duration]))
@@ -246,6 +246,9 @@
     (doseq [ws all-wss]
       (jetty/send! ws msg))))
 
+(defn get-manifest [_]
+  (json-response settings/manifest))
+
 (def plugin
   {:on-tx on-tx
    :tasks [{:task ping-every-connection!
@@ -256,6 +259,7 @@
                  ["/connect" {:get start-connection}]]
                  ;; unauthenticated
                 ["/api"
+                 ["/manifest" {:get get-manifest}]
                  ["/signin" {:post api.user/sign-in!}]
                  ["/signup" {:post api.user/sign-up!}]
 
