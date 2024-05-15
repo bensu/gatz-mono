@@ -65,7 +65,7 @@
         ;; TODO: there is a way to guarantee uniqueness of phones with biff
         user (->> users
                   (remove nil?)
-                  (sort-by (comp :user/created_at #(.getTime %)))
+                  (sort-by (comp #(.getTime %) :user/created_at))
                   first)]
     (some-> user (db.util/->latest-version  all-migrations))))
 
@@ -75,14 +75,18 @@
        :where [[u :db/type :gatz/user]]}))
 
 (defn create-user!
-  [{:keys [biff/db] :as ctx} {:keys [username phone id now]}]
+  [ctx {:keys [username phone id now]}]
 
-  {:pre [(crdt.user/valid-username? username)]}
+  {:pre [(crdt.user/valid-username? username) (string? phone) (uuid? id) (inst? now)]}
 
-  (assert (nil? (by-name db username)))
-
-  (let [user (crdt.user/new-user {:id id :phone phone :username username :now now})]
-    (biff/submit-tx ctx [(assoc user :db/doc-type :gatz.crdt/user)])
+  (let [user (crdt.user/new-user {:id id
+                                  :phone phone
+                                  :username username
+                                  :now now})]
+    (biff/submit-tx ctx [(-> user
+                             (assoc :db/doc-type :gatz.crdt/user)
+                             (update :user/name (fn [n] [:db/unique n]))
+                             (update :user/phone_number (fn [p] [:db/unique p])))])
     user))
 
 (defn by-id [db user-id]

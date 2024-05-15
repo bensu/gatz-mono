@@ -36,6 +36,49 @@
         (is (malli/validate schema/UserCRDT user)
             (vec (:errors (malli/explain schema/UserCRDT user))))))))
 
+(defmacro ok? [expr]
+  `(do ~expr))
+
+(deftest unique-users
+  (testing "users need unique usernames"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          repeated-username "test_123"
+          repeated-phone "4159499932"
+          now (Date.)]
+      (is (nil? (by-name (xtdb/db node) repeated-username)))
+      (is (nil? (by-phone (xtdb/db node) repeated-phone)))
+      (is (ok? (create-user! ctx {:id (random-uuid)
+                                  :username repeated-username
+                                  :phone repeated-phone
+                                  :now now})))
+
+      (xtdb/sync node)
+      (let [db (xtdb/db node)]
+        (is (= (by-name db repeated-username)
+               (by-phone db repeated-phone)))
+        (is (some? (by-name db repeated-username))))
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (create-user! ctx {:id (random-uuid)
+                                      :username repeated-username
+                                      :phone "4159499933"
+                                      :now now})))
+
+      (xtdb/sync node)
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (create-user! ctx {:id (random-uuid)
+                                      :username "test_456"
+                                      :phone repeated-phone
+                                      :now now})))
+      (xtdb/sync node)
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (create-user! ctx {:id (random-uuid)
+                                      :username repeated-username
+                                      :phone repeated-phone
+                                      :now now})))
+
+      (.close node))))
+
 (deftest user-actions
   (testing "The user actions have the right schema"
     (let [now (Date.)
