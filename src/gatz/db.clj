@@ -82,9 +82,9 @@
                                                              :crdt/clock clock}}}))
         txns [(-> d
                   (db.discussion/crdt->doc)
-                  (assoc :db/doc-type :gatz.doc/discussion))
-              (assoc msg :db/doc-type :gatz.crdt/message)
-              (assoc evt :db/doct-type :gatz/evt)
+                  (assoc :db/doc-type :gatz.doc/discussion :db/op :create))
+              (assoc msg :db/doc-type :gatz.crdt/message :db/op :create)
+              (assoc evt :db/doct-type :gatz/evt :db/op :create)
               ;; TODO: update original discussion, not just message for it
               (when original-msg-evt
                 [:xtdb.api/fn :gatz.db.message/apply-delta {:evt original-msg-evt}])
