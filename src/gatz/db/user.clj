@@ -77,7 +77,7 @@
 (defn create-user!
   [ctx {:keys [username phone id now]}]
 
-  {:pre [(crdt.user/valid-username? username) (string? phone) (uuid? id) (inst? now)]}
+  {:pre [(crdt.user/valid-username? username) (string? phone)]}
 
   (let [user (crdt.user/new-user {:id id
                                   :phone phone

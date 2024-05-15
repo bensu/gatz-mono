@@ -82,24 +82,24 @@
   {:pre [(valid-username? username)]}
 
   (let [uid (or id (random-uuid))
+        _ (assert (uuid? uid))
         now (or now (Date.))
-        clock (crdt/new-hlc uid now)
-        u
-        {:xt/id uid
-         :db/type :gatz/user
-         :db/version 1
-         :crdt/clock clock
-         :user/created_at now
-         :user/is_test false
-         :user/is_admin false
-         :user/name username
-         :user/phone_number phone
-         :user/updated_at (crdt/->MaxWins now)
-         :user/last_active (crdt/->MaxWins now)
-         :user/avatar (crdt/->LWW clock nil)
-         :user/push_tokens (crdt/->LWW clock nil)
-         :user/settings {:settings/notifications (notifications-off-crdt clock)}}]
-    u))
+        _ (assert (inst? now))
+        clock (crdt/new-hlc uid now)]
+    {:xt/id uid
+     :db/type :gatz/user
+     :db/version 1
+     :crdt/clock clock
+     :user/created_at now
+     :user/is_test false
+     :user/is_admin false
+     :user/name username
+     :user/phone_number phone
+     :user/updated_at (crdt/->MaxWins now)
+     :user/last_active (crdt/->MaxWins now)
+     :user/avatar (crdt/->LWW clock nil)
+     :user/push_tokens (crdt/->LWW clock nil)
+     :user/settings {:settings/notifications (notifications-off-crdt clock)}}))
 
 
 (defn ->value [u]
