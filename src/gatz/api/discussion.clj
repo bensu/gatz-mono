@@ -8,7 +8,9 @@
             [gatz.crdt.user :as crdt.user]
             [gatz.notify :as notify]
             [malli.transform :as mt]
-            [xtdb.api :as xt]))
+            [sdk.posthog :as posthog]
+            [xtdb.api :as xt])
+  (:import [java.util Date]))
 
 ;; ====================================================================== 
 ;; Utils
@@ -93,7 +95,7 @@
     (if-authorized-for-discussion
      [user-id d]
      (do
-       (db.discussion/mark-as-seen! ctx user-id [did] (java.util.Date.))
+       (db.discussion/mark-as-seen! ctx user-id [did] (Date.))
        (json-response {:status "ok"})))))
 
 (defn mark-many-seen! [{:keys [biff/db auth/user-id params] :as ctx}]
@@ -105,15 +107,16 @@
     (when-authorized-for-discussions
      [user-id ds]
      (do
-       (db.discussion/mark-as-seen! ctx user-id dids (java.util.Date.))
+       (db.discussion/mark-as-seen! ctx user-id dids (Date.))
        (json-response {:status "ok"})))))
 
-(defn mark-message-read! [{:keys [biff/db auth/user-id params] :as ctx}]
+(defn mark-message-read! [{:keys [auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
   (let [did (mt/-string->uuid (:did params))
-        mid (mt/-string->uuid (:mid params))]
-    (let [{:keys [discussion]} (db.discussion/mark-message-read! ctx user-id did mid)]
-      (json-response {:discussion (crdt.discussion/->value discussion)}))))
+        mid (mt/-string->uuid (:mid params))
+        {:keys [discussion]} (db.discussion/mark-message-read! ctx user-id did mid)]
+    (posthog/capture! ctx "discussion.read" {:did did :mid mid})
+    (json-response {:discussion (crdt.discussion/->value discussion)})))
 
 (defn archive! [{:keys [biff/db auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
@@ -121,6 +124,7 @@
         {:keys [discussion]} (db.discussion/archive! ctx did user-id)
         d (crdt.discussion/->value discussion)
         {:keys [messages user_ids]} (db/discussion-by-id db did)]
+    (posthog/capture! ctx "discussion.archive" {:did did})
       ;; TODO: change to only return the discussion
     (json-response {:discussion d
                     :users (mapv (comp crdt.user/->value
@@ -129,17 +133,19 @@
                     :messages (mapv crdt.message/->value messages)})))
 
 (defn subscribe-to-discussion!
-  [{:keys [biff/db auth/user-id params] :as ctx}]
+  [{:keys [auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
   (let [did (mt/-string->uuid (:did params))
         {:keys [discussion]} (db.discussion/subscribe! ctx did user-id)]
+    (posthog/capture! ctx "discussion.subscribe" {:did did})
     (json-response {:discussion (crdt.discussion/->value discussion)})))
 
 (defn unsubscribe-to-discussion!
-  [{:keys [biff/db auth/user-id params] :as ctx}]
+  [{:keys [auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
   (let [did (mt/-string->uuid (:did params))
         {:keys [discussion]} (db.discussion/unsubscribe! ctx did user-id)]
+    (posthog/capture! ctx "discussion.unsubscribe" {:did did})
     (json-response {:discussion (crdt.discussion/->value discussion)})))
 
 ;; The cut-off for discussions is when they were created but the feed sorting is
@@ -184,6 +190,7 @@
       (err-resp "invalid_post" "Invalid post")
       (let [{:keys [discussion message]} (db/create-discussion-with-message! ctx params)
             d (crdt.discussion/->value discussion)]
+        (posthog/capture! ctx "discussion.new" {:did (:xt/id d)})
         ;; TODO: change shape of response
         (json-response
          {:discussion d
@@ -222,5 +229,6 @@
          (notify/submit-comment-job! ctx (crdt.message/->value msg))
          (catch Exception e
            (println "failed submitting the job" e)))
+       (posthog/capture! ctx "message.new" {:did (:xt/id d) :mid (:xt/id msg)})
        (json-response {:message (crdt.message/->value msg)})))))
 

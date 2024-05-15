@@ -4,7 +4,8 @@
             [gatz.db.message :as db.message]
             [gatz.crdt.message :as crdt.message]
             [gatz.notify :as notify]
-            [malli.transform :as mt]))
+            [malli.transform :as mt]
+            [sdk.posthog :as posthog]))
 
 ;; ============================================================================
 ;; Endpoints
@@ -20,6 +21,7 @@
         mid (some-> id mt/-string->uuid)
         {:keys [message]}
         (db.message/edit-message! ctx {:did did :mid mid :text text})]
+    (posthog/capture! ctx "message.edit" {:did did :mid mid})
     (json-response {:message (crdt.message/->value message)})))
 
 (defn react-to-message! [{:keys [params biff/db] :as ctx}]
@@ -31,6 +33,7 @@
     (assert (string? reaction) "reaction must be a string")
     (let [{:keys [message]}
           (db.message/react-to-message! ctx {:did did :mid mid :reaction reaction})]
+      (posthog/capture! ctx "message.react" {:did did :mid mid :reaction reaction})
       (json-response {:message (crdt.message/->value message)}))))
 
 (defn undo-react-to-message! [{:keys [params] :as ctx}]
@@ -40,14 +43,16 @@
     (assert (string? reaction) "reaction must be a string")
     (let [{:keys [message]}
           (db.message/undo-react! ctx {:did did :mid mid :reaction reaction})]
+      (posthog/capture! ctx "message.undo_react" {:did did :mid mid :reaction reaction})
       (json-response {:message (crdt.message/->value message)}))))
 
 (defn delete-message! [{:keys [params biff/db] :as ctx}]
-  (let [message (some->> (:id params)
-                         mt/-string->uuid
-                         (db.message/by-id db)
-                         crdt.message/->value)]
-    (db.message/delete-message! ctx (:message/did message) (:xt/id message))
+  (let [msg (some->> (:id params)
+                     mt/-string->uuid
+                     (db.message/by-id db)
+                     crdt.message/->value)]
+    (db.message/delete-message! ctx (:message/did msg) (:xt/id msg))
+    (posthog/capture! ctx "message.delete" {:did (:message/did msg) :mid (:xt/id msg)})
     (json-response {:status "success"})))
 
 ;; ============================================================================

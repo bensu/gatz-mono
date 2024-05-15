@@ -22,6 +22,7 @@
             [nrepl.cmdline :as nrepl-cmd]
             [ring.adapter.jetty9]
             [to-jdbc-uri.core :refer [to-jdbc-uri]]
+            [sdk.posthog :as posthog]
             [xtdb.jdbc.psql])
   (:import [java.time Duration]
            [org.postgresql Driver]))
@@ -188,6 +189,7 @@
 (def components
   [biff/use-config
    biff/use-secrets
+   posthog/use-posthog
    (fn start-conns-state [ctx]
      (use-atom ctx :conns-state conns/init-state))
    (fn start-xtdb [ctx]

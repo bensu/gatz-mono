@@ -8,6 +8,7 @@
             [gatz.schema :as schema]
             [malli.transform :as mt]
             [medley.core :refer [map-keys]]
+            [sdk.posthog :as posthog]
             [sdk.twilio :as twilio]))
 
 (defn json-response [body]
@@ -47,12 +48,14 @@
                      :push/token push-token
                      :push/created_at (java.util.Date.)}
           {:keys [user]} (db.user/add-push-token! ctx {:push-token {:push/expo new-token}})]
+      (posthog/capture! ctx "notifications.add_push_token")
       (json-response {:status "success"
                       :user (crdt.user/->value user)}))
     (err-resp "push_token_missing" "Missing push token parameter")))
 
 (defn disable-push! [ctx]
   (let [{:keys [user]} (db.user/turn-off-notifications! ctx)]
+    (posthog/capture! ctx "notifications.disable")
     (json-response {:status "success"
                     :user (crdt.user/->value user)})))
 
@@ -67,6 +70,7 @@
   (if-let [notification-settings (some-> (:settings params)
                                          params->notification-settings)]
     (let [{:keys [user]} (db.user/edit-notifications! ctx notification-settings)]
+      (posthog/capture! ctx "notifications.update")
       (json-response {:status "success"
                       :user (crdt.user/->value user)}))
     (err-resp "invalid_params" "Invalid parameters")))
@@ -79,8 +83,10 @@
   ;; TODO: do params validation
   (if-let [username (:username params)]
     (if-let [user (db.user/by-name db username)]
-      (json-response {:user  (crdt.user/->value user)
-                      :token (auth/create-auth-token ctx (:xt/id user))})
+      (do
+        (posthog/capture! (assoc ctx :auth/user-id (:xt/id user)) "user.sign_in")
+        (json-response {:user  (crdt.user/->value user)
+                        :token (auth/create-auth-token ctx (:xt/id user))}))
       (err-resp "user_not_found" "Username not found"))
     (err-resp "invalid_username" "Invalid username")))
 
@@ -121,6 +127,7 @@
 
         :else
         (let [user (db.user/create-user! ctx {:username username :phone phone})]
+          (posthog/capture! (assoc ctx :auth/user-id (:xt/id user)) "user.sign_up")
           (json-response {:type "sign_up"
                           :user  (crdt.user/->value user)
                           :token (auth/create-auth-token ctx (:xt/id user))})))
@@ -170,6 +177,7 @@
 (defn update-avatar! [{:keys [params] :as ctx}]
   (if-let [url (:file_url params)]
     (let [{:keys [user]} (db.user/update-avatar! ctx url)]
+      (posthog/capture! ctx "user.update_avatar")
       (json-response {:user (crdt.user/->value user)}))
     (err-resp "invalid_file_url" "Invalid file url")))
 

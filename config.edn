@@ -15,6 +15,9 @@
 
         :gatz.auth/jwt-secret "GATZ_JWT_SECRET_OLD"
 
+        :posthog/api_key "phc_abqkICUI7qZDw1rNLR53fB8uC41kOOjKWfE54NfoHus"
+        :posthog/host "https://us.i.posthog.com"
+
         :expo/push-token "EXPO_PUSH_NOTIFICATION_TOKEN"
 
         :s3/origin "CLOUDFLARE_R2_ENDPOINT"
