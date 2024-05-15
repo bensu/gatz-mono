@@ -57,7 +57,10 @@
       (let [db (xtdb/db node)]
         (is (= (by-name db repeated-username)
                (by-phone db repeated-phone)))
-        (is (some? (by-name db repeated-username))))
+        (is (= repeated-phone
+               (:user/phone_number (by-name db repeated-username))))
+        (is (= repeated-username
+               (:user/name (by-phone db repeated-phone)))))
       (is (thrown? clojure.lang.ExceptionInfo
                    (create-user! ctx {:id (random-uuid)
                                       :username repeated-username

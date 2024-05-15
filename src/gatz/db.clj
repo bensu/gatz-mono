@@ -223,7 +223,7 @@
                              :evt/mid mid
                              :evt/cid cid
                              :evt/data action})
-        txns [(assoc msg :db/doc-type :gatz.crdt/message)
+        txns [(assoc msg :db/doc-type :gatz.crdt/message :db/op :create)
               updated-media
               [:xtdb.api/fn :gatz.db.discussion/apply-delta {:evt evt}]]]
     (biff/submit-tx ctx (vec (remove nil? txns)))

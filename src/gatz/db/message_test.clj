@@ -5,9 +5,10 @@
             [taoensso.nippy :as taoensso-nippy]
             [crdt.core :as crdt]
             [gatz.db :as db]
-            [gatz.schema :as schema]
             [gatz.db.message :refer :all]
+            [gatz.db.user :as db.user]
             [gatz.db.util-test :as db.util-test]
+            [gatz.schema :as schema]
             [malli.core :as malli]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
@@ -187,3 +188,43 @@
         (is (= doc0 doc1))
         (is (= (class (:message/updated_at doc0))
                (class (:message/updated_at doc1))))))))
+
+(deftest unique-messages
+  (testing "messages need to be unique when you create them"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (-> ctx
+                        (assoc :biff/db (xtdb/db node))
+                        (assoc :auth/user-id uid)))
+          username "test678"
+          phone "4159499932"]
+      (try
+        (is (nil? (db.user/by-phone (xtdb/db node) phone)))
+        (is (nil? (db.user/by-name (xtdb/db node) username)))
+        (let [uid (random-uuid)
+              _ (db.user/create-user! (get-ctx uid)
+                                      {:id uid
+                                       :username username
+                                       :phone phone
+                                       :now (Date.)})
+              {:keys [message discussion]}
+              (db/create-discussion-with-message!
+               (get-ctx uid)
+               {:selected_users #{}
+                :text "First discussion!"})
+              did (:xt/id discussion)
+              _ (xtdb/sync node)
+              repeated-mid (:xt/id message)]
+          (xtdb/sync node)
+          (is (some? message))
+          (is (uuid? repeated-mid))
+
+          (is (thrown? clojure.lang.ExceptionInfo
+                       (db/create-message!
+                        (get-ctx uid)
+                        {:mid repeated-mid
+                         :did did
+                         :text "First discussion!"}))))
+        (finally
+          (.close node))))))
