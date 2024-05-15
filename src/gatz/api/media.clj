@@ -3,6 +3,7 @@
   (:require [clojure.data.json :as json]
             [gatz.db.media :as db.media]
             [malli.transform :as mt]
+            [sdk.posthog :as posthog]
             [sdk.s3 :as s3]
             [xtdb.api :as xtdb])
   (:import [java.time Instant Duration]))
@@ -52,6 +53,7 @@
                                                  :height (:height params)
                                                  :width (:width params)
                                                  :url (:file_url params)})]
+          (posthog/capture! ctx "media.new" {:media_id id :media_kind media-kind})
           (json-response {:media media}))
         (err-resp "invalid_media_type" "Invalid media type"))
       (err-resp "invalid_id" "Invalid id"))

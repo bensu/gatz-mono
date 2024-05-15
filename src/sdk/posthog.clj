@@ -28,7 +28,8 @@
     "notifications.disable" "notifications.add_push_token" "notifications.update"
     "discussion.archive" "discussion.subscribe" "discussion.unsubscribe"
     "discussion.read" "discussion.new"
-    "message.new" "message.delete" "message.react" "message.undo_react" "message.edit"})
+    "message.new" "message.delete" "message.react" "message.undo_react" "message.edit"
+    "media.new"})
 
 ;; posthog.capture (
 ;;   "distinct_id_of_the_user", 
