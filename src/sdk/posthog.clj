@@ -41,15 +41,16 @@
   ([ctx event-name]
    (capture! ctx ^String event-name {}))
   ([{:keys [auth/user-id] :as ctx} event-name opts]
-   (when-let [^PostHog posthog (:biff/posthog ctx)]
-     (println "emitting event" event-name "with opts" opts)
-     (try
-       (assert (contains? events event-name))
-       (if (empty? opts)
-         (.capture posthog (str user-id) event-name)
+   (when (:posthog/enabled? ctx)
+     (when-let [^PostHog posthog (:biff/posthog ctx)]
+       (println "emitting event" event-name "with opts" opts)
+       (try
+         (assert (contains? events event-name))
+         (if (empty? opts)
+           (.capture posthog (str user-id) event-name)
          ;; The opts need all to be strings. uuids get auto converted
          ;; TODO: the keywords are showing up as strings with ":" prepended
-         (let [^HashMap hash-opts (HashMap. opts)]
-           (.capture posthog (str user-id) event-name hash-opts)))
-       (catch Throwable t
-         (println "failed at capturing events" t))))))
+           (let [^HashMap hash-opts (HashMap. opts)]
+             (.capture posthog (str user-id) event-name hash-opts)))
+         (catch Throwable t
+           (println "failed at capturing events" t)))))))

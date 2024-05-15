@@ -17,6 +17,7 @@
 
         :posthog/api_key "phc_abqkICUI7qZDw1rNLR53fB8uC41kOOjKWfE54NfoHus"
         :posthog/host "https://us.i.posthog.com"
+       :posthog/enabled? true
 
         :expo/push-token "EXPO_PUSH_NOTIFICATION_TOKEN"
 
@@ -54,6 +55,7 @@
        :biff.middleware/secure false
 
        :biff.xtdb/checkpointer :biff.xtdb.checkpointer/file
+       :posthog/enabled? false
        ;; To use S3 uncomment these two lines
 
       ;; :biff.xtdb/checkpointer :biff.xtdb.checkpointer/s3
