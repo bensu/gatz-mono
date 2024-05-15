@@ -27,7 +27,7 @@
   #{"user.sign_in" "user.sign_up"
     "notifications.disable" "notifications.add_push_token" "notifications.update"
     "discussion.archive" "discussion.subscribe" "discussion.unsubscribe"
-    "discussion.read" "discussion.new"
+    "discussion.read" "discussion.new" "discussion.mark_seen"
     "message.new" "message.delete" "message.react" "message.undo_react" "message.edit"
     "media.new"})
 

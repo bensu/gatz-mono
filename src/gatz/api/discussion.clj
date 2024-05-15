@@ -107,6 +107,7 @@
     (when-authorized-for-discussions
      [user-id ds]
      (do
+       (posthog/capture! ctx "discussion.mark_seen")
        (db.discussion/mark-as-seen! ctx user-id dids (Date.))
        (json-response {:status "ok"})))))
 
