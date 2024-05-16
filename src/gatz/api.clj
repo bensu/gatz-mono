@@ -146,9 +146,14 @@
     (api.message/handle-message-evt! ctx discussion message evt)))
 
 (defn propagate-new-message!
-  [{:keys [conns-state] :as _ctx} did m]
-  (let [evt {:event/type :event/new_message
-             :event/data {:message m :did did :mid (:xt/id m)}}]
+  [{:keys [conns-state biff.xtdb/node] :as _ctx} did m]
+  (let [db (xtdb/db node)
+        d (db.discussion/by-id db did)
+        evt {:event/type :event/new_message
+             :event/data {:message m
+                          :discussion (crdt.discussion/->value d)
+                          :did did
+                          :mid (:xt/id m)}}]
     (doseq [ws (conns/did->wss @conns-state did)]
       (jetty/send! ws (json/write-str evt)))))
 
