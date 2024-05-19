@@ -1,5 +1,6 @@
 (ns gatz.auth
   (:require [clojure.data.json :as json]
+            [gatz.db.user :as db.user]
             [buddy.sign.jwt :as jwt]
             [malli.transform :as mt]))
 
@@ -20,6 +21,7 @@
 (defn json-response
   ([body] (json-response body 200))
   ([body status]
+   {:pre [(integer? status)]}
    {:status status
     :headers {"Content-Type" "application/json"}
     :body (json/write-str body)}))
@@ -28,11 +30,13 @@
   (json-response {:type "error" :error err-type :message err-msg} 401))
 
 (defn wrap-api-auth [handler]
-  (fn [{:keys [headers params] :as ctx}]
+  (fn [{:keys [headers params biff/db] :as ctx}]
     (if-let [token (or (get headers "authorization")
                        (get params :token))]
       (if-let [auth-payload (verify-auth-token ctx token)]
         (let [user-id (mt/-string->uuid (:auth/user-id auth-payload))]
-          (handler (assoc ctx :auth/user-id user-id :auth/token token)))
+          (if-let [user (db.user/by-id db user-id)]
+            (handler (assoc ctx :auth/user user :auth/user-id user-id :auth/token token))
+            (err-resp "invalid_token" "Invalid JWT token")))
         (err-resp "invalid_token" "Invalid JWT token"))
       (err-resp "missing_token" "Missing token"))))

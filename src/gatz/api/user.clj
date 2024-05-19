@@ -11,21 +11,22 @@
             [sdk.posthog :as posthog]
             [sdk.twilio :as twilio]))
 
-(defn json-response [body]
-  {:status 200
-   :headers {"Content-Type" "application/json"}
-   :body (json/write-str body)})
+(defn json-response
+  ([body] (json-response body 200))
+  ([body status]
+   {:pre [(integer? status)]}
+   {:status status
+    :headers {"Content-Type" "application/json"}
+    :body (json/write-str body)}))
 
 (defn err-resp [err-type err-msg]
-  (json-response {:type "error" :error err-type :message err-msg}))
+  (json-response {:type "error" :error err-type :message err-msg} 401))
 
 ;; ======================================================================  
 ;; Endpoints
 
-(defn get-me
-  [{:keys [biff/db auth/user-id] :as _ctx}]
-  (let [user (db.user/by-id db user-id)]
-    (json-response {:user (crdt.user/->value user)})))
+(defn get-me [{:keys [auth/user] :as _ctx}]
+  (json-response {:user (crdt.user/->value user)}))
 
 (defn get-user
   [{:keys [params biff/db] :as _ctx}]
