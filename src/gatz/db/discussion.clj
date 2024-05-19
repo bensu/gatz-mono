@@ -243,3 +243,38 @@
          action {:discussion.crdt/action :discussion.crdt/subscribe
                  :discussion.crdt/delta delta}]
      (apply-action! ctx did action))))
+
+;; ====================================================================== 
+;; Queries
+
+(def posts-for-user-opts
+  [:map
+   [:older-than-ts inst?]])
+
+(malli/=> posts-for-user
+          [:function
+           [:=> [:cat any? schema/UserId] [:sequential schema/DiscussionId]]
+           [:=> [:cat any? schema/UserId posts-for-user-opts] [:sequential schema/DiscussionId]]])
+
+(defn posts-for-user
+  ([db uid]
+   (->> (q db '{:find [did created-at]
+                :in [user-id]
+                :limit 20
+                :order-by [[created-at :desc]]
+                :where [[did :db/type :gatz/discussion]
+                        [did :discussion/members user-id]
+                        [did :discussion/created_at created-at]]}
+           uid)
+        (map first)))
+  ([db uid {:keys [older-than-ts]}]
+   (->> (q db '{:find [did created-at]
+                :in [user-id older-than-ts]
+                :limit 20
+                :order-by [[created-at :desc]]
+                :where [[did :db/type :gatz/discussion]
+                        [did :discussion/members user-id]
+                        [did :discussion/created_at created-at]
+                        [(< created-at older-than-ts)]]}
+           uid older-than-ts)
+        (map first))))

@@ -6,9 +6,11 @@
             [gatz.db.util-test :as db.util-test :refer [is-equal]]
             [gatz.db.discussion :refer :all]
             [gatz.db.evt :as db.evt]
+            [gatz.db.user :as db.user]
             [gatz.schema :as schema]
             [malli.core :as malli]
-            [xtdb.api :as xtdb])
+            [xtdb.api :as xtdb]
+            [gatz.db :as db])
   (:import [java.util Date]))
 
 (deftest schemas
@@ -199,3 +201,134 @@
             (is-equal (select-fields final-expected)
                       (select-fields (crdt.discussion/->value final))))
           (.close node))))))
+
+
+(deftest feeds
+  (testing "there is a basic chronological feed"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (assoc ctx :biff/db (xtdb/db node)
+                           :auth/user-id uid :auth/cid uid))
+          now (Date.)
+          t1 (crdt/inc-time now)
+          t2 (crdt/inc-time t1)
+          t3 (crdt/inc-time t2)
+          t4 (crdt/inc-time t3)
+          t5 (crdt/inc-time t4)
+          [uid lid cid sid did1 did2 did3 did4] (take 8 (repeatedly random-uuid))]
+
+      (db.user/create-user!
+       ctx {:id uid :username "poster_000" :phone "+14159499000" :now now})
+      (db.user/create-user!
+       ctx {:id cid :username "commenter_000" :phone "+14159499001" :now now})
+      (db.user/create-user!
+       ctx {:id lid :username "lurker_000" :phone "+14159499002" :now now})
+      (db.user/create-user!
+       ctx {:id sid :username "spammer_000" :phone "+14159499003" :now now})
+      (xtdb/sync node)
+
+      (testing "the feeds start empty"
+        (is (empty? (posts-for-user (xtdb/db node) uid)))
+        (is (empty? (posts-for-user (xtdb/db node) cid)))
+        (is (empty? (posts-for-user (xtdb/db node) lid))))
+
+      (testing "the poster only sees their own posts"
+        (db/create-discussion-with-message!
+         (get-ctx uid)
+         {:did did1 :selected_users #{} :text "Hello to only poster" :now t1})
+        (xtdb/sync node)
+
+        (is (= [did1] (posts-for-user (xtdb/db node) uid)))
+        (is (empty? (posts-for-user (xtdb/db node) cid)))
+        (is (empty? (posts-for-user (xtdb/db node) lid))))
+
+      (testing "the commenter can put posts in the posters feed too"
+        (db/create-discussion-with-message!
+         (get-ctx uid)
+         {:did did2 :selected_users #{cid}
+          :text "Hello to poster and commenter"
+          :now t2})
+        (xtdb/sync node)
+
+        (is (= [did2 did1] (posts-for-user (xtdb/db node) uid))
+            "They come in reverse chronological order")
+        (is (= [did2] (posts-for-user (xtdb/db node) cid)))
+        (is (empty? (posts-for-user (xtdb/db node) lid)))
+
+        (db/create-discussion-with-message!
+         (get-ctx cid)
+         {:did did3 :selected_users #{uid}
+          :text "Hello to poster and commenter"
+          :now t3})
+        (xtdb/sync node)
+
+        (is (= [did3 did2 did1] (posts-for-user (xtdb/db node) uid)))
+        (is (= [did3 did2] (posts-for-user (xtdb/db node) cid)))
+        (is (empty? (posts-for-user (xtdb/db node) lid))))
+
+      (testing "and the lurker chas its own feed to the side"
+        (db/create-discussion-with-message!
+         (get-ctx lid)
+         {:did did4 :selected_users #{lid}
+          :text "Hello to only the lurker"
+          :now t4})
+        (xtdb/sync node)
+
+        (is (= [did3 did2 did1] (posts-for-user (xtdb/db node) uid)))
+        (is (= [did3 did2] (posts-for-user (xtdb/db node) cid)))
+        (is (= [did4] (posts-for-user (xtdb/db node) lid))))
+
+      (testing "the poster can ask for older posts"
+        (let [db (xtdb/db node)]
+          (is (= [] (posts-for-user db uid {:older-than-ts now})))
+          (is (= [] (posts-for-user db uid {:older-than-ts t1})))
+          (is (= [did1] (posts-for-user db uid {:older-than-ts t2})))
+          (is (= [did2 did1] (posts-for-user db uid {:older-than-ts t3})))
+          (is (= [did3 did2 did1] (posts-for-user db uid {:older-than-ts t4})))))
+
+      (testing "the commenter can ask for older posts"
+        (let [db (xtdb/db node)]
+          (is (= [] (posts-for-user db cid {:older-than-ts now})))
+          (is (= [] (posts-for-user db cid {:older-than-ts t1})))
+          (is (= [] (posts-for-user db cid {:older-than-ts t2})))
+          (is (= [did2] (posts-for-user db cid {:older-than-ts t3})))
+          (is (= [did3 did2] (posts-for-user db cid {:older-than-ts t4})))))
+
+      (testing "the lurker can ask for older posts"
+        (let [db (xtdb/db node)]
+          (is (= [] (posts-for-user db lid {:older-than-ts now})))
+          (is (= [] (posts-for-user db lid {:older-than-ts t1})))
+          (is (= [] (posts-for-user db lid {:older-than-ts t2})))
+          (is (= [] (posts-for-user db lid {:older-than-ts t3})))
+          (is (= [] (posts-for-user db lid {:older-than-ts t4})))
+          (is (= [did4] (posts-for-user db lid {:older-than-ts t5})))))
+
+      (testing "gives you 2 posts at a time"
+        ;; Load 25 posts in the db
+        (let [all-dids (take 45 (repeatedly random-uuid))]
+          (loop [dids all-dids
+                 t now]
+            (when-let [did (first dids)]
+              (do
+                (db/create-discussion-with-message!
+                 (get-ctx sid)
+                 {:did did :selected_users #{sid}
+                  :text "Hello to spammer"
+                  :now t})
+                (recur (rest dids) (crdt/inc-time t)))))
+          (xtdb/sync node)
+          (let [db (xtdb/db node)
+                first-feed (posts-for-user db sid)
+                first-last-ts (:discussion/created_at (by-id db (last first-feed)))
+                second-feed  (posts-for-user db sid {:older-than-ts first-last-ts})
+                second-last-ts (:discussion/created_at (by-id db (last second-feed)))
+                third-feed (posts-for-user db sid {:older-than-ts second-last-ts})]
+            (is (= 20 (count first-feed)))
+            (is (= (take 20 (reverse all-dids)) first-feed))
+            (is (= 20 (count second-feed)))
+            (is (= (take 20 (drop 20 (reverse all-dids))) second-feed))
+            (is (= 5 (count third-feed)))
+            (is (= (take 20 (drop 40 (reverse all-dids))) third-feed)))))
+
+      (.close node))))

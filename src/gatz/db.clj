@@ -10,7 +10,8 @@
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
             [malli.transform :as mt]
-            [xtdb.api :as xtdb]))
+            [xtdb.api :as xtdb])
+  (:import [java.util Date]))
 
 ;; ====================================================================== 
 ;; Utils
@@ -32,17 +33,20 @@
 (defn create-discussion-with-message!
 
   [{:keys [auth/user-id auth/cid biff/db] :as ctx} ;; TODO: get the real connection id
-   {:keys [name selected_users text media_id originally_from]}]
+   {:keys [name selected_users text media_id originally_from did now]}]
 
-  {:pre [(or (nil? name)
+  ;; TODO: fix this preconditon. The or shouldn't be covering valid-post?
+  {:pre [(or (nil? did) (uuid? did))
+         (or (nil? now) (inst? now))
+         (or (nil? name)
              (and (string? name) (not (empty? name)))
              (valid-post? text media_id))]}
 
   (let [originally-from (when originally_from
                           {:did (mt/-string->uuid (:did originally_from))
                            :mid (mt/-string->uuid (:mid originally_from))})
-        now (java.util.Date.)
-        did (random-uuid)
+        now (or now (Date.))
+        did (or did (random-uuid))
         mid (random-uuid)
         member-uids (set (keep mt/-string->uuid selected_users))
         ;; TODO: get real connection id
@@ -228,4 +232,3 @@
               [:xtdb.api/fn :gatz.db.discussion/apply-delta {:evt evt}]]]
     (biff/submit-tx ctx (vec (remove nil? txns)))
     msg))
-
