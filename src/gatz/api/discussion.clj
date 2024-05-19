@@ -235,10 +235,17 @@
        (posthog/capture! ctx "message.new" {:did (:xt/id d) :mid (:xt/id msg)})
        (json-response {:message (crdt.message/->value msg)})))))
 
-
 (def feed-query-params
   [:map
    [:last_did {:optional true} uuid?]])
+
+(defn strict-str->uuid [s]
+  (let [out (mt/-string->uuid s)]
+    (if (uuid? out) out nil)))
+
+(defn parse-feed-params [params]
+  (cond-> params
+    (some? (:last_did params)) (update :last_did strict-str->uuid)))
 
 (defn feed
   [{:keys [params biff.xtdb/node biff/db auth/user-id] :as ctx}]
@@ -246,11 +253,14 @@
   ;; TODO: specify what kind of feed it is
   (posthog/capture! ctx "discussion.feed")
 
-  ;; TODO: parse older-than-ts 
   ;; TODO: return early depending on latest-tx
   ;; TODO: should be using the latest-tx from the _db_ not the node
   (let [latest-tx (xt/latest-completed-tx node)
-        dids (db.discussion/posts-for-user db user-id)
+        dids (if-let [older-than (some->> (:last_did params)
+                                          (db.discussion/by-id db)
+                                          :discussion/created_at)]
+               (db.discussion/posts-for-user db user-id {:older-than-ts older-than})
+               (db.discussion/posts-for-user db user-id))
         ds (map (partial db/discussion-by-id db) dids)
         users (db.user/all-users db)]
     (json-response {:discussions (mapv crdt.discussion/->value ds)
