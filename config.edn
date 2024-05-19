@@ -13,7 +13,8 @@
         :twilio/sid "TWILIO_SID"
         :twilio/auth-token "TWILIO_AUTH_TOKEN"
 
-        :gatz.auth/jwt-secret "GATZ_JWT_SECRET_OLD"
+        :gatz.auth/jwt-secret-old "GATZ_JWT_SECRET_OLD"
+        :gatz.auth/jwt-secret "GATZ_JWT_SECRET"
 
         :posthog/api_key "phc_abqkICUI7qZDw1rNLR53fB8uC41kOOjKWfE54NfoHus"
         :posthog/host "https://us.i.posthog.com"

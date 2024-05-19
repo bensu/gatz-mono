@@ -2,6 +2,7 @@
   (:gen-class)
   (:require [com.biffweb :as biff]
             [gatz.email :as email]
+            [gatz.auth :as gatz.auth]
             [gatz.api :as api]
             [gatz.db.discussion :as db.discussion]
             [gatz.db.message :as db.message]
@@ -14,7 +15,7 @@
             [clojure.test :as test]
             [clojure.tools.logging :as log]
             [clojure.tools.namespace.repl :as tn-repl]
-            [ring.middleware.cors :refer [wrap-cors]]
+            [ring.middleware.cors :as ring.cors]
             [ring.middleware.gzip :refer [wrap-gzip]]
             [malli.core :as malc]
             [malli.registry :as malr]
@@ -34,13 +35,17 @@
    notify/plugin
    schema/plugin])
 
+(defn wrap-cors [handler]
+  (-> handler
+      (ring.cors/wrap-cors
+       :access-control-allow-origin [#".*"]
+       :access-control-allow-methods [:get :put :post :delete])))
+
 (def routes [["" {:middleware [biff/wrap-site-defaults]}
               (keep :routes plugins)]
              ["" {:middleware [biff/wrap-api-defaults
                                ;; TODO: be more restrictive
-                               #(wrap-cors %
-                                           :access-control-allow-origin [#".*"]
-                                           :access-control-allow-methods [:get :put :post :delete])
+                               wrap-cors
                                wrap-gzip]}
               (keep :api-routes plugins)]])
 
