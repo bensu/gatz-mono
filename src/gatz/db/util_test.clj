@@ -16,6 +16,7 @@
 (defn test-system []
   (let [node (test-node)]
     (biff.xtdb/save-tx-fns! node system/tx-fns)
+    (xtdb/sync node)
     {:biff.xtdb/node node
      :biff/db (xtdb/db node)
      :biff/malli-opts #'gatz.system/malli-opts}))
