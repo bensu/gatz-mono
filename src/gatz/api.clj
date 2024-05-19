@@ -254,7 +254,6 @@
                  ["/user/avatar" {:post api.user/update-avatar!}]
                  ["/user/settings/notifications" {:post api.user/update-notification-settings!}]
 
-
                  ["/file/presign" {:post api.media/presigned-url!}]
                  ["/media" {:post api.media/create-media!}]
 
@@ -263,6 +262,8 @@
                  ["/message/edit" {:post  api.message/edit-message!}]
                  ["/message/react" {:post api.message/react-to-message!}]
                  ["/message/undo-react" {:post api.message/undo-react-to-message!}]
+
+                 ["/feed" {:get api.discussion/feed}]
 
                  ["/discussions" {:get  api.discussion/get-full-discussions
                                   :post api.discussion/create-discussion!}]

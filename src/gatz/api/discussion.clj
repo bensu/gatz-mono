@@ -1,5 +1,6 @@
 (ns gatz.api.discussion
   (:require [clojure.data.json :as json]
+            [gatz.auth]
             [gatz.db :as db]
             [gatz.db.discussion :as db.discussion]
             [gatz.db.user :as db.user]
@@ -95,6 +96,7 @@
     (if-authorized-for-discussion
      [user-id d]
      (do
+       ;; TODO: notify posthog that this deprecated endpoint was called
        (db.discussion/mark-as-seen! ctx user-id [did] (Date.))
        (json-response {:status "ok"})))))
 
@@ -232,4 +234,28 @@
            (println "failed submitting the job" e)))
        (posthog/capture! ctx "message.new" {:did (:xt/id d) :mid (:xt/id msg)})
        (json-response {:message (crdt.message/->value msg)})))))
+
+
+(def feed-query-params
+  [:map
+   [:last_did {:optional true} uuid?]])
+
+(defn feed
+  [{:keys [params biff.xtdb/node biff/db auth/user-id] :as ctx}]
+
+  ;; TODO: specify what kind of feed it is
+  (posthog/capture! ctx "discussion.feed")
+
+  ;; TODO: parse older-than-ts 
+  ;; TODO: return early depending on latest-tx
+  ;; TODO: should be using the latest-tx from the _db_ not the node
+  (let [latest-tx (xt/latest-completed-tx node)
+        dids (db.discussion/posts-for-user db user-id)
+        ds (map (partial db/discussion-by-id db) dids)
+        users (db.user/all-users db)]
+    (json-response {:discussions (mapv crdt.discussion/->value ds)
+                    :users (mapv crdt.user/->value users)
+                    :current false
+                    :latest_tx {:id (::xt/tx-id latest-tx)
+                                :ts (::xt/tx-time latest-tx)}})))
 
