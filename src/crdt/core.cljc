@@ -466,7 +466,10 @@
   [:map
    [:xs [:set value-schema]]])
 
-(deftest grow-only-set
+(defn gos [xs]
+  (->GrowOnlySet (set xs)))
+
+(deftest grow-only-set-test
   (testing "can check its schema"
     (let [schema (grow-only-set-schema string?)]
       (is (malli/validate schema (->GrowOnlySet #{"0"})))

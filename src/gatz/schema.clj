@@ -195,6 +195,7 @@
    ;; LWW-set
    [:discussion/members (crdt/lww-set-schema #'UserId)]
    [:discussion/subscribers (crdt/lww-set-schema #'UserId)]
+   [:discussion/active_members (crdt/grow-only-set-schema #'UserId)]
    ;; LWW or MaxWins if mids can be ordered
    [:discussion/latest_message [:maybe (crdt/lww-schema crdt/hlc-schema #'MessageId)]]
    ;; {user-id (->LWW mid)} or MaxWins if mids can be ordered
@@ -385,6 +386,7 @@
      [:message.crdt/action [:enum :message.crdt/remove-reaction]]
      [:message.crdt/delta RemoveReactionDelta]]
     [:map
+     ;; TOO: Should this make you active_member of the discussion?
      [:message.crdt/action [:enum :message.crdt/add-reaction]]
      [:message.crdt/delta AddReactionDelta]]
     [:map
@@ -434,6 +436,7 @@
    [:discussion/latest_activity_ts (crdt/max-wins-schema inst?)]
    [:discussion/seen_at [:map-of #'UserId (crdt/max-wins-schema inst?)]]
    [:discussion/subscribers {:optional true} [:map-of #'UserId (crdt/lww-schema crdt/hlc-schema boolean?)]]
+   [:discussion/active_members #'UserId]
    [:discussion/updated_at inst?]])
 
 ;; I need a way for tagged unions to give me better error messages

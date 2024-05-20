@@ -1,7 +1,8 @@
 (ns gatz.crdt.discussion
   (:require [crdt.core :as crdt]
             [gatz.schema :as schema]
-            [malli.core :as malli]))
+            [malli.core :as malli])
+  (:import [java.util Date]))
 
 (def discussion-defaults
   {:discussion/seen_at {}
@@ -13,7 +14,7 @@
    :discussion/latest_message nil})
 
 (defn update-discussion
-  ([d] (update-discussion d (java.util.Date.)))
+  ([d] (update-discussion d (Date.)))
   ([d now]
    (-> (merge discussion-defaults
               ;; TODO: remove when migration is complete
@@ -47,6 +48,7 @@
 
      :discussion/members (crdt/lww-set clock (conj member-uids uid))
      :discussion/subscribers (crdt/lww-set clock #{uid})
+     :discussion/active_members (crdt/gos #{uid})
      :discussion/latest_message (crdt/->LWW clock mid)
      :discussion/last_message_read {}
 

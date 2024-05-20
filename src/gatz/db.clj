@@ -217,6 +217,7 @@
                :discussion/updated_at now
                :discussion/latest_message (crdt/lww clock mid)
                :discussion/latest_activity_ts (crdt/max-wins now)
+               :discussion/active_members user-id
                :discussion/seen_at {user-id (crdt/max-wins now)}}
         delta (cond-> delta
                 subscribe? (assoc :discussion/subscribers {user-id (crdt/lww clock true)}))
