@@ -112,7 +112,7 @@
           final-expected {:xt/id did
                           :crdt/clock c3
                           :db/type :gatz/discussion
-                          :db/version 1
+                          :db/version 2
                           :discussion/did did
                           :discussion/name nil
                           :discussion/created_at now
@@ -120,6 +120,7 @@
                           :discussion/originally_from nil
                           :discussion/first_message mid
 
+                          :discussion/active_members #{poster-uid}
                           :discussion/members #{poster-uid commenter-uid}
                           :discussion/latest_message mid
                           :discussion/latest_activity_ts now
@@ -134,7 +135,7 @@
         (is-equal {:xt/id did
                    :crdt/clock cnow
                    :db/type :gatz/discussion
-                   :db/version 1
+                   :db/version 2
                    :discussion/did did
                    :discussion/name nil
                    :discussion/created_at now
@@ -143,6 +144,7 @@
                    :discussion/first_message mid
                    :discussion/members #{poster-uid commenter-uid}
                    :discussion/subscribers #{poster-uid}
+                   :discussion/active_members #{poster-uid}
                    :discussion/latest_message mid
                    :discussion/last_message_read {}
                    :discussion/latest_activity_ts now
@@ -190,11 +192,12 @@
           (let [final (by-id (xtdb/db node) did)
                 select-fields (fn [d]
                                 (-> d
-                                    (select-keys [:discussion/subscribers
+                                    (select-keys [:xt/id
+                                                  :discussion/subscribers
                                                   :discussion/members
+                                                  :discussion/active_members
                                                   :discussion/archived_at
                                                   :discussion/last_message_read
-                                                  :xt/id
                                                   :discussion/created_at
                                                   :discussion/created_by])
                                     (update :discussion/archived_at #(set (keys %)))))]
@@ -279,7 +282,7 @@
         (db/create-discussion-with-message!
          (get-ctx cid)
          {:did did3 :selected_users #{uid}
-          :text "Hello to poster and commenter"
+          :text "Hello to poster and commenter. Poster will never comment"
           :now t3})
         (db/create-message!
          (get-ctx uid)
@@ -302,6 +305,9 @@
          {:did did4 :selected_users #{lid}
           :text "Hello to only the lurker"
           :now t4})
+        (db/create-message!
+         (get-ctx cid)
+         {:did did3 :text "I comment on my own post" :now t4})
         (xtdb/sync node)
 
         (let [db (xtdb/db node)]
@@ -309,9 +315,10 @@
           (is (= [did3 did2]      (posts-for-user db cid)))
           (is (= [did4]           (posts-for-user db lid)))
 
-          (testing "and there are no new comments, so no new activity"
+          (testing "and there is a new comment"
+             ;; Changed
             (is (= [did1 did2] (active-for-user db uid)))
-            (is (= [did2]      (active-for-user db cid)))
+            (is (= [did3 did2] (active-for-user db cid)))
             (is (= []          (active-for-user db lid)))))
 
         (db/create-message!
@@ -321,8 +328,9 @@
 
         (testing "and the comment bumps the discussion into the activity feed"
           (let [db (xtdb/db node)]
+             ;; Changed
             (is (= [did1 did2] (active-for-user db uid)))
-            (is (= [did2]      (active-for-user db cid)))
+            (is (= [did3 did2] (active-for-user db cid)))
             (is (= [did4]      (active-for-user db lid))))))
 
       (testing "the poster can ask for older posts"
@@ -350,13 +358,13 @@
           (is (= [did2]      (posts-for-user db cid {:older-than-ts t3})))
           (is (= [did3 did2] (posts-for-user db cid {:older-than-ts t4})))
 
-          (is (= []     (active-for-user db cid {:older-than-ts now})))
-          (is (= []     (active-for-user db cid {:older-than-ts t1})))
-          (is (= []     (active-for-user db cid {:older-than-ts t2})))
-          (is (= []     (active-for-user db cid {:older-than-ts t3})))
-          (is (= [did2] (active-for-user db cid {:older-than-ts t4})))
-          (is (= [did2] (active-for-user db cid {:older-than-ts t5})))
-          (is (= [did2] (active-for-user db cid {:older-than-ts t6})))))
+          (is (= []          (active-for-user db cid {:older-than-ts now})))
+          (is (= []          (active-for-user db cid {:older-than-ts t1})))
+          (is (= []          (active-for-user db cid {:older-than-ts t2})))
+          (is (= []          (active-for-user db cid {:older-than-ts t3})))
+          (is (= [did2]      (active-for-user db cid {:older-than-ts t4})))
+          (is (= [did3 did2] (active-for-user db cid {:older-than-ts t5})))
+          (is (= [did3 did2] (active-for-user db cid {:older-than-ts t6})))))
 
       (testing "the lurker can ask for older posts"
         (let [db (xtdb/db node)]

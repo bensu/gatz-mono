@@ -63,8 +63,19 @@
               (malli/explain schema/DiscussionCRDT v1))
     v1))
 
+(defn v1->v2 [data]
+  (let [clock (crdt/new-hlc migration-client-id)
+        active-members (crdt/gos (crdt/-value (:discussion/subscribers data)))]
+    (-> data
+        (assoc :discussion/active_members active-members)
+        (assoc :db/version 2
+               :crdt/clock clock
+               :db/doc-type :gatz.crdt/discussion
+               :db/type :gatz/discussion))))
+
 (def all-migrations
-  [{:from 0 :to 1 :transform v0->v1}])
+  [{:from 0 :to 1 :transform v0->v1}
+   {:from 1 :to 2 :transform v1->v2}])
 
 (defn by-id [db did]
   (-> (xtdb/entity db did)
@@ -296,7 +307,7 @@
                 :limit 20
                 :order-by [[latest-activity-ts :desc]]
                 :where [[did :db/type :gatz/discussion]
-                        [did :discussion/members user-id] ;; TODO: move to discussion/subscribers
+                        [did :discussion/active_members user-id]
                         [did :discussion/first_message first-mid]
                         [did :discussion/latest_message latest-mid]
                         [(not= first-mid latest-mid)]
@@ -310,7 +321,7 @@
                 :limit 20
                 :order-by [[latest-activity-ts :desc]]
                 :where [[did :db/type :gatz/discussion]
-                        [did :discussion/members user-id] ;; TODO: move to discussion/subscribers
+                        [did :discussion/active_members user-id]
                         [did :discussion/first_message first-mid]
                         [did :discussion/latest_message latest-mid]
                         [(not= first-mid latest-mid)]

@@ -183,7 +183,7 @@
   [:map
    [:xt/id #'DiscussionId]
    [:db/type [:enum :gatz/discussion]]
-   [:db/version [:enum 1]]
+   [:db/version [:enum 2]]
    [:discussion/did #'DiscussionId]
    [:discussion/name [:maybe string?]]
    [:discussion/created_by #'UserId]
@@ -215,7 +215,7 @@
   [:map
    [:xt/id #'DiscussionId]
    [:db/type [:enum :gatz/discussion]]
-   [:db/version [:enum 1]]
+   [:db/version [:enum 2]]
    [:crdt/clock crdt/hlc-schema]
    [:discussion/did #'DiscussionId]
    [:discussion/name [:maybe string?]]
@@ -255,6 +255,7 @@
    :discussion/created_by
    :discussion/first_message
    :discussion/latest_message
+   :discussion/active_members
    :discussion/members])
 
 (def DiscussionDoc
