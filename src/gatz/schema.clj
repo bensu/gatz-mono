@@ -252,6 +252,8 @@
    :discussion/updated_at
    :discussion/latest_activity_ts
    :discussion/created_by
+   :discussion/first_message
+   :discussion/latest_message
    :discussion/members])
 
 (def DiscussionDoc

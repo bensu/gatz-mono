@@ -216,6 +216,7 @@
           t3 (crdt/inc-time t2)
           t4 (crdt/inc-time t3)
           t5 (crdt/inc-time t4)
+          t6 (crdt/inc-time t5)
           [uid lid cid sid did1 did2 did3 did4] (take 8 (repeatedly random-uuid))]
 
       (db.user/create-user!
@@ -229,9 +230,14 @@
       (xtdb/sync node)
 
       (testing "the feeds start empty"
-        (is (empty? (posts-for-user (xtdb/db node) uid)))
-        (is (empty? (posts-for-user (xtdb/db node) cid)))
-        (is (empty? (posts-for-user (xtdb/db node) lid))))
+        (let [db (xtdb/db node)]
+          (is (empty? (posts-for-user db uid)))
+          (is (empty? (posts-for-user db cid)))
+          (is (empty? (posts-for-user db lid)))
+
+          (is (empty? (active-for-user db uid)))
+          (is (empty? (active-for-user db cid)))
+          (is (empty? (active-for-user db lid)))))
 
       (testing "the poster only sees their own posts"
         (db/create-discussion-with-message!
@@ -239,9 +245,14 @@
          {:did did1 :selected_users #{} :text "Hello to only poster" :now t1})
         (xtdb/sync node)
 
-        (is (= [did1] (posts-for-user (xtdb/db node) uid)))
-        (is (empty? (posts-for-user (xtdb/db node) cid)))
-        (is (empty? (posts-for-user (xtdb/db node) lid))))
+        (let [db (xtdb/db node)]
+          (is (= [did1] (posts-for-user db uid)))
+          (is (= []     (posts-for-user db cid)))
+          (is (= []     (posts-for-user db lid)))
+
+          (is (empty? (active-for-user db uid)))
+          (is (empty? (active-for-user db cid)))
+          (is (empty? (active-for-user db lid)))))
 
       (testing "the commenter can put posts in the posters feed too"
         (db/create-discussion-with-message!
@@ -249,25 +260,43 @@
          {:did did2 :selected_users #{cid}
           :text "Hello to poster and commenter"
           :now t2})
+        (db/create-message!
+         (get-ctx cid)
+         {:did did2 :text "I see this" :now t3})
         (xtdb/sync node)
 
-        (is (= [did2 did1] (posts-for-user (xtdb/db node) uid))
-            "They come in reverse chronological order")
-        (is (= [did2] (posts-for-user (xtdb/db node) cid)))
-        (is (empty? (posts-for-user (xtdb/db node) lid)))
+        (let [db (xtdb/db node)]
+          (is (= [did2 did1] (posts-for-user db uid))
+              "They come in reverse chronological order")
+          (is (= [did2] (posts-for-user db cid)))
+          (is (= []     (posts-for-user db lid)))
+
+          (testing "and the comment bumps the discussion into the activity feed"
+            (is (= [did2] (active-for-user db uid)))
+            (is (= [did2] (active-for-user db cid)))
+            (is (= []     (active-for-user db lid)))))
 
         (db/create-discussion-with-message!
          (get-ctx cid)
          {:did did3 :selected_users #{uid}
           :text "Hello to poster and commenter"
           :now t3})
+        (db/create-message!
+         (get-ctx uid)
+         {:did did1 :text "I see the first post" :now t4})
         (xtdb/sync node)
 
-        (is (= [did3 did2 did1] (posts-for-user (xtdb/db node) uid)))
-        (is (= [did3 did2] (posts-for-user (xtdb/db node) cid)))
-        (is (empty? (posts-for-user (xtdb/db node) lid))))
+        (let [db (xtdb/db node)]
+          (is (= [did3 did2 did1] (posts-for-user db uid)))
+          (is (= [did3 did2]      (posts-for-user db cid)))
+          (is (= []               (posts-for-user db lid)))
 
-      (testing "and the lurker chas its own feed to the side"
+          (testing "and the comment bumps the discussion into the activity feed"
+            (is (= [did1 did2] (active-for-user db uid)))
+            (is (= [did2]      (active-for-user db cid)))
+            (is (= []          (active-for-user db lid))))))
+
+      (testing "and the lurker has its own feed to the side"
         (db/create-discussion-with-message!
          (get-ctx lid)
          {:did did4 :selected_users #{lid}
@@ -275,60 +304,118 @@
           :now t4})
         (xtdb/sync node)
 
-        (is (= [did3 did2 did1] (posts-for-user (xtdb/db node) uid)))
-        (is (= [did3 did2] (posts-for-user (xtdb/db node) cid)))
-        (is (= [did4] (posts-for-user (xtdb/db node) lid))))
+        (let [db (xtdb/db node)]
+          (is (= [did3 did2 did1] (posts-for-user db uid)))
+          (is (= [did3 did2]      (posts-for-user db cid)))
+          (is (= [did4]           (posts-for-user db lid)))
+
+          (testing "and there are no new comments, so no new activity"
+            (is (= [did1 did2] (active-for-user db uid)))
+            (is (= [did2]      (active-for-user db cid)))
+            (is (= []          (active-for-user db lid)))))
+
+        (db/create-message!
+         (get-ctx lid)
+         {:did did4 :text "I see my lurker post" :now t5})
+        (xtdb/sync node)
+
+        (testing "and the comment bumps the discussion into the activity feed"
+          (let [db (xtdb/db node)]
+            (is (= [did1 did2] (active-for-user db uid)))
+            (is (= [did2]      (active-for-user db cid)))
+            (is (= [did4]      (active-for-user db lid))))))
 
       (testing "the poster can ask for older posts"
         (let [db (xtdb/db node)]
-          (is (= [] (posts-for-user db uid {:older-than-ts now})))
-          (is (= [] (posts-for-user db uid {:older-than-ts t1})))
-          (is (= [did1] (posts-for-user db uid {:older-than-ts t2})))
-          (is (= [did2 did1] (posts-for-user db uid {:older-than-ts t3})))
-          (is (= [did3 did2 did1] (posts-for-user db uid {:older-than-ts t4})))))
+          (is (= []               (posts-for-user db uid {:older-than-ts now})))
+          (is (= []               (posts-for-user db uid {:older-than-ts t1})))
+          (is (= [did1]           (posts-for-user db uid {:older-than-ts t2})))
+          (is (= [did2 did1]      (posts-for-user db uid {:older-than-ts t3})))
+          (is (= [did3 did2 did1] (posts-for-user db uid {:older-than-ts t4})))
+          (is (= [did3 did2 did1] (posts-for-user db uid {:older-than-ts t5})))
+
+          (is (= []          (active-for-user db uid {:older-than-ts now})))
+          (is (= []          (active-for-user db uid {:older-than-ts t1})))
+          (is (= []          (active-for-user db uid {:older-than-ts t2})))
+          (is (= []          (active-for-user db uid {:older-than-ts t3})))
+          (is (= [did2]      (active-for-user db uid {:older-than-ts t4})))
+          (is (= [did1 did2] (active-for-user db uid {:older-than-ts t5})))
+          (is (= [did1 did2] (active-for-user db uid {:older-than-ts t6})))))
 
       (testing "the commenter can ask for older posts"
         (let [db (xtdb/db node)]
-          (is (= [] (posts-for-user db cid {:older-than-ts now})))
-          (is (= [] (posts-for-user db cid {:older-than-ts t1})))
-          (is (= [] (posts-for-user db cid {:older-than-ts t2})))
-          (is (= [did2] (posts-for-user db cid {:older-than-ts t3})))
-          (is (= [did3 did2] (posts-for-user db cid {:older-than-ts t4})))))
+          (is (= []          (posts-for-user db cid {:older-than-ts now})))
+          (is (= []          (posts-for-user db cid {:older-than-ts t1})))
+          (is (= []          (posts-for-user db cid {:older-than-ts t2})))
+          (is (= [did2]      (posts-for-user db cid {:older-than-ts t3})))
+          (is (= [did3 did2] (posts-for-user db cid {:older-than-ts t4})))
+
+          (is (= []     (active-for-user db cid {:older-than-ts now})))
+          (is (= []     (active-for-user db cid {:older-than-ts t1})))
+          (is (= []     (active-for-user db cid {:older-than-ts t2})))
+          (is (= []     (active-for-user db cid {:older-than-ts t3})))
+          (is (= [did2] (active-for-user db cid {:older-than-ts t4})))
+          (is (= [did2] (active-for-user db cid {:older-than-ts t5})))
+          (is (= [did2] (active-for-user db cid {:older-than-ts t6})))))
 
       (testing "the lurker can ask for older posts"
         (let [db (xtdb/db node)]
-          (is (= [] (posts-for-user db lid {:older-than-ts now})))
-          (is (= [] (posts-for-user db lid {:older-than-ts t1})))
-          (is (= [] (posts-for-user db lid {:older-than-ts t2})))
-          (is (= [] (posts-for-user db lid {:older-than-ts t3})))
-          (is (= [] (posts-for-user db lid {:older-than-ts t4})))
-          (is (= [did4] (posts-for-user db lid {:older-than-ts t5})))))
+          (is (= []     (posts-for-user db lid {:older-than-ts now})))
+          (is (= []     (posts-for-user db lid {:older-than-ts t1})))
+          (is (= []     (posts-for-user db lid {:older-than-ts t2})))
+          (is (= []     (posts-for-user db lid {:older-than-ts t3})))
+          (is (= []     (posts-for-user db lid {:older-than-ts t4})))
+          (is (= [did4] (posts-for-user db lid {:older-than-ts t5})))
 
-      (testing "gives you 2 posts at a time"
-        ;; Load 25 posts in the db
+          (is (= []     (active-for-user db lid {:older-than-ts now})))
+          (is (= []     (active-for-user db lid {:older-than-ts t1})))
+          (is (= []     (active-for-user db lid {:older-than-ts t2})))
+          (is (= []     (active-for-user db lid {:older-than-ts t3})))
+          (is (= []     (active-for-user db lid {:older-than-ts t4})))
+          (is (= []     (active-for-user db lid {:older-than-ts t5})))
+          (is (= [did4] (active-for-user db lid {:older-than-ts t6})))))
+
+      (testing "gives you 20 posts at a time, even if there are 45 there"
         (let [all-dids (take 45 (repeatedly random-uuid))]
           (loop [dids all-dids
                  t now]
             (when-let [did (first dids)]
-              (do
-                (db/create-discussion-with-message!
-                 (get-ctx sid)
-                 {:did did :selected_users #{sid}
-                  :text "Hello to spammer"
-                  :now t})
-                (recur (rest dids) (crdt/inc-time t)))))
+              (db/create-discussion-with-message!
+               (get-ctx sid)
+               {:did did :selected_users #{cid sid}
+                :text "Hello to spammer"
+                :now t})
+              (db/create-message!
+               (get-ctx cid)
+               {:did did :text "Comment" :now (crdt/inc-time t)})
+              (recur (rest dids) (crdt/inc-time t))))
           (xtdb/sync node)
-          (let [db (xtdb/db node)
-                first-feed (posts-for-user db sid)
-                first-last-ts (:discussion/created_at (by-id db (last first-feed)))
-                second-feed  (posts-for-user db sid {:older-than-ts first-last-ts})
-                second-last-ts (:discussion/created_at (by-id db (last second-feed)))
-                third-feed (posts-for-user db sid {:older-than-ts second-last-ts})]
-            (is (= 20 (count first-feed)))
-            (is (= (take 20 (reverse all-dids)) first-feed))
-            (is (= 20 (count second-feed)))
-            (is (= (take 20 (drop 20 (reverse all-dids))) second-feed))
-            (is (= 5 (count third-feed)))
-            (is (= (take 20 (drop 40 (reverse all-dids))) third-feed)))))
+          (testing "the post feed batches by 20 at a time"
+            (let [db (xtdb/db node)
+                  first-feed     (posts-for-user db sid)
+                  first-last-ts  (:discussion/created_at (by-id db (last first-feed)))
+                  second-feed    (posts-for-user db sid {:older-than-ts first-last-ts})
+                  second-last-ts (:discussion/created_at (by-id db (last second-feed)))
+                  third-feed     (posts-for-user db sid {:older-than-ts second-last-ts})]
+              (is (= 20 (count first-feed)))
+              (is (= (take 20 (reverse all-dids)) first-feed))
+              (is (= 20 (count second-feed)))
+              (is (= (take 20 (drop 20 (reverse all-dids))) second-feed))
+              (is (= 5 (count third-feed)))
+              (is (= (take 20 (drop 40 (reverse all-dids))) third-feed))))
+
+          (testing "the active feed batches by 20 at a time"
+            (let [db (xtdb/db node)
+                  first-feed     (active-for-user db sid)
+                  first-last-ts  (:discussion/latest_activity_ts (by-id db (last first-feed)))
+                  second-feed    (active-for-user db sid {:older-than-ts (crdt/-value first-last-ts)})
+                  second-last-ts (:discussion/latest_activity_ts (by-id db (last second-feed)))
+                  third-feed     (active-for-user db sid {:older-than-ts (crdt/-value second-last-ts)})]
+              (is (= 20 (count first-feed)))
+              (is (= (take 20 (reverse all-dids)) first-feed))
+              (is (= 20 (count second-feed)))
+              (is (= (take 20 (drop 20 (reverse all-dids))) second-feed))
+              (is (= 5 (count third-feed)))
+              (is (= (take 20 (drop 40 (reverse all-dids))) third-feed))))))
 
       (.close node))))

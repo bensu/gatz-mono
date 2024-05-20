@@ -263,7 +263,9 @@
                  ["/message/react" {:post api.message/react-to-message!}]
                  ["/message/undo-react" {:post api.message/undo-react-to-message!}]
 
-                 ["/feed" {:get api.discussion/feed}]
+                 ["/feed/posts" {:get api.discussion/feed}]
+                 ["/feed/active" {:get api.discussion/active}]
+
 
                  ["/discussions" {:get  api.discussion/get-full-discussions
                                   :post api.discussion/create-discussion!}]

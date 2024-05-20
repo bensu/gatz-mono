@@ -268,6 +268,7 @@
            uid)
         (map first)))
   ([db uid {:keys [older-than-ts]}]
+   {:pre [(uuid? uid) (inst? older-than-ts)]}
    (->> (q db '{:find [did created-at]
                 :in [user-id older-than-ts]
                 :limit 20
@@ -276,5 +277,44 @@
                         [did :discussion/members user-id]
                         [did :discussion/created_at created-at]
                         [(< created-at older-than-ts)]]}
+           uid older-than-ts)
+        (map first))))
+
+(def active-for-user-opts
+  [:map
+   [:older-than-ts inst?]])
+
+(malli/=> active-for-user
+          [:function
+           [:=> [:cat any? schema/UserId] [:sequential schema/DiscussionId]]
+           [:=> [:cat any? schema/UserId active-for-user-opts] [:sequential schema/DiscussionId]]])
+
+(defn active-for-user
+  ([db uid]
+   (->> (q db '{:find [did latest-activity-ts]
+                :in [user-id]
+                :limit 20
+                :order-by [[latest-activity-ts :desc]]
+                :where [[did :db/type :gatz/discussion]
+                        [did :discussion/members user-id] ;; TODO: move to discussion/subscribers
+                        [did :discussion/first_message first-mid]
+                        [did :discussion/latest_message latest-mid]
+                        [(not= first-mid latest-mid)]
+                        [did :discussion/latest_activity_ts latest-activity-ts]]}
+           uid)
+        (map first)))
+  ([db uid {:keys [older-than-ts]}]
+   {:pre [(uuid? uid) (inst? older-than-ts)]}
+   (->> (q db '{:find [did latest-activity-ts]
+                :in [user-id older-than-ts]
+                :limit 20
+                :order-by [[latest-activity-ts :desc]]
+                :where [[did :db/type :gatz/discussion]
+                        [did :discussion/members user-id] ;; TODO: move to discussion/subscribers
+                        [did :discussion/first_message first-mid]
+                        [did :discussion/latest_message latest-mid]
+                        [(not= first-mid latest-mid)]
+                        [did :discussion/latest_activity_ts latest-activity-ts]
+                        [(< latest-activity-ts older-than-ts)]]}
            uid older-than-ts)
         (map first))))

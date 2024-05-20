@@ -183,15 +183,16 @@
 (defn create-message!
 
   [{:keys [auth/user-id auth/cid biff/db] :as ctx} ;; TODO: get connection id
-   {:keys [text mid did media_id reply_to]}]
+   {:keys [text mid did media_id reply_to now]}]
 
   {:pre [(string? text)
          (or (nil? mid) (uuid? mid))
+         (or (nil? now) (inst? now))
          (uuid? did) (uuid? user-id)
          (or (nil? media_id) (uuid? media_id))
          (or (nil? reply_to) (uuid? reply_to))]}
 
-  (let [now (java.util.Date.)
+  (let [now (or now (Date.))
         mid (or mid (random-uuid))
         user (crdt.user/->value (db.user/by-id db user-id))
         _ (assert user)

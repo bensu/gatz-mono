@@ -255,12 +255,38 @@
 
   ;; TODO: return early depending on latest-tx
   ;; TODO: should be using the latest-tx from the _db_ not the node
-  (let [latest-tx (xt/latest-completed-tx node)
+  (let [params (parse-feed-params params)
+        latest-tx (xt/latest-completed-tx node)
         dids (if-let [older-than (some->> (:last_did params)
                                           (db.discussion/by-id db)
                                           :discussion/created_at)]
                (db.discussion/posts-for-user db user-id {:older-than-ts older-than})
                (db.discussion/posts-for-user db user-id))
+        ds (map (partial db/discussion-by-id db) dids)
+        users (db.user/all-users db)]
+    (json-response {:discussions (mapv crdt.discussion/->value ds)
+                    :users (mapv crdt.user/->value users)
+                    :current false
+                    :latest_tx {:id (::xt/tx-id latest-tx)
+                                :ts (::xt/tx-time latest-tx)}})))
+
+(def parse-active-params parse-feed-params)
+
+(defn active
+  [{:keys [params biff.xtdb/node biff/db auth/user-id] :as ctx}]
+
+  ;; TODO: specify what kind of feed it is
+  (posthog/capture! ctx "discussion.active")
+
+  ;; TODO: return early depending on latest-tx
+  ;; TODO: should be using the latest-tx from the _db_ not the node
+  (let [params (parse-active-params params)
+        latest-tx (xt/latest-completed-tx node)
+        dids (if-let [older-than (some->> (:last_did params)
+                                          (db.discussion/by-id db)
+                                          :discussion/created_at)]
+               (db.discussion/active-for-user db user-id {:older-than-ts older-than})
+               (db.discussion/active-for-user db user-id))
         ds (map (partial db/discussion-by-id db) dids)
         users (db.user/all-users db)]
     (json-response {:discussions (mapv crdt.discussion/->value ds)
