@@ -266,6 +266,7 @@
         users (db.user/all-users db)]
     (json-response {:discussions (mapv crdt.discussion/->value ds)
                     :users (mapv crdt.user/->value users)
+                    ;; TODO: remove this
                     :current false
                     :latest_tx {:id (::xt/tx-id latest-tx)
                                 :ts (::xt/tx-time latest-tx)}})))
@@ -291,6 +292,7 @@
         users (db.user/all-users db)]
     (json-response {:discussions (mapv crdt.discussion/->value ds)
                     :users (mapv crdt.user/->value users)
+                    ;; TODO: remove this
                     :current false
                     :latest_tx {:id (::xt/tx-id latest-tx)
                                 :ts (::xt/tx-time latest-tx)}})))

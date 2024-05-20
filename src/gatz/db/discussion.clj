@@ -329,3 +329,10 @@
                         [(< latest-activity-ts older-than-ts)]]}
            uid older-than-ts)
         (map first))))
+
+
+(defn all-ids [db]
+  (q db
+     '{:find  d
+       :where [[d :db/type :gatz/discussion]]}))
+

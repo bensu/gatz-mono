@@ -1,6 +1,7 @@
 (ns gatz.db.migrations
   (:require [clojure.set :as set]
             [clojure.pprint :as pp]
+            [crdt.core :as crdt]
             [gatz.db :refer :all]
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
@@ -378,15 +379,21 @@
 
   (discussions-v0->v1! -ctx))
 
-(defn discussions-reindex! [{:keys [biff.xtdb/node] :as ctx}]
+;; TODO: add discussion/active_members
+
+(defn add-active-members! [{:keys [biff.xtdb/node] :as ctx}]
   (let [bad-txn-ids (agent #{})
         db (xtdb/db node)]
-    (doseq [ds (partition-all 50 (get-all-discussions db))]
-      (let [txn (->> ds
-                     (map (fn [d]
-                            (-> d
-                                db.discussion/crdt->doc
-                                (assoc :db/doc-type :gatz.doc/discussion)))))
+    (doseq [dids (partition-all 50 (db.discussion/all-ids db))]
+      (let [txn (mapv (fn [did]
+                        (let [d (db.discussion/by-id db did)
+                              ms (db.message/by-did db did)
+                              active-members (set (map :message/user_id ms))]
+                          (-> d
+                              (assoc :discussion/active_members (crdt/gos active-members))
+                              (db.discussion/crdt->doc)
+                              (assoc :db/doc-type :gatz.doc/discussion))))
+                      dids)
             {:keys [good bad]}
             (group-by (fn [txn]
                         (if (malli.core/validate gatz.schema/DiscussionDoc txn)
@@ -401,4 +408,9 @@
         (send bad-txn-ids clojure.set/union (set (map :xt/id bad)))
         (biff/submit-tx ctx (vec good))))
     @bad-txn-ids))
+
+(comment
+  (def -ctx @gatz.system/system)
+
+  (add-active-members! -ctx))
 
