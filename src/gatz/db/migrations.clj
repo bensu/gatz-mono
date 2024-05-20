@@ -1,5 +1,6 @@
 (ns gatz.db.migrations
   (:require [clojure.set :as set]
+            [clojure.string :as str]
             [clojure.pprint :as pp]
             [crdt.core :as crdt]
             [gatz.db :refer :all]
@@ -10,7 +11,6 @@
             [gatz.crdt.user :as crdt.user]
             [gatz.schema :as schema]
             [malli.core :as malli]
-            [clojure.string :as str]
             [com.biffweb :as biff :refer [q]]
             [xtdb.api :as xtdb]))
 
@@ -379,7 +379,30 @@
 
   (discussions-v0->v1! -ctx))
 
-;; TODO: add discussion/active_members
+(def intl-users
+  {"adaobi" "+447715935538"
+   "tbensu" "+5491137560441"
+   ;; "bolu"
+   "viktor" "+46733843396"
+   "jacks" "+5491166472830"
+   "martin" "+4915905562097"
+   "greggocabral" "+5491138067266"
+   "brob" "+61492496889"
+   "danielcompton" "+6421552546"
+   "fynyky" "+6591001234"})
+
+(defn migrate-phone-numbers!
+  [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        tx (keep (fn [[username intl-phone]]
+                   (let [u (db.user/by-name db username)]
+                     (assert u)
+                     (-> u
+                         (assoc :user/phone_number intl-phone)
+                         (assoc :db/doc-type :gatz.crdt/user))))
+                 intl-users)]
+    (biff/submit-tx ctx (vec tx))))
+
 
 (defn add-active-members! [{:keys [biff.xtdb/node] :as ctx}]
   (let [bad-txn-ids (agent #{})

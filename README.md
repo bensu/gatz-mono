@@ -166,18 +166,18 @@ At scale, the costs are SMS, file transfer, and servers. You can reduce SMS by d
 heroku pg:backups:capture --app gatz
 heroku pg:backups:download --app gatz
 
-mv latest.bump dumps/gatz_prod_2024_05_08.dump
+mv latest.dump dumps/gatz_prod_2024_05_20.dump
 
-dropdb gatz_prod_2024_05_08
-createdb gatz_prod_2024_05_08
-pg_restore --clean --verbose --no-acl --no-owner -h localhost -d gatz_prod_2024_05_08 dumps/gatz_prod_2024_05_08.dump
+dropdb gatz_prod_2024_05_20
+createdb gatz_prod_2024_05_20
+pg_restore --clean --verbose --no-acl --no-owner -h localhost -d gatz_prod_2024_05_020 dumps/gatz_prod_2024_05_20.dump
 ```
 
 and then replace that database in `secrets.env`:
 
 ```diff
 - export DATABASE_URL=postgres://bensu:@localhost:5432/gatz_dev
-+ export DATABASE_URL=postgres://bensu:@localhost:5432/gatz_prod_2024_05_08
++ export DATABASE_URL=postgres://bensu:@localhost:5432/gatz_prod_2024_05_20
 ```
 
 and delete `storage` so that the local indeces are all restored:

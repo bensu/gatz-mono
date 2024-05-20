@@ -108,8 +108,7 @@
   "Strips the phone number of all non-numeric characters, then check if it's a valid phone number. "
   [phone]
   (let [phone (or (some-> phone clean-phone) "")]
-    (and (not-empty phone)
-         (<= 9 (count phone)))))
+    (not-empty phone)))
 
 ;; TODO: do params validation
 (defn sign-up!
