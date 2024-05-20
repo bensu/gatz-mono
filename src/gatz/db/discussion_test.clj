@@ -248,7 +248,10 @@
          {:did did1 :selected_users #{} :text "Hello to only poster" :now t1})
         (xtdb/sync node)
 
-        (let [db (xtdb/db node)]
+        (let [db (xtdb/db node)
+              d1 (crdt.discussion/->value (by-id db did1))]
+          (is (= #{uid} (:discussion/members d1)))
+          (is (= #{uid} (:discussion/active_members d1)))
           (is (= [did1] (posts-for-user db uid)))
           (is (= []     (posts-for-user db cid)))
           (is (= []     (posts-for-user db lid)))
@@ -268,7 +271,11 @@
          {:did did2 :text "I see this" :now t3})
         (xtdb/sync node)
 
-        (let [db (xtdb/db node)]
+        (let [db (xtdb/db node)
+              d2 (crdt.discussion/->value (by-id db did2))]
+          (is (= #{uid cid} (:discussion/members d2)))
+          (is (= #{uid cid} (:discussion/active_members d2)))
+
           (is (= [did2 did1] (posts-for-user db uid))
               "They come in reverse chronological order")
           (is (= [did2] (posts-for-user db cid)))
@@ -289,7 +296,11 @@
          {:did did1 :text "I see the first post" :now t4})
         (xtdb/sync node)
 
-        (let [db (xtdb/db node)]
+        (let [db (xtdb/db node)
+              d3 (crdt.discussion/->value (by-id db did3))]
+          (is (= #{uid cid} (:discussion/members d3)))
+          (is (= #{cid}     (:discussion/active_members d3)))
+
           (is (= [did3 did2 did1] (posts-for-user db uid)))
           (is (= [did3 did2]      (posts-for-user db cid)))
           (is (= []               (posts-for-user db lid)))
