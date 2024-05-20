@@ -378,3 +378,27 @@
 
   (discussions-v0->v1! -ctx))
 
+(defn discussions-reindex! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [bad-txn-ids (agent #{})
+        db (xtdb/db node)]
+    (doseq [ds (partition-all 50 (get-all-discussions db))]
+      (let [txn (->> ds
+                     (map (fn [d]
+                            (-> d
+                                db.discussion/crdt->doc
+                                (assoc :db/doc-type :gatz.doc/discussion)))))
+            {:keys [good bad]}
+            (group-by (fn [txn]
+                        (if (malli.core/validate gatz.schema/DiscussionDoc txn)
+                          :good
+                          :bad))
+                      txn)]
+        (println "transaction for " (count good) " ds")
+        (println "ignoring bad " (count bad) " ds")
+        (when-not (empty? bad)
+          (doseq [b bad]
+            (clojure.pprint/pprint (:errors (malli.core/explain gatz.schema/DiscussionDoc b)))))
+        (send bad-txn-ids clojure.set/union (set (map :xt/id bad)))
+        (biff/submit-tx ctx (vec good))))
+    @bad-txn-ids))
+
