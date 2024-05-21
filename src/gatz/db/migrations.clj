@@ -382,7 +382,7 @@
 (def intl-users
   {"adaobi" "+447715935538"
    "tbensu" "+5491137560441"
-   ;; "bolu"
+   "bolu" "+2349164824038"
    "viktor" "+46733843396"
    "jacks" "+5491166472830"
    "martin" "+4915905562097"
@@ -435,6 +435,5 @@
 (comment
   (def -ctx @gatz.system/system)
 
-  (add-active-members! -ctx)
-  )
+  (add-active-members! -ctx))
 
