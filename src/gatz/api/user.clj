@@ -85,6 +85,7 @@
   (if-let [username (:username params)]
     (if-let [user (db.user/by-name db username)]
       (do
+        (posthog/identify! ctx user)
         (posthog/capture! (assoc ctx :auth/user-id (:xt/id user)) "user.sign_in")
         (json-response {:user  (crdt.user/->value user)
                         :token (auth/create-auth-token ctx (:xt/id user))}))
@@ -165,6 +166,8 @@
               {:status "wrong_code"})
             (when approved?
               (when-let [user (db.user/by-phone db phone)]
+                (posthog/identify! ctx user)
+                (posthog/capture! (assoc ctx :auth/user-id (:xt/id user)) "user.sign_in")
                 {:user  (crdt.user/->value user)
                  :token (auth/create-auth-token ctx (:xt/id user))}))))))
 

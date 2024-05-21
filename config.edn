@@ -1,5 +1,6 @@
 ;; vim: ft=clojure
-{:prod {:biff.xtdb/dir "storage/xtdb"
+{:prod {:env :env/prod
+        :biff.xtdb/dir "storage/xtdb"
         :biff.xtdb/topology :jdbc 
         ;; TODO: set up heroku
         :biff.xtdb.jdbc/dbtype "postgresql"
@@ -18,7 +19,7 @@
 
         :posthog/api_key "phc_abqkICUI7qZDw1rNLR53fB8uC41kOOjKWfE54NfoHus"
         :posthog/host "https://us.i.posthog.com"
-       :posthog/enabled? true
+        :posthog/enabled? true
 
         :expo/push-token "EXPO_PUSH_NOTIFICATION_TOKEN"
 
@@ -50,6 +51,7 @@
         :biff/host "0.0.0.0"
         :biff/jwt-secret "JWT_SECRET"}
  :dev {:merge [:prod]
+       :env :env/dev
        :biff.beholder/enabled true
        :biff/base-url "http://localhost:8080"
        :biff/host "0.0.0.0"
