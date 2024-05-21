@@ -84,6 +84,7 @@
                                   :username username
                                   :now now})]
     (biff/submit-tx ctx [(-> user
+                             (assoc :user/is_test (not= :env/prod (:env ctx)))
                              (assoc :db/doc-type :gatz.crdt/user :db/op :create)
                              (update :user/name (fn [n] [:db/unique n]))
                              (update :user/phone_number (fn [p] [:db/unique p])))])
