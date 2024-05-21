@@ -41,11 +41,10 @@
 ;;     .set("name", "John Doe"));
 
 (defn identify!
-  [{:keys [env] :as ctx}
-   {:keys [xt/id user/created_at user/is_test] :as user}]
+  [ctx {:keys [xt/id user/created_at user/is_test] :as user}]
   (when-let [^PostHog posthog (:biff/posthog ctx)]
     (let [^HashMap hash-opts (HashMap. {"name" (:user/name user)
-                                        "is_test" (or is_test (not= :env/prod env))
+                                        "is_test" is_test
                                         "created_at" (fmt-date created_at)})]
       (try
         (when (:posthog/enabled? ctx)
