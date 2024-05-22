@@ -80,7 +80,11 @@
                      :contacts/requests_received {}}
                     (select-keys d-contacts ks))
 
-          ;; TODO: is the operation idempotent? Does it throw if you try multiple times?
+          (testing "you can retry and it you get the original result"
+            (db.contacts/request-contact! ctx {:from requester-id :to accepter-id})
+            (xtdb/sync node)
+            (is-equal a-contacts (db.contacts/by-uid db accepter-id))
+            (is-equal r-contacts (db.contacts/by-uid db requester-id)))
 
           (testing "to multiple people"
             (db.contacts/request-contact! ctx {:from requester-id :to denier-id})
