@@ -1,0 +1,167 @@
+(ns gatz.db.contacts-test
+  (:require [gatz.db.util-test :as db.util-test :refer [is-equal]]
+            [gatz.db.contacts :as db.contacts]
+            [gatz.db.user :as db.user]
+            [clojure.test :as test :refer [deftest testing is]]
+            [xtdb.api :as xtdb]))
+
+(deftest basic-flow
+  (testing "users start with empty contacts"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          ks [:contacts/user_id :contacts/ids :contacts/requests_made :contacts/requests_received]
+          requester-id (random-uuid)
+          accepter-id (random-uuid)
+          denier-id (random-uuid)]
+      (db.user/create-user! ctx {:id requester-id
+                                 :username "requester"
+                                 :phone "+14159499932"})
+      (db.user/create-user! ctx {:id denier-id
+                                 :username "denier"
+                                 :phone "+14159499930"})
+      (db.user/create-user! ctx {:id accepter-id
+                                 :username "accepter"
+                                 :phone "+14159499931"})
+      (xtdb/sync node)
+
+      (testing "which look like what we expect"
+        (let [db (xtdb/db node)
+              r-contacts (db.contacts/by-uid db requester-id)
+              a-contacts (db.contacts/by-uid db accepter-id)
+              d-contacts (db.contacts/by-uid db denier-id)]
+          (is-equal {:contacts/user_id requester-id
+                     :contacts/ids #{}
+                     :contacts/requests_made {}
+                     :contacts/requests_received {}}
+                    (select-keys r-contacts ks))
+          (is-equal {:contacts/user_id accepter-id
+                     :contacts/ids #{}
+                     :contacts/requests_made {}
+                     :contacts/requests_received {}}
+                    (select-keys a-contacts ks))
+          (is-equal {:contacts/user_id denier-id
+                     :contacts/ids #{}
+                     :contacts/requests_made {}
+                     :contacts/requests_received {}}
+                    (select-keys d-contacts ks))))
+      (testing "somebody can request to be a contact"
+        (db.contacts/request-contact! ctx {:from requester-id :to accepter-id})
+        (xtdb/sync node)
+
+        (let [db (xtdb/db node)
+              r-contacts (db.contacts/by-uid db requester-id)
+              a-contacts (db.contacts/by-uid db accepter-id)
+              d-contacts (db.contacts/by-uid db denier-id)
+              contact-request-ks [:contact_request/from :contact_request/to
+                                  :contact_request/decided_at :contact_request/decision]
+              request-made {:contact_request/from requester-id
+                            :contact_request/to accepter-id
+                            :contact_request/decided_at nil
+                            :contact_request/decision nil}]
+          (is-equal {:contacts/user_id requester-id
+                     :contacts/ids #{}
+                     :contacts/requests_made {accepter-id request-made}
+                     :contacts/requests_received {}}
+                    (-> r-contacts
+                        (select-keys ks)
+                        (update-in [:contacts/requests_made accepter-id]
+                                   select-keys contact-request-ks)))
+          (is-equal {:contacts/user_id accepter-id
+                     :contacts/ids #{}
+                     :contacts/requests_made {}
+                     :contacts/requests_received {requester-id request-made}}
+                    (-> a-contacts
+                        (select-keys ks)
+                        (update-in [:contacts/requests_received requester-id]
+                                   select-keys contact-request-ks)))
+          (is-equal {:contacts/user_id denier-id
+                     :contacts/ids #{}
+                     :contacts/requests_made {}
+                     :contacts/requests_received {}}
+                    (select-keys d-contacts ks))
+
+          (testing "to multiple people"
+            (db.contacts/request-contact! ctx {:from requester-id :to denier-id})
+            (xtdb/sync node)
+
+            (let [db (xtdb/db node)
+                  r-contacts (db.contacts/by-uid db requester-id)
+                  d-contacts (db.contacts/by-uid db denier-id)
+                  second-request {:contact_request/from requester-id
+                                  :contact_request/to denier-id
+                                  :contact_request/decided_at nil
+                                  :contact_request/decision nil}]
+              (is-equal {:contacts/user_id requester-id
+                         :contacts/ids #{}
+                         :contacts/requests_made {accepter-id request-made
+                                                  denier-id second-request}
+                         :contacts/requests_received {}}
+                        (-> r-contacts
+                            (select-keys ks)
+                            (update-in [:contacts/requests_made accepter-id]
+                                       select-keys contact-request-ks)
+                            (update-in [:contacts/requests_made denier-id]
+                                       select-keys contact-request-ks)))
+              (is-equal {:contacts/user_id denier-id
+                         :contacts/ids #{}
+                         :contacts/requests_made {}
+                         :contacts/requests_received {requester-id second-request}}
+                        (-> d-contacts
+                            (select-keys ks)
+                            (update-in [:contacts/requests_received requester-id]
+                                       select-keys contact-request-ks)))))
+
+          (testing "and those requests can be accepted or denied"
+            (db.contacts/decide-on-request! ctx {:from requester-id :to accepter-id
+                                                 :decision :contact_request/accepted})
+            (db.contacts/decide-on-request! ctx {:from requester-id :to denier-id
+                                                 :decision :contact_request/ignored})
+            (xtdb/sync node)
+
+            (let [db (xtdb/db node)
+                  r-contacts (db.contacts/by-uid db requester-id)
+                  a-contacts (db.contacts/by-uid db accepter-id)
+                  d-contacts (db.contacts/by-uid db denier-id)
+                  contact-request-ks [:contact_request/from
+                                      :contact_request/to
+                                      :contact_request/decision]
+                  accepted-req {:contact_request/from requester-id
+                                :contact_request/to accepter-id
+                                :contact_request/decision :contact_request/accepted}
+                  ignored-req {:contact_request/from requester-id
+                               :contact_request/to denier-id
+                               :contact_request/decision :contact_request/ignored}]
+              (is-equal {:contacts/user_id requester-id
+                         :contacts/ids #{accepter-id}
+                         :contacts/requests_made {accepter-id accepted-req
+                                                  denier-id ignored-req}
+                         :contacts/requests_received {}}
+                        (-> r-contacts
+                            (select-keys ks)
+                            (update-in [:contacts/requests_made accepter-id]
+                                       select-keys contact-request-ks)
+                            (update-in [:contacts/requests_made denier-id]
+                                       select-keys contact-request-ks)))
+              (is-equal {:contacts/user_id accepter-id
+                         :contacts/ids #{requester-id}
+                         :contacts/requests_made {}
+                         :contacts/requests_received {requester-id accepted-req}}
+                        (-> a-contacts
+                            (select-keys ks)
+                            (update-in [:contacts/requests_received requester-id]
+                                       select-keys contact-request-ks)))
+
+              (is-equal {:contacts/user_id denier-id
+                         :contacts/ids #{}
+                         :contacts/requests_made {}
+                         :contacts/requests_received {requester-id ignored-req}}
+                        (-> d-contacts
+                            (select-keys ks)
+                            (update-in [:contacts/requests_received requester-id]
+                                       select-keys contact-request-ks))))))
+
+
+        (xtdb/sync node))
+
+      (.close node))))
+

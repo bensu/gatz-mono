@@ -10,6 +10,9 @@
 (def EvtId :uuid)
 (def ClientId :uuid)
 
+;; ======================================================================  
+;; User & Contacts
+
 (def PushToken
   [:map
    [:push/token string?]
@@ -106,6 +109,32 @@
 
 (def FriendCRDT
   (mu/select-keys UserCRDT friend-keys))
+
+(def ContactRequestId :uuid)
+
+(def ContactRequest
+  [:map
+   [:contact_request/id #'ContactRequestId]
+   [:contact_request/from #'UserId]
+   [:contact_request/to #'UserId]
+   [:contact_request/created_at inst?]
+   [:contact_request/decided_at [:maybe inst?]]
+   [:contact_request/decision
+    [:enum :contact_request/accepted :contact_request/ignored]]])
+
+(def UserContacts
+  [:map
+   [:xt/id :uuid] ;; never used
+   [:db/type [:enum :gatz/contacts]]
+   [:contacts/user_id #'UserId] ;; acts as main key
+   [:contacts/created_at inst?]
+   [:contacts/updated_at inst?]
+   [:contacts/ids [:set #'UserId]]
+   [:contacts/requests_received [:map-of UserId ContactRequest]]
+   [:contacts/requests_made [:map-of UserId ContactRequest]]])
+
+;; ====================================================================== 
+;; Message & Media
 
 (def Media
   [:map
@@ -515,6 +544,7 @@
    :gatz/evt #'Event
    :gatz/user #'User
    :gatz.crdt/user #'UserCRDT
+   :gatz/contacts #'UserContacts
    :gatz.doc/discussion #'DiscussionDoc
    :gatz/discussion #'Discussion
    :gatz.crdt/discussion #'DiscussionCRDT
