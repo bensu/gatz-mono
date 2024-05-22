@@ -1,9 +1,11 @@
 (ns gatz.db
   (:require [com.biffweb :as biff :refer [q]]
+            [clojure.set :as set]
             [crdt.core :as crdt]
             [gatz.crdt.discussion :as crdt.discussion]
             [gatz.crdt.message :as crdt.message]
             [gatz.crdt.user :as crdt.user]
+            [gatz.db.contacts :as db.contacts]
             [gatz.db.discussion :as db.discussion]
             [gatz.db.evt :as db.evt]
             [gatz.db.media :as db.media]
@@ -48,7 +50,12 @@
         now (or now (Date.))
         did (or did (random-uuid))
         mid (random-uuid)
-        member-uids (set (keep mt/-string->uuid selected_users))
+        contacts (db.contacts/by-uid db user-id)
+        member-uids (-> (keep mt/-string->uuid selected_users)
+                        (set)
+                        (disj user-id))
+        _ (assert (set/subset? member-uids (:contacts/ids contacts))
+                  "All the discussion members need to be contacts of the poster")
         ;; TODO: get real connection id
         clock (crdt/new-hlc user-id now)
         ;; TODO: embed msg in discussion

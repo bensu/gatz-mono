@@ -3,10 +3,11 @@
             [clojure.test :refer [deftest is testing]]
             [crdt.core :as crdt]
             [gatz.crdt.discussion :as crdt.discussion]
-            [gatz.db.util-test :as db.util-test :refer [is-equal]]
+            [gatz.db.contacts :as db.contacts]
             [gatz.db.discussion :refer :all]
             [gatz.db.evt :as db.evt]
             [gatz.db.user :as db.user]
+            [gatz.db.util-test :as db.util-test :refer [is-equal]]
             [gatz.schema :as schema]
             [malli.core :as malli]
             [xtdb.api :as xtdb]
@@ -230,6 +231,20 @@
        ctx {:id lid :username "lurker_000" :phone "+14159499002" :now now})
       (db.user/create-user!
        ctx {:id sid :username "spammer_000" :phone "+14159499003" :now now})
+      (xtdb/sync node)
+      (db.contacts/request-contact! ctx {:from uid :to cid})
+      (db.contacts/request-contact! ctx {:from uid :to lid})
+      (db.contacts/request-contact! ctx {:from cid :to lid})
+      (db.contacts/request-contact! ctx {:from cid :to sid})
+      (xtdb/sync node)
+      (db.contacts/decide-on-request! ctx {:from uid :to cid
+                                           :decision :contact_request/accepted})
+      (db.contacts/decide-on-request! ctx {:from uid :to lid
+                                           :decision :contact_request/accepted})
+      (db.contacts/decide-on-request! ctx {:from cid :to lid
+                                           :decision :contact_request/accepted})
+      (db.contacts/decide-on-request! ctx {:from cid :to sid
+                                           :decision :contact_request/accepted})
       (xtdb/sync node)
 
       (testing "the feeds start empty"
