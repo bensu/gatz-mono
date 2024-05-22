@@ -56,17 +56,22 @@
         receiver-contacts (gatz.db.contacts/by-uid db to)
         accepted? (= :contact_request/accepted decision)]
     (when-let [request (get-in receiver-contacts [:contacts/requests_received from])]
-      (let [new-request (assoc request
-                               :contact_request/decided_at now
-                               :contact_request/decision decision)]
-        [[:xtdb.api/put (cond-> (-> receiver-contacts
-                                    (assoc :db/doc-type :gatz/contacts)
-                                    (update :contacts/requests_received assoc from new-request))
-                          accepted? (update :contacts/ids conj from))]
-         [:xtdb.api/put (cond-> (-> requester-contacts
-                                    (assoc :db/doc-type :gatz/contacts)
-                                    (update :contacts/requests_made assoc to new-request))
-                          accepted? (update :contacts/ids conj to))]]))))
+      (assert (or (nil? (:contact_request/decided_at request))
+                  (= decision (:contact_request/decision request)))
+              "This request hasn't been decided or this is the same decision")
+      (when-not (= decision (:contact_request/decision request))
+        ;; If it is the same decision, then, don't do this again
+        (let [new-request (assoc request
+                                 :contact_request/decided_at now
+                                 :contact_request/decision decision)]
+          [[:xtdb.api/put (cond-> (-> receiver-contacts
+                                      (assoc :db/doc-type :gatz/contacts)
+                                      (update :contacts/requests_received assoc from new-request))
+                            accepted? (update :contacts/ids conj from))]
+           [:xtdb.api/put (cond-> (-> requester-contacts
+                                      (assoc :db/doc-type :gatz/contacts)
+                                      (update :contacts/requests_made assoc to new-request))
+                            accepted? (update :contacts/ids conj to))]])))))
 
 (def ^{:doc "This function will be stored in the db which is why it is an expression"}
   request-contact-expr

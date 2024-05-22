@@ -80,6 +80,8 @@
                      :contacts/requests_received {}}
                     (select-keys d-contacts ks))
 
+          ;; TODO: is the operation idempotent? Does it throw if you try multiple times?
+
           (testing "to multiple people"
             (db.contacts/request-contact! ctx {:from requester-id :to denier-id})
             (xtdb/sync node)
@@ -158,7 +160,77 @@
                         (-> d-contacts
                             (select-keys ks)
                             (update-in [:contacts/requests_received requester-id]
-                                       select-keys contact-request-ks))))))
+                                       select-keys contact-request-ks)))
+              (testing "accepting throws an error if you try the opposite"
+                (is (thrown? clojure.lang.ExceptionInfo
+                             (db.contacts/decide-on-request! ctx {:from requester-id :to accepter-id
+                                                                  :decision :contact_request/ignored})))
+                (is (thrown? clojure.lang.ExceptionInfo
+                             (db.contacts/decide-on-request! ctx {:from requester-id :to denier-id
+                                                                  :decision :contact_request/accepted})))
+                (xtdb/sync node))
+              (testing "accepting does nothing if you try twice"
+                (db.contacts/decide-on-request! ctx {:from requester-id :to accepter-id
+                                                     :decision :contact_request/accepted})
+                (db.contacts/decide-on-request! ctx {:from requester-id :to denier-id
+                                                     :decision :contact_request/ignored})
+                (xtdb/sync node)
+                (let [db (xtdb/db node)
+                      r-contacts (db.contacts/by-uid db requester-id)
+                      a-contacts (db.contacts/by-uid db accepter-id)
+                      d-contacts (db.contacts/by-uid db denier-id)]
+                  (is-equal {:contacts/user_id requester-id
+                             :contacts/ids #{accepter-id}
+                             :contacts/requests_received {}
+                             :contacts/requests_made {denier-id ignored-req
+                                                      accepter-id accepted-req}}
+                            (-> r-contacts
+                                (select-keys ks)
+                                (update-in [:contacts/requests_made accepter-id]
+                                           select-keys contact-request-ks)
+                                (update-in [:contacts/requests_made denier-id]
+                                           select-keys contact-request-ks)))
+
+                  (is-equal {:contacts/user_id accepter-id
+                             :contacts/ids #{requester-id}
+                             :contacts/requests_made {}
+                             :contacts/requests_received {requester-id accepted-req}}
+                            (-> a-contacts
+                                (select-keys ks)
+                                (update-in [:contacts/requests_received requester-id]
+                                           select-keys contact-request-ks)))
+
+                  (is-equal {:contacts/user_id denier-id
+                             :contacts/ids #{}
+                             :contacts/requests_made {}
+                             :contacts/requests_received {requester-id ignored-req}}
+                            (-> d-contacts
+                                (select-keys ks)
+                                (update-in [:contacts/requests_received requester-id]
+                                           select-keys contact-request-ks))))))))
+
+        (testing "accepting does nothing if there is nothing to accept"
+          (db.contacts/decide-on-request! ctx {:from denier-id :to requester-id
+                                               :decision :contact_request/accepted})
+          (xtdb/sync node)
+          (let [db (xtdb/db node)
+                r-contacts (db.contacts/by-uid db requester-id)
+                ;; a-contacts (db.contacts/by-uid db accepter-id)
+                d-contacts (db.contacts/by-uid db denier-id)
+                ks [:contacts/user_id :contacts/ids]]
+
+            (is-equal {:contacts/user_id requester-id
+                       :contacts/ids #{accepter-id}
+                       :contacts/requests_received {}}
+                      (select-keys r-contacts (conj ks :contacts/requests_received)))
+
+            (is-equal {:contacts/user_id denier-id
+                       :contacts/ids #{}
+                       :contacts/requests_made {}}
+                      (select-keys d-contacts (conj ks :contacts/requests_made)))))
+
+
+
 
 
         (xtdb/sync node))
