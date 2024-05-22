@@ -1,15 +1,13 @@
 (ns gatz.db.user
   (:require [com.biffweb :as biff :refer [q]]
-            [clojure.string :as str]
-            [clojure.java.io :as io]
             [crdt.core :as crdt]
             [gatz.crdt.user :as crdt.user]
-            [gatz.db.util :as db.util]
+            [gatz.db.contacts :as db.contacts]
             [gatz.db.evt :as db.evt]
+            [gatz.db.util :as db.util]
             [gatz.schema :as schema]
             [malli.core :as malli]
             [malli.util :as mu]
-            [medley.core :refer [map-vals]]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
@@ -74,6 +72,16 @@
      '{:find  u
        :where [[u :db/type :gatz/user]]}))
 
+(defn- as-unique [x] [:db/unique x])
+
+(defn new-contacts-txn [{:keys [uid now]}]
+  (let [contacts (db.contacts/new-contacts {:uid uid
+                                            :now now
+                                            :contact-ids #{}})]
+    (-> contacts
+        (assoc :db/doc-type :gatz/contacts :db/op :create)
+        (update :contacts/user_id as-unique))))
+
 (defn create-user!
   [ctx {:keys [username phone id now]}]
 
@@ -86,8 +94,9 @@
     (biff/submit-tx ctx [(-> user
                              (assoc :user/is_test (not= :env/prod (:env ctx)))
                              (assoc :db/doc-type :gatz.crdt/user :db/op :create)
-                             (update :user/name (fn [n] [:db/unique n]))
-                             (update :user/phone_number (fn [p] [:db/unique p])))])
+                             (update :user/name as-unique)
+                             (update :user/phone_number as-unique))
+                         (new-contacts-txn {:uid id :now now})])
     user))
 
 (defn by-id [db user-id]

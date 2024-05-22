@@ -1,19 +1,15 @@
 (ns gatz.db.user-test
   (:require [com.biffweb :as biff :refer [q]]
-            [clojure.string :as str]
             [clojure.test :refer [deftest testing is are]]
             [clojure.java.io :as io]
-            [clojure.data :as data]
             [crdt.core :as crdt]
             [gatz.crdt.user :as crdt.user]
-            [gatz.db.util :as db.util]
-            [gatz.db.util-test :as db.util-test :refer [is-equal test-system]]
-            [gatz.db.evt :as db.evt]
+            [gatz.db.contacts :as db.contacts]
             [gatz.db.user :refer :all]
+            [gatz.db.util :as db.util]
+            [gatz.db.util-test :as db.util-test :refer [is-equal]]
             [gatz.schema :as schema]
             [malli.core :as malli]
-            [malli.util :as mu]
-            [medley.core :refer [map-vals]]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
@@ -142,6 +138,7 @@
                              :phone "4159499932"
                              :now now})
           (xtdb/sync node)
+
           (doseq [action actions]
             (apply-action! (get-ctx uid) action))
           (xtdb/sync node)
@@ -149,7 +146,7 @@
             (is-equal {:crdt/clock c2
                        :xt/id uid
                        :db/type :gatz/user,
-                       :user/is_test false,
+                       :user/is_test true,
                        :user/is_admin false,
                        :user/name "test_123",
                        :user/avatar "https://example.com/avatar.jpg",
@@ -184,32 +181,43 @@
               t4 (crdt/inc-time t3)
               t5 (crdt/inc-time t4)
               [_c1 _c2 _c3 _c4 c5] (mapv (partial crdt/new-hlc uid) [t1 t2 t3 t4 t5])]
-          (do
-            (create-user! ctx {:id uid
-                               :username "test_456"
-                               :phone "4159499932"
-                               :now now})
-            ;; await for all the tx functions to be in the database
-            (xtdb/sync node)
-            (mark-active! (get-ctx uid) {:now t1})
-            (update-avatar! (get-ctx uid) "https://example.com/avatar.jpg" {:now t2})
-            (add-push-token! (get-ctx uid)
-                             {:push-token {:push/expo
-                                           {:push/service :push/expo
-                                            :push/token "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]"
-                                            :push/created_at now}}}
-                             {:now t3})
-            (remove-push-tokens! (get-ctx uid) {:now t4})
-            (edit-notifications! (get-ctx uid)
-                                 {:settings.notification/activity :settings.notification/daily}
-                                 {:now t5})
-            ;; await for all transactions before checking the state of the user
-            (xtdb/sync node))
+          (create-user! ctx {:id uid
+                             :username "test_456"
+                             :phone "4159499932"
+                             :now now})
+          (xtdb/sync node)
+
+          (testing "the created user gets a corresponding contact lists"
+            (let [db (xtdb/db node)
+                  contacts (db.contacts/by-uid db uid)]
+              (is-equal {:contacts/user_id uid
+                         :contacts/ids #{}
+                         :contacts/requests_made {}
+                         :contacts/requests_received {}}
+                        (select-keys contacts [:contacts/user_id :contacts/ids :contacts/requests_made :contacts/requests_received]))
+              (testing "and if you try to create additional contact lists you fail"
+                (is (thrown? clojure.lang.ExceptionInfo
+                             (biff/submit-tx ctx [(new-contacts-txn {:uid uid :now now})]))))))
+
+          (mark-active! (get-ctx uid) {:now t1})
+          (update-avatar! (get-ctx uid) "https://example.com/avatar.jpg" {:now t2})
+          (add-push-token! (get-ctx uid)
+                           {:push-token {:push/expo
+                                         {:push/service :push/expo
+                                          :push/token "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]"
+                                          :push/created_at now}}}
+                           {:now t3})
+          (remove-push-tokens! (get-ctx uid) {:now t4})
+          (edit-notifications! (get-ctx uid)
+                               {:settings.notification/activity :settings.notification/daily}
+                               {:now t5})
+          (xtdb/sync node)
+
           (let [final-user (by-id (xtdb/db node) uid)]
             (is-equal {:crdt/clock c5
                        :xt/id uid
                        :db/type :gatz/user,
-                       :user/is_test false,
+                       :user/is_test true,
                        :user/is_admin false,
                        :user/name "test_456",
                        :user/avatar "https://example.com/avatar.jpg",
