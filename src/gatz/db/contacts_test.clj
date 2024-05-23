@@ -3,7 +3,96 @@
             [gatz.db.contacts :as db.contacts]
             [gatz.db.user :as db.user]
             [clojure.test :as test :refer [deftest testing is]]
-            [xtdb.api :as xtdb]))
+            [xtdb.api :as xtdb])
+  (:import [java.util Date]))
+
+(deftest viewing-contact-requests
+  (testing "we can query to know what the state of my request is"
+    (let [aid (random-uuid)
+          bid (random-uuid)
+          now (Date.)
+          b-accepted-contacts {:contacts/ids #{aid}}
+          pending-request {:contact_request/from aid
+                           :contact_request/to bid
+                           :contact_request/decided_at nil
+                           :contact_request/decision nil}
+          b-pending-contacts {:contact/ids #{}
+                              :contacts/requests_made {}
+                              :contacts/requests_received {aid pending-request}}
+          ignored-request {:contact_request/from aid
+                           :contact_request/to bid
+                           :contact_request/decided_at now
+                           :contact_request/decision :contact_request/ignored}
+          b-ignored-contacts {:contacts/ids #{}
+                              :contacts/requests_made {}
+                              :contacts/requests_received {aid ignored-request}}
+          b-open-contacts {:contacts/ids #{}
+                           :contacts/request_received {}
+                           :contacts/requests_made {}}
+          b-request {:contact_request/from bid
+                     :contact_request/to aid
+                     :contact_request/decided_at nil
+                     :contact_request/decision nil}
+          b-pending-request-contacts {:contacts/ids #{}
+                                      :contacts/request_received {}
+                                      :contacts/requests_made {aid b-request}}
+          b-ignored-request {:contact_request/from bid
+                             :contact_request/to aid
+                             :contact_request/decided_at now
+                             :contact_request/decision :contact_request/ignored}
+          b-ignored-request-contacts {:contacts/ids #{}
+                                      :contacts/request_received {}
+                                      :contacts/requests_made {aid b-ignored-request}}]
+      (is (= :contact_request/accepted
+             (db.contacts/state-for b-accepted-contacts aid)))
+      (is (= :contact_request/none
+             (db.contacts/state-for b-open-contacts aid)))
+      (is (= :contact_request/response_pending_from_viewer
+             (db.contacts/state-for b-pending-request-contacts aid)))
+      (is (= :contact_request/viewer_awaits_response
+             (db.contacts/state-for b-pending-contacts aid)))
+      (is (= :contact_request/viewer_ignored_response
+             (db.contacts/state-for b-ignored-request-contacts aid)))
+      (is (= :contact_request/viewer_awaits_response
+             (db.contacts/state-for b-ignored-contacts aid))
+          "Even when they've been ignored, it still looks like they await the response")))
+  (testing "and we can do the same going through the database"
+    (let [aid (random-uuid)
+          bid (random-uuid)
+          ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)]
+      (db.user/create-user! ctx {:id aid
+                                 :username "viewed"
+                                 :phone "+14159499932"})
+      (db.user/create-user! ctx {:id bid
+                                 :username "viewer"
+                                 :phone "+14159499930"})
+      (xtdb/sync node)
+      (let [db (xtdb/db node)
+            b-contacts (db.contacts/by-uid db bid)]
+        (is (= :contact_request/none
+               (db.contacts/state-for b-contacts aid))))
+
+      (db.contacts/request-contact! ctx {:from aid :to bid})
+      (xtdb/sync node)
+      (let [db (xtdb/db node)
+            b-contacts (db.contacts/by-uid db bid)
+            a-contacts (db.contacts/by-uid db aid)]
+        (is (= :contact_request/viewer_awaits_response
+               (db.contacts/state-for b-contacts aid)))
+        (is (= :contact_request/response_pending_from_viewer
+               (db.contacts/state-for a-contacts bid))))
+
+      (db.contacts/decide-on-request! ctx {:from aid :to bid
+                                           :decision :contact_request/ignored})
+      (xtdb/sync node)
+      (let [db (xtdb/db node)
+            b-contacts (db.contacts/by-uid db bid)
+            a-contacts (db.contacts/by-uid db aid)]
+        (is (= :contact_request/viewer_awaits_response
+               (db.contacts/state-for b-contacts aid)))
+        (is (= :contact_request/viewer_ignored_response
+               (db.contacts/state-for a-contacts bid)))))))
 
 (deftest basic-flow
   (testing "users start with empty contacts"

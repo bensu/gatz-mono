@@ -41,6 +41,42 @@
     (set/intersection (:contacts/ids a-contacts)
                       (:contacts/ids b-contacts))))
 
+(def contact-request-state
+  #{:contact_request/none
+    :contact_request/viewer_awaits_response
+    :contact_request/response_pending_from_viewer
+    :contact_request/viewer_ignored_response
+    :contact_request/accepted})
+
+(defn state-for [viewed-contacts viewer-id]
+  {:pre [(uuid? viewer-id)]
+   :post [(contains? contact-request-state %)]}
+
+  (let [request-made-by-viewer (get-in viewed-contacts [:contacts/requests_received viewer-id])
+        request-received-by-viewer (get-in viewed-contacts [:contacts/requests_made viewer-id])]
+    (cond
+      (contains? (:contacts/ids viewed-contacts) viewer-id)
+      :contact_request/accepted
+
+      (and request-made-by-viewer (nil? (:contact_request/decision request-made-by-viewer)))
+      :contact_request/viewer_awaits_response
+
+      ;; This is the crucial asymmetry. If the viewed contact ignored the request
+      ;; we still tell the viewer that they are waiting for a response
+      (and request-made-by-viewer
+           (= :contact_request/ignored
+              (:contact_request/decision request-made-by-viewer)))
+      :contact_request/viewer_awaits_response
+
+      (and request-received-by-viewer (nil? (:contact_request/decision request-received-by-viewer)))
+      :contact_request/response_pending_from_viewer
+
+      ;; We check some? because if the viewer has accepted, it should already be handled above
+      (and request-received-by-viewer (some? (:contact_request/decision request-received-by-viewer)))
+      :contact_request/viewer_ignored_response
+
+      :else :contact_request/none)))
+
 (defn request-contact-txn [xtdb-ctx {:keys [args]}]
   (let [db (xtdb.api/db xtdb-ctx)
         {:keys [id from to now]} args
@@ -158,3 +194,4 @@
        (let [args {:from aid :to bid :now now :id (random-uuid)}]
          [[:xtdb.api/fn :gatz.db.contacts/request-contact {:args args}]
           [:xtdb.api/fn :gatz.db.contacts/decide-on-request {:args (assoc args :decision :contact_request/accepted)}]])))))
+
