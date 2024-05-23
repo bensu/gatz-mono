@@ -275,7 +275,13 @@
                       (-> a-contacts
                           (select-keys ks)
                           (update-in [:contacts/removed requester-id]
-                                     select-keys removed-ks)))))
+                                     select-keys removed-ks)))
+            (testing "and removing does nothing if you try twice"
+              (db.contacts/remove-contact! ctx {:from requester-id :to accepter-id})
+              (xtdb/sync node)
+              (let [db-after (xtdb/db node)]
+                (is (= r-contacts (db.contacts/by-uid db-after requester-id)))
+                (is (= a-contacts (db.contacts/by-uid db-after accepter-id)))))))
 
         (xtdb/sync node))
 
