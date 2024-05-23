@@ -112,6 +112,15 @@
 
 (def ContactRequestId :uuid)
 
+(def ContactRequestState
+  [:enum
+   :contact_request/self
+   :contact_request/none
+   :contact_request/viewer_awaits_response
+   :contact_request/response_pending_from_viewer
+   :contact_request/viewer_ignored_response
+   :contact_request/accepted])
+
 (def ContactRequest
   [:map
    [:contact_request/id #'ContactRequestId]

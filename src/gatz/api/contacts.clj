@@ -91,8 +91,9 @@
       (= user-id to) (err-resp "invalid_params" "Invalid parameters")
 
       :else
-      (let [{:keys [to-contacts]}
-            (db.contacts/apply-request! ctx {:from user-id :to to :action action})
-            contact-request-state (db.contacts/state-for to-contacts user-id)]
+      ;; approval doesn't have from as the user-id
+      (let [{:keys [their-contacts]}
+            (db.contacts/apply-request! ctx {:them to :action action})
+            contact-request-state (db.contacts/state-for their-contacts user-id)]
         (json-response {:status "success"
                         :state contact-request-state})))))

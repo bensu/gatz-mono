@@ -380,22 +380,23 @@
                       (select-keys d-contacts (conj ks :contacts/requests_made)))))
 
         (testing "once people have contacts, we can find who they have in common"
-          (let [response (db.contacts/apply-request! ctx {:from denier-id
-                                                          :to accepter-id
-                                                          :action :contact_request/request})
-                {:keys [from-contacts to-contacts]} response]
+          (let [response (db.contacts/apply-request! (assoc ctx :auth/user-id denier-id)
+                                                     {:them accepter-id
+                                                      :action :contact_request/request})
+                {:keys [my-contacts their-contacts]} response]
             (is (= :contact_request/viewer_awaits_response
-                   (db.contacts/state-for to-contacts denier-id)))
+                   (db.contacts/state-for their-contacts denier-id)))
             (is (= :contact_request/response_pending_from_viewer
-                   (db.contacts/state-for from-contacts accepter-id))))
+                   (db.contacts/state-for my-contacts accepter-id))))
 
-          (let [response (db.contacts/apply-request! ctx {:from denier-id :to accepter-id
-                                                          :action :contact_request/accept})
-                {:keys [from-contacts to-contacts]} response]
+          (let [response (db.contacts/apply-request! (assoc ctx :auth/user-id accepter-id)
+                                                     {:them denier-id
+                                                      :action :contact_request/accept})
+                {:keys [my-contacts their-contacts]} response]
             (is (= :contact_request/accepted
-                   (db.contacts/state-for to-contacts denier-id)))
+                   (db.contacts/state-for my-contacts denier-id)))
             (is (= :contact_request/accepted
-                   (db.contacts/state-for from-contacts accepter-id))))
+                   (db.contacts/state-for their-contacts accepter-id))))
 
           (xtdb/sync node)
 
@@ -406,9 +407,9 @@
 
 
         (testing "and they can remove contacts"
-          (let [response (db.contacts/apply-request! ctx {:from requester-id
-                                                          :to accepter-id
-                                                          :action :contact_request/remove})
+          (let [response (db.contacts/apply-request! (assoc ctx :auth/user-id accepter-id)
+                                                     {:them requester-id
+                                                      :action :contact_request/remove})
                 {:keys [from-contacts to-contacts]} response]
             (is (= :contact_request/viewer_awaits_response
                    (db.contacts/state-for to-contacts requester-id)))

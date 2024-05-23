@@ -29,16 +29,29 @@
 (def get-me-response
   [:map
    [:user schema/User]
-   [:contacts [:vec schema/ContactResponse]]])
+   [:contacts [:vec schema/ContactResponse]]
+   [:contact_requests [:vec [:map
+                             [:id schema/ContactRequestId]
+                             [:contact schema/ContactResponse]]]]])
 
 (defn get-me [{:keys [auth/user auth/user-id biff/db] :as _ctx}]
-  (let [contacts (db.contacts/by-uid db user-id)]
+  (let [my-contacts (db.contacts/by-uid db user-id)
+        contacts (mapv (fn [uid]
+                         (-> (db.user/by-id db uid)
+                             crdt.user/->value
+                             db.contacts/->contact))
+                       (:contacts/ids my-contacts))
+        contact_requests (->> (vals (:contacts/requests_received my-contacts))
+                              (keep (fn [{:contact_request/keys [from id decision]}]
+                                      (when (nil? decision)
+                                        {:id id
+                                         :contact (-> (db.user/by-id db from)
+                                                      crdt.user/->value
+                                                      db.contacts/->contact)})))
+                              vec)]
     (json-response {:user (crdt.user/->value user)
-                    :contacts (mapv (fn [uid]
-                                      (-> (db.user/by-id db uid)
-                                          crdt.user/->value
-                                          db.contacts/->contact))
-                                    (:contacts/ids contacts))})))
+                    :contacts contacts
+                    :contact_requests contact_requests})))
 
 (defn get-user
   [{:keys [params biff/db] :as _ctx}]

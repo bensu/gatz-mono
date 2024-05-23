@@ -48,17 +48,8 @@
         b-contacts (by-uid db b-uid)]
     (in-common a-contacts b-contacts)))
 
-(def contact-request-state-schema
-  [:enum
-   :contact_request/self
-   :contact_request/none
-   :contact_request/viewer_awaits_response
-   :contact_request/response_pending_from_viewer
-   :contact_request/viewer_ignored_response
-   :contact_request/accepted])
-
 (def contact-request-state
-  (set (rest contact-request-state-schema)))
+  (set (rest schema/ContactRequestState)))
 
 (defn state-for [viewed-contacts viewer-id]
   {:pre [(map? viewed-contacts) (uuid? viewer-id)]
@@ -220,30 +211,31 @@
 (defmulti ^:private -apply-request! (fn [_ctx {:keys [action]}] action))
 
 (defmethod -apply-request! :contact_request/request
-  [ctx {:keys [to from]}]
-  (request-contact! ctx {:from from :to to}))
+  [{:keys [auth/user-id] :as ctx} {:keys [them]}]
+  (request-contact! ctx {:from user-id :to them}))
 
 (defmethod -apply-request! :contact_request/accept
-  [ctx {:keys [to from]}]
-  (decide-on-request! ctx {:from from :to to :decision :contact_request/accepted}))
+  [{:keys [auth/user-id] :as ctx} {:keys [them]}]
+  (decide-on-request! ctx {:from them :to user-id :decision :contact_request/accepted}))
 
 (defmethod -apply-request! :contact_request/ignore
-  [ctx {:keys [to from]}]
-  (decide-on-request! ctx {:from from :to to :decision :contact_request/ignore}))
+  [{:keys [auth/user-id] :as ctx} {:keys [them]}]
+  (decide-on-request! ctx {:from them :to user-id :decision :contact_request/ignore}))
 
 (defmethod -apply-request! :contact_request/remove
-  [ctx {:keys [to from]}]
-  (remove-contact! ctx {:from from :to to}))
+  [{:keys [auth/user-id] :as ctx} {:keys [them]}]
+  (remove-contact! ctx {:from them :to user-id}))
 
 (defn apply-request!
-  [{:keys [biff.xtdb/node] :as ctx}
-   {:keys [from to] :as args}]
+  "decides what is :from and :to depending on the action"
+  [{:keys [biff.xtdb/node auth/user-id] :as ctx}
+   {:keys [them] :as args}]
 
-  (assert (not= from to))
+  (assert (not= user-id them))
 
   (let [txn (-apply-request! ctx args)
         _ (xtdb/await-tx node (::xtdb/tx-id txn))
         db (xtdb/db node)]
-    {:from-contacts (by-uid db from)
-     :to-contacts (by-uid db to)}))
+    {:my-contacts (by-uid db user-id)
+     :their-contacts (by-uid db them)}))
 
