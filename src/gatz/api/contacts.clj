@@ -55,3 +55,51 @@
                                                     users-in-common)}}))
 
       (err-resp "invalid_params" "Invalid params"))))
+
+
+;; export type ContactRequestActionType =
+;; | "request"
+;; | "accept"
+;; | "ignore"
+;; | "remove";
+
+
+(def contact-request-actions-schema
+  [:enum
+   :contact_request/request
+   :contact_request/accept
+   :contact_request/ignore
+   :contact_request/remove])
+
+(def contact-request-actions
+  (set (rest contact-request-actions-schema)))
+
+(def contact-request-params
+  [:map
+   [:to schema/UserId]
+   [:action contact-request-actions-schema]])
+
+(defn parse-contact-request-action [s]
+  {:pre [(string? s)]
+   :post [(or (nil? %)
+              (contains? contact-request-actions %))]}
+  (let [k (keyword "contact_request" s)]
+    (when (contains? contact-request-actions k) k)))
+
+(defn parse-contact-request-params [params]
+  (cond-> params
+    (some? (:to params)) (update :to strict-str->uuid)
+    (some? (:action params)) (update :action parse-contact-request-action)))
+
+(defn handle-request! [{:keys [auth/user-id] :as ctx}]
+  (let [{:keys [to action]} (parse-contact-request-params (:params ctx))]
+    (cond
+      (not (and to action)) (err-resp "invalid_params" "Invalid parameters")
+      (= user-id to) (err-resp "invalid_params" "Invalid parameters")
+
+      :else
+      (let [{:keys [to-contacts]}
+            (db.contacts/apply-request! ctx {:from user-id :to to :action action})
+            contact-request-state (db.contacts/state-for to-contacts user-id)]
+        (json-response {:status "success"
+                        :state contact-request-state})))))

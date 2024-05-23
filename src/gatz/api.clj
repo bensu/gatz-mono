@@ -268,6 +268,7 @@
                  ["/feed/active" {:get api.discussion/active}]
 
                  ["/contact" {:get api.contacts/get-contact}]
+                 ["/contact/request" {:post api.contacts/handle-request!}]
 
 
                  ["/discussions" {:get  api.discussion/get-full-discussions

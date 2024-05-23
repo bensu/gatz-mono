@@ -11,12 +11,21 @@
     (let [aid (random-uuid)
           bid (random-uuid)
           now (Date.)
-          b-accepted-contacts {:contacts/ids #{aid}}
+          accepted-request {:contact_request/from aid
+                            :contact_request/to bid
+                            :contact_request/decided_at now
+                            :contact_request/decision :contact_request/accepted}
+          b-accepted-contacts {:contacts/ids #{aid}
+                               :contacts/user_id bid
+                               :contacts/removed {}
+                               :contacts/requests_received {}
+                               :contacts/requests_made {}}
           pending-request {:contact_request/from aid
                            :contact_request/to bid
                            :contact_request/decided_at nil
                            :contact_request/decision nil}
-          b-pending-contacts {:contact/ids #{}
+          b-pending-contacts {:contacts/user_id bid
+                              :contact/ids #{}
                               :contacts/requests_made {}
                               :contacts/requests_received {aid pending-request}}
           ignored-request {:contact_request/from aid
@@ -24,9 +33,11 @@
                            :contact_request/decided_at now
                            :contact_request/decision :contact_request/ignored}
           b-ignored-contacts {:contacts/ids #{}
+                              :contacts/user_id bid
                               :contacts/requests_made {}
                               :contacts/requests_received {aid ignored-request}}
           b-open-contacts {:contacts/ids #{}
+                           :contacts/user_id bid
                            :contacts/request_received {}
                            :contacts/requests_made {}}
           b-request {:contact_request/from bid
@@ -34,6 +45,7 @@
                      :contact_request/decided_at nil
                      :contact_request/decision nil}
           b-pending-request-contacts {:contacts/ids #{}
+                                      :contacts/user_id bid
                                       :contacts/request_received {}
                                       :contacts/requests_made {aid b-request}}
           b-ignored-request {:contact_request/from bid
@@ -41,8 +53,16 @@
                              :contact_request/decided_at now
                              :contact_request/decision :contact_request/ignored}
           b-ignored-request-contacts {:contacts/ids #{}
+                                      :contacts/user_id bid
                                       :contacts/request_received {}
-                                      :contacts/requests_made {aid b-ignored-request}}]
+                                      :contacts/requests_made {aid b-ignored-request}}
+          b-removed {:contact_removed/from bid :contact_removed/to aid}
+          b-removed-contacts {:contacts/ids #{}
+                              :contacts/user_id bid
+                              :contacts/request_received {aid accepted-request}
+                              :contacts/removed {aid b-removed}
+                              :contacts/requests_made {}}]
+      (is (= :contact_request/self (db.contacts/state-for b-accepted-contacts bid)))
       (is (= :contact_request/accepted
              (db.contacts/state-for b-accepted-contacts aid)))
       (is (= :contact_request/none
@@ -55,7 +75,9 @@
              (db.contacts/state-for b-ignored-request-contacts aid)))
       (is (= :contact_request/viewer_awaits_response
              (db.contacts/state-for b-ignored-contacts aid))
-          "Even when they've been ignored, it still looks like they await the response")))
+          "Even when they've been ignored, it still looks like they await the response")
+      (is (= :contact_request/viewer_awaits_response
+             (db.contacts/state-for b-removed-contacts aid)))))
   (testing "and we can do the same going through the database"
     (let [aid (random-uuid)
           bid (random-uuid)
@@ -358,9 +380,23 @@
                       (select-keys d-contacts (conj ks :contacts/requests_made)))))
 
         (testing "once people have contacts, we can find who they have in common"
-          (db.contacts/request-contact! ctx {:from denier-id :to accepter-id})
-          (db.contacts/decide-on-request! ctx {:from denier-id :to accepter-id
-                                               :decision :contact_request/accepted})
+          (let [response (db.contacts/apply-request! ctx {:from denier-id
+                                                          :to accepter-id
+                                                          :action :contact_request/request})
+                {:keys [from-contacts to-contacts]} response]
+            (is (= :contact_request/viewer_awaits_response
+                   (db.contacts/state-for to-contacts denier-id)))
+            (is (= :contact_request/response_pending_from_viewer
+                   (db.contacts/state-for from-contacts accepter-id))))
+
+          (let [response (db.contacts/apply-request! ctx {:from denier-id :to accepter-id
+                                                          :action :contact_request/accept})
+                {:keys [from-contacts to-contacts]} response]
+            (is (= :contact_request/accepted
+                   (db.contacts/state-for to-contacts denier-id)))
+            (is (= :contact_request/accepted
+                   (db.contacts/state-for from-contacts accepter-id))))
+
           (xtdb/sync node)
 
           (let [db (xtdb/db node)]
@@ -370,7 +406,14 @@
 
 
         (testing "and they can remove contacts"
-          (db.contacts/remove-contact! ctx {:from requester-id :to accepter-id})
+          (let [response (db.contacts/apply-request! ctx {:from requester-id
+                                                          :to accepter-id
+                                                          :action :contact_request/remove})
+                {:keys [from-contacts to-contacts]} response]
+            (is (= :contact_request/viewer_awaits_response
+                   (db.contacts/state-for to-contacts requester-id)))
+            (is (= :contact_request/viewer_awaits_response
+                   (db.contacts/state-for from-contacts accepter-id))))
           (xtdb/sync node)
 
           (let [db (xtdb/db node)

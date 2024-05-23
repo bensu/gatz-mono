@@ -61,7 +61,7 @@
   (crdt/->lww-map notifications-on clock))
 
 (defn update-user
-  ([u] (update-user u (java.util.Date.)))
+  ([u] (update-user u (Date.)))
   ([u now]
    (cond-> (merge user-defaults
                   {:user/last_active now}

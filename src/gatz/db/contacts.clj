@@ -47,6 +47,7 @@
 
 (def contact-request-state-schema
   [:enum
+   :contact_request/self
    :contact_request/none
    :contact_request/viewer_awaits_response
    :contact_request/response_pending_from_viewer
@@ -57,12 +58,16 @@
   (set (rest contact-request-state-schema)))
 
 (defn state-for [viewed-contacts viewer-id]
-  {:pre [(uuid? viewer-id)]
+  {:pre [(map? viewed-contacts) (uuid? viewer-id)]
    :post [(contains? contact-request-state %)]}
 
   (let [request-made-by-viewer (get-in viewed-contacts [:contacts/requests_received viewer-id])
-        request-received-by-viewer (get-in viewed-contacts [:contacts/requests_made viewer-id])]
+        request-received-by-viewer (get-in viewed-contacts [:contacts/requests_made viewer-id])
+        removed-by-viewed (get-in viewed-contacts [:contacts/removed viewer-id])]
     (cond
+      (= (:contacts/user_id viewed-contacts) viewer-id)
+      :contact_request/self
+
       (contains? (:contacts/ids viewed-contacts) viewer-id)
       :contact_request/accepted
 
@@ -75,6 +80,11 @@
            (= :contact_request/ignored
               (:contact_request/decision request-made-by-viewer)))
       :contact_request/viewer_awaits_response
+
+      ;; This is an asymmetry. Even though the viewer has bee removed, 
+      ;; we still tell the viewer they are waiting on for a response
+      (some? removed-by-viewed) :contact_request/viewer_awaits_response
+
 
       (and request-received-by-viewer (nil? (:contact_request/decision request-received-by-viewer)))
       :contact_request/response_pending_from_viewer
@@ -91,19 +101,20 @@
         requester-contacts (gatz.db.contacts/by-uid db from)
         receiver-contacts (gatz.db.contacts/by-uid db to)]
     (assert (uuid? id))
-    (when-not (contains? (:contacts/requests_received receiver-contacts) from)
-      (let [new-request {:contact_request/id id
-                         :contact_request/from from
-                         :contact_request/to to
-                         :contact_request/created_at now
-                         :contact_request/decided_at nil
-                         :contact_request/decision nil}]
-        [[:xtdb.api/put (-> receiver-contacts
-                            (assoc :db/doc-type :gatz/contacts)
-                            (update :contacts/requests_received assoc from new-request))]
-         [:xtdb.api/put (-> requester-contacts
-                            (assoc :db/doc-type :gatz/contacts)
-                            (update :contacts/requests_made assoc to new-request))]]))))
+    (when-not (= from to)
+      (when-not (contains? (:contacts/requests_received receiver-contacts) from)
+        (let [new-request {:contact_request/id id
+                           :contact_request/from from
+                           :contact_request/to to
+                           :contact_request/created_at now
+                           :contact_request/decided_at nil
+                           :contact_request/decision nil}]
+          [[:xtdb.api/put (-> receiver-contacts
+                              (assoc :db/doc-type :gatz/contacts)
+                              (update :contacts/requests_received assoc from new-request))]
+           [:xtdb.api/put (-> requester-contacts
+                              (assoc :db/doc-type :gatz/contacts)
+                              (update :contacts/requests_made assoc to new-request))]])))))
 
 (defn decide-on-request-txn [xtdb-ctx {:keys [args]}]
   (let [db (xtdb.api/db xtdb-ctx)
@@ -202,4 +213,34 @@
        (let [args {:from aid :to bid :now now :id (random-uuid)}]
          [[:xtdb.api/fn :gatz.db.contacts/request-contact {:args args}]
           [:xtdb.api/fn :gatz.db.contacts/decide-on-request {:args (assoc args :decision :contact_request/accepted)}]])))))
+
+(defmulti ^:private -apply-request! (fn [_ctx {:keys [action]}] action))
+
+(defmethod -apply-request! :contact_request/request
+  [ctx {:keys [to from]}]
+  (request-contact! ctx {:from from :to to}))
+
+(defmethod -apply-request! :contact_request/accept
+  [ctx {:keys [to from]}]
+  (decide-on-request! ctx {:from from :to to :decision :contact_request/accepted}))
+
+(defmethod -apply-request! :contact_request/ignore
+  [ctx {:keys [to from]}]
+  (decide-on-request! ctx {:from from :to to :decision :contact_request/ignore}))
+
+(defmethod -apply-request! :contact_request/remove
+  [ctx {:keys [to from]}]
+  (remove-contact! ctx {:from from :to to}))
+
+(defn apply-request!
+  [{:keys [biff.xtdb/node] :as ctx}
+   {:keys [from to] :as args}]
+
+  (assert (not= from to))
+
+  (let [txn (-apply-request! ctx args)
+        _ (xtdb/await-tx node (::xtdb/tx-id txn))
+        db (xtdb/db node)]
+    {:from-contacts (by-uid db from)
+     :to-contacts (by-uid db to)}))
 
