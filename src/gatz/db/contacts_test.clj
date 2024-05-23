@@ -9,7 +9,9 @@
   (testing "users start with empty contacts"
     (let [ctx (db.util-test/test-system)
           node (:biff.xtdb/node ctx)
-          ks [:contacts/user_id :contacts/ids :contacts/requests_made :contacts/requests_received]
+          ks [:contacts/user_id :contacts/ids
+              :contacts/requests_made :contacts/requests_received
+              :contacts/removed]
           requester-id (random-uuid)
           accepter-id (random-uuid)
           denier-id (random-uuid)]
@@ -31,16 +33,19 @@
               d-contacts (db.contacts/by-uid db denier-id)]
           (is-equal {:contacts/user_id requester-id
                      :contacts/ids #{}
+                     :contacts/removed {}
                      :contacts/requests_made {}
                      :contacts/requests_received {}}
                     (select-keys r-contacts ks))
           (is-equal {:contacts/user_id accepter-id
                      :contacts/ids #{}
+                     :contacts/removed {}
                      :contacts/requests_made {}
                      :contacts/requests_received {}}
                     (select-keys a-contacts ks))
           (is-equal {:contacts/user_id denier-id
                      :contacts/ids #{}
+                     :contacts/removed {}
                      :contacts/requests_made {}
                      :contacts/requests_received {}}
                     (select-keys d-contacts ks))))
@@ -60,6 +65,7 @@
                             :contact_request/decision nil}]
           (is-equal {:contacts/user_id requester-id
                      :contacts/ids #{}
+                     :contacts/removed {}
                      :contacts/requests_made {accepter-id request-made}
                      :contacts/requests_received {}}
                     (-> r-contacts
@@ -68,6 +74,7 @@
                                    select-keys contact-request-ks)))
           (is-equal {:contacts/user_id accepter-id
                      :contacts/ids #{}
+                     :contacts/removed {}
                      :contacts/requests_made {}
                      :contacts/requests_received {requester-id request-made}}
                     (-> a-contacts
@@ -76,6 +83,7 @@
                                    select-keys contact-request-ks)))
           (is-equal {:contacts/user_id denier-id
                      :contacts/ids #{}
+                     :contacts/removed {}
                      :contacts/requests_made {}
                      :contacts/requests_received {}}
                     (select-keys d-contacts ks))
@@ -98,6 +106,7 @@
                                   :contact_request/decided_at nil
                                   :contact_request/decision nil}]
               (is-equal {:contacts/user_id requester-id
+                         :contacts/removed {}
                          :contacts/ids #{}
                          :contacts/requests_made {accepter-id request-made
                                                   denier-id second-request}
@@ -109,6 +118,7 @@
                             (update-in [:contacts/requests_made denier-id]
                                        select-keys contact-request-ks)))
               (is-equal {:contacts/user_id denier-id
+                         :contacts/removed {}
                          :contacts/ids #{}
                          :contacts/requests_made {}
                          :contacts/requests_received {requester-id second-request}}
@@ -138,6 +148,7 @@
                                :contact_request/to denier-id
                                :contact_request/decision :contact_request/ignored}]
               (is-equal {:contacts/user_id requester-id
+                         :contacts/removed {}
                          :contacts/ids #{accepter-id}
                          :contacts/requests_made {accepter-id accepted-req
                                                   denier-id ignored-req}
@@ -149,6 +160,7 @@
                             (update-in [:contacts/requests_made denier-id]
                                        select-keys contact-request-ks)))
               (is-equal {:contacts/user_id accepter-id
+                         :contacts/removed {}
                          :contacts/ids #{requester-id}
                          :contacts/requests_made {}
                          :contacts/requests_received {requester-id accepted-req}}
@@ -158,6 +170,7 @@
                                        select-keys contact-request-ks)))
 
               (is-equal {:contacts/user_id denier-id
+                         :contacts/removed {}
                          :contacts/ids #{}
                          :contacts/requests_made {}
                          :contacts/requests_received {requester-id ignored-req}}
@@ -185,6 +198,7 @@
                       d-contacts (db.contacts/by-uid db denier-id)]
                   (is-equal {:contacts/user_id requester-id
                              :contacts/ids #{accepter-id}
+                             :contacts/removed {}
                              :contacts/requests_received {}
                              :contacts/requests_made {denier-id ignored-req
                                                       accepter-id accepted-req}}
@@ -197,6 +211,7 @@
 
                   (is-equal {:contacts/user_id accepter-id
                              :contacts/ids #{requester-id}
+                             :contacts/removed {}
                              :contacts/requests_made {}
                              :contacts/requests_received {requester-id accepted-req}}
                             (-> a-contacts
@@ -206,6 +221,7 @@
 
                   (is-equal {:contacts/user_id denier-id
                              :contacts/ids #{}
+                             :contacts/removed {}
                              :contacts/requests_made {}
                              :contacts/requests_received {requester-id ignored-req}}
                             (-> d-contacts
@@ -221,21 +237,45 @@
                 r-contacts (db.contacts/by-uid db requester-id)
                 ;; a-contacts (db.contacts/by-uid db accepter-id)
                 d-contacts (db.contacts/by-uid db denier-id)
-                ks [:contacts/user_id :contacts/ids]]
+                ks [:contacts/user_id :contacts/ids :contacts/removed]]
 
             (is-equal {:contacts/user_id requester-id
                        :contacts/ids #{accepter-id}
+                       :contacts/removed {}
                        :contacts/requests_received {}}
                       (select-keys r-contacts (conj ks :contacts/requests_received)))
 
             (is-equal {:contacts/user_id denier-id
                        :contacts/ids #{}
+                       :contacts/removed {}
                        :contacts/requests_made {}}
                       (select-keys d-contacts (conj ks :contacts/requests_made)))))
+        (testing "and they can remove contacts"
+          (db.contacts/remove-contact! ctx {:from requester-id :to accepter-id})
+          (xtdb/sync node)
 
-
-
-
+          (let [db (xtdb/db node)
+                ks [:contacts/user_id :contacts/ids :contacts/removed]
+                removed-ks [:contact_removed/from :contact_removed/to]
+                r-contacts (db.contacts/by-uid db requester-id)
+                a-contacts (db.contacts/by-uid db accepter-id)
+                ;; d-contacts (db.contacts/by-uid db denier-id)
+                removed-expected {:contact_removed/from requester-id
+                                  :contact_removed/to accepter-id}]
+            (is-equal {:contacts/user_id requester-id
+                       :contacts/ids #{}
+                       :contacts/removed {accepter-id removed-expected}}
+                      (-> r-contacts
+                          (select-keys ks)
+                          (update-in [:contacts/removed accepter-id]
+                                     select-keys removed-ks)))
+            (is-equal {:contacts/user_id accepter-id
+                       :contacts/ids #{}
+                       :contacts/removed {requester-id removed-expected}}
+                      (-> a-contacts
+                          (select-keys ks)
+                          (update-in [:contacts/removed requester-id]
+                                     select-keys removed-ks)))))
 
         (xtdb/sync node))
 

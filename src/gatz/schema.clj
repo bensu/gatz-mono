@@ -122,6 +122,13 @@
    [:contact_request/decision
     [:enum :contact_request/accepted :contact_request/ignored]]])
 
+(def ContactRemoved
+  [:map
+   [:contact_removed/id #'ContactRequestId]
+   [:contact_removed/from #'UserId]
+   [:contact_removed/to #'UserId]
+   [:contact_removed/created_at inst?]])
+
 (def UserContacts
   [:map
    [:xt/id :uuid] ;; never used
@@ -130,6 +137,7 @@
    [:contacts/created_at inst?]
    [:contacts/updated_at inst?]
    [:contacts/ids [:set #'UserId]]
+   [:contacts/removed [:map-of UserId ContactRemoved]]
    [:contacts/requests_received [:map-of UserId ContactRequest]]
    [:contacts/requests_made [:map-of UserId ContactRequest]]])
 

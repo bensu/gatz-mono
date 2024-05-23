@@ -16,6 +16,7 @@
      :contacts/user_id uid
      :contacts/requests_received {}
      :contacts/requests_made {}
+     :contacts/removed {}
      :contacts/ids contact-ids}))
 
 ;; These are only created in gatz.db.user/create-user!
@@ -73,6 +74,25 @@
                                       (update :contacts/requests_made assoc to new-request))
                             accepted? (update :contacts/ids conj to))]])))))
 
+(defn remove-contact-txn [xtdb-ctx {:keys [args]}]
+  (let [db (xtdb.api/db xtdb-ctx)
+        {:keys [from to now id]} args
+        remover-contacts (gatz.db.contacts/by-uid db from)
+        removed-contacts (gatz.db.contacts/by-uid db to)]
+    (when (contains? (:contacts/ids remover-contacts) to)
+      (assert (contains? (:contacts/ids removed-contacts) from)
+              "They should have each other")
+      (let [removed-log {:contact_removed/id id
+                         :contact_removed/from from
+                         :contact_removed/to to
+                         :contact_removed/created_at now}]
+        [[:xtdb.api/put (-> remover-contacts
+                            (update :contacts/removed assoc to removed-log)
+                            (update :contacts/ids disj to))]
+         [:xtdb.api/put (-> removed-contacts
+                            (update :contacts/removed assoc from removed-log)
+                            (update :contacts/ids disj from))]]))))
+
 (def ^{:doc "This function will be stored in the db which is why it is an expression"}
   request-contact-expr
   '(fn request-contact-fn [ctx args]
@@ -95,9 +115,20 @@
     ;; TODO: check if they already have a request?
     (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.contacts/decide-on-request {:args args}]])))
 
+(def ^{:doc "This function will be stored in the db which is why it is an expression"}
+  remove-contact-expr
+  '(fn remove-contact-fn [ctx args]
+     (gatz.db.contacts/remove-contact-txn ctx args)))
+
+(defn remove-contact! [ctx {:keys [from to]}]
+  (let [args {:id (random-uuid) :from from :to to :now (Date.)}]
+    ;; TODO: check if they already have a request?
+    (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.contacts/remove-contact {:args args}]])))
+
 (def tx-fns
   {:gatz.db.contacts/request-contact request-contact-expr
-   :gatz.db.contacts/decide-on-request decide-on-request-expr})
+   :gatz.db.contacts/decide-on-request decide-on-request-expr
+   :gatz.db.contacts/remove-contact remove-contact-expr})
 
 
 (defn forced-contact-txn
