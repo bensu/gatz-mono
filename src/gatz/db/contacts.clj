@@ -32,21 +32,29 @@
       uid)))
 
 (defn in-common
+  [a-contacts b-contacts]
+  {:post [(set? %) (every? uuid? %)]}
+  (set/intersection (:contacts/ids a-contacts)
+                    (:contacts/ids b-contacts)))
+
+(defn get-in-common
   "Finds the common contacts between two users. Returns [:set uuid?]"
   [db a-uid b-uid]
-  {:pre [(uuid? a-uid) (uuid? b-uid)]
-   :post [(set? %) (every? uuid? %)]}
+  {:pre [(uuid? a-uid) (uuid? b-uid)]}
   (let [a-contacts (by-uid db a-uid)
         b-contacts (by-uid db b-uid)]
-    (set/intersection (:contacts/ids a-contacts)
-                      (:contacts/ids b-contacts))))
+    (in-common a-contacts b-contacts)))
+
+(def contact-request-state-schema
+  [:enum
+   :contact_request/none
+   :contact_request/viewer_awaits_response
+   :contact_request/response_pending_from_viewer
+   :contact_request/viewer_ignored_response
+   :contact_request/accepted])
 
 (def contact-request-state
-  #{:contact_request/none
-    :contact_request/viewer_awaits_response
-    :contact_request/response_pending_from_viewer
-    :contact_request/viewer_ignored_response
-    :contact_request/accepted})
+  (set (rest contact-request-state-schema)))
 
 (defn state-for [viewed-contacts viewer-id]
   {:pre [(uuid? viewer-id)]

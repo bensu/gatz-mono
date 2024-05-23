@@ -4,6 +4,7 @@
             [clojure.data.json :as json]
             [crdt.core :as crdt]
             [gatz.auth :as auth]
+            [gatz.api.contacts :as api.contacts]
             [gatz.api.discussion :as api.discussion]
             [gatz.api.media :as api.media]
             [gatz.api.message :as api.message]
@@ -265,6 +266,8 @@
 
                  ["/feed/posts" {:get api.discussion/feed}]
                  ["/feed/active" {:get api.discussion/active}]
+
+                 ["/contact" {:get api.contacts/get-contact}]
 
 
                  ["/discussions" {:get  api.discussion/get-full-discussions
