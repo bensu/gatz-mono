@@ -19,19 +19,12 @@
   [:map
    [:id uuid?]])
 
-(def contact-ks [:xt/id :user/name :user/avatar])
-
-(def ContactResponse
-  (mu/select-keys schema/User contact-ks))
-
-(defn ->contact [u] (select-keys u contact-ks))
-
 (def get-contact-response
   [:map
-   [:contact ContactResponse]
+   [:contact schema/ContactResponse]
    [:contact_request_state [:enum db.contacts/contact-request-state-schema]]
    [:in_common [:map
-                [:contacts [:vec ContactResponse]]]]])
+                [:contacts [:vec schema/ContactResponse]]]]])
 
 (defn strict-str->uuid [s]
   (let [out (mt/-string->uuid s)]
@@ -49,9 +42,9 @@
             my-contacts (db.contacts/by-uid db user-id)
             in-common-uids (db.contacts/in-common my-contacts viewed-contacts)
             users-in-common (mapv (partial db.user/by-id db) in-common-uids)]
-        (json-response {:contact  (-> viewed-user crdt.user/->value ->contact)
+        (json-response {:contact (-> viewed-user crdt.user/->value db.contacts/->contact)
                         :contact_request_state (db.contacts/state-for viewed-contacts user-id)
-                        :in_common {:contacts (mapv #(-> % crdt.user/->value ->contact)
+                        :in_common {:contacts (mapv #(-> % crdt.user/->value db.contacts/->contact)
                                                     users-in-common)}}))
 
       (err-resp "invalid_params" "Invalid params"))))

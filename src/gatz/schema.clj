@@ -141,6 +141,11 @@
    [:contacts/requests_received [:map-of UserId ContactRequest]]
    [:contacts/requests_made [:map-of UserId ContactRequest]]])
 
+(def contact-ks [:xt/id :user/name :user/avatar])
+
+(def ContactResponse
+  (mu/select-keys User contact-ks))
+
 ;; ====================================================================== 
 ;; Message & Media
 

@@ -4,6 +4,7 @@
             [gatz.auth :as auth]
             [gatz.crdt.user :as crdt.user]
             [gatz.db :as db]
+            [gatz.db.contacts :as db.contacts]
             [gatz.db.user :as db.user]
             [gatz.schema :as schema]
             [malli.transform :as mt]
@@ -25,8 +26,19 @@
 ;; ======================================================================  
 ;; Endpoints
 
-(defn get-me [{:keys [auth/user] :as _ctx}]
-  (json-response {:user (crdt.user/->value user)}))
+(def get-me-response
+  [:map
+   [:user schema/User]
+   [:contacts [:vec schema/ContactResponse]]])
+
+(defn get-me [{:keys [auth/user auth/user-id biff/db] :as _ctx}]
+  (let [contacts (db.contacts/by-uid db user-id)]
+    (json-response {:user (crdt.user/->value user)
+                    :contacts (mapv (fn [uid]
+                                      (-> (db.user/by-id db uid)
+                                          crdt.user/->value
+                                          db.contacts/->contact))
+                                    (:contacts/ids contacts))})))
 
 (defn get-user
   [{:keys [params biff/db] :as _ctx}]

@@ -1,8 +1,11 @@
 (ns gatz.db.contacts
   (:require [clojure.set :as set]
             [com.biffweb :as biff :refer [q]]
+            [gatz.schema :as schema]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
+
+(defn ->contact [u] (select-keys u schema/contact-ks))
 
 (defn new-contacts [{:keys [id uid contact-ids now]}]
   {:pre [(or (nil? id) (uuid? id))
