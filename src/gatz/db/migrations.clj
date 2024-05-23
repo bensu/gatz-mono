@@ -4,15 +4,17 @@
             [clojure.pprint :as pp]
             [crdt.core :as crdt]
             [gatz.db :refer :all]
+            [gatz.db.contacts :as db.contacts]
+            [gatz.db.discussion :as db.discussion]
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
-            [gatz.db.discussion :as db.discussion]
             [gatz.crdt.discussion :as crdt.discussion]
             [gatz.crdt.user :as crdt.user]
             [gatz.schema :as schema]
             [malli.core :as malli]
             [com.biffweb :as biff :refer [q]]
-            [xtdb.api :as xtdb]))
+            [xtdb.api :as xtdb])
+  (:import [java.util Date]))
 
 (def good-users
   {"sbensu"  "+12222222222"
@@ -437,3 +439,32 @@
 
   (add-active-members! -ctx))
 
+
+(defn add-empty-contacts! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        now (Date.)
+        uids (db.user/all-ids db)
+        txns (vec (keep
+                   (fn [uid]
+                     (let [contacts (db.contacts/by-uid db uid)]
+                       (when (nil? contacts)
+                         (-> (db.user/new-contacts-txn {:uid uid :now now})
+                             (dissoc :db/op)))))
+                   uids))]
+    (biff/submit-tx ctx txns)))
+
+(defn make-everybody-contacts! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        now (Date.)
+        uids (db.user/all-ids db)
+        uid-pairs (->> (for [aid uids
+                             bid uids]
+                         (when-not (= aid bid)
+                           #{aid bid}))
+                       (remove nil?)
+                       (set)
+                       (mapv vec))
+        txns (mapcat (fn [[a b]]
+                       (db.contacts/forced-contact-txn db a b {:now now}))
+                     uid-pairs)]
+    (biff/submit-tx ctx (vec txns))))

@@ -34,7 +34,7 @@
         {:keys [id from to now]} args
         requester-contacts (gatz.db.contacts/by-uid db from)
         receiver-contacts (gatz.db.contacts/by-uid db to)]
-
+    (assert (uuid? id))
     (when-not (contains? (:contacts/requests_received receiver-contacts) from)
       (let [new-request {:contact_request/id id
                          :contact_request/from from
@@ -99,3 +99,20 @@
   {:gatz.db.contacts/request-contact request-contact-expr
    :gatz.db.contacts/decide-on-request decide-on-request-expr})
 
+
+(defn forced-contact-txn
+  "Used only for migrations"
+  ([db aid bid]
+   (forced-contact-txn db aid bid {:now (Date.)}))
+  ([db aid bid {:keys [now]}]
+   {:pre [(uuid? aid) (uuid? bid) (inst? now)]}
+
+   (let [a-contacts (by-uid db aid)
+         b-contacts (by-uid db bid)]
+     (assert (= (contains? (:contacts/ids a-contacts) bid)
+                (contains? (:contacts/ids b-contacts) aid))
+             "There states are consistent. They either have each other or not")
+     (when-not (contains? (:contacts/ids a-contacts) bid)
+       (let [args {:from aid :to bid :now now :id (random-uuid)}]
+         [[:xtdb.api/fn :gatz.db.contacts/request-contact {:args args}]
+          [:xtdb.api/fn :gatz.db.contacts/decide-on-request {:args (assoc args :decision :contact_request/accepted)}]])))))
