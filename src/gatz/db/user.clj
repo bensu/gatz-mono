@@ -87,7 +87,8 @@
 
   {:pre [(crdt.user/valid-username? username) (string? phone)]}
 
-  (let [user (crdt.user/new-user {:id id
+  (let [id (or id (random-uuid))
+        user (crdt.user/new-user {:id id
                                   :phone phone
                                   :username username
                                   :now now})]
