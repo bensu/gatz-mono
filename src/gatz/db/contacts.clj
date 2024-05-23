@@ -1,5 +1,6 @@
 (ns gatz.db.contacts
-  (:require [com.biffweb :as biff :refer [q]]
+  (:require [clojure.set :as set]
+            [com.biffweb :as biff :refer [q]]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
@@ -29,6 +30,16 @@
            :where [[c :db/type :gatz/contacts]
                    [c :contacts/user_id uid]]}
       uid)))
+
+(defn in-common
+  "Finds the common contacts between two users. Returns [:set uuid?]"
+  [db a-uid b-uid]
+  {:pre [(uuid? a-uid) (uuid? b-uid)]
+   :post [(set? %) (every? uuid? %)]}
+  (let [a-contacts (by-uid db a-uid)
+        b-contacts (by-uid db b-uid)]
+    (set/intersection (:contacts/ids a-contacts)
+                      (:contacts/ids b-contacts))))
 
 (defn request-contact-txn [xtdb-ctx {:keys [args]}]
   (let [db (xtdb.api/db xtdb-ctx)

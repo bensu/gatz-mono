@@ -48,7 +48,10 @@
                      :contacts/removed {}
                      :contacts/requests_made {}
                      :contacts/requests_received {}}
-                    (select-keys d-contacts ks))))
+                    (select-keys d-contacts ks))
+          (is (empty? (db.contacts/in-common db requester-id accepter-id)))
+          (is (empty? (db.contacts/in-common db requester-id denier-id)))
+          (is (empty? (db.contacts/in-common db accepter-id denier-id)))))
       (testing "somebody can request to be a contact"
         (db.contacts/request-contact! ctx {:from requester-id :to accepter-id})
         (xtdb/sync node)
@@ -88,6 +91,11 @@
                      :contacts/requests_received {}}
                     (select-keys d-contacts ks))
 
+          (is (empty? (db.contacts/in-common db requester-id accepter-id)))
+          (is (empty? (db.contacts/in-common db requester-id denier-id)))
+          (is (empty? (db.contacts/in-common db accepter-id denier-id)))
+
+
           (testing "you can retry and it you get the original result"
             (db.contacts/request-contact! ctx {:from requester-id :to accepter-id})
             (xtdb/sync node)
@@ -125,7 +133,11 @@
                         (-> d-contacts
                             (select-keys ks)
                             (update-in [:contacts/requests_received requester-id]
-                                       select-keys contact-request-ks)))))
+                                       select-keys contact-request-ks)))
+
+              (is (empty? (db.contacts/in-common db requester-id accepter-id)))
+              (is (empty? (db.contacts/in-common db requester-id denier-id)))
+              (is (empty? (db.contacts/in-common db accepter-id denier-id)))))
 
           (testing "and those requests can be accepted or denied"
             (db.contacts/decide-on-request! ctx {:from requester-id :to accepter-id
@@ -178,6 +190,11 @@
                             (select-keys ks)
                             (update-in [:contacts/requests_received requester-id]
                                        select-keys contact-request-ks)))
+
+              (is (empty? (db.contacts/in-common db requester-id accepter-id)))
+              (is (empty? (db.contacts/in-common db requester-id denier-id)))
+              (is (empty? (db.contacts/in-common db accepter-id denier-id)))
+
               (testing "accepting throws an error if you try the opposite"
                 (is (thrown? clojure.lang.ExceptionInfo
                              (db.contacts/decide-on-request! ctx {:from requester-id :to accepter-id
@@ -250,6 +267,19 @@
                        :contacts/removed {}
                        :contacts/requests_made {}}
                       (select-keys d-contacts (conj ks :contacts/requests_made)))))
+
+        (testing "once people have contacts, we can find who they have in common"
+          (db.contacts/request-contact! ctx {:from denier-id :to accepter-id})
+          (db.contacts/decide-on-request! ctx {:from denier-id :to accepter-id
+                                               :decision :contact_request/accepted})
+          (xtdb/sync node)
+
+          (let [db (xtdb/db node)]
+            (is (empty? (db.contacts/in-common db requester-id accepter-id)))
+            (is (empty? (db.contacts/in-common db accepter-id denier-id)))
+            (is (= #{accepter-id} (db.contacts/in-common db requester-id denier-id)))))
+
+
         (testing "and they can remove contacts"
           (db.contacts/remove-contact! ctx {:from requester-id :to accepter-id})
           (xtdb/sync node)
@@ -270,12 +300,17 @@
                           (update-in [:contacts/removed accepter-id]
                                      select-keys removed-ks)))
             (is-equal {:contacts/user_id accepter-id
-                       :contacts/ids #{}
+                       :contacts/ids #{denier-id}
                        :contacts/removed {requester-id removed-expected}}
                       (-> a-contacts
                           (select-keys ks)
                           (update-in [:contacts/removed requester-id]
                                      select-keys removed-ks)))
+
+            (is (empty? (db.contacts/in-common db requester-id accepter-id)))
+            (is (empty? (db.contacts/in-common db requester-id denier-id)))
+            (is (empty? (db.contacts/in-common db accepter-id denier-id)))
+
             (testing "and removing does nothing if you try twice"
               (db.contacts/remove-contact! ctx {:from requester-id :to accepter-id})
               (xtdb/sync node)
