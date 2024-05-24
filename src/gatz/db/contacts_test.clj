@@ -187,6 +187,9 @@
     (let [ctx (db.util-test/test-system)
           node (:biff.xtdb/node ctx)
           ks [:contacts/user_id :contacts/ids]
+          contact-request-ks [:contact_request/from
+                              :contact_request/to
+                              :contact_request/state]
           requester-id (random-uuid)
           accepter-id (random-uuid)
           denier-id (random-uuid)]
@@ -220,7 +223,13 @@
           (is (empty? (db.contacts/get-in-common db accepter-id denier-id)))
           (is (empty? (db.contacts/pending-requests-to db requester-id)))
           (is (empty? (db.contacts/pending-requests-to db accepter-id)))
-          (is (empty? (db.contacts/pending-requests-to db denier-id)))))
+          (is (empty? (db.contacts/pending-requests-to db denier-id)))
+
+          (doall
+           (for [from [requester-id accepter-id denier-id]
+                 to [requester-id accepter-id denier-id]
+                 :when (not= from to)]
+             (is (empty? (db.contacts/requests-from-to db from to)))))))
       (testing "somebody can request to be a contact"
         (db.contacts/apply-request! (assoc ctx :auth/user-id requester-id)
                                     {:them accepter-id :action :contact_request/requested})
@@ -261,14 +270,19 @@
           (is (empty? (db.contacts/pending-requests-to db requester-id)))
           (is (empty? (db.contacts/pending-requests-to db denier-id)))
 
-          (testing "you can retry and it you get the original result"
-            (db.contacts/apply-request! (assoc ctx :auth/user-id requester-id)
-                                        {:them accepter-id :action :contact_request/requested})
-            (xtdb/sync node)
-            (is (= 1 (count (db.contacts/pending-requests-to db accepter-id))))
-            (is (= all-pending-to-a (db.contacts/pending-requests-to db accepter-id)))
-            (is-equal a-contacts (db.contacts/by-uid db accepter-id))
-            (is-equal r-contacts (db.contacts/by-uid db requester-id)))
+          (doall
+           (for [from [accepter-id denier-id]
+                 to [requester-id accepter-id denier-id]
+                 :when (not= from to)]
+             (is (empty? (db.contacts/requests-from-to db from to)))))
+
+          (is (empty? (db.contacts/requests-from-to db requester-id denier-id)))
+          (is (= all-pending-to-a (db.contacts/requests-from-to db requester-id accepter-id)))
+
+          (testing "if you retry, you get an error"
+            (is (thrown? clojure.lang.ExceptionInfo
+                         (db.contacts/apply-request! (assoc ctx :auth/user-id requester-id)
+                                                     {:them accepter-id :action :contact_request/requested}))))
 
           (testing "to multiple people"
             (db.contacts/apply-request! (assoc ctx :auth/user-id requester-id)
@@ -297,7 +311,16 @@
 
               (is (empty? (db.contacts/get-in-common db requester-id accepter-id)))
               (is (empty? (db.contacts/get-in-common db requester-id denier-id)))
-              (is (empty? (db.contacts/get-in-common db accepter-id denier-id)))))
+              (is (empty? (db.contacts/get-in-common db accepter-id denier-id)))
+
+              (doall
+               (for [from [accepter-id denier-id]
+                     to [requester-id accepter-id denier-id]
+                     :when (not= from to)]
+                 (is (empty? (db.contacts/requests-from-to db from to)))))
+
+              (is (= denier-pending (db.contacts/requests-from-to db requester-id denier-id)))
+              (is (= all-pending-to-a (db.contacts/requests-from-to db requester-id accepter-id)))))
 
           (testing "and those requests can be accepted or denied"
             (db.contacts/apply-request! (assoc ctx :auth/user-id accepter-id)
@@ -310,9 +333,6 @@
                   r-contacts (db.contacts/by-uid db requester-id)
                   a-contacts (db.contacts/by-uid db accepter-id)
                   d-contacts (db.contacts/by-uid db denier-id)
-                  contact-request-ks [:contact_request/from
-                                      :contact_request/to
-                                      :contact_request/state]
                   accepted-req {:contact_request/from requester-id
                                 :contact_request/to accepter-id
                                 :contact_request/state :contact_request/accepted}
@@ -320,14 +340,11 @@
                                :contact_request/to denier-id
                                :contact_request/state :contact_request/ignored}]
 
-              (is-equal {:contacts/user_id requester-id
-                         :contacts/ids #{accepter-id}}
+              (is-equal {:contacts/user_id requester-id :contacts/ids #{accepter-id}}
                         (-> r-contacts (select-keys ks)))
-              (is-equal {:contacts/user_id accepter-id
-                         :contacts/ids #{requester-id}}
+              (is-equal {:contacts/user_id accepter-id :contacts/ids #{requester-id}}
                         (-> a-contacts (select-keys ks)))
-              (is-equal {:contacts/user_id denier-id
-                         :contacts/ids #{}}
+              (is-equal {:contacts/user_id denier-id :contacts/ids #{}}
                         (-> d-contacts (select-keys ks)))
 
               (is (empty? (db.contacts/get-in-common db requester-id accepter-id)))
@@ -338,6 +355,12 @@
               (is (empty? (db.contacts/pending-requests-to db accepter-id)))
               (is (empty? (db.contacts/pending-requests-to db denier-id)))
 
+              (doall
+               (for [from [accepter-id denier-id]
+                     to [requester-id accepter-id denier-id]
+                     :when (not= from to)]
+                 (is (empty? (db.contacts/requests-from-to db from to)))))
+
               (is-equal accepted-req
                         (-> (db.contacts/requests-from-to db requester-id accepter-id)
                             first
@@ -346,6 +369,7 @@
                         (-> (db.contacts/requests-from-to db requester-id denier-id)
                             first
                             (select-keys contact-request-ks)))
+
               (testing "it does nothing if you try again"
                 (db.contacts/apply-request! (assoc ctx :auth/user-id accepter-id)
                                             {:them requester-id :action :contact_request/accepted})
@@ -388,77 +412,63 @@
                        (db.contacts/apply-request! (assoc ctx :auth/user-id requester-id)
                                                    {:them denier-id :action :contact_request/ignored}))))
 
-        #_(testing "once people have contacts, we can find who they have in common"
-            (let [response (db.contacts/apply-request! (assoc ctx :auth/user-id denier-id)
-                                                       {:them accepter-id
-                                                        :action :contact_request/requested})
-                  {:keys [my-contacts their-contacts]} response]
-              (is (= :contact_request/viewer_awaits_response
-                     (db.contacts/state-for their-contacts denier-id)))
-              (is (= :contact_request/response_pending_from_viewer
-                     (db.contacts/state-for my-contacts accepter-id))))
+        (testing "once people have contacts, we can find who they have in common"
+          (db.contacts/apply-request! (assoc ctx :auth/user-id denier-id)
+                                      {:them accepter-id :action :contact_request/requested})
+          (db.contacts/apply-request! (assoc ctx :auth/user-id accepter-id)
+                                      {:them denier-id :action :contact_request/accepted})
+          (xtdb/sync node)
 
-            (let [response (db.contacts/apply-request! (assoc ctx :auth/user-id accepter-id)
-                                                       {:them denier-id
-                                                        :action :contact_request/accepted})
-                  {:keys [my-contacts their-contacts]} response]
-              (is (= :contact_request/accepted
-                     (db.contacts/state-for my-contacts denier-id)))
-              (is (= :contact_request/accepted
-                     (db.contacts/state-for their-contacts accepter-id))))
+          (let [db (xtdb/db node)]
+            (is (= #{accepter-id} (:contacts/ids (db.contacts/by-uid db requester-id))))
+            (is (= #{requester-id denier-id} (:contacts/ids (db.contacts/by-uid db accepter-id))))
+            (is (= #{accepter-id} (:contacts/ids (db.contacts/by-uid db denier-id))))
+            (is (empty? (db.contacts/get-in-common db requester-id accepter-id)))
+            (is (empty? (db.contacts/get-in-common db accepter-id denier-id)))
+            (is (= #{accepter-id} (db.contacts/get-in-common db requester-id denier-id)))
 
-            (xtdb/sync node)
+            (doall
+             (for [from [accepter-id]
+                   to [requester-id denier-id]]
+               (is (empty? (db.contacts/requests-from-to db from to)))))))
+        (testing "and they can remove contacts"
+          (db.contacts/apply-request! (assoc ctx :auth/user-id accepter-id)
+                                      {:them requester-id
+                                       :action :contact_request/removed})
+          (xtdb/sync node)
 
-            (let [db (xtdb/db node)]
-              (is (empty? (db.contacts/get-in-common db requester-id accepter-id)))
-              (is (empty? (db.contacts/get-in-common db accepter-id denier-id)))
-              (is (= #{accepter-id} (db.contacts/get-in-common db requester-id denier-id)))))
-
-
-        #_(testing "and they can remove contacts"
-            (let [response (db.contacts/apply-request! (assoc ctx :auth/user-id accepter-id)
-                                                       {:them requester-id
-                                                        :action :contact_request/removed})
-                  {:keys [from-contacts to-contacts]} response]
-              (is (= :contact_request/viewer_awaits_response
-                     (db.contacts/state-for to-contacts requester-id)))
-              (is (= :contact_request/viewer_awaits_response
-                     (db.contacts/state-for from-contacts accepter-id))))
-            (xtdb/sync node)
-
-            (let [db (xtdb/db node)
-                  ks [:contacts/user_id :contacts/ids :contacts/removed]
-                  removed-ks [:contact_removed/from :contact_removed/to]
-                  r-contacts (db.contacts/by-uid db requester-id)
-                  a-contacts (db.contacts/by-uid db accepter-id)
+          (let [db (xtdb/db node)
+                ks [:contacts/user_id :contacts/ids :contacts/removed]
+                r-contacts (db.contacts/by-uid db requester-id)
+                a-contacts (db.contacts/by-uid db accepter-id)
                 ;; d-contacts (db.contacts/by-uid db denier-id)
-                  removed-expected {:contact_removed/from requester-id
-                                    :contact_removed/to accepter-id}]
-              (is-equal {:contacts/user_id requester-id
-                         :contacts/ids #{}
-                         :contacts/removed {accepter-id removed-expected}}
-                        (-> r-contacts
-                            (select-keys ks)
-                            (update-in [:contacts/removed accepter-id]
-                                       select-keys removed-ks)))
-              (is-equal {:contacts/user_id accepter-id
-                         :contacts/ids #{denier-id}
-                         :contacts/removed {requester-id removed-expected}}
-                        (-> a-contacts
-                            (select-keys ks)
-                            (update-in [:contacts/removed requester-id]
-                                       select-keys removed-ks)))
+                removed-expected {:contact_request/from requester-id
+                                  :contact_request/to accepter-id
+                                  :contact_request/state :contact_request/removed}
+                removed-request (db.contacts/requests-from-to db requester-id accepter-id)]
+            (is (= 1 (count removed-request)))
+            (is (= :contact_request/none
+                   (db.contacts/state-for (first removed-request) requester-id)))
+            (is (= :contact_request/none
+                   (db.contacts/state-for (first removed-request) accepter-id)))
 
-              (is (empty? (db.contacts/get-in-common db requester-id accepter-id)))
-              (is (empty? (db.contacts/get-in-common db requester-id denier-id)))
-              (is (empty? (db.contacts/get-in-common db accepter-id denier-id)))
+            (is-equal removed-expected
+                      (select-keys (first removed-request) contact-request-ks))
 
-              (testing "and removing does nothing if you try twice"
-                (db.contacts/remove-contact! ctx {:from requester-id :to accepter-id})
-                (xtdb/sync node)
-                (let [db-after (xtdb/db node)]
-                  (is (= r-contacts (db.contacts/by-uid db-after requester-id)))
-                  (is (= a-contacts (db.contacts/by-uid db-after accepter-id)))))))
+            (is-equal {:contacts/user_id requester-id :contacts/ids #{}}
+                      (-> r-contacts (select-keys ks)))
+            (is-equal {:contacts/user_id accepter-id :contacts/ids #{denier-id}}
+                      (-> a-contacts (select-keys ks)))
+
+            (is (empty? (db.contacts/get-in-common db requester-id accepter-id)))
+            (is (empty? (db.contacts/get-in-common db requester-id denier-id)))
+            (is (empty? (db.contacts/get-in-common db accepter-id denier-id)))
+
+            (testing "and removing again throws an error"
+              (is (thrown? clojure.lang.ExceptionInfo
+                           (db.contacts/apply-request! (assoc ctx :auth/user-id accepter-id)
+                                                       {:them requester-id
+                                                        :action :contact_request/removed}))))))
 
         (xtdb/sync node))
 

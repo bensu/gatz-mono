@@ -196,33 +196,34 @@
 (defn requests-from-to [db from to]
   {:pre [(uuid? from) (uuid? to)]}
   (q db '{:find (pull cr [*])
-          :in [to]
+          :in [to from]
           :where [[cr :db/type :gatz/contact_request]
                   [cr :contact_request/to to]
                   [cr :contact_request/from from]]}
-     to))
+     to from))
+
+(defn current? [cr]
+  (not (= :contact_request/removed (:contact_request/state cr))))
 
 (defn new-contact-request-txn [ctx {:keys [args]}]
   (let [db (xtdb.api/db ctx)
         {:keys [from to id now]} args
         contact-request (new-contact-request args)
-        pending-requests (->> (concat
+        current-requests (->> (concat
                                (requests-from-to db from to)
                                (requests-from-to db to from))
-                              (remove #(= :contact_request/removed (:contact_request/state %))))]
+                              (filter current?))]
+
+    (assert (empty? current-requests))
     ;; Here we could be smarter and:
     ;; - If the requester has a pending request for them, 
     ;;   then it means both sides want to be contacts
-    (when (empty? pending-requests)
-      [[:xtdb.api/put (-> contact-request
-                          (assoc :db/doc-type :gatz/contact_request))]])))
+    [[:xtdb.api/put (-> contact-request
+                        (assoc :db/doc-type :gatz/contact_request))]]))
 
 (def new-contact-request-expr
   '(fn new-contact-request-fn [ctx args]
      (gatz.db.contacts/new-contact-request-txn ctx args)))
-
-(defn current? [cr]
-  (not (= :contact_request/removed (:contact_request/state cr))))
 
 (defn transition-to-txn [ctx {:keys [args]}]
   (let [db (xtdb.api/db ctx)
@@ -231,10 +232,11 @@
         _ (assert (uuid? to))
         _ (assert (uuid? from))
         _ (assert (inst? now))
+        _ (assert (some? state))
         current-requests (->> (requests-from-to db from to) (filter current?))
         _ (assert (= 1 (count current-requests)))
         current-request (first current-requests)]
-    (when-not (= (:contact_request/state current-request) state)
+    (when-not (= state (:contact_request/state current-request))
       (assert (can-transition? current-request {:by by :state state}))
       (let [new-contact-request (-> current-request
                                     (transition-to {:by by :state state :now now})
