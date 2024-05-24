@@ -336,3 +336,16 @@
      '{:find  d
        :where [[d :db/type :gatz/discussion]]}))
 
+(defn posts-in-common [db aid bid]
+  {:pre [(uuid? aid) (uuid? bid)]
+   :post [(vector? %) (every? uuid? %)]}
+  (->> (q db '{:find [did created-at]
+               :in [aid bid]
+               :limit 5
+               :order-by [[created-at :desc]]
+               :where [[did :db/type :gatz/discussion]
+                       [did :discussion/members aid]
+                       [did :discussion/members bid]
+                       [did :discussion/created_at created-at]]}
+          aid bid)
+       (mapv first)))

@@ -263,6 +263,7 @@
                (db.discussion/posts-for-user db user-id {:older-than-ts older-than})
                (db.discussion/posts-for-user db user-id))
         ds (map (partial db/discussion-by-id db) dids)
+        ;; TODO: only send the users that are in the discussions
         users (db.user/all-users db)]
     (json-response {:discussions (mapv crdt.discussion/->value ds)
                     :users (mapv crdt.user/->value users)

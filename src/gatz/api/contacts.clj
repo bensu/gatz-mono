@@ -1,10 +1,11 @@
 (ns gatz.api.contacts
   (:require [clojure.data.json :as json]
+            [gatz.crdt.discussion :as crdt.discussion]
             [gatz.db.contacts :as db.contacts]
+            [gatz.db.discussion :as db.discussion]
             [gatz.db.user :as db.user]
             [gatz.crdt.user :as crdt.user]
             [gatz.schema :as schema]
-            [malli.util :as mu]
             [malli.transform :as mt]))
 
 (defn json-response [body]
@@ -22,9 +23,12 @@
 (def get-contact-response
   [:map
    [:contact schema/ContactResponse]
-   [:contact_request_state [:enum db.contacts/contact-request-state-schema]]
+   [:contact_request_state [:enum schema/ContactRequestState]]
    [:in_common [:map
-                [:contacts [:vec schema/ContactResponse]]]]])
+                [:contacts [:vec schema/ContactResponse]]
+                #_[:feed [:map
+                          [:users [:vec schema/User]]
+                          [:discussion [:vec schema/Discussion]]]]]]])
 
 (defn strict-str->uuid [s]
   (let [out (mt/-string->uuid s)]
@@ -41,11 +45,25 @@
             viewed-contacts (db.contacts/by-uid db id)
             my-contacts (db.contacts/by-uid db user-id)
             in-common-uids (db.contacts/in-common my-contacts viewed-contacts)
-            users-in-common (mapv (partial db.user/by-id db) in-common-uids)]
-        (json-response {:contact (-> viewed-user crdt.user/->value db.contacts/->contact)
-                        :contact_request_state (db.contacts/state-for viewed-contacts user-id)
-                        :in_common {:contacts (mapv #(-> % crdt.user/->value db.contacts/->contact)
-                                                    users-in-common)}}))
+            contacts-in-common (->> in-common-uids
+                                    (map (partial db.user/by-id db))
+                                    (mapv #(-> % crdt.user/->value db.contacts/->contact)))
+            ;; posts-in-common (->> (db.discussion/posts-in-common db user-id id)
+            ;;                      (map (partial db.discussion/by-id db))
+            ;;                      (mapv crdt.discussion/->value))
+            ;; users (->> posts-in-common
+            ;;            (mapcat :discussion/members)
+            ;;            set
+            ;;            (map (partial db.user/by-id db))
+            ;;            (mapv crdt.user/->value))
+            ]
+        (json-response
+         {:contact (-> viewed-user crdt.user/->value db.contacts/->contact)
+          :contact_request_state (db.contacts/state-for viewed-contacts user-id)
+          :in_common {:contacts contacts-in-common
+                      ;; :feed {:users users
+                      ;;        :discussions posts-in-common}
+                      }}))
 
       (err-resp "invalid_params" "Invalid params"))))
 
