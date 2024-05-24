@@ -376,3 +376,6 @@
        (let [args {:from aid :to bid :now now}]
          [[:xtdb.api/fn :gatz.db.contacts/add-contacts {:args args}]])))))
 
+(defn force-contacts!
+  [{:keys [biff.xtdb/node] :as ctx} aid bid]
+  (biff/submit-tx ctx (forced-contact-txn (xtdb/db node) aid bid)))

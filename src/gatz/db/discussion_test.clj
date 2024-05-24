@@ -206,6 +206,61 @@
                       (select-fields (crdt.discussion/->value final))))
           (.close node))))))
 
+(deftest post-to-contacts
+  (testing "you can only posts to your own contacts"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (assoc ctx :biff/db (xtdb/db node)
+                           :auth/user-id uid :auth/cid uid))
+          now (Date.)
+          poster-id (random-uuid)
+          contact-id (random-uuid)
+          stranger-id (random-uuid)]
+      (db.user/create-user!
+       ctx {:id poster-id :username "poster_000" :phone "+14159499000" :now now})
+      (db.user/create-user!
+       ctx {:id contact-id :username "commenter_000" :phone "+14159499001" :now now})
+      (db.user/create-user!
+       ctx {:id stranger-id :username "stranger_000" :phone "+14159499002" :now now})
+      (xtdb/sync node)
+
+      (testing "so when we post to strangers it fails"
+        (is (thrown? java.lang.AssertionError
+                     (db/create-discussion-with-message!
+                      (get-ctx poster-id)
+                      {:did (random-uuid) :selected_users #{contact-id}
+                       :text "Failed" :now now})))
+        (is (thrown? java.lang.AssertionError
+                     (db/create-discussion-with-message!
+                      (get-ctx poster-id)
+                      {:did (random-uuid) :selected_users #{contact-id stranger-id}
+                       :text "Failed" :now now})))
+        (is (thrown? java.lang.AssertionError
+                     (db/create-discussion-with-message!
+                      (get-ctx poster-id)
+                      {:did (random-uuid) :selected_users #{stranger-id}
+                       :text "Failed" :now now}))))
+
+      (testing "but once we add them as contacts, we can post to them"
+        (db.contacts/force-contacts! ctx poster-id contact-id)
+        (xtdb/sync node)
+
+        (is (thrown? java.lang.AssertionError
+                     (db/create-discussion-with-message!
+                      (get-ctx poster-id)
+                      {:did (random-uuid) :selected_users #{contact-id stranger-id}
+                       :text "Failed" :now now})))
+        (is (thrown? java.lang.AssertionError
+                     (db/create-discussion-with-message!
+                      (get-ctx poster-id)
+                      {:did (random-uuid) :selected_users #{stranger-id}
+                       :text "Failed" :now now})))
+
+        (db/create-discussion-with-message!
+         (get-ctx poster-id)
+         {:did (random-uuid) :selected_users #{contact-id}
+          :text "Failed" :now now})))))
 
 (deftest feeds
   (testing "there is a basic chronological feed"
@@ -232,21 +287,12 @@
       (db.user/create-user!
        ctx {:id sid :username "spammer_000" :phone "+14159499003" :now now})
       (xtdb/sync node)
-      (db.contacts/request-contact! ctx {:from uid :to cid})
-      (db.contacts/request-contact! ctx {:from uid :to lid})
-      (db.contacts/request-contact! ctx {:from cid :to lid})
-      (db.contacts/request-contact! ctx {:from cid :to sid})
+      (doseq [[from to] [[uid cid]
+                         [uid lid]
+                         [cid lid]
+                         [cid sid]]]
+        (db.contacts/force-contacts! ctx from to))
       (xtdb/sync node)
-      (db.contacts/decide-on-request! ctx {:from uid :to cid
-                                           :decision :contact_request/accepted})
-      (db.contacts/decide-on-request! ctx {:from uid :to lid
-                                           :decision :contact_request/accepted})
-      (db.contacts/decide-on-request! ctx {:from cid :to lid
-                                           :decision :contact_request/accepted})
-      (db.contacts/decide-on-request! ctx {:from cid :to sid
-                                           :decision :contact_request/accepted})
-      (xtdb/sync node)
-
       (testing "the feeds start empty"
         (let [db (xtdb/db node)]
           (is (empty? (posts-for-user db uid)))
@@ -261,6 +307,7 @@
         (db/create-discussion-with-message!
          (get-ctx uid)
          {:did did1 :selected_users #{} :text "Hello to only poster" :now t1})
+
         (xtdb/sync node)
 
         (let [db (xtdb/db node)
