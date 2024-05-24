@@ -59,14 +59,6 @@
       (json-response {:user (crdt.user/->value user)}))
     {:status 400 :body "invalid params"}))
 
-(defn create-user! [{:keys [params] :as ctx}]
-  (if-let [username (some-> (:username params) str/trim)]
-    (if (crdt.user/valid-username? username)
-      (let [user (db.user/create-user! ctx {:username username})]
-        (json-response {:user (crdt.user/->value user)}))
-      (err-resp "invalid_username" "Username is invalid"))
-    (err-resp "username_taken" "Username is already taken")))
-
 (defn add-push-token! [{:keys [params] :as ctx}]
   (if-let [push-token (:push_token params)]
     (let [new-token {:push/service :push/expo
@@ -151,7 +143,10 @@
         (err-resp "phone_taken" "Phone is already taken")
 
         :else
-        (let [user (db.user/create-user! ctx {:username username :phone phone})]
+        (let [make-friends-with-everybody? (:gatz.db.user/make-friends-with-everybody? ctx)
+              user (db.user/create-user! ctx
+                                         {:username username :phone phone}
+                                         {:make-friends-with-everybody? make-friends-with-everybody?})]
           (posthog/capture! (assoc ctx :auth/user-id (:xt/id user)) "user.sign_up")
           (json-response {:type "sign_up"
                           :user  (crdt.user/->value user)

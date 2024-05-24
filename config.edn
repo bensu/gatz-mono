@@ -33,6 +33,8 @@
 
         :heroku/dyno-name "DYNO"
 
+       :gatz.db.user/make-friends-with-everybody? true
+
         :biff/base-url "http://gatz.chat"
         ;; Postmark is used to send email sign-in links. Create an account at
         ;; https://postmarkapp.com
@@ -57,6 +59,8 @@
        :biff/base-url "http://localhost:8080"
        :biff/host "0.0.0.0"
        :biff.middleware/secure false
+
+       :gatz.db.user/make-friends-with-everybody? false
 
        :expo/enabled? false
 
