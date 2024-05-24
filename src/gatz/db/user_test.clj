@@ -191,9 +191,7 @@
             (let [db (xtdb/db node)
                   contacts (db.contacts/by-uid db uid)]
               (is-equal {:contacts/user_id uid
-                         :contacts/ids #{}
-                         :contacts/requests_made {}
-                         :contacts/requests_received {}}
+                         :contacts/ids #{}}
                         (select-keys contacts [:contacts/user_id :contacts/ids :contacts/requests_made :contacts/requests_received]))
               (testing "and if you try to create additional contact lists you fail"
                 (is (thrown? clojure.lang.ExceptionInfo
