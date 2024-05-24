@@ -23,6 +23,8 @@
 (def get-contact-response
   [:map
    [:contact schema/ContactResponse]
+   ;; we show their_contacts temporarily while we are getting started
+   [:their_contacts {:optional true} [:vec schema/ContactResponse]]
    [:contact_request_state [:enum schema/ContactRequestState]]
    [:in_common [:map
                 [:contacts [:vec schema/ContactResponse]]
@@ -42,10 +44,14 @@
   (let [params (parse-contact-params (:params ctx))]
     (if-let [id (:id params)]
       (let [viewed-user (db.user/by-id db id)
+            their-contacts-ids (:contacts/ids (db.contacts/by-uid db id))
             in-common-uids (db.contacts/get-in-common db user-id id)
+            their-contacts (->> their-contacts-ids
+                                (remove (partial contains? in-common-uids))
+                                (remove (partial = user-id))
+                                (mapv (partial db.user/by-id db)))
             contacts-in-common (->> in-common-uids
-                                    (map (partial db.user/by-id db))
-                                    (mapv #(-> % crdt.user/->value db.contacts/->contact)))
+                                    (mapv (partial db.user/by-id db)))
             contact-request (db.contacts/current-request-between db user-id id)
            ;; posts-in-common (->> (db.discussion/posts-in-common db user-id id)
             ;;                      (map (partial db.discussion/by-id db))
@@ -60,7 +66,9 @@
         (json-response
          {:contact (-> viewed-user crdt.user/->value db.contacts/->contact)
           :contact_request_state (db.contacts/state-for contact-request user-id)
-          :in_common {:contacts contacts-in-common
+          :their_contacts (mapv #(-> % crdt.user/->value db.contacts/->contact) their-contacts)
+          :in_common {:contacts (->> contacts-in-common
+                                     (mapv #(-> % crdt.user/->value db.contacts/->contact)))
                       ;; :feed {:users users
                       ;;        :discussions posts-in-common}
                       }}))
