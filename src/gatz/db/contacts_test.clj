@@ -283,6 +283,10 @@
             (is (thrown? clojure.lang.ExceptionInfo
                          (db.contacts/apply-request! (assoc ctx :auth/user-id requester-id)
                                                      {:them accepter-id :action :contact_request/requested}))))
+          (testing "if _they_ request now, they get an error, they have to approve or ignore"
+            (is (thrown? clojure.lang.ExceptionInfo
+                         (db.contacts/apply-request! (assoc ctx :auth/user-id accepter-id)
+                                                     {:them requester-id :action :contact_request/requested}))))
 
           (testing "to multiple people"
             (db.contacts/apply-request! (assoc ctx :auth/user-id requester-id)
