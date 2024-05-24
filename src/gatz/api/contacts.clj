@@ -49,6 +49,17 @@
 
       (err-resp "invalid_params" "Invalid params"))))
 
+(def get-all-contacts-response
+  [:map
+   [:contacts [:vec schema/ContactResponse]]])
+
+(defn get-all-contacts [{:keys [auth/user-id biff/db]}]
+  (let [my-contacts (db.contacts/by-uid db user-id)
+        all-contacts (mapv (partial db.user/by-id db)
+                           (:contacts/ids my-contacts))]
+    (json-response {:contacts (mapv #(-> % crdt.user/->value db.contacts/->contact)
+                                    all-contacts)})))
+
 
 ;; export type ContactRequestActionType =
 ;; | "request"
