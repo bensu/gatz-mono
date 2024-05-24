@@ -42,13 +42,12 @@
   (let [params (parse-contact-params (:params ctx))]
     (if-let [id (:id params)]
       (let [viewed-user (db.user/by-id db id)
-            viewed-contacts (db.contacts/by-uid db id)
-            my-contacts (db.contacts/by-uid db user-id)
-            in-common-uids (db.contacts/in-common my-contacts viewed-contacts)
+            in-common-uids (db.contacts/get-in-common db user-id id)
             contacts-in-common (->> in-common-uids
                                     (map (partial db.user/by-id db))
                                     (mapv #(-> % crdt.user/->value db.contacts/->contact)))
-            ;; posts-in-common (->> (db.discussion/posts-in-common db user-id id)
+            contact-request (db.contacts/current-request-between db user-id id)
+           ;; posts-in-common (->> (db.discussion/posts-in-common db user-id id)
             ;;                      (map (partial db.discussion/by-id db))
             ;;                      (mapv crdt.discussion/->value))
             ;; users (->> posts-in-common
@@ -60,7 +59,7 @@
             ;; (db.contacts/pending-requests-from-to db id user-id)
         (json-response
          {:contact (-> viewed-user crdt.user/->value db.contacts/->contact)
-          :contact_request_state (db.contacts/state-for viewed-contacts user-id)
+          :contact_request_state (db.contacts/state-for contact-request user-id)
           :in_common {:contacts contacts-in-common
                       ;; :feed {:users users
                       ;;        :discussions posts-in-common}
@@ -123,9 +122,7 @@
       (= user-id to) (err-resp "invalid_params" "Invalid parameters")
 
       :else
-      ;; approval doesn't have from as the user-id
-      (let [{:keys [their-contacts]}
-            (db.contacts/apply-request! ctx {:them to :action action})
-            contact-request-state (db.contacts/state-for their-contacts user-id)]
+      (let [{:keys [request]} (db.contacts/apply-request! ctx {:them to :action action})
+            contact-request-state (db.contacts/state-for request user-id)]
         (json-response {:status "success"
                         :state contact-request-state})))))

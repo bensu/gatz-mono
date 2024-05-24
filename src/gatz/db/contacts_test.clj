@@ -121,12 +121,11 @@
                   (select-keys b-contacts contact-ks))
         (is (empty? pending-requests)))
 
-      #_(db.contacts/request-contact! ctx {:from aid :to bid})
-      (db.contacts/apply-request! (assoc ctx :auth/user-id aid)
-                                  {:them bid :action :contact_request/requested})
-      (xtdb/sync node)
-
-      (let [db (xtdb/db node)
+      (let [{:keys [request]}
+            (db.contacts/apply-request! (assoc ctx :auth/user-id aid)
+                                        {:them bid :action :contact_request/requested})
+            _ (xtdb/sync node)
+            db (xtdb/db node)
             b-contacts (db.contacts/by-uid db bid)
             a-contacts (db.contacts/by-uid db aid)
             b-pending-requests (db.contacts/pending-requests-to db bid)
@@ -139,6 +138,7 @@
                    :contact_request/to bid
                    :contact_request/state :contact_request/requested}
                   (select-keys (first b-pending-requests) cr-ks))
+        (is (= request (first b-pending-requests)))
 
         (is (empty? (db.contacts/requests-from-to db bid aid)))
         (is-equal (first b-pending-requests)
@@ -154,11 +154,11 @@
         (is (= :contact_request/viewer_awaits_response
                (db.contacts/state-for (first b-pending-requests) aid))))
 
-      (db.contacts/apply-request! (assoc ctx :auth/user-id bid)
-                                  {:them aid :action :contact_request/ignored})
-      (xtdb/sync node)
-
-      (let [db (xtdb/db node)
+      (let [{:keys [request]}
+            (db.contacts/apply-request! (assoc ctx :auth/user-id bid)
+                                        {:them aid :action :contact_request/ignored})
+            _ (xtdb/sync node)
+            db (xtdb/db node)
             b-contacts (db.contacts/by-uid db bid)
             a-contacts (db.contacts/by-uid db aid)
             ignored-request (first (db.contacts/requests-from-to db aid bid))]
@@ -167,6 +167,7 @@
                   (select-keys a-contacts contact-ks))
         (is-equal {:contacts/ids #{} :contacts/user_id bid}
                   (select-keys b-contacts contact-ks))
+        (is (= request ignored-request))
 
         (is (empty? (db.contacts/pending-requests-to db bid)))
         (is (empty? (db.contacts/pending-requests-to db aid)))
@@ -229,13 +230,18 @@
            (for [from [requester-id accepter-id denier-id]
                  to [requester-id accepter-id denier-id]
                  :when (not= from to)]
-             (is (empty? (db.contacts/requests-from-to db from to)))))))
-      (testing "somebody can request to be a contact"
-        (db.contacts/apply-request! (assoc ctx :auth/user-id requester-id)
-                                    {:them accepter-id :action :contact_request/requested})
-        (xtdb/sync node)
+             (do
+               (is (empty? (db.contacts/requests-from-to db from to)))
+               (is (nil? (db.contacts/current-request-from-to db from to)))
+               (is (nil? (db.contacts/current-request-between db from to))))))))
 
-        (let [db (xtdb/db node)
+      (testing "somebody can request to be a contact"
+        (let [{:keys [request]}
+              (db.contacts/apply-request! (assoc ctx :auth/user-id requester-id)
+                                          {:them accepter-id :action :contact_request/requested})
+              _ (xtdb/sync node)
+
+              db (xtdb/db node)
               r-contacts (db.contacts/by-uid db requester-id)
               a-contacts (db.contacts/by-uid db accepter-id)
               d-contacts (db.contacts/by-uid db denier-id)
@@ -256,6 +262,7 @@
           (is-equal {:contacts/user_id denier-id
                      :contacts/ids #{}}
                     (select-keys d-contacts ks))
+          (is-equal r-to-a request)
 
           (is (= 1 (count all-pending-to-a)))
 
@@ -274,10 +281,14 @@
            (for [from [accepter-id denier-id]
                  to [requester-id accepter-id denier-id]
                  :when (not= from to)]
-             (is (empty? (db.contacts/requests-from-to db from to)))))
+             (do
+               (is (empty? (db.contacts/requests-from-to db from to)))
+               (is (nil? (db.contacts/current-request-from-to db from to))))))
 
           (is (empty? (db.contacts/requests-from-to db requester-id denier-id)))
           (is (= all-pending-to-a (db.contacts/requests-from-to db requester-id accepter-id)))
+          (is (= r-to-a (db.contacts/current-request-between db requester-id accepter-id)))
+          (is (= r-to-a (db.contacts/current-request-between db accepter-id requester-id)))
 
           (testing "if you retry, you get an error"
             (is (thrown? clojure.lang.ExceptionInfo
@@ -289,11 +300,13 @@
                                                      {:them requester-id :action :contact_request/requested}))))
 
           (testing "to multiple people"
-            (db.contacts/apply-request! (assoc ctx :auth/user-id requester-id)
-                                        {:them denier-id :action :contact_request/requested})
-            (xtdb/sync node)
 
-            (let [db (xtdb/db node)
+            (let [{:keys [request]}
+                  (db.contacts/apply-request! (assoc ctx :auth/user-id requester-id)
+                                              {:them denier-id :action :contact_request/requested})
+                  _ (xtdb/sync node)
+
+                  db (xtdb/db node)
                   r-contacts (db.contacts/by-uid db requester-id)
                   d-contacts (db.contacts/by-uid db denier-id)
                   second-request {:contact_request/from requester-id
@@ -306,6 +319,7 @@
               (is-equal {:contacts/user_id denier-id
                          :contacts/ids #{}}
                         (-> d-contacts (select-keys ks)))
+              (is-equal (first denier-pending) request)
 
               (is (= 1 (count denier-pending)))
               (is (= second-request
@@ -436,12 +450,12 @@
                    to [requester-id denier-id]]
                (is (empty? (db.contacts/requests-from-to db from to)))))))
         (testing "and they can remove contacts"
-          (db.contacts/apply-request! (assoc ctx :auth/user-id accepter-id)
-                                      {:them requester-id
-                                       :action :contact_request/removed})
-          (xtdb/sync node)
-
-          (let [db (xtdb/db node)
+          (let [{:keys [request]}
+                (db.contacts/apply-request! (assoc ctx :auth/user-id accepter-id)
+                                            {:them requester-id
+                                             :action :contact_request/removed})
+                _ (xtdb/sync node)
+                db (xtdb/db node)
                 ks [:contacts/user_id :contacts/ids :contacts/removed]
                 r-contacts (db.contacts/by-uid db requester-id)
                 a-contacts (db.contacts/by-uid db accepter-id)
@@ -450,6 +464,9 @@
                                   :contact_request/to accepter-id
                                   :contact_request/state :contact_request/removed}
                 removed-request (db.contacts/requests-from-to db requester-id accepter-id)]
+
+            (is (nil? request) "When a request is removed, it is as-if gone")
+
             (is (= 1 (count removed-request)))
             (is (= :contact_request/none
                    (db.contacts/state-for (first removed-request) requester-id)))

@@ -205,6 +205,21 @@
 (defn current? [cr]
   (not (= :contact_request/removed (:contact_request/state cr))))
 
+(defn current-request-from-to [db from to]
+  (let [rqs (->> (requests-from-to db from to)
+                 (filter current?))]
+    (assert (or (empty? rqs) (= 1 (count rqs))))
+    (first rqs)))
+
+(defn current-request-between [db aid bid]
+  {:pre [(uuid? aid) (uuid? bid)]}
+  (let [rqs (->> (concat
+                  (requests-from-to db aid bid)
+                  (requests-from-to db bid aid))
+                 (filter current?))]
+    (assert (or (empty? rqs) (= 1 (count rqs))))
+    (first rqs)))
+
 (defn new-contact-request-txn [ctx {:keys [args]}]
   (let [db (xtdb.api/db ctx)
         {:keys [from to id now]} args
@@ -233,9 +248,13 @@
         _ (assert (uuid? from))
         _ (assert (inst? now))
         _ (assert (some? state))
-        current-requests (->> (requests-from-to db from to) (filter current?))
-        _ (assert (= 1 (count current-requests)))
-        current-request (first current-requests)]
+        current-request (if (= :contact_request/removed state)
+                          ;; removed doesn't care who is who
+                          (current-request-between db from to)
+                          (let [reqs (->> (requests-from-to db from to)
+                                          (filter current?))]
+                            (assert (= 1 (count reqs)))
+                            (first reqs)))]
     (when-not (= state (:contact_request/state current-request))
       (assert (can-transition? current-request {:by by :state state}))
       (let [new-contact-request (-> current-request
@@ -293,41 +312,49 @@
 (defmulti ^:private -apply-request! (fn [_ctx {:keys [action]}] action))
 
 (defmethod -apply-request! :contact_request/requested
-  [{:keys [auth/user-id] :as ctx} {:keys [them]}]
-  (request-contact! ctx {:from user-id :to them}))
+  [{:keys [auth/user-id biff.xtdb/node] :as ctx} {:keys [them]}]
+  (let [from user-id
+        to them
+        txn (request-contact! ctx {:from from :to to})
+        request (current-request-from-to (xtdb/db node) from to)]
+    {:txn txn :request request}))
 
 (defmethod -apply-request! :contact_request/accepted
-  [{:keys [auth/user-id] :as ctx} {:keys [them]}]
-  (decide-on-request! ctx {:from them
-                           :to user-id
-                           :by user-id
-                           :decision :contact_request/accepted}))
+  [{:keys [auth/user-id biff.xtdb/node] :as ctx} {:keys [them]}]
+  (let [from them
+        to user-id
+        txn (decide-on-request! ctx {:from from :to to :by user-id
+                                     :decision :contact_request/accepted})
+        request (current-request-from-to (xtdb/db node) from to)]
+    {:txt txn :request request}))
 
 (defmethod -apply-request! :contact_request/ignored
-  [{:keys [auth/user-id] :as ctx} {:keys [them]}]
-  (decide-on-request! ctx {:from them
-                           :to user-id
-                           :by user-id
-                           :decision :contact_request/ignored}))
+  [{:keys [auth/user-id biff.xtdb/node] :as ctx} {:keys [them]}]
+  (let [from them
+        to user-id
+        txn (decide-on-request! ctx {:from them :to to :by user-id
+                                     :decision :contact_request/ignored})
+        request (current-request-from-to (xtdb/db node) from to)]
+    {:txn txn :request request}))
 
 (defmethod -apply-request! :contact_request/removed
-  [{:keys [auth/user-id] :as ctx} {:keys [them]}]
-  (remove-contact! ctx {:from them :to user-id :by user-id}))
+  [{:keys [auth/user-id biff.xtdb/node] :as ctx} {:keys [them]}]
+  (let [from them
+        to user-id
+        txn (remove-contact! ctx {:from from :to to :by user-id})
+        request (current-request-from-to (xtdb/db node) from to)]
+    {:txn txn :request request}))
 
 (defn apply-request!
   "decides what is :from and :to depending on the action"
-  [{:keys [biff.xtdb/node auth/user-id] :as ctx}
+  [{:keys [auth/user-id] :as ctx}
    {:keys [them] :as args}]
 
   (assert (uuid? user-id))
   (assert (uuid? them))
   (assert (not= user-id them))
 
-  (let [txn (-apply-request! ctx args)
-        _ (xtdb/await-tx node (::xtdb/tx-id txn))
-        db (xtdb/db node)]
-    {:my-contacts (by-uid db user-id)
-     :their-contacts (by-uid db them)}))
+  (-apply-request! ctx args))
 
 
 ;; ======================================================================  
