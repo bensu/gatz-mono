@@ -23,46 +23,49 @@
 
 (defn push-one!
 
-  [env {:keys [device-token title body] :as notification}]
+  [{:keys [expo/enabled? biff/secret] :as _ctx}
+   {:keys [device-token title body] :as notification}]
 
   {:pre [(valid-notification? notification)]}
 
-  (let [expo-token (env :expo/push-token)
-        _ (assert expo-token "No expo token found in env")
-        data {:to device-token
-              :title title
-              :body body}
-        r (-> (str base-url "/api/v2/push/send")
-              (http/post
-               {:as :json
-                :body (json/write-str data)
-                :headers {"Content-Type" "application/json"
-                          "Authorization" (str "Bearer " expo-token)}}))]
-    (if (= 200 (:status r))
-      (:data (:body r))
-      (throw (ex-info "Failed to send push notification"
-                      {:status (:status r)
-                       :body (:body r)})))))
+  (when enabled?
+    (let [expo-token (secret :expo/push-token)
+          _ (assert expo-token "No expo token found in env")
+          data {:to device-token
+                :title title
+                :body body}
+          r (-> (str base-url "/api/v2/push/send")
+                (http/post
+                 {:as :json
+                  :body (json/write-str data)
+                  :headers {"Content-Type" "application/json"
+                            "Authorization" (str "Bearer " expo-token)}}))]
+      (if (= 200 (:status r))
+        (:data (:body r))
+        (throw (ex-info "Failed to send push notification"
+                        {:status (:status r)
+                         :body (:body r)}))))))
 
 (def MAX_EXPO_NOTIFICATIONS 100)
 
 (defn push-many!
 
-  [env notifications]
+  [{:keys [expo/enabled? biff/secret] :as _ctx} notifications]
 
   {:pre [(< (count notifications) MAX_EXPO_NOTIFICATIONS)
          (every? valid-notification? notifications)]}
 
-  (let [expo-token (env :expo/push-token)
-        _ (assert expo-token "No expo token found in env")
-        r (-> (str base-url "/api/v2/push/send")
-              (http/post
-               {:as :json
-                :body (json/write-str notifications)
-                :headers {"Content-Type" "application/json"
-                          "Authorization" (str "Bearer " expo-token)}}))]
-    (if (= 200 (:status r))
-      (:data (:body r))
-      (throw (ex-info "Failed to send push notification"
-                      {:status (:status r)
-                       :body (:body r)})))))
+  (when enabled?
+    (let [expo-token (secret :expo/push-token)
+          _ (assert expo-token "No expo token found in env")
+          r (-> (str base-url "/api/v2/push/send")
+                (http/post
+                 {:as :json
+                  :body (json/write-str notifications)
+                  :headers {"Content-Type" "application/json"
+                            "Authorization" (str "Bearer " expo-token)}}))]
+      (if (= 200 (:status r))
+        (:data (:body r))
+        (throw (ex-info "Failed to send push notification"
+                        {:status (:status r)
+                         :body (:body r)}))))))

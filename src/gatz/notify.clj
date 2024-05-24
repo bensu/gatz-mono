@@ -55,7 +55,7 @@
                                     :expo/data {:url url}})))]
     ;; TODO: check for notification preferences
     (when-not (empty? notifications)
-      (expo/push-many! secret notifications))))
+      (expo/push-many! ctx notifications))))
 
 (defn render-friends [friends]
 
@@ -150,7 +150,7 @@
     (biff/submit-job ctx :notify/comment job)))
 
 (defn comment!
-  [{:keys [biff/secret biff.xtdb/node biff/job] :as _ctx}]
+  [{:keys [biff.xtdb/node biff/job] :as ctx}]
   (let [db (xtdb.api/db node)
         comment (:notify/comment job)
         d (crdt.discussion/->value (db.discussion/by-id db (:message/did comment)))
@@ -203,7 +203,7 @@
                                   #_notification-to-at-mentioned)
         notifications (vec (vals uid->notifications))]
     (when-not (empty? notifications)
-      (expo/push-many! secret notifications))))
+      (expo/push-many! ctx notifications))))
 
 (comment
   (def trigger-emoji #{"❓" "❗"})
@@ -231,10 +231,10 @@
                     :expo/body "Consider posting more about it"}]))))))))
 
   (defn notify-on-reaction!
-    [{:keys [biff/db biff/secret]} message reaction]
+    [{:keys [biff/db] :as ctx} message reaction]
     (let [nts (notification-on-reaction db message reaction)]
       (when-not (empty? nts)
-        (expo/push-many! secret nts)))))
+        (expo/push-many! ctx nts)))))
 
 ;; sebas, ameesh, and tara are in gatz
 ;; 3 new posts, 2 replies
@@ -270,7 +270,7 @@
              :expo/body (render-activity dids mids)}))))))
 
 (defn activity-for-all-users!
-  [{:keys [biff.xtdb/node biff/secret] :as ctx}]
+  [{:keys [biff.xtdb/node] :as ctx}]
 
   ;; This task is executed by all dynos. 
   ;; Needs to be a singleton, so we check for web.1
@@ -283,7 +283,7 @@
       (doseq [uid (db.user/all-ids db)]
         (try
           (when-let [notification (activity-notification-for-user db uid)]
-            (expo/push-many! secret [notification]))
+            (expo/push-many! ctx [notification]))
           (db.user/mark-active! (assoc ctx :auth/user-id uid))
           (catch Throwable e
             ;; TODO: handle

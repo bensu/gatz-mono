@@ -22,6 +22,7 @@
         :posthog/enabled? true
 
         :expo/push-token "EXPO_PUSH_NOTIFICATION_TOKEN"
+        :expo/enabled? true
 
         :s3/origin "CLOUDFLARE_R2_ENDPOINT"
         :s3/bucket "CLOUDFLARE_R2_BUCKET"
@@ -56,6 +57,8 @@
        :biff/base-url "http://localhost:8080"
        :biff/host "0.0.0.0"
        :biff.middleware/secure false
+
+       :expo/enabled? false
 
        :biff.xtdb/checkpointer :biff.xtdb.checkpointer/file
        :posthog/enabled? false
