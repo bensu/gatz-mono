@@ -41,13 +41,12 @@
                              crdt.user/->value
                              db.contacts/->contact))
                        (:contacts/ids my-contacts))
-        contact_requests (->> (vals (:contacts/requests_received my-contacts))
-                              (keep (fn [{:contact_request/keys [from id decision]}]
-                                      (when (nil? decision)
-                                        {:id id
-                                         :contact (-> (db.user/by-id db from)
-                                                      crdt.user/->value
-                                                      db.contacts/->contact)})))
+        contact_requests (->> (db.contacts/pending-requests-to db user-id)
+                              (map (fn [{:contact_request/keys [from id]}]
+                                     {:id id
+                                      :contact (-> (db.user/by-id db from)
+                                                   crdt.user/->value
+                                                   db.contacts/->contact)}))
                               vec)]
     (json-response {:user (crdt.user/->value user)
                     :contacts contacts

@@ -170,7 +170,7 @@ mv latest.dump dumps/gatz_prod_2024_05_20.dump
 
 dropdb gatz_prod_2024_05_20
 createdb gatz_prod_2024_05_20
-pg_restore --clean --verbose --no-acl --no-owner -h localhost -d gatz_prod_2024_05_020 dumps/gatz_prod_2024_05_20.dump
+pg_restore --clean --verbose --no-acl --no-owner -h localhost -d gatz_prod_2024_05_20 dumps/gatz_prod_2024_05_20.dump
 ```
 
 and then replace that database in `secrets.env`:
