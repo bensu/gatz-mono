@@ -112,7 +112,7 @@
 
 (def ContactRequestId :uuid)
 
-(def ContactRequestState
+(def ContactViewedState
   [:enum
    :contact_request/self
    :contact_request/none
@@ -121,22 +121,29 @@
    :contact_request/viewer_ignored_response
    :contact_request/accepted])
 
+(def ContactRequestState
+  [:enum
+   :contact_request/requested
+   :contact_request/accepted
+   :contact_request/ignored
+   :contact_request/removed])
+
 (def ContactRequest
   [:map
-   [:contact_request/id #'ContactRequestId]
-   [:contact_request/from #'UserId]
-   [:contact_request/to #'UserId]
+   [:xt/id uuid?]
+   [:db/type [:enum :gatz/contact_request]]
+   [:db/version 1]
+   [:contact_request/from UserId]
+   [:contact_request/to UserId]
    [:contact_request/created_at inst?]
-   [:contact_request/decided_at [:maybe inst?]]
-   [:contact_request/decision
-    [:enum :contact_request/accepted :contact_request/ignored]]])
-
-(def ContactRemoved
-  [:map
-   [:contact_removed/id #'ContactRequestId]
-   [:contact_removed/from #'UserId]
-   [:contact_removed/to #'UserId]
-   [:contact_removed/created_at inst?]])
+   [:contact_request/updated_at inst?]
+   [:contact_request/state ContactRequestState]
+   [:contact_request/log [:vec
+                          [:map
+                           [:contact_request/decided_at inst?]
+                           [:contact_request/by_user UserId]
+                           [:contact_request/from_state ContactRequestState]
+                           [:contact_request/to_state ContactRequestState]]]]])
 
 (def UserContacts
   [:map
@@ -145,10 +152,7 @@
    [:contacts/user_id #'UserId] ;; acts as main key
    [:contacts/created_at inst?]
    [:contacts/updated_at inst?]
-   [:contacts/ids [:set #'UserId]]
-   [:contacts/removed [:map-of UserId ContactRemoved]]
-   [:contacts/requests_received [:map-of UserId ContactRequest]]
-   [:contacts/requests_made [:map-of UserId ContactRequest]]])
+   [:contacts/ids [:set #'UserId]]])
 
 (def contact-ks [:xt/id :user/name :user/avatar])
 

@@ -1,5 +1,6 @@
 (ns gatz.db.util-test
   (:require [gatz.system :as system]
+            [clojure.data] ;; this is necessary for clojure.data
             [com.biffweb.impl.xtdb :as biff.xtdb]
             [xtdb.api :as xtdb]))
 

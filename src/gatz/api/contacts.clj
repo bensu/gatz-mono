@@ -57,6 +57,7 @@
             ;;            (map (partial db.user/by-id db))
             ;;            (mapv crdt.user/->value))
             ]
+            ;; (db.contacts/pending-requests-from-to db id user-id)
         (json-response
          {:contact (-> viewed-user crdt.user/->value db.contacts/->contact)
           :contact_request_state (db.contacts/state-for viewed-contacts user-id)
@@ -78,6 +79,9 @@
     (json-response {:contacts (mapv #(-> % crdt.user/->value db.contacts/->contact)
                                     all-contacts)})))
 
+;; ======================================================================
+;; Contact request actions
+
 
 ;; export type ContactRequestActionType =
 ;; | "request"
@@ -85,13 +89,12 @@
 ;; | "ignore"
 ;; | "remove";
 
-
 (def contact-request-actions-schema
   [:enum
-   :contact_request/request
-   :contact_request/accept
-   :contact_request/ignore
-   :contact_request/remove])
+   :contact_request/requested
+   :contact_request/accepted
+   :contact_request/ignored
+   :contact_request/removed])
 
 (def contact-request-actions
   (set (rest contact-request-actions-schema)))
