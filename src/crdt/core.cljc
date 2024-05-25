@@ -371,10 +371,12 @@
 (defn lww-instance? [x]
   (instance? LWW x))
 
-(defn lww-schema [clock-schema value-schema]
-  [:map
-   [:clock clock-schema]
-   [:value value-schema]])
+(defn lww-schema
+  ([value-schema] (lww-schema hlc-schema value-schema))
+  ([clock-schema value-schema]
+   [:map
+    [:clock clock-schema]
+    [:value value-schema]]))
 
 (deftest lww-test
   (testing "empty value is always replaced"
@@ -525,9 +527,11 @@
     (let [inner (into {} (map (fn [x] [x (->LWW clock true)]) (or xs #{})))]
       (->LWWSet inner))))
 
-(defn lww-set-schema [value-schema]
-  [:map
-   [:xs [:map-of value-schema (lww-schema hlc-schema boolean?)]]])
+(defn lww-set-schema
+  ([value-schema] (lww-set-schema hlc-schema value-schema))
+  ([clock-schema value-schema]
+   [:map
+    [:xs [:map-of value-schema (lww-schema clock-schema boolean?)]]]))
 
 ;; This is not super ergonomic! 
 ;; The API you want knows which id you are removing

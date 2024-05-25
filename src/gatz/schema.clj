@@ -26,14 +26,14 @@
 (def NotificationPreferencesCRDT
   [:map
    [:settings.notification/overall
-    (crdt/lww-schema crdt/hlc-schema boolean?)]
+    (crdt/lww-schema boolean?)]
    [:settings.notification/activity
-    (crdt/lww-schema crdt/hlc-schema
-                     [:enum :settings.notification/daily :settings.notification/none])]
+    (crdt/lww-schema
+     [:enum :settings.notification/daily :settings.notification/none])]
    [:settings.notification/subscribe_on_comment
-    (crdt/lww-schema crdt/hlc-schema boolean?)]
+    (crdt/lww-schema boolean?)]
    [:settings.notification/suggestions_from_gatz
-    (crdt/lww-schema crdt/hlc-schema boolean?)]
+    (crdt/lww-schema boolean?)]
    ;; These below are unused:
    ;; [:settings.notification/comments_to_own_post boolean?]
    ;; [:settings.notification/reactions_to_own_post boolean?]
@@ -93,9 +93,9 @@
    ;; MaxWins
    [:user/updated_at (crdt/max-wins-schema inst?)]
    ;; LWW
-   [:user/avatar (crdt/lww-schema crdt/hlc-schema [:maybe string?])]
+   [:user/avatar (crdt/lww-schema [:maybe string?])]
    ;; {k {k LWW}}
-   [:user/push_tokens (crdt/lww-schema crdt/hlc-schema [:maybe PushTokens])]
+   [:user/push_tokens (crdt/lww-schema [:maybe PushTokens])]
    [:user/settings
     [:map
      [:settings/notifications NotificationPreferencesCRDT]]]])
@@ -234,11 +234,11 @@
    ;; grow only set
    [:message/edits (crdt/grow-only-set-schema MessageEdit)]
    ;; LWW
-   [:message/text (crdt/lww-schema crdt/hlc-schema string?)]
+   [:message/text (crdt/lww-schema string?)]
    ;; {user-id {emoji (->LWW ts?)}
    [:message/reactions
     [:map-of #'UserId
-     [:map-of string? (crdt/lww-schema crdt/hlc-schema [:maybe inst?])]]]])
+     [:map-of string? (crdt/lww-schema [:maybe inst?])]]]])
 
 (def DiscussionCRDT
   [:map
@@ -258,17 +258,17 @@
    [:discussion/subscribers (crdt/lww-set-schema #'UserId)]
    [:discussion/active_members (crdt/grow-only-set-schema #'UserId)]
    ;; LWW or MaxWins if mids can be ordered
-   [:discussion/latest_message [:maybe (crdt/lww-schema crdt/hlc-schema #'MessageId)]]
+   [:discussion/latest_message [:maybe (crdt/lww-schema #'MessageId)]]
    ;; {user-id (->LWW mid)} or MaxWins if mids can be ordered
    [:discussion/last_message_read
-    [:map-of #'UserId (crdt/lww-schema crdt/hlc-schema #'MessageId)]]
+    [:map-of #'UserId (crdt/lww-schema #'MessageId)]]
    ;; MaxWins
    [:discussion/updated_at (crdt/max-wins-schema inst?)]
    [:discussion/latest_activity_ts (crdt/max-wins-schema inst?)]
    ;; {user-id (->MaxWins inst?)}
    [:discussion/seen_at [:map-of #'UserId (crdt/max-wins-schema inst?)]]
     ;; LWW, maybe?
-   [:discussion/archived_at [:map-of #'UserId (crdt/lww-schema crdt/hlc-schema inst?)]]
+   [:discussion/archived_at [:map-of #'UserId (crdt/lww-schema inst?)]]
    ;; {id MessageCRDT}
    [:discussion/messages {:optional true} [:map-of #'MessageId #'MessageCRDT]]])
 
@@ -331,7 +331,7 @@
   [:map
    [:crdt/clock crdt/hlc-schema]
    [:user/updated_at inst?]
-   [:user/avatar (crdt/lww-schema crdt/hlc-schema string?)]])
+   [:user/avatar (crdt/lww-schema string?)]])
 
 (def UserAddPushToken
   [:map
@@ -340,7 +340,7 @@
    [:user/settings
     [:map
      [:settings/notifications (mu/optional-keys NotificationPreferencesCRDT)]]]
-   [:user/push_tokens (crdt/lww-schema crdt/hlc-schema PushTokens)]])
+   [:user/push_tokens (crdt/lww-schema PushTokens)]])
 
 (def UserRemovePushToken
   [:map
@@ -349,7 +349,7 @@
    [:user/settings
     [:map
      [:settings/notifications (mu/optional-keys NotificationPreferencesCRDT)]]]
-   [:user/push_tokens (crdt/lww-schema crdt/hlc-schema nil?)]])
+   [:user/push_tokens (crdt/lww-schema nil?)]])
 
 (def UserUpdateNotifications
   [:map
@@ -399,7 +399,7 @@
     [:crdt/clock crdt/hlc-schema]
     [:message/updated_at inst?]
     [:message/reactions
-     [:map-of #'UserId [:map-of string? (crdt/lww-schema crdt/hlc-schema inst?)]]]]))
+     [:map-of #'UserId [:map-of string? (crdt/lww-schema inst?)]]]]))
 
 (def RemoveReactionDelta
   (mu/closed-schema
@@ -407,14 +407,14 @@
     [:crdt/clock crdt/hlc-schema]
     [:message/updated_at inst?]
     [:message/reactions
-     [:map-of #'UserId [:map-of string? (crdt/lww-schema crdt/hlc-schema nil?)]]]]))
+     [:map-of #'UserId [:map-of string? (crdt/lww-schema nil?)]]]]))
 
 (def EditMessageDelta
   (mu/closed-schema
    [:map
     [:crdt/clock crdt/hlc-schema]
     [:message/updated_at inst?]
-    [:message/text (crdt/lww-schema crdt/hlc-schema string?)]
+    [:message/text (crdt/lww-schema string?)]
     [:message/edits [:map
                      [:message/text string?]
                      [:message/edited_at inst?]]]]))
@@ -462,19 +462,19 @@
   [:map
    [:crdt/clock crdt/hlc-schema]
    [:discussion/updated_at inst?]
-   [:discussion/archived_at [:map-of #'UserId (crdt/lww-schema crdt/hlc-schema inst?)]]])
+   [:discussion/archived_at [:map-of #'UserId (crdt/lww-schema inst?)]]])
 
 (def MarkMessageRead
   [:map
    [:crdt/clock crdt/hlc-schema]
    [:discussion/updated_at inst?]
-   [:discussion/last_message_read [:map-of #'UserId (crdt/lww-schema crdt/hlc-schema #'MessageId)]]])
+   [:discussion/last_message_read [:map-of #'UserId (crdt/lww-schema #'MessageId)]]])
 
 (def SubscribeDelta
   [:map
    [:crdt/clock crdt/hlc-schema]
    [:discussion/updated_at inst?]
-   [:discussion/subscribers [:map-of #'UserId (crdt/lww-schema crdt/hlc-schema boolean?)]]])
+   [:discussion/subscribers [:map-of #'UserId (crdt/lww-schema boolean?)]]])
 
 (def MarkDiscussionAsSeenDelta
   [:map
@@ -485,10 +485,10 @@
 (def AppendMessageDelta
   [:map
    [:crdt/clock crdt/hlc-schema]
-   [:discussion/latest_message (crdt/lww-schema crdt/hlc-schema #'MessageId)]
+   [:discussion/latest_message (crdt/lww-schema #'MessageId)]
    [:discussion/latest_activity_ts (crdt/max-wins-schema inst?)]
    [:discussion/seen_at [:map-of #'UserId (crdt/max-wins-schema inst?)]]
-   [:discussion/subscribers {:optional true} [:map-of #'UserId (crdt/lww-schema crdt/hlc-schema boolean?)]]
+   [:discussion/subscribers {:optional true} [:map-of #'UserId (crdt/lww-schema boolean?)]]
    [:discussion/active_members #'UserId]
    [:discussion/updated_at inst?]])
 
