@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [xtdb.api :as xtdb]
             [gatz.db :as db]
+            [gatz.db.contacts :as db.contacts]
             [gatz.db.discussion :as db.discussion]
             [gatz.db.user :as db.user]
             [gatz.db.util-test :as db.util-test]
@@ -28,18 +29,21 @@
           ctx (->ctx)
           node (:biff.xtdb/node ctx)
           get-ctx (fn [uid] (with-db (->auth-ctx ctx uid)))
-          poster (db.user/create-user! (get-ctx poster-uid)
-                                       {:id poster-uid
-                                        :username "poster"
-                                        :phone "+11111111111"})
-          commenter (db.user/create-user! (get-ctx commenter-uid)
-                                          {:id commenter-uid
-                                           :username "commenter"
-                                           :phone "+12222222222"})
-          lurker (db.user/create-user! (get-ctx lurker-uid)
-                                       {:id lurker-uid
-                                        :username "lurker"
-                                        :phone "+13333333333"})
+          _poster (db.user/create-user! (get-ctx poster-uid)
+                                        {:id poster-uid
+                                         :username "poster"
+                                         :phone "+11111111111"})
+          _commenter (db.user/create-user! (get-ctx commenter-uid)
+                                           {:id commenter-uid
+                                            :username "commenter"
+                                            :phone "+12222222222"})
+          _lurker (db.user/create-user! (get-ctx lurker-uid)
+                                        {:id lurker-uid
+                                         :username "lurker"
+                                         :phone "+13333333333"})
+          _ (db.contacts/force-contacts! ctx poster-uid commenter-uid)
+          _ (db.contacts/force-contacts! ctx poster-uid lurker-uid)
+          _ (db.contacts/force-contacts! ctx commenter-uid lurker-uid)
           _ (xtdb/sync node)
           {:keys [message discussion]} (db/create-discussion-with-message!
                                         (get-ctx poster-uid)
@@ -139,15 +143,16 @@
           node (:biff.xtdb/node ctx)
           get-ctx (fn [uid] (with-db (->auth-ctx ctx uid)))
           ptoken "POSTER_TOKEN"
-          poster (db.user/create-user! (get-ctx uid)
-                                       {:id uid
-                                        :username "poster"
-                                        :phone "+11111111111"})
+          _poster (db.user/create-user! (get-ctx uid)
+                                        {:id uid
+                                         :username "poster"
+                                         :phone "+11111111111"})
           cid (random-uuid)
-          commenter (db.user/create-user! (get-ctx cid)
-                                          {:username "commenter"
-                                           :id cid
-                                           :phone "+12222222222"})
+          _commenter (db.user/create-user! (get-ctx cid)
+                                           {:username "commenter"
+                                            :id cid
+                                            :phone "+12222222222"})
+          _ (db.contacts/force-contacts! ctx uid cid)
           ctoken "COMMENTER_TOKEN"
           _ (xtdb/sync node)
           nts (notify/activity-notification-for-user (xtdb/db node) uid)]
