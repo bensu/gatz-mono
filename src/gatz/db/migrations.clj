@@ -501,6 +501,6 @@
                      (when-not (db.user/activity-by-uid db uid)
                        (let [{:keys [user/last_active]} (db.user/by-id db uid)]
                          (db.user/new-activity-doc {:uid uid
-                                                    :now last_active}))))
+                                                    :now (crdt/-value last_active)}))))
                    uids)]
     (biff/submit-tx ctx (vec txns))))
