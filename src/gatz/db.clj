@@ -239,5 +239,6 @@
         txns [(assoc msg :db/doc-type :gatz.crdt/message :db/op :create)
               updated-media
               [:xtdb.api/fn :gatz.db.discussion/apply-delta {:evt evt}]]]
-    (biff/submit-tx ctx (vec (remove nil? txns)))
+    (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
+                    (vec (remove nil? txns)))
     msg))
