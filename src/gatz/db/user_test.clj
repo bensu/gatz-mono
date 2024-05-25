@@ -87,11 +87,7 @@
           c1 (crdt/new-hlc cid t1)
           t2 (crdt/inc-time t1)
           c2 (crdt/new-hlc cid t2)
-          actions [{:gatz.crdt.user/action :gatz.crdt.user/mark-active
-                    :gatz.crdt.user/delta {:crdt/clock clock
-                                           :user/updated_at now
-                                           :user/last_active now}}
-                   {:gatz.crdt.user/action :gatz.crdt.user/update-avatar
+          actions [{:gatz.crdt.user/action :gatz.crdt.user/update-avatar
                     :gatz.crdt.user/delta
                     {:crdt/clock c1
                      :user/updated_at now
@@ -139,6 +135,21 @@
                              :now now})
           (xtdb/sync node)
 
+          (let [db (xtdb/db node)
+                activity-doc (activity-by-uid db uid)]
+            (is-equal {:user_activity/user_id uid
+                       :user_activity/last_active now}
+                      (select-keys activity-doc [:user_activity/user_id :user_activity/last_active])))
+
+          (let [later (crdt/inc-time now)]
+            (mark-active! (assoc ctx :auth/user-id uid) {:now later})
+            (xtdb/sync node)
+            (let [db (xtdb/db node)
+                  activity-doc (activity-by-uid db uid)]
+              (is-equal {:user_activity/user_id uid
+                         :user_activity/last_active later}
+                        (select-keys activity-doc [:user_activity/user_id :user_activity/last_active]))))
+
           (doseq [action actions]
             (apply-action! (get-ctx uid) action))
           (xtdb/sync node)
@@ -154,7 +165,6 @@
                        :user/push_tokens nil,
                        :user/phone_number "4159499932",
                        :user/created_at now
-                       :user/last_active now
                        :user/updated_at t2
                        :user/settings
                        #:settings{:notifications
@@ -223,7 +233,6 @@
                        :user/push_tokens nil,
                        :user/phone_number "4159499932",
                        :user/created_at now
-                       :user/last_active t1
                        :user/updated_at t5
                        :user/settings
                        #:settings{:notifications

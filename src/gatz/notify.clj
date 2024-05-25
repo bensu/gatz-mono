@@ -253,7 +253,8 @@
 (defn activity-notification-for-user [db uid]
   (let [to-user (crdt.user/->value (db.user/by-id db uid))
         settings (get-in to-user [:user/settings :settings/notifications])
-        since-ts (or (:user/last_active to-user) (hours-ago 8))]
+        to-user-activity (db.user/activity-by-uid db uid)
+        since-ts (or (:user_activity/last_active to-user-activity) (hours-ago 8))]
     (when-let [expo-token (->token to-user)]
       (when (and (:settings.notification/overall settings)
                  (= :settings.notification/daily (:settings.notification/activity settings)))

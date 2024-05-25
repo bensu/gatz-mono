@@ -493,3 +493,14 @@
                      uid-pairs)]
     (biff/submit-tx ctx (vec txns))))
 
+
+(defn add-user-activity-docs! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        uids (db.user/all-ids db)
+        txns (mapv (fn [uid]
+                     (when-not (db.user/activity-by-uid db uid)
+                       (let [{:keys [user/last_active]} (db.user/by-id db uid)]
+                         (db.user/new-activity-doc {:uid uid
+                                                    :now last_active}))))
+                   uids)]
+    (biff/submit-tx ctx (vec txns))))

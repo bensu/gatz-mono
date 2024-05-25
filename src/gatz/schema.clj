@@ -71,7 +71,6 @@
    [:user/phone_number string?]
    ;; MaxWins
    [:user/updated_at inst?]
-   [:user/last_active inst?]
    ;; LWW
    [:user/avatar [:maybe string?]]
    ;; {k {k LWW}}
@@ -93,7 +92,6 @@
    [:user/phone_number string?]
    ;; MaxWins
    [:user/updated_at (crdt/max-wins-schema inst?)]
-   [:user/last_active (crdt/max-wins-schema inst?)]
    ;; LWW
    [:user/avatar (crdt/lww-schema crdt/hlc-schema [:maybe string?])]
    ;; {k {k LWW}}
@@ -101,6 +99,14 @@
    [:user/settings
     [:map
      [:settings/notifications NotificationPreferencesCRDT]]]])
+
+(def UserActivity
+  [:map
+   [:xt/id :uuid] ;; unused 
+   [:db/type [:enum :gatz/user_activity]]
+   [:db/version [:enum 1]]
+   [:user_activity/user_id #'UserId]
+   [:user_activity/last_active inst?]])
 
 (def friend-keys [:xt/id :user/name :user/avatar])
 
@@ -321,12 +327,6 @@
 ;; ====================================================================== 
 ;; Events
 
-(def UserMarkActiveDelta
-  [:map
-   [:crdt/clock crdt/hlc-schema]
-   [:user/updated_at inst?]
-   [:user/last_active inst?]])
-
 (def UserUpdateAvatar
   [:map
    [:crdt/clock crdt/hlc-schema]
@@ -363,9 +363,6 @@
 (def UserAction
   (mu/closed-schema
    [:or
-    [:map
-     [:gatz.crdt.user/action [:enum :gatz.crdt.user/mark-active]]
-     [:gatz.crdt.user/delta UserMarkActiveDelta]]
     [:map
      [:gatz.crdt.user/action [:enum :gatz.crdt.user/update-avatar]]
      [:gatz.crdt.user/delta UserUpdateAvatar]]
@@ -570,6 +567,7 @@
    :gatz/evt #'Event
    :gatz/user #'User
    :gatz.crdt/user #'UserCRDT
+   :gatz/user_activity #'UserActivity
    :gatz/contacts #'UserContacts
    :gatz.doc/discussion #'DiscussionDoc
    :gatz/discussion #'Discussion

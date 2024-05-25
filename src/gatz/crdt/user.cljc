@@ -63,9 +63,7 @@
 (defn update-user
   ([u] (update-user u (Date.)))
   ([u now]
-   (cond-> (merge user-defaults
-                  {:user/last_active now}
-                  u)
+   (cond-> (merge user-defaults u)
 
      (nil? (:user/settings u))
      (update-in [:user/settings :settings/notifications]
@@ -96,7 +94,6 @@
      :user/name username
      :user/phone_number phone
      :user/updated_at (crdt/->MaxWins now)
-     :user/last_active (crdt/->MaxWins now)
      :user/avatar (crdt/->LWW clock nil)
      :user/push_tokens (crdt/->LWW clock nil)
      :user/settings {:settings/notifications (notifications-off-crdt clock)}}))
@@ -130,14 +127,12 @@
                  :settings.notification/suggestions_from_gatz true}
           deltas [{:crdt/clock c1
                    :user/updated_at t1
-                   :user/last_active t1
                    :user/push_tokens (crdt/->LWW c1 {:push/expo {:push/token "EXPO!"
                                                                  :push/created_at t1
                                                                  :push/service :push/expo}})
                    :user/avatar (crdt/->LWW c1 avatar)}
                   {:crdt/clock c2
                    :user/updated_at t2
-                   :user/last_active t2
                    :user/settings {:settings/notifications (crdt/->lww-map np-t4 c2)}}
                   {:crdt/clock c3
                    :user/updated_at t3
@@ -160,7 +155,6 @@
               :user/name "test"
               :user/phone_number "111"
               :user/updated_at now
-              :user/last_active now
               :user/avatar nil
               :user/push_tokens nil
               :user/settings {:settings/notifications notifications-off}}
@@ -175,7 +169,6 @@
               :user/name "test"
               :user/phone_number "111"
               :user/updated_at t5
-              :user/last_active t2
               :user/avatar avatar
               :user/push_tokens push-tokens
               :user/settings {:settings/notifications (merge np-t4 np-t5)}}

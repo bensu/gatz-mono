@@ -34,6 +34,51 @@
 (def all-migrations
   [{:from 0 :to 1 :transform v0->v1}])
 
+(defn- as-unique [x] [:db/unique x])
+
+;; ======================================================================
+;; Activity 
+
+;; We keep what used to be :user/last_active in a separate document
+;; so that the user document doesn't get updated every time the user
+;; visits the app.
+
+(defn new-activity-doc [{:keys [uid now id]}]
+  (let [doc {:db/doc-type :gatz/user_activity
+             :db/op :create
+             :db/type :gatz/user_activity
+             :db/version 1
+             :xt/id (or id (random-uuid))
+             :user_activity/user_id uid
+             :user_activity/last_active now}]
+    (update doc :user_activity/user_id as-unique)))
+
+(defn activity-by-uid [db uid]
+  {:pre [(uuid? uid)]}
+  (first
+   (q db
+      '{:find (pull a [*])
+        :in [uid]
+        :where [[a :db/type :gatz/user_activity]
+                [a :user_activity/user_id uid]]}
+      uid)))
+
+
+(defn max-date [^Date a ^Date b]
+  (if (.after a b) a b))
+
+(defn mark-active-txn [xtdb-ctx {:keys [args]}]
+  (let [db (xtdb.api/db xtdb-ctx)
+        {:keys [uid now]} args]
+    (when-let [activity-doc (activity-by-uid db uid)]
+      (let [new-doc (-> activity-doc
+                        (update :user_activity/last_active #(max-date % now)))]
+        [[:xtdb.api/put (assoc new-doc :db/doc-type :gatz/user_activity)]]))))
+
+(def mark-active-expr
+  '(fn mark-active-fn [ctx args]
+     (gatz.db.user/mark-active-txn ctx args)))
+
 ;; ====================================================================== 
 ;; User
 
@@ -71,8 +116,6 @@
   (q db
      '{:find  u
        :where [[u :db/type :gatz/user]]}))
-
-(defn- as-unique [x] [:db/unique x])
 
 (defn new-contacts-txn [{:keys [uid now]}]
   (let [contacts (db.contacts/new-contacts {:uid uid
@@ -112,7 +155,8 @@
                    (assoc :db/doc-type :gatz.crdt/user :db/op :create)
                    (update :user/name as-unique)
                    (update :user/phone_number as-unique))
-               (new-contacts-txn {:uid id :now now})]
+               (new-contacts-txn {:uid id :now now})
+               (new-activity-doc {:uid id :now now})]
          txns (if make-friends-with-everybody?
                 (vec (concat txns (make-friends-with-everybody-txn db id now)))
                 txns)]
@@ -143,7 +187,8 @@
      (gatz.db.user/user-apply-delta ctx args)))
 
 (def tx-fns
-  {:gatz.db.user/apply-delta user-apply-delta-expr})
+  {:gatz.db.user/apply-delta user-apply-delta-expr
+   :gatz.db.user/mark-active mark-active-expr})
 
 (defn apply-action!
   "Applies a delta to the user and stores it"
@@ -163,18 +208,6 @@
              :user (by-id db-after user-id)})
           (assert false "Transaction would've failed")))
       (assert false "Invaild event"))))
-
-(defn mark-active!
-  ([ctx]
-   (mark-active! ctx {:now (Date.)}))
-  ([{:keys [auth/user-id] :as ctx} {:keys [now]}]
-   {:pre [(uuid? user-id)]}
-   (let [clock (crdt/new-hlc user-id now)
-         action {:gatz.crdt.user/action :gatz.crdt.user/mark-active
-                 :gatz.crdt.user/delta {:crdt/clock clock
-                                        :user/updated_at now
-                                        :user/last_active now}}]
-     (apply-action! ctx action))))
 
 (defn update-avatar!
   ([ctx avatar–url]
@@ -242,6 +275,14 @@
 
 (defn turn-off-notifications! [ctx]
   (edit-notifications! ctx crdt.user/notifications-off))
+
+(defn mark-active!
+  ([ctx]
+   (mark-active! ctx {:now (Date.)}))
+  ([{:keys [auth/user-id] :as ctx} {:keys [now]}]
+   {:pre [(uuid? user-id)]}
+   (let [args {:uid user-id :now now}]
+     (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.user/mark-active {:args args}]]))))
 
 (defn all-users [db]
   (vec (q db '{:find (pull user [*])
