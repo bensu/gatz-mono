@@ -171,7 +171,7 @@
         ;; Try the transaction before submitting it
         (if-let [db-after (xtdb.api/with-tx db txs)]
           (do
-            (biff/submit-tx ctx txs)
+            (biff/submit-tx (assoc ctx :biff.xtdb/retry false) txs)
             {:evt (xtdb.api/entity db-after (:evt/id evt))
              :discussion (by-id db-after did)})
           (assert false "Transaction would've failed")))
@@ -198,7 +198,7 @@
                                             :evt/data action})]
                   [:xtdb.api/fn :gatz.db.discussion/apply-delta {:evt evt}]))
               dids)]
-    (biff/submit-tx ctx txns)))
+    (biff/submit-tx (assoc ctx :biff.xtdb/retry false) txns)))
 
 (defn mark-message-read!
   ([ctx uid did mid]

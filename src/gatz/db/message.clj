@@ -157,7 +157,7 @@
         ;; Try the transaction before submitting it
         (if-let [db-after (xtdb.api/with-tx db txs)]
           (do
-            (biff/submit-tx ctx txs)
+            (biff/submit-tx (assoc ctx :biff.xtdb/retry false) txs)
             {:evt (xtdb.api/entity db-after (:evt/id evt))
              :message (by-id db-after mid)})
           (assert false "Transaction would've failed")))

@@ -3,7 +3,6 @@
             [clojure.string :as str]
             [gatz.auth :as auth]
             [gatz.crdt.user :as crdt.user]
-            [gatz.db :as db]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.user :as db.user]
             [gatz.schema :as schema]

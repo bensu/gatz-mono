@@ -203,7 +203,7 @@
         ;; Try the transaction before submitting it
         (if-let [db-after (xtdb.api/with-tx db txs)]
           (do
-            (biff/submit-tx ctx txs)
+            (biff/submit-tx (assoc ctx :biff.xtdb/retry false) txs)
             {:evt (xtdb.api/entity db-after (:evt/id evt))
              :user (by-id db-after user-id)})
           (assert false "Transaction would've failed")))
@@ -282,7 +282,8 @@
   ([{:keys [auth/user-id] :as ctx} {:keys [now]}]
    {:pre [(uuid? user-id)]}
    (let [args {:uid user-id :now now}]
-     (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.user/mark-active {:args args}]]))))
+     (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
+                     [[:xtdb.api/fn :gatz.db.user/mark-active {:args args}]]))))
 
 (defn all-users [db]
   (vec (q db '{:find (pull user [*])
