@@ -467,3 +467,29 @@
                        (db.contacts/forced-contact-txn db a b {:now now}))
                      uid-pairs)]
     (biff/submit-tx ctx (vec txns))))
+
+(defn add-fake-contact-requests! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        now (Date.)
+        uids (db.user/all-ids db)
+        uid-pairs (->> (for [aid uids
+                             bid uids
+                             :when (not= aid bid)]
+                         #{aid bid})
+                       (set)
+                       (mapv vec))
+        txns (mapcat (fn [[a b]]
+                       (when (nil? (db.contacts/current-request-between db a b))
+                         (let [from a
+                               to b
+                               req-args {:id (random-uuid) :from from :to to :now now}
+                               transition-args {:from from
+                                                :to to
+                                                :by to
+                                                :now (Date.)
+                                                :state :contact_request/accepted}]
+                           [[:xtdb.api/fn :gatz.db.contacts/new-request {:args req-args}]
+                            [:xtdb.api/fn :gatz.db.contacts/transition-to {:args transition-args}]])))
+                     uid-pairs)]
+    (biff/submit-tx ctx (vec txns))))
+
