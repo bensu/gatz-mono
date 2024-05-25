@@ -46,13 +46,17 @@
       (let [viewed-user (db.user/by-id db id)
             their-contacts-ids (:contacts/ids (db.contacts/by-uid db id))
             in-common-uids (db.contacts/get-in-common db user-id id)
+            already-my-contact? (contains? their-contacts-ids user-id)
             their-contacts (->> their-contacts-ids
                                 (remove (partial contains? in-common-uids))
                                 (remove (partial = user-id))
                                 (mapv (partial db.user/by-id db)))
             contacts-in-common (->> in-common-uids
                                     (mapv (partial db.user/by-id db)))
-            contact-request (db.contacts/current-request-between db user-id id)
+            contact-request-state (if already-my-contact?
+                                    :contact_request/accepted
+                                    (-> (db.contacts/current-request-between db user-id id)
+                                        (db.contacts/state-for user-id)))
            ;; posts-in-common (->> (db.discussion/posts-in-common db user-id id)
             ;;                      (map (partial db.discussion/by-id db))
             ;;                      (mapv crdt.discussion/->value))
@@ -65,7 +69,7 @@
             ;; (db.contacts/pending-requests-from-to db id user-id)
         (json-response
          {:contact (-> viewed-user crdt.user/->value db.contacts/->contact)
-          :contact_request_state (db.contacts/state-for contact-request user-id)
+          :contact_request_state contact-request-state
           :their_contacts (mapv #(-> % crdt.user/->value db.contacts/->contact) their-contacts)
           :in_common {:contacts (->> contacts-in-common
                                      (mapv #(-> % crdt.user/->value db.contacts/->contact)))
