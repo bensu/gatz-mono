@@ -3,6 +3,7 @@
             [gatz.auth]
             [gatz.db :as db]
             [gatz.db.discussion :as db.discussion]
+            [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
             [gatz.crdt.discussion :as crdt.discussion]
             [gatz.crdt.message :as crdt.message]
@@ -126,13 +127,16 @@
   (let [did (mt/-string->uuid (:did params))
         {:keys [discussion]} (db.discussion/archive! ctx did user-id)
         d (crdt.discussion/->value discussion)
-        {:keys [messages user_ids]} (db/discussion-by-id db did)]
+        ;; fine if these values are stale compared to the discussion
+        users (->> (:discussion/members d)
+                   (mapv (comp crdt.user/->value
+                               (partial db.user/by-id db))))
+        messages (db.message/by-did db did)]
     (posthog/capture! ctx "discussion.archive" {:did did})
       ;; TODO: change to only return the discussion
+      ;; The client has already been fixed to handle this
     (json-response {:discussion d
-                    :users (mapv (comp crdt.user/->value
-                                       (partial db.user/by-id db))
-                                 user_ids)
+                    :users users
                     :messages (mapv crdt.message/->value messages)})))
 
 (defn subscribe-to-discussion!
