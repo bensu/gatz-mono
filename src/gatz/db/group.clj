@@ -1,7 +1,9 @@
 (ns gatz.db.group
-  (:require [gatz.schema :as schema]
-            [medley.core :refer [dissoc-in]]
+  (:require [com.biffweb :as biff :refer [q]]
+            [gatz.schema :as schema]
             [malli.util :as mu]
+            [malli.core :as m]
+            [medley.core :refer [dissoc-in]]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
@@ -23,13 +25,13 @@
   (let [id (or id (random-uuid))
         now (or now (Date.))]
     {:xt/id id
-     :db/doc-type :gatz/group
      :db/version 1
      :db/type :gatz/group
      :group/name name
      :group/description description
      :group/avatar avatar
      :group/owner owner
+     :group/created_by owner
      :group/members (conj members owner)
      :group/admins #{owner}
      :group/created_at now
@@ -42,6 +44,14 @@
 (defn by-id [db id]
   {:pre [(uuid? id)]}
   (xtdb/entity db id))
+
+(defn create! [{:keys [biff.xtdb/node] :as ctx} group-opts]
+  (let [id (or (:id group-opts) (random-uuid))]
+    (biff/submit-tx ctx [(-> (assoc group-opts :id id)
+                             new-group
+                             (assoc :db/op :create)
+                             (assoc :db/doc-type :gatz/group))])
+    (by-id (xtdb/db node) id)))
 
 (defn by-member-uid [db uid]
   (xtdb/q db
@@ -210,11 +220,34 @@
   (let [to-be-transferred (:group/owner delta)]
     (and (= by_uid owner) (contains? admins to-be-transferred))))
 
-#_(defn apply-action-txn [xtdb-ctx {:keys [action]}]
-    (let [{:keys [xt/id]} action
-          db (xtdb.api/db xtdb-ctx)
-          group (gatz.db.group/by-id db id)]
+(defn apply-action-txn [xtdb-ctx {:keys [action] :as _args}]
+  (let [{:keys [xt/id]} action
+        db (xtdb.api/db xtdb-ctx)
+        group (gatz.db.group/by-id db id)]
+    (when (m/validate Action action)
       (when (authorized-for-action? group action)
         (let [updated-group (apply-action group action)]
-          [[:xtdb.api/put updated-group]]))))
+          [[:xtdb.api/put updated-group]])))))
 
+(def apply-action-expr
+  '(fn apply-action-fn [xtdb-ctx args]
+     (gatz.db.group/apply-action-txn xtdb-ctx args)))
+
+(def tx-fns
+  {:gatz.db.group/apply-action apply-action-expr})
+
+(defn apply-action!
+
+  [{:keys [biff/db auth/user-id] :as ctx} gid action]
+
+  {:pre [(uuid? gid)]}
+
+  (let [attributed-action (assoc action :group/by_uid user-id)]
+    (if (true? (m/validate Action attributed-action))
+      (let [txn [[:xtdb.api/fn :gatz.db.group/apply-action {:action attributed-action}]]]
+        (if-let [db-after (xtdb.api/with-tx db txn)]
+          (do
+            (biff/submit-tx (assoc ctx :biff.xtdb/retry false) txn)
+            {:group (by-id db-after gid)})
+          (assert false "Transaction would've been invalid")))
+      (assert false "Invalid action"))))

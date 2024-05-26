@@ -1,9 +1,11 @@
 (ns gatz.db.group-test
   (:require [clojure.test :as test :refer [deftest testing is]]
             [crdt.core :as crdt]
-            [gatz.db.util-test :as util-test :refer [is-equal]]
+            [gatz.db.util-test :as db.util-test :refer [is-equal]]
             [gatz.db.group :as db.group]
-            [malli.core :as malli]))
+            [gatz.schema :as schema]
+            [malli.core :as malli]
+            [xtdb.api :as xtdb]))
 
 (deftest basic-flow
   (testing "we can create group and do actions on them"
@@ -95,6 +97,32 @@
                     :group/action :group/transfer-ownership
                     :group/delta {:group/updated_at t9
                                   :group/owner member}}]
+          expected-initial {:xt/id gid
+                            :db/version 1
+                            :db/type :gatz/group
+                            :group/name "test"
+                            :group/description nil
+                            :group/avatar nil
+                            :group/owner owner
+                            :group/created_by owner
+                            :group/members #{owner}
+                            :group/admins #{owner}
+                            :group/created_at now
+                            :group/updated_at now
+                            :group/joined_at {owner now}}
+          expected-final {:xt/id gid
+                          :db/version 1
+                          :db/type :gatz/group
+                          :group/name "test_updated_again"
+                          :group/description "new description"
+                          :group/avatar "new avatar"
+                          :group/owner member
+                          :group/members #{owner member}
+                          :group/admins #{owner member}
+                          :group/created_by owner
+                          :group/created_at now
+                          :group/updated_at t9
+                          :group/joined_at {owner now member t3}}
           final-group (reduce db.group/apply-action initial-group actions)]
 
       (doseq [action actions]
@@ -130,34 +158,35 @@
               (recur (rest actions)
                      (db.group/apply-action group action))))))
 
-      (is-equal {:xt/id gid
-                 :db/doc-type :gatz/group
-                 :db/version 1
-                 :db/type :gatz/group
-                 :group/name "test"
-                 :group/description nil
-                 :group/avatar nil
-                 :group/owner owner
-                 :group/members #{owner}
-                 :group/admins #{owner}
-                 :group/created_at now
-                 :group/updated_at now
-                 :group/joined_at {owner now}}
-                initial-group)
+      (is (malli/validate schema/Group initial-group))
+      (is (malli/validate schema/Group expected-final))
+
+      (is (empty? (:errors (malli/explain schema/Group initial-group))))
+
+      (is-equal expected-initial initial-group)
 
       ;; Notice there is nothing re non-member
       ;; Notice there is nothing re bad-admin
-      (is-equal {:xt/id gid
-                 :db/doc-type :gatz/group
-                 :db/version 1
-                 :db/type :gatz/group
-                 :group/name "test_updated_again"
-                 :group/description "new description"
-                 :group/avatar "new avatar"
-                 :group/owner member
-                 :group/members #{owner member}
-                 :group/admins #{owner member}
-                 :group/created_at now
-                 :group/updated_at t9
-                 :group/joined_at {owner now member t3}}
-                final-group))))
+      (is-equal expected-final final-group)
+
+      (testing "and we can do all with the database"
+
+        (let [ctx (db.util-test/test-system)
+              node (:biff.xtdb/node ctx)
+              get-ctx (fn []
+                        (-> ctx
+                            (assoc :biff/db (xtdb/db node))
+                            (assoc :auth/user-id owner)))
+              group (db.group/create! ctx
+                                      {:id gid :owner owner :now now
+                                       :name "test" :members #{}})]
+
+          (is-equal initial-group group)
+
+          (xtdb/sync node)
+          (doseq [action actions]
+            (db.group/apply-action! (get-ctx) gid action)
+            (xtdb/sync node))
+
+          (let [final-group (db.group/by-id (xtdb/db node) gid)]
+            (is-equal expected-final final-group)))))))
