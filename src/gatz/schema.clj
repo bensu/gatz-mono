@@ -9,6 +9,7 @@
 (def DiscussionId :uuid)
 (def EvtId :uuid)
 (def ClientId :uuid)
+(def GroupId :uuid)
 
 ;; ======================================================================  
 ;; User & Contacts
@@ -164,6 +165,55 @@
 
 (def ContactResponse
   (mu/select-keys User contact-ks))
+
+;; ====================================================================== 
+;; Groups
+
+(def Group
+  [:map
+   [:xt/id #'GroupId]
+   [:db/type [:enum :gatz/group]]
+   [:db/version [:enum 1]]
+   [:group/created_at inst?]
+   [:group/created_by #'UserId]
+
+   [:group/updated_at inst?]
+   [:group/name string?]
+   [:group/description [:maybe string?]]
+   [:group/avatar [:maybe string?]]
+
+   [:group/owner #'UserId]
+   [:group/admins [:set #'UserId]]
+   ;; When did somebody join a group?
+   [:group/members [:set #'UserId]]
+   [:group/joined_at [:map-of #'UserId inst?]]])
+
+#_(def GroupRequestState
+    [:enum
+     :group_request/requested
+     :group_request/accepted
+     :group_request/ignored
+     :group_request/removed])
+
+#_(def GroupRequestLog
+    [:map
+     [:group_request/ts inst?]
+     [:group_request/by_user UserId]
+     [:group_request/from_state GroupRequestState]
+     [:group_request/to_state GroupRequestState]])
+
+#_(def GroupRequest
+    [:map
+     [:xt/id :uuid] ;; probably unused
+     [:db/type [:enum :gatz/group_request]]
+     [:group_request/from #'UserId]
+     [:group_request/to #'UserId]
+     [:group_request/to_group #'GroupId]
+     [:group_request/created_at inst?]
+     [:group_request/updated_at inst?]
+     [:group_request/state GroupRequestState]
+     [:group_request/log [:vec GroupRequestLog]]])
+
 
 ;; ====================================================================== 
 ;; Message & Media
@@ -569,6 +619,7 @@
    :gatz.crdt/user #'UserCRDT
    :gatz/user_activity #'UserActivity
    :gatz/contacts #'UserContacts
+   :gatz/group #'Group
    :gatz.doc/discussion #'DiscussionDoc
    :gatz/discussion #'Discussion
    :gatz.crdt/discussion #'DiscussionCRDT
