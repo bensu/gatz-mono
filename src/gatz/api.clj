@@ -6,6 +6,7 @@
             [gatz.auth :as auth]
             [gatz.api.contacts :as api.contacts]
             [gatz.api.discussion :as api.discussion]
+            [gatz.api.group :as api.group]
             [gatz.api.media :as api.media]
             [gatz.api.message :as api.message]
             [gatz.api.user :as api.user]
@@ -272,6 +273,8 @@
                  ["/contacts" {:get api.contacts/get-all-contacts}]
                  ["/contact/request" {:post api.contacts/handle-request!}]
 
+                 ["/group" {:get api.group/get-group}]
+                 ["/group/request" {:post api.group/handle-request!}]
 
                  ["/discussions" {:get  api.discussion/get-full-discussions
                                   :post api.discussion/create-discussion!}]

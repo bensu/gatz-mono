@@ -4,6 +4,7 @@
             [gatz.auth :as auth]
             [gatz.crdt.user :as crdt.user]
             [gatz.db.contacts :as db.contacts]
+            [gatz.db.group :as db.group]
             [gatz.db.user :as db.user]
             [gatz.schema :as schema]
             [malli.transform :as mt]
@@ -28,6 +29,7 @@
 (def get-me-response
   [:map
    [:user schema/User]
+   [:groups [:vec schema/Group]]
    [:contacts [:vec schema/ContactResponse]]
    [:contact_requests [:vec [:map
                              [:id schema/ContactRequestId]
@@ -35,6 +37,7 @@
 
 (defn get-me [{:keys [auth/user auth/user-id biff/db] :as _ctx}]
   (let [my-contacts (db.contacts/by-uid db user-id)
+        groups (db.group/by-member-uid db user-id)
         contacts (mapv (fn [uid]
                          (-> (db.user/by-id db uid)
                              crdt.user/->value
@@ -48,6 +51,7 @@
                                                    db.contacts/->contact)}))
                               vec)]
     (json-response {:user (crdt.user/->value user)
+                    :groups groups
                     :contacts contacts
                     :contact_requests contact_requests})))
 

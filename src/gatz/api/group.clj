@@ -1,0 +1,115 @@
+(ns gatz.api.group
+  (:require [clojure.data.json :as json]
+            [clojure.set :as set]
+            [gatz.db.contacts :as db.contacts]
+            [gatz.db.group :as db.group]
+            [gatz.db.user :as db.user]
+            [gatz.crdt.user :as crdt.user]
+            [gatz.schema :as schema]
+            [malli.transform :as mt]
+            [malli.core :as m]
+            [medley.core :refer [map-keys]])
+  (:import [java.util Date]))
+
+
+(defn json-response [body]
+  {:status 200
+   :headers {"Content-Type" "application/json"}
+   :body (json/write-str body)})
+
+(defn err-resp [err-type err-msg]
+  {:status 400
+   :headers {"Content-Type" "application/json"}
+   :body (json/write-str {:type "error" :error err-type :message err-msg})})
+
+
+(def get-group-params
+  [:map
+   [:id uuid?]])
+
+(def get-group-response
+  [:map
+   [:group schema/Group]
+   [:all_contacts [:vec schema/ContactResponse]]
+   [:in_common [:map
+                [:contact_ids [:vec schema/UserId]]]]])
+
+(defn strict-str->uuid [s]
+  (let [out (mt/-string->uuid s)]
+    (if (uuid? out) out nil)))
+
+(defn parse-group-params [params]
+  (cond-> params
+    (some? (:id params)) (update :id strict-str->uuid)))
+
+(defn get-group [{:keys [auth/user-id biff/db] :as ctx}]
+  (let [params (parse-group-params (:params ctx))]
+    (if-let [id (:id params)]
+      (if-let [group (db.group/by-id db id)]
+        (if (contains? (:group/members group) user-id)
+          (let [member-ids (:group/members group)
+                my-contacts (db.contacts/by-uid db user-id)
+                my-contact-ids (:contacts/ids my-contacts)
+                all-contact-ids (set/union member-ids my-contact-ids)
+                in-common (set/intersection member-ids my-contact-ids)
+                all-contacts (mapv (comp db.contacts/->contact
+                                         crdt.user/->value
+                                         (partial db.user/by-id db))
+                                   all-contact-ids)]
+            (json-response {:group group
+            ;; should this include me?
+                            :all_contacts all-contacts
+                            :in_common {:contact_ids in-common}}))
+          (err-resp "not_found" "Group not found"))
+        (err-resp "not_found" "Group not found"))
+      (err-resp "invalid_params" "Invalid params"))))
+
+
+(def group-request-params
+  [:map
+   [:id schema/GroupId]
+   [:action db.group/ActionTypes]
+   [:delta db.group/Delta]])
+
+(defn parse-action-type [s]
+  {:pre [(string? s)]
+   :post [(or (nil? %)
+              (contains? db.group/action-types %))]}
+  (let [k (keyword "group" s)]
+    (when (contains? db.group/action-types k) k)))
+
+(defn parse-set-uuids [xs]
+  (when (coll? xs)
+    (set (keep strict-str->uuid xs))))
+
+(defn parse-delta [{:keys [owner admins members name description avatar]}]
+  (cond-> {}
+    (string? owner)       (assoc :group/owner (strict-str->uuid owner))
+    (some? admins)        (assoc :group/admins (parse-set-uuids admins))
+    (some? members)       (assoc :group/members (parse-set-uuids members))
+    (string? name)        (assoc :group/name name)
+    (string? description) (assoc :group/description description)
+    (string? avatar)      (assoc :group/avatar avatar)))
+
+(defn parse-request-params [{:keys [id action delta]}]
+  (cond-> {}
+    (some? id)     (assoc :xt/id (strict-str->uuid id))
+    (some? action) (assoc :group/action (parse-action-type action))
+    (some? delta)  (assoc :group/delta (parse-delta delta))))
+
+(defn handle-request! [{:keys [auth/user-id] :as ctx}]
+  (let [{:group/keys [action delta]
+         :xt/keys [id]}
+        (parse-request-params (:params ctx))]
+    (if (not (and id action delta))
+      (err-resp "invalid_params" "Invalid parameters")
+      (let [now (Date.)
+            action {:xt/id id
+                    :group/by_uid user-id
+                    :group/action action
+                    :group/delta (assoc delta :group/updated_at now)}]
+        (if-not (m/validate db.group/Action action)
+          (err-resp "invalid_params" "Invalid parameters")
+          (let [{:keys [group]} (db.group/apply-action! ctx action)]
+            (json-response {:status "success"
+                            :group group})))))))
