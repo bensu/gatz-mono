@@ -53,23 +53,29 @@
                              (assoc :db/doc-type :gatz/group))])
     (by-id (xtdb/db node) id)))
 
-(defn by-member-uid [db uid]
-  (xtdb/q db
-          '{:find (pull g [*])
-            :in [uid]
-            :where [[g :db/type :gatz/group]
-                    [g :group/members uid]]}
-          uid))
+(defn by-member-uid
+  "Returns all the groups the user is a member of"
+  [db uid]
+  (->> (xtdb/q db
+               '{:find [(pull g [*])]
+                 :in [uid]
+                 :where [[g :db/type :gatz/group]
+                         [g :group/members uid]]}
+               uid)
+       (mapv first)))
 
-(defn members-in-common [db aid bid]
+(defn with-members-in-common
+  "Returns groups with the two members in common"
+  [db aid bid]
   {:pre [(uuid? aid) (uuid? bid)]}
-  (xtdb/q db
-          '{:find (pull g [*])
-            :in [aid bid]
-            :where [[g :db/type :gatz/group]
-                    [g :group/members aid]
-                    [g :group/members bid]]}
-          aid bid))
+  (->> (xtdb/q db
+               '{:find [(pull g [*])]
+                 :in [aid bid]
+                 :where [[g :db/type :gatz/group]
+                         [g :group/members aid]
+                         [g :group/members bid]]}
+               aid bid)
+       (mapv first)))
 
 ;; ======================================================================
 ;; Actions

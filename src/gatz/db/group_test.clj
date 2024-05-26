@@ -195,9 +195,28 @@
           (is-equal initial-group group)
 
           (xtdb/sync node)
+
+          (let [db (xtdb/db node)
+                owner-groups (db.group/by-member-uid db owner)]
+            (is (= 1 (count owner-groups)))
+            (is (= initial-group (first owner-groups)))
+            (is (empty? (db.group/by-member-uid db member))))
+
           (doseq [action actions]
             (db.group/apply-action! (get-ctx) gid action)
             (xtdb/sync node))
 
-          (let [final-group (db.group/by-id (xtdb/db node) gid)]
-            (is-equal expected-final final-group)))))))
+          (let [db (xtdb/db node)
+                final-group (db.group/by-id db gid)
+                owner-groups (db.group/by-member-uid db owner)
+                member-groups (db.group/by-member-uid db member)
+                non-member-groups (db.group/by-member-uid db non-member)]
+            (is-equal expected-final final-group)
+            (is (= [final-group]
+                   (db.group/with-members-in-common db owner member)
+                   (db.group/with-members-in-common db member owner)
+                   owner-groups
+                   member-groups))
+            (is (empty? non-member-groups))
+            (is (empty? (db.group/with-members-in-common db owner non-member)))
+            (is (empty? (db.group/with-members-in-common db member non-member)))))))))
