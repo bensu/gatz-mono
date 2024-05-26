@@ -3,8 +3,9 @@
             [gatz.schema :as schema]
             [malli.util :as mu]
             [malli.core :as m]
-            [medley.core :refer [dissoc-in]]
-            [xtdb.api :as xtdb])
+            [medley.core :refer [filter-keys]]
+            [xtdb.api :as xtdb]
+            [clojure.set :as set])
   (:import [java.util Date]))
 
 ;; ======================================================================
@@ -80,58 +81,92 @@
 ;; ======================================================================
 ;; Actions
 
+(def ActionTypes
+  [:enum
+   :group/update-attrs
+   :group/remove-member
+   :group/add-member
+   :group/remove-admin
+   :group/add-admin
+   :group/transfer-ownership])
+
+(def action-types (set (rest ActionTypes)))
+
+(def UpdateAttrsDelta
+  (mu/closed-schema
+   [:map
+    [:group/updated_at inst?]
+    [:group/name {:optional true} string?]
+    [:group/description {:optional true} string?]
+    [:group/avatar {:optional true} string?]]))
+
+(def AddMemberDelta
+  (mu/closed-schema
+   [:map
+    [:group/updated_at inst?]
+    [:group/members [:set schema/UserId]]]))
+
+(def RemoveMemberDelta AddMemberDelta)
+
+(def AddAdminDelta
+  (mu/closed-schema
+   [:map
+    [:group/updated_at inst?]
+    [:group/admins [:set schema/UserId]]]))
+
+(def RemoveAdminDelta AddAdminDelta)
+
+(def TransferOwnershipDelta
+  (mu/closed-schema
+   [:map
+    [:group/updated_at inst?]
+    [:group/owner schema/UserId]]))
+
+(def Delta
+  [:or
+   UpdateAttrsDelta
+   AddMemberDelta
+   RemoveMemberDelta
+   AddAdminDelta
+   RemoveAdminDelta
+   TransferOwnershipDelta])
+
 (def Action
   [:or
+
    [:map
     [:xt/id schema/GroupId]
+    [:group/by_uid schema/UserId]
     [:group/action [:enum :group/update-attrs]]
-    [:group/by_uid schema/UserId]
-    [:group/delta (mu/closed-schema
-                   [:map
-                    [:group/updated_at inst?]
-                    [:group/name {:optional true} string?]
-                    [:group/description {:optional true} string?]
-                    [:group/avatar {:optional true} string?]])]]
+    [:group/delta UpdateAttrsDelta]]
+
    [:map
     [:xt/id schema/GroupId]
-    [:group/action [:enum :group/remove-member]]
     [:group/by_uid schema/UserId]
-    [:group/delta (mu/closed-schema
-                   [:map
-                    [:group/updated_at inst?]
-                    [:group/members schema/UserId]])]]
-   [:map
-    [:xt/id schema/GroupId]
     [:group/action [:enum :group/add-member]]
-    [:group/by_uid schema/UserId]
-    [:group/delta (mu/closed-schema
-                   [:map
-                    [:group/updated_at inst?]
-                    [:group/members schema/UserId]])]]
+    [:group/delta AddMemberDelta]]
    [:map
     [:xt/id schema/GroupId]
-    [:group/action [:enum :group/remove-admin]]
     [:group/by_uid schema/UserId]
-    [:group/delta (mu/closed-schema
-                   [:map
-                    [:group/updated_at inst?]
-                    [:group/admins schema/UserId]])]]
+    [:group/action [:enum :group/remove-member]]
+    [:group/delta RemoveMemberDelta]]
+
    [:map
     [:xt/id schema/GroupId]
+    [:group/by_uid schema/UserId]
     [:group/action [:enum :group/add-admin]]
-    [:group/by_uid schema/UserId]
-    [:group/delta (mu/closed-schema
-                   [:map
-                    [:group/updated_at inst?]
-                    [:group/admins schema/UserId]])]]
+    [:group/delta AddAdminDelta]]
    [:map
     [:xt/id schema/GroupId]
-    [:group/action [:enum :group/transfer-ownership]]
     [:group/by_uid schema/UserId]
-    [:group/delta (mu/closed-schema
-                   [:map
-                    [:group/updated_at inst?]
-                    [:group/owner schema/UserId]])]]])
+    [:group/action [:enum :group/remove-admin]]
+    [:group/delta RemoveAdminDelta]]
+
+   [:map
+    [:xt/id schema/GroupId]
+    [:group/by_uid schema/UserId]
+    [:group/action [:enum :group/transfer-ownership]]
+    [:group/delta TransferOwnershipDelta]]])
 
 
 (defmulti apply-action
@@ -149,34 +184,38 @@
 (defmethod apply-action :group/add-member
   [group {:group/keys [delta]}]
   (let [ts (:group/updated_at delta)
-        to-be-added (:group/members delta)]
-    (if (contains? (:group/members group) to-be-added)
+        to-be-added (:group/members delta)
+        new-joined-at (into {} (map (fn [uid] [uid ts]) to-be-added))]
+    (if (set/subset? (:group/members group) to-be-added)
       group
       (-> group
           (assoc :group/updated_at ts)
-          (update :group/members conj to-be-added)
-          (assoc-in [:group/joined_at to-be-added] ts)))))
+          (update :group/members set/union to-be-added)
+          (update :group/joined_at merge new-joined-at)))))
 
 (defmethod apply-action :group/remove-member
-  [group {:group/keys [delta]}]
-  (let [to-be-removed (:group/members delta)]
+  [{:group/keys [joined_at] :as group} {:group/keys [delta]}]
+  (let [to-be-removed (:group/members delta)
+        new-joined-at (filter-keys (complement (partial contains? to-be-removed)) joined_at)]
     (-> group
         (assoc :group/updated_at (:group/updated_at delta))
-        (update :group/members disj to-be-removed)
-        (update :group/admins disj to-be-removed)
-        (dissoc-in [:group/joined_at to-be-removed]))))
+        (update :group/members set/difference to-be-removed)
+        (update :group/admins set/difference to-be-removed)
+        (assoc :group/joined_at new-joined-at))))
 
 (defmethod apply-action :group/add-admin
   [group {:group/keys [delta]}]
-  (-> group
-      (assoc :group/updated_at (:group/updated_at delta))
-      (update :group/admins conj (:group/admins delta))))
+  (let [to-be-added (:group/admins delta)]
+    (-> group
+        (assoc :group/updated_at (:group/updated_at delta))
+        (update :group/admins set/union to-be-added))))
 
 (defmethod apply-action :group/remove-admin
   [group {:group/keys [delta]}]
-  (-> group
-      (assoc :group/updated_at (:group/updated_at delta))
-      (update :group/admins disj (:group/admins delta))))
+  (let [to-be-removed (:group/admins delta)]
+    (-> group
+        (assoc :group/updated_at (:group/updated_at delta))
+        (update :group/admins set/difference to-be-removed))))
 
 (defmethod apply-action :group/transfer-ownership
   [group {:group/keys [delta]}]
@@ -206,8 +245,8 @@
   [{:group/keys [admins owner]} {:group/keys [by_uid delta]}]
   ;; The member can remove themselves if they want to
   (let [to-be-removed (:group/members delta)]
-    (and (not= owner to-be-removed)
-         (or (= by_uid to-be-removed)
+    (and (not (contains? to-be-removed owner))
+         (or (= #{by_uid} to-be-removed)
              (contains? admins by_uid)))))
 
 ;; Only owners can add or remove admins
@@ -215,14 +254,15 @@
   [{:group/keys [members owner]} {:group/keys [by_uid delta]}]
   ;; You can only make one of the existing members an admin
   (let [to-be-added (:group/admins delta)]
-    (and (= by_uid owner) (contains? members to-be-added))))
+    (and (= by_uid owner)
+         (set/subset? to-be-added members))))
 
 (defmethod authorized-for-action? :group/remove-admin
   [{:group/keys [owner]} {:group/keys [by_uid delta]}]
   ;; Owner can't stop being an admin
   (let [to-be-removed (:group/admins delta)]
-    (and (not= owner to-be-removed)
-         (= by_uid owner))))
+    (and (= by_uid owner)
+         (not (contains? to-be-removed owner)))))
 
 ;; Only owners can transfer ownership
 (defmethod authorized-for-action? :group/transfer-ownership
@@ -249,16 +289,15 @@
 
 (defn apply-action!
 
-  [{:keys [biff/db auth/user-id] :as ctx} gid action]
+  [{:keys [biff/db auth/user-id] :as ctx} action]
 
-  {:pre [(uuid? gid)]}
-
-  (let [attributed-action (assoc action :group/by_uid user-id)]
+  (let [attributed-action (assoc action :group/by_uid user-id)
+        id (:xt/id attributed-action)]
     (if (true? (m/validate Action attributed-action))
       (let [txn [[:xtdb.api/fn :gatz.db.group/apply-action {:action attributed-action}]]]
         (if-let [db-after (xtdb.api/with-tx db txn)]
           (do
             (biff/submit-tx (assoc ctx :biff.xtdb/retry false) txn)
-            {:group (by-id db-after gid)})
+            {:group (by-id db-after id)})
           (assert false "Transaction would've been invalid")))
       (assert false "Invalid action"))))

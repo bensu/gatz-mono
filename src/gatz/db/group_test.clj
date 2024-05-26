@@ -49,49 +49,49 @@
                     :group/by_uid owner
                     :group/action :group/add-member
                     :group/delta {:group/updated_at t3
-                                  :group/members member}}
+                                  :group/members #{member}}}
                    {:xt/id gid
                     :group/by_uid owner
                     :group/action :group/add-member
                     :group/delta {:group/updated_at t4
-                                  :group/members non-member}}
+                                  :group/members #{non-member}}}
                    {:xt/id gid
                     :group/by_uid owner
                     :group/action :group/add-member
                     :group/delta {:group/updated_at t4
-                                  :group/members bad-admin}}
+                                  :group/members #{bad-admin}}}
                    {:xt/id gid
                     :group/by_uid owner
                     :group/action :group/add-admin
                     :group/delta {:group/updated_at t5
-                                  :group/admins bad-admin}}
+                                  :group/admins #{bad-admin}}}
                    {:xt/id gid
                     :group/by_uid owner
                     :group/action :group/add-admin
                     :group/delta {:group/updated_at t5
-                                  :group/admins non-member}}
+                                  :group/admins #{non-member}}}
                    {:xt/id gid
                     :group/by_uid owner
                     :group/action :group/remove-admin
                     :group/delta {:group/updated_at t6
-                                  :group/admins non-member}}
+                                  :group/admins #{non-member}}}
                     ;; We are removing bad-admin as a member, even though
                     ;; they are also an admin
                    {:xt/id gid
                     :group/by_uid owner
                     :group/action :group/remove-member
                     :group/delta {:group/updated_at t7
-                                  :group/members bad-admin}}
+                                  :group/members #{bad-admin}}}
                    {:xt/id gid
                     :group/by_uid owner
                     :group/action :group/remove-member
                     :group/delta {:group/updated_at t7
-                                  :group/members non-member}}
+                                  :group/members #{non-member}}}
                    {:xt/id gid
                     :group/by_uid owner
                     :group/action :group/add-admin
                     :group/delta {:group/updated_at t8
-                                  :group/admins member}}
+                                  :group/admins #{member}}}
                    {:xt/id gid
                     :group/by_uid owner
                     :group/action :group/transfer-ownership
@@ -137,11 +137,11 @@
         (doseq [action [{:xt/id gid
                          :group/action :group/remove-member
                          :group/by_uid owner
-                         :group/delta {:group/members owner}}
+                         :group/delta {:group/members #{owner}}}
                         {:xt/id gid
                          :group/action :group/remove-admin
                          :group/by_uid owner
-                         :group/delta {:group/admins owner}}]]
+                         :group/delta {:group/admins #{owner}}}]]
           (is (not (db.group/authorized-for-action? initial-group action)))))
 
       ;; Some of the actions are not authorized on the initial group
@@ -203,7 +203,7 @@
             (is (empty? (db.group/by-member-uid db member))))
 
           (doseq [action actions]
-            (db.group/apply-action! (get-ctx) gid action)
+            (db.group/apply-action! (get-ctx) action)
             (xtdb/sync node))
 
           (let [db (xtdb/db node)
