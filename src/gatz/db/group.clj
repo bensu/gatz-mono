@@ -195,12 +195,14 @@
   [{:group/keys [admins]} {:group/keys [by_uid]}]
   (contains? admins by_uid))
 
-;; Members can leave the group
+;; Members can leave the group, the owner can't
 (defmethod authorized-for-action? :group/remove-member
-  [{:group/keys [admins]} {:group/keys [by_uid delta]}]
+  [{:group/keys [admins owner]} {:group/keys [by_uid delta]}]
   ;; The member can remove themselves if they want to
-  (let [to-be-added (:group/members delta)]
-    (or (= by_uid to-be-added) (contains? admins by_uid))))
+  (let [to-be-removed (:group/members delta)]
+    (and (not= owner to-be-removed)
+         (or (= by_uid to-be-removed)
+             (contains? admins by_uid)))))
 
 ;; Only owners can add or remove admins
 (defmethod authorized-for-action? :group/add-admin
@@ -210,8 +212,11 @@
     (and (= by_uid owner) (contains? members to-be-added))))
 
 (defmethod authorized-for-action? :group/remove-admin
-  [{:group/keys [owner]} {:group/keys [by_uid]}]
-  (= by_uid owner))
+  [{:group/keys [owner]} {:group/keys [by_uid delta]}]
+  ;; Owner can't stop being an admin
+  (let [to-be-removed (:group/admins delta)]
+    (and (not= owner to-be-removed)
+         (= by_uid owner))))
 
 ;; Only owners can transfer ownership
 (defmethod authorized-for-action? :group/transfer-ownership

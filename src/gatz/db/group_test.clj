@@ -133,6 +133,17 @@
           (let [bad-action (assoc-in action [:group/delta :group/owner] non-member)]
             (is (not (malli/validate db.group/Action bad-action))))))
 
+      (testing "we can't remove the owner from the group"
+        (doseq [action [{:xt/id gid
+                         :group/action :group/remove-member
+                         :group/by_uid owner
+                         :group/delta {:group/members owner}}
+                        {:xt/id gid
+                         :group/action :group/remove-admin
+                         :group/by_uid owner
+                         :group/delta {:group/admins owner}}]]
+          (is (not (db.group/authorized-for-action? initial-group action)))))
+
       ;; Some of the actions are not authorized on the initial group
       (testing "we can check if the actions are authorized"
         (doseq [action actions]
