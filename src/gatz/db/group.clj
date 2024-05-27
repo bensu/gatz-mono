@@ -240,14 +240,19 @@
   [{:group/keys [admins]} {:group/keys [by_uid]}]
   (contains? admins by_uid))
 
-;; Members can leave the group, the owner can't
 (defmethod authorized-for-action? :group/remove-member
   [{:group/keys [admins owner]} {:group/keys [by_uid delta]}]
-  ;; The member can remove themselves if they want to
-  (let [to-be-removed (:group/members delta)]
-    (and (not (contains? to-be-removed owner))
-         (or (= #{by_uid} to-be-removed)
-             (contains? admins by_uid)))))
+  (let [to-be-removed (:group/members delta)
+        admins-removed (set/intersection admins to-be-removed)]
+    (and
+     ;; The owner can't leave
+     (not (contains? to-be-removed owner))
+     ;; Only the owner can remove admins
+     (or (= by_uid owner)
+         (empty? admins-removed))
+     ;; The member can remove themselves if they want to
+     (or (= #{by_uid} to-be-removed)
+         (contains? admins by_uid)))))
 
 ;; Only owners can add or remove admins
 (defmethod authorized-for-action? :group/add-admin

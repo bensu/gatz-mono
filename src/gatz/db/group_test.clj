@@ -165,6 +165,22 @@
                       :group/delta {:group/admins #{non-member}}}]
           (is (not (db.group/authorized-for-action? initial-group action)))))
 
+      (testing "admins can't remove each other"
+        (let [action {:xt/id gid
+                      :group/action :group/remove-admin
+                      :group/by_uid member
+                      :group/delta {:group/admins #{bad-admin}}}
+              group-with-admins (assoc initial-group :group/admins #{owner member bad-admin})]
+          (is (not (db.group/authorized-for-action? group-with-admins action)))))
+
+      (testing "admins can't remove each other"
+        (let [action {:xt/id gid
+                      :group/action :group/remove-member
+                      :group/by_uid member
+                      :group/delta {:group/members #{bad-admin}}}
+              group-with-admins (assoc initial-group :group/admins #{owner member bad-admin})]
+          (is (not (db.group/authorized-for-action? group-with-admins action)))))
+
       ;; Some of the actions are not authorized on the initial group
       (testing "we can check if the actions are authorized"
         (doseq [action actions]
