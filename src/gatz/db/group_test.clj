@@ -144,6 +144,27 @@
                          :group/delta {:group/admins #{owner}}}]]
           (is (not (db.group/authorized-for-action? initial-group action)))))
 
+      (testing "we can't transfer ownership to a non member"
+        (let [action {:xt/id gid
+                      :group/action :group/transfer-ownership
+                      :group/by_uid owner
+                      :group/delta {:group/owner non-member}}]
+          (is (not (db.group/authorized-for-action? initial-group action)))))
+
+      (testing "we can't transfer ownership to a non-admin"
+        (let [action {:xt/id gid
+                      :group/action :group/transfer-ownership
+                      :group/by_uid owner
+                      :group/delta {:group/owner member}}]
+          (is (not (db.group/authorized-for-action? final-group action)))))
+
+      (testing "we can't make an admin out of a non-member"
+        (let [action {:xt/id gid
+                      :group/action :group/add-admin
+                      :group/by_uid owner
+                      :group/delta {:group/admins #{non-member}}}]
+          (is (not (db.group/authorized-for-action? initial-group action)))))
+
       ;; Some of the actions are not authorized on the initial group
       (testing "we can check if the actions are authorized"
         (doseq [action actions]
@@ -160,7 +181,7 @@
             (when-not (= :group/remove-member (:group/action non-member-action))
               (is (not (db.group/authorized-for-action? initial-group non-member-action)))))))
 
-      (testing "All the actions on their respective group"
+      (testing "All the actions are authorized on their respective group"
         (loop [actions actions
                group initial-group]
           (when-let [action (first actions)]
