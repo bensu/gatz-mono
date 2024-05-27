@@ -118,6 +118,7 @@
                           :discussion/did did
                           :discussion/name nil
                           :discussion/created_at now
+                          :discussion/group_id nil
                           :discussion/created_by poster-uid
                           :discussion/originally_from nil
                           :discussion/first_message mid
@@ -140,6 +141,7 @@
                    :db/version 2
                    :discussion/did did
                    :discussion/name nil
+                   :discussion/group_id nil
                    :discussion/created_at now
                    :discussion/created_by poster-uid
                    :discussion/originally_from nil
