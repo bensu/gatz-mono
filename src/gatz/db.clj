@@ -1,6 +1,7 @@
 (ns gatz.db
   (:require [com.biffweb :as biff :refer [q]]
             [clojure.set :as set]
+            [clojure.string :as str]
             [crdt.core :as crdt]
             [gatz.crdt.discussion :as crdt.discussion]
             [gatz.crdt.message :as crdt.message]
@@ -33,40 +34,69 @@
      (sort-by :discussion/updated_at (get seen-discussions true))
      (sort-by :discussion/updated_at (get seen-discussions false)))))
 
-(defn create-discussion-with-message!
+(def create-discussion-params
+  [:map
+   [:name {:optional true} string?]
+   [:text string?]
+   [:media_id {:optional true} uuid?]
+   [:group_id {:optional true} uuid?]
+   [:selected_users {:optional true} [:vec uuid?]]
+   [:originally_from {:optional true} [:map
+                                       [:did uuid?]
+                                       [:mid uuid?]]]])
 
-  [{:keys [auth/user-id auth/cid biff/db] :as ctx} ;; TODO: get the real connection id
-   {:keys [name selected_users group_id text media_id originally_from did now]}]
+(defn parse-originally-from [{:keys [did mid]}]
+  (cond-> {}
+    (uuid? did) (assoc :did (mt/-string->uuid did))
+    (uuid? mid) (assoc :mid (mt/-string->uuid mid))))
 
-  ;; TODO: fix this preconditon. The or shouldn't be covering valid-post?
-  {:pre [(or (nil? did) (uuid? did))
-         (or (nil? now) (inst? now))
-         (or (nil? name)
+(defn parse-create-params
+  [{:keys [name group_id text media_id
+           originally_from selected_users]}]
+  {:pre [(or (nil? name)
              (and (string? name) (not (empty? name)))
              (valid-post? text media_id))
          (or (and (uuid? group_id) (nil? selected_users))
              (and (some? selected_users) (nil? group_id)))]}
+  (cond-> {}
+    (string? name)          (assoc :name (str/trim name))
+    (string? text)          (assoc :text (str/trim text))
+    (some? group_id)        (assoc :group_id (mt/-string->uuid group_id))
+    (some? media_id)        (assoc :media_id (mt/-string->uuid media_id))
+    (some? originally_from) (assoc :originally_from (parse-originally-from originally_from))
+    (some? selected_users)  (assoc :selected_users (set (keep mt/-string->uuid selected_users)))))
 
-  (let [originally-from (when originally_from
-                          {:did (mt/-string->uuid (:did originally_from))
-                           :mid (mt/-string->uuid (:mid originally_from))})
+(defn create-discussion-with-message!
+
+  [{:keys [auth/user-id auth/cid biff/db] :as ctx} ;; TODO: get the real connection id
+   {:keys [did now] :as init-params}]
+
+  {:pre [(or (nil? did) (uuid? did))
+         (or (nil? now) (inst? now))]}
+
+  (let [{:keys [selected_users group_id text media_id originally_from]}
+        (parse-create-params init-params)
+
         now (or now (Date.))
         did (or did (random-uuid))
         mid (random-uuid)
-        contacts (db.contacts/by-uid db user-id)
-        group (when group_id
-                (db.group/by-id db group_id))
-        _ (assert (or (nil? group_id) (some? group))
-                  "Group passed doesn't exist")
-        _ (assert (or (nil? group) (contains? (:group/members group) user-id))
-                  "Not authorized to post to this group")
+
+        originally-from (when originally_from originally_from)
+        media (some->> media_id (db.media/by-id db))
+
         member-uids (if group_id
-                      (:group/members group)
-                      (-> (keep mt/-string->uuid selected_users)
-                          (set)
-                          (disj user-id)))
-        _ (assert (or group (set/subset? member-uids (:contacts/ids contacts)))
-                  "All the discussion members need to be contacts of the poster or in the group")
+                      (let [group (db.group/by-id db group_id)]
+                        (assert group "Group passed doesn't exist")
+                        (assert (contains? (:group/members group) user-id)
+                                "Not authorized to post to this group")
+                        (:group/members group))
+                      (let [member-uids (disj selected_users user-id)
+                            contacts (db.contacts/by-uid db user-id)]
+                        (assert (set/subset? member-uids (:contacts/ids contacts)))
+                        member-uids))
+
+        _ (assert (and (set? member-uids) (every? uuid? member-uids)))
+
         ;; TODO: get real connection id
         clock (crdt/new-hlc user-id now)
         ;; TODO: embed msg in discussion
@@ -75,9 +105,6 @@
             :originally-from originally-from
             :member-uids member-uids :group-id group_id}
            {:now now})
-        media (some->> media_id
-                       mt/-string->uuid
-                       (db.media/by-id db))
         msg (crdt.message/new-message
              {:uid user-id :mid mid :did did
               :text (or text "") :reply_to nil
