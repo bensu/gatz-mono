@@ -299,6 +299,7 @@
    [:discussion/name [:maybe string?]]
    [:discussion/created_by #'UserId]
    [:discussion/created_at inst?]
+   [:discussion/group_id {:optional true} [:maybe #'GroupId]]
    [:discussion/originally_from [:maybe [:map
                                          [:did #'DiscussionId]
                                          [:mid #'MessageId]]]]
@@ -332,6 +333,7 @@
    [:discussion/name [:maybe string?]]
    [:discussion/created_by #'UserId]
    [:discussion/created_at inst?]
+   [:discussion/group_id {:optional true} [:maybe #'GroupId]]
    [:discussion/originally_from [:maybe [:map
                                          [:did #'DiscussionId]
                                          [:mid #'MessageId]]]]
@@ -365,6 +367,7 @@
    :discussion/latest_activity_ts
    :discussion/created_by
    :discussion/first_message
+   :discussion/group_id
    :discussion/latest_message
    :discussion/active_members
    :discussion/members])

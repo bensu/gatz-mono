@@ -349,3 +349,33 @@
                        [did :discussion/created_at created-at]]}
           aid bid)
        (mapv first)))
+
+(defn posts-for-group [db gid uid]
+  {:pre [(uuid? gid) (uuid? uid)]}
+  (->> (q db '{:find [did created-at]
+               :in [gid uid]
+               :limit 20
+               :order-by [[created-at :desc]]
+               :where [[did :db/type :gatz/discussion]
+                       [did :discussion/members uid]
+                       [did :discussion/group_id gid]
+                       [did :discussion/created_at created-at]]}
+          gid uid)
+       (mapv first)))
+
+(defn active-for-group [db gid uid]
+  {:pre [(uuid? gid) (uuid? uid)]}
+  (->> (q db '{:find [did latest-activity-ts]
+               :in [gid uid]
+               :limit 20
+               :order-by [[latest-activity-ts :desc]]
+               :where [[did :db/type :gatz/discussion]
+                       [did :discussion/group_id gid]
+                       [did :discussion/active_members uid]
+                       [did :discussion/first_message first-mid]
+                       [did :discussion/latest_message latest-mid]
+                       [(not= first-mid latest-mid)]
+                       [did :discussion/latest_activity_ts latest-activity-ts]]}
+          gid uid)
+       (mapv first)))
+

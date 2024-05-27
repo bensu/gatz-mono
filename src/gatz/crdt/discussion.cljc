@@ -26,11 +26,12 @@
 ;; TODO: annotate CRDT fields
 (defn new-discussion
 
-  [{:keys [did uid mid originally-from member-uids]}
+  [{:keys [did uid mid originally-from member-uids group-id]}
    {:keys [now]}]
 
   {:pre [(uuid? mid) (uuid? did) (uuid? uid)
-         (set? member-uids) (every? uuid? member-uids)]
+         (set? member-uids) (every? uuid? member-uids)
+         (or (nil? group-id) (uuid? group-id))]
    :post [(malli/validate schema/DiscussionCRDT %)]}
 
   (let [clock (crdt/new-hlc uid now)]
@@ -43,6 +44,7 @@
      :discussion/name nil
      :discussion/created_by uid
      :discussion/created_at now
+     :discussion/group_id group-id
      :discussion/originally_from originally-from
      :discussion/first_message mid
 
