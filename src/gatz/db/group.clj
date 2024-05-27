@@ -46,7 +46,9 @@
   {:pre [(uuid? id)]}
   (xtdb/entity db id))
 
-(defn create! [{:keys [biff.xtdb/node] :as ctx} group-opts]
+(defn create!
+  "Returns the created group"
+  [{:keys [biff.xtdb/node] :as ctx} group-opts]
   (let [id (or (:id group-opts) (random-uuid))]
     (biff/submit-tx ctx [(-> (assoc group-opts :id id)
                              new-group

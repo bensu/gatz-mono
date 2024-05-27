@@ -1,5 +1,6 @@
 (ns gatz.api.group
   (:require [clojure.data.json :as json]
+            [clojure.string :as str]
             [clojure.set :as set]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.group :as db.group]
@@ -7,8 +8,7 @@
             [gatz.crdt.user :as crdt.user]
             [gatz.schema :as schema]
             [malli.transform :as mt]
-            [malli.core :as m]
-            [medley.core :refer [map-keys]])
+            [malli.core :as m])
   (:import [java.util Date]))
 
 
@@ -64,6 +64,43 @@
         (err-resp "not_found" "Group not found"))
       (err-resp "invalid_params" "Invalid params"))))
 
+;; ======================================================================
+;; Create group
+
+(def create-group-params
+  [:map
+   [:name string?]
+   [:description {:optional true} string?]
+   [:avatar {:optional true} string?]])
+
+(def create-group-response
+  [:map
+   [:group schema/Group]])
+
+;; TODO:
+(defn parse-url [s]
+  (if (str/blank? s)
+    nil
+    s))
+
+(defn parse-create-group [{:keys [name description avatar]}]
+  (cond-> {}
+    (string? name)        (assoc :group/name (str/trim name))
+    (string? description) (assoc :group/description (str/trim description))
+    (string? avatar)      (assoc :group/avatar (parse-url avatar))))
+
+
+(defn create! [{:keys [auth/user-id] :as ctx}]
+  (let [params (parse-create-group (:params ctx))
+        group (db.group/create! ctx {:owner user-id
+                                     :members #{}
+                                     :name (:group/name params)
+                                     :description (:group/description params)
+                                     :avatar (:group/avatar params)})]
+    (json-response {:group group})))
+
+;; ======================================================================
+;; Handle request
 
 (def group-request-params
   [:map

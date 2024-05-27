@@ -273,7 +273,8 @@
                  ["/contacts" {:get api.contacts/get-all-contacts}]
                  ["/contact/request" {:post api.contacts/handle-request!}]
 
-                 ["/group" {:get api.group/get-group}]
+                 ["/group" {:get api.group/get-group
+                            :post api.group/create!}]
                  ["/group/request" {:post api.group/handle-request!}]
 
                  ["/discussions" {:get  api.discussion/get-full-discussions
