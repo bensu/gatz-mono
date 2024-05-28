@@ -75,13 +75,11 @@
                     :group/action :group/remove-admin
                     :group/delta {:group/updated_at t6
                                   :group/admins #{non-member}}}
-                    ;; We are removing bad-admin as a member, even though
-                    ;; they are also an admin
+                    ;; bad-admin is leaving, even though they are also an admin
                    {:xt/id gid
-                    :group/by_uid owner
-                    :group/action :group/remove-member
-                    :group/delta {:group/updated_at t7
-                                  :group/members #{bad-admin}}}
+                    :group/by_uid bad-admin
+                    :group/action :group/leave
+                    :group/delta {:group/updated_at t7}}
                    {:xt/id gid
                     :group/by_uid owner
                     :group/action :group/remove-member
@@ -144,6 +142,13 @@
                          :group/delta {:group/admins #{owner}}}]]
           (is (not (db.group/authorized-for-action? initial-group action)))))
 
+      (testing "the owner can't remove themselves"
+        (let [action {:xt/id gid
+                      :group/action :group/leave
+                      :group/by_uid owner
+                      :group/delta {}}]
+          (is (not (db.group/authorized-for-action? initial-group action)))))
+
       (testing "we can't transfer ownership to a non member"
         (let [action {:xt/id gid
                       :group/action :group/transfer-ownership
@@ -184,7 +189,7 @@
       ;; Some of the actions are not authorized on the initial group
       (testing "we can check if the actions are authorized"
         (doseq [action actions]
-          (when-not (contains? #{:group/transfer-ownership :group/add-admin}
+          (when-not (contains? #{:group/transfer-ownership :group/add-admin :group/leave}
                                (:group/action action))
             (is (db.group/authorized-for-action? initial-group action)))))
 
@@ -240,6 +245,7 @@
             (is (empty? (db.group/by-member-uid db member))))
 
           (doseq [action actions]
+          ;; not all the actions can be done by the owner
             (db.group/apply-action! (get-ctx) action)
             (xtdb/sync node))
 

@@ -3,7 +3,7 @@
             [gatz.schema :as schema]
             [malli.util :as mu]
             [malli.core :as m]
-            [medley.core :refer [filter-keys]]
+            [medley.core :refer [filter-keys dissoc-in]]
             [xtdb.api :as xtdb]
             [clojure.set :as set])
   (:import [java.util Date]))
@@ -89,6 +89,7 @@
    :group/remove-member
    :group/add-member
    :group/remove-admin
+   :group/leave
    :group/add-admin
    :group/transfer-ownership])
 
@@ -118,6 +119,11 @@
 
 (def RemoveAdminDelta AddAdminDelta)
 
+(def LeaveDelta
+  (mu/closed-schema
+   [:map
+    [:group/updated_at inst?]]))
+
 (def TransferOwnershipDelta
   (mu/closed-schema
    [:map
@@ -131,7 +137,8 @@
    RemoveMemberDelta
    AddAdminDelta
    RemoveAdminDelta
-   TransferOwnershipDelta])
+   TransferOwnershipDelta
+   LeaveDelta])
 
 (def Action
   [:or
@@ -152,6 +159,12 @@
     [:group/by_uid schema/UserId]
     [:group/action [:enum :group/remove-member]]
     [:group/delta RemoveMemberDelta]]
+
+   [:map
+    [:xt/id schema/GroupId]
+    [:group/by_uid schema/UserId]
+    [:group/action [:enum :group/leave]]
+    [:group/delta LeaveDelta]]
 
    [:map
     [:xt/id schema/GroupId]
@@ -205,6 +218,14 @@
         (update :group/admins set/difference to-be-removed)
         (assoc :group/joined_at new-joined-at))))
 
+(defmethod apply-action :group/leave
+  [group {:group/keys [by_uid delta]}]
+  (-> group
+      (assoc :group/updated_at (:group/updated_at delta))
+      (update :group/members disj by_uid)
+      (update :group/admins disj by_uid)
+      (dissoc-in [:group/joined_at by_uid])))
+
 (defmethod apply-action :group/add-admin
   [group {:group/keys [delta]}]
   (let [to-be-added (:group/admins delta)]
@@ -256,6 +277,11 @@
      (or (= #{by_uid} to-be-removed)
          (contains? admins by_uid)))))
 
+(defmethod authorized-for-action? :group/leave
+  [{:group/keys [members owner]} {:group/keys [by_uid]}]
+  (and (not= owner by_uid)
+       (contains? members by_uid)))
+
 ;; Only owners can add or remove admins
 (defmethod authorized-for-action? :group/add-admin
   [{:group/keys [members owner]} {:group/keys [by_uid delta]}]
@@ -296,12 +322,11 @@
 
 (defn apply-action!
 
-  [{:keys [biff/db auth/user-id] :as ctx} action]
+  [{:keys [biff/db] :as ctx} action]
 
-  (let [attributed-action (assoc action :group/by_uid user-id)
-        id (:xt/id attributed-action)]
-    (if (true? (m/validate Action attributed-action))
-      (let [txn [[:xtdb.api/fn :gatz.db.group/apply-action {:action attributed-action}]]]
+  (let [id (:xt/id action)]
+    (if (true? (m/validate Action action))
+      (let [txn [[:xtdb.api/fn :gatz.db.group/apply-action {:action action}]]]
         (if-let [db-after (xtdb.api/with-tx db txn)]
           (do
             (biff/submit-tx (assoc ctx :biff.xtdb/retry false) txn)
