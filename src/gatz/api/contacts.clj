@@ -1,7 +1,9 @@
 (ns gatz.api.contacts
   (:require [clojure.data.json :as json]
+            [clojure.set :as set]
             [gatz.crdt.discussion :as crdt.discussion]
             [gatz.db.contacts :as db.contacts]
+            [gatz.db.group :as db.group]
             [gatz.db.discussion :as db.discussion]
             [gatz.db.user :as db.user]
             [gatz.crdt.user :as crdt.user]
@@ -79,16 +81,34 @@
 
       (err-resp "invalid_params" "Invalid params"))))
 
+(def get-contact-params
+  [:map
+   [:group_id {:optional true} uuid?]])
+
+(defn parse-get-contact-params
+  [{:keys [group_id]}]
+  (cond-> {}
+    (some? group_id) (assoc :group_id (mt/-string->uuid group_id))))
+
 (def get-all-contacts-response
   [:map
-   [:contacts [:vec schema/ContactResponse]]])
+   [:contacts [:vec schema/ContactResponse]]
+   [:group {:optional true} schema/Group]])
 
-(defn get-all-contacts [{:keys [auth/user-id biff/db]}]
-  (let [my-contacts (db.contacts/by-uid db user-id)
-        all-contacts (mapv (partial db.user/by-id db)
-                           (:contacts/ids my-contacts))]
-    (json-response {:contacts (mapv #(-> % crdt.user/->value db.contacts/->contact)
-                                    all-contacts)})))
+(defn get-all-contacts [{:keys [auth/user-id biff/db] :as ctx}]
+  (let [{:keys [group_id]} (parse-get-contact-params (:params ctx))]
+    (if group_id
+      (let [group (db.group/by-id db group_id)
+            contact-ids (:group/members group)
+            group-contacts (mapv (partial db.user/by-id db) contact-ids)]
+        (json-response {:contacts (mapv #(-> % crdt.user/->value db.contacts/->contact)
+                                        group-contacts)
+                        :group group}))
+      (let [my-contacts (db.contacts/by-uid db user-id)
+            my-contacts (mapv (partial db.user/by-id db) my-contacts)]
+        (json-response {:contacts (mapv #(-> % crdt.user/->value db.contacts/->contact)
+                                        my-contacts)
+                        :group nil})))))
 
 ;; ======================================================================
 ;; Contact request actions
