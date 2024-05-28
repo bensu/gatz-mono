@@ -56,8 +56,7 @@
   {:pre [(or (nil? name)
              (and (string? name) (not (empty? name)))
              (valid-post? text media_id))
-         (or (and (uuid? group_id) (nil? selected_users))
-             (and (some? selected_users) (nil? group_id)))]}
+         (or (some? selected_users) (some? group_id))]}
   (cond-> {}
     (string? name)          (assoc :name (str/trim name))
     (string? text)          (assoc :text (str/trim text))
@@ -85,11 +84,16 @@
         media (some->> media_id (db.media/by-id db))
 
         member-uids (if group_id
-                      (let [group (db.group/by-id db group_id)]
+                      (let [group (db.group/by-id db group_id)
+                            members (:group/members group)]
                         (assert group "Group passed doesn't exist")
                         (assert (contains? (:group/members group) user-id)
                                 "Not authorized to post to this group")
-                        (:group/members group))
+                        (if selected_users
+                          (do
+                            (assert (set/subset? selected_users members))
+                            selected_users)
+                          members))
                       (let [member-uids (disj selected_users user-id)
                             contacts (db.contacts/by-uid db user-id)]
                         (assert (set/subset? member-uids (:contacts/ids contacts)))

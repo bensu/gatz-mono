@@ -12,7 +12,8 @@
             [gatz.schema :as schema]
             [malli.core :as malli]
             [xtdb.api :as xtdb]
-            [gatz.db :as db])
+            [gatz.db :as db]
+            [gatz.db.discussion :as db.discussion])
   (:import [java.util Date]))
 
 (deftest schemas
@@ -518,7 +519,8 @@
           t4 (crdt/inc-time t3)
           t5 (crdt/inc-time t4)
           t6 (crdt/inc-time t5)
-          [oid mid aid sid gid did1 did2 did3 did4] (take 9 (repeatedly random-uuid))]
+          [oid mid aid sid gid did1 did2 did3 did4 did5 did6]
+          (take 11 (repeatedly random-uuid))]
 
       (db.user/create-user!
        ctx {:id oid :username "owner" :phone "+14159499000" :now now})
@@ -656,7 +658,8 @@
           (db/create-discussion-with-message!
            (get-ctx oid)
            {:did did4 :selected_users #{oid aid mid sid}
-            :text "Hello to owner, admin, and member, stranger, outside the group" :now t4})
+            :text "Hello to owner, admin, and member, stranger, outside the group"
+            :now t4})
           (xtdb/sync node)
 
           (let [db (xtdb/db node)
@@ -685,11 +688,47 @@
             (is (= []          (active-for-group db gid mid)))
             (is (= []          (active-for-group db gid sid))))))
 
+      (testing "you can have subsets of the users"
+      ;; TODO: fix this which throws an error
+        (db/create-discussion-with-message!
+         (get-ctx oid)
+         {:did did5 :group_id gid :selected_users #{oid aid}
+          :text "Hello to owner and admin, but not member"
+          :now t5})
+        (xtdb/sync node)
+
+        (let [db (xtdb/db node)
+              d5 (crdt.discussion/->value (db.discussion/by-id db did5))]
+          (is (= #{oid aid} (:discussion/members d5)))
+          (is (= gid (:discussion/group_id d5)))
+
+          (is (= [did5 did4 did3 did2 did1] (posts-for-user db oid)))
+          (is (= [did5 did4 did3 did2]      (posts-for-user db aid)))
+          (is (= [did4 did3]                (posts-for-user db mid)))
+          (is (= [did4]                     (posts-for-user db sid)))
+
+          (is (= [did2 did1] (active-for-user db oid)))
+          (is (= [did2]      (active-for-user db aid)))
+          (is (= []          (active-for-user db mid)))
+          (is (= []          (active-for-user db sid)))
+
+
+          (is (= [did5 did3 did2 did1] (posts-for-group db gid oid)))
+          (is (= [did5 did3 did2]      (posts-for-group db gid aid)))
+          (is (= [did3]                (posts-for-group db gid mid)))
+          (is (= []                    (posts-for-group db gid sid)))
+
+          (is (= [did2 did1] (active-for-group db gid oid)))
+          (is (= [did2]      (active-for-group db gid aid)))
+          (is (= []          (active-for-group db gid mid)))
+          (is (= []          (active-for-group db gid sid)))))
+
       (testing "if we try to sneak somebody in, it throws an error"
         (is (thrown? java.lang.AssertionError
-                     (db/create-discussion-with-message! (get-ctx oid)
-                                                         {:did did4
-                                                          :text "Hello everybody?" :now t4
-                                                          :group_id gid
-                                                          :selected_users #{(str sid)}}))))
+                     (db/create-discussion-with-message!
+                      (get-ctx oid)
+                      {:did did6
+                       :text "Hello everybody?" :now t4
+                       :group_id gid
+                       :selected_users #{(str sid)}}))))
       (.close node))))
