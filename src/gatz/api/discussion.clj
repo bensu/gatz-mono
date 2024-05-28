@@ -71,13 +71,14 @@
                       :latest_tx {:id (::xt/tx-id latest-tx)
                                   :ts (::xt/tx-time latest-tx)}})
       (let [did (mt/-string->uuid (:id params))
-            {:keys [discussion messages user_ids]} (db/discussion-by-id db did)]
+            {:keys [discussion group messages user_ids]} (db/discussion-by-id db did)]
         (if-authorized-for-discussion
          [user-id discussion]
          (json-response {:current false
                          :latest_tx {:id (::xt/tx-id latest-tx)
                                      :ts (::xt/tx-time latest-tx)}
                          :discussion discussion
+                         :group group
                          :users (map (comp crdt.user/->value
                                            (partial db.user/by-id db))
                                      user_ids)
