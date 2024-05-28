@@ -1,8 +1,10 @@
 (ns gatz.api.discussion
   (:require [clojure.data.json :as json]
+            [clojure.set :as set]
             [gatz.auth]
             [gatz.db :as db]
             [gatz.db.discussion :as db.discussion]
+            [gatz.db.group :as db.group]
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
             [gatz.crdt.discussion :as crdt.discussion]
@@ -71,7 +73,12 @@
                       :latest_tx {:id (::xt/tx-id latest-tx)
                                   :ts (::xt/tx-time latest-tx)}})
       (let [did (mt/-string->uuid (:id params))
-            {:keys [discussion group messages user_ids]} (db/discussion-by-id db did)]
+            {:keys [discussion messages user_ids]} (db/discussion-by-id db did)
+            group (when-let [gid (:discussion/group_id discussion)]
+                    (db.group/by-id db gid))
+            all-user-ids (if group
+                           (set/union (:group/members group) (set user_ids))
+                           (set user_ids))]
         (if-authorized-for-discussion
          [user-id discussion]
          (json-response {:current false
@@ -81,7 +88,7 @@
                          :group group
                          :users (map (comp crdt.user/->value
                                            (partial db.user/by-id db))
-                                     user_ids)
+                                     all-user-ids)
                          :messages (mapv crdt.message/->value messages)}))))))
 
 (defn ^:deprecated
@@ -268,10 +275,13 @@
                (db.discussion/posts-for-user db user-id {:older-than-ts older-than})
                (db.discussion/posts-for-user db user-id))
         ds (map (partial db/discussion-by-id db) dids)
+        group-ids (set (keep (comp :discussion/group_id :discussion) ds))
+        groups (mapv (partial db.group/by-id db) group-ids)
         ;; TODO: only send the users that are in the discussions
         users (db.user/all-users db)]
     (json-response {:discussions (mapv crdt.discussion/->value ds)
                     :users (mapv crdt.user/->value users)
+                    :groups groups
                     ;; TODO: remove this
                     :current false
                     :latest_tx {:id (::xt/tx-id latest-tx)
@@ -295,9 +305,12 @@
                (db.discussion/active-for-user db user-id {:older-than-ts older-than})
                (db.discussion/active-for-user db user-id))
         ds (map (partial db/discussion-by-id db) dids)
+        group-ids (set (keep (comp :discussion/group_id :discussion) ds))
+        groups (mapv (partial db.group/by-id db) group-ids)
         users (db.user/all-users db)]
     (json-response {:discussions (mapv crdt.discussion/->value ds)
                     :users (mapv crdt.user/->value users)
+                    :groups groups
                     ;; TODO: remove this
                     :current false
                     :latest_tx {:id (::xt/tx-id latest-tx)

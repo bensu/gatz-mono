@@ -164,14 +164,11 @@
   {:pre [(uuid? did)]}
   ;; TODO: change shape
   (let [discussion (db.discussion/by-id db did)
-        messages (db.message/by-did db did)
-        group (when (:discussion/group_id discussion)
-                (db.group/by-id db (:discussion/group_id discussion)))]
+        messages (db.message/by-did db did)]
     (assert discussion)
     {:discussion (crdt.discussion/->value discussion)
      :user_ids (crdt/-value (:discussion/members discussion))
-     :messages (mapv crdt.message/->value messages)
-     :group group}))
+     :messages (mapv crdt.message/->value messages)}))
 
 ;; TODO: add a max limit
 (defn discussions-by-user-id [db user-id]
