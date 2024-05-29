@@ -1,5 +1,6 @@
 (ns crdt.ulid
-  (:require [xtdb.codec])
+  (:require [clojure.data.json]
+            [xtdb.codec])
   (:import [com.github.f4b6a3.ulid Ulid UlidCreator]
            [java.io Writer]
            [java.nio.charset StandardCharsets]
@@ -15,6 +16,16 @@
 
 (defn monotonic ^Ulid []
   (UlidCreator/getMonotonicUlid))
+
+(defn ulid? [x]
+  (instance? Ulid x))
+
+(defn maybe-parse [x]
+  (when x
+    (if (ulid? x) x
+        (try
+          (Ulid/from x)
+          (catch Exception _ nil)))))
 
 ;; ==================================================================
 ;; Integrations
@@ -34,3 +45,10 @@
   Ulid
   (id->buffer [^Ulid ulid ^MutableDirectBuffer to]
     (xtdb.codec/id-function to (.getBytes (.toString ulid) StandardCharsets/UTF_8))))
+
+(extend-type Ulid
+  clojure.data.json/JSONWriter
+  (-write [^Ulid ulid ^Appendable out _options]
+    (.append out \")
+    (.append out (.toString ulid))
+    (.append out \")))

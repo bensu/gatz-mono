@@ -3,6 +3,7 @@
   (:require [clojure.core :refer [print-method read-string format]]
             [clojure.set :as set]
             [clojure.test :as test :refer [deftest testing is]]
+            [crdt.ulid :as ulid]
             [malli.core :as malli]
             [medley.core :refer [map-vals]]
             [juxt.clojars-mirrors.nippy.v3v1v1.taoensso.nippy :as juxt-nippy]
@@ -10,6 +11,9 @@
   (:import [java.util Date UUID]
            [clojure.lang IPersistentMap]
            [java.lang Comparable Thread]))
+
+(defn random-ulid [] (ulid/random))
+(defn ulid? [x] (ulid/ulid? x))
 
 (defprotocol StateCRDT
   (-merge [this that]))
