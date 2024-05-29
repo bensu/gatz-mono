@@ -351,7 +351,7 @@
        (mapv first)))
 
 (defn posts-for-group [db gid uid]
-  {:pre [(uuid? gid) (uuid? uid)]}
+  {:pre [(crdt/ulid? gid) (uuid? uid)]}
   (->> (q db '{:find [did created-at]
                :in [gid uid]
                :limit 20
@@ -364,7 +364,7 @@
        (mapv first)))
 
 (defn active-for-group [db gid uid]
-  {:pre [(uuid? gid) (uuid? uid)]}
+  {:pre [(crdt/ulid? gid) (uuid? uid)]}
   (->> (q db '{:find [did latest-activity-ts]
                :in [gid uid]
                :limit 20

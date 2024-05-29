@@ -11,6 +11,7 @@
    :discussion/subscribers #{}
    :discussion/originally_from nil
    :discussion/first_message nil
+   :discussion/group_id nil
    :discussion/latest_message nil})
 
 (defn update-discussion
@@ -31,7 +32,7 @@
 
   {:pre [(uuid? mid) (uuid? did) (uuid? uid)
          (set? member-uids) (every? uuid? member-uids)
-         (or (nil? group-id) (uuid? group-id))]
+         (or (nil? group-id) (crdt/ulid? group-id))]
    :post [(malli/validate schema/DiscussionCRDT %)]}
 
   (let [clock (crdt/new-hlc uid now)]

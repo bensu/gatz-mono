@@ -13,7 +13,7 @@
           member (random-uuid)
           non-member (random-uuid)
           bad-admin (random-uuid)
-          gid (random-uuid)
+          gid (crdt/random-ulid)
           now (java.util.Date.)
           initial-group (db.group/new-group
                          {:id gid :owner owner :now now

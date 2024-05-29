@@ -1,6 +1,8 @@
 (ns gatz.db.group
   (:require [com.biffweb :as biff :refer [q]]
             [gatz.schema :as schema]
+            [crdt.core :as crdt]
+            [crdt.ulid :as ulid]
             [malli.util :as mu]
             [malli.core :as m]
             [medley.core :refer [filter-keys dissoc-in]]
@@ -15,7 +17,7 @@
   [{:keys [now id owner members
            name avatar description]}]
 
-  {:pre [(or (nil? id) (uuid? id))
+  {:pre [(or (nil? id) (crdt/ulid? id))
          (or (nil? now) (inst? now))
          (uuid? owner)
          (string? name)
@@ -23,7 +25,7 @@
          (or (nil? description) (string? description))
          (set? members) (every? uuid? members)]}
 
-  (let [id (or id (random-uuid))
+  (let [id (or id (crdt/random-ulid))
         now (or now (Date.))]
     {:xt/id id
      :db/version 1
@@ -43,13 +45,13 @@
 ;; Queries
 
 (defn by-id [db id]
-  {:pre [(uuid? id)]}
+  {:pre [(crdt/ulid? id)]}
   (xtdb/entity db id))
 
 (defn create!
   "Returns the created group"
   [{:keys [biff.xtdb/node] :as ctx} group-opts]
-  (let [id (or (:id group-opts) (random-uuid))]
+  (let [id (or (:id group-opts) (crdt/random-ulid))]
     (biff/submit-tx ctx [(-> (assoc group-opts :id id)
                              new-group
                              (assoc :db/op :create)

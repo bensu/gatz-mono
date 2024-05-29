@@ -2,6 +2,7 @@
   (:require [clojure.data.json :as json]
             [clojure.string :as str]
             [clojure.set :as set]
+            [crdt.core :as crdt]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.group :as db.group]
             [gatz.db.user :as db.user]
@@ -25,7 +26,7 @@
 
 (def get-group-params
   [:map
-   [:id uuid?]])
+   [:id crdt/ulid?]])
 
 (def get-group-response
   [:map
@@ -40,7 +41,7 @@
 
 (defn parse-group-params [params]
   (cond-> params
-    (some? (:id params)) (update :id strict-str->uuid)))
+    (some? (:id params)) (update :id crdt/parse-ulid)))
 
 (defn get-group [{:keys [auth/user-id biff/db] :as ctx}]
   (let [params (parse-group-params (:params ctx))]
@@ -130,7 +131,7 @@
 
 (defn parse-request-params [{:keys [id action delta]}]
   (cond-> {}
-    (some? id)     (assoc :xt/id (strict-str->uuid id))
+    (some? id)     (assoc :xt/id (crdt/parse-ulid id))
     (some? action) (assoc :group/action (parse-action-type action))
     (some? delta)  (assoc :group/delta (parse-delta delta))))
 

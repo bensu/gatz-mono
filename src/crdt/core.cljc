@@ -14,6 +14,7 @@
 
 (defn random-ulid [] (ulid/random))
 (defn ulid? [x] (ulid/ulid? x))
+(defn parse-ulid [x] (ulid/maybe-parse x))
 
 (defprotocol StateCRDT
   (-merge [this that]))

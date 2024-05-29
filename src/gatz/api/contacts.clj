@@ -1,6 +1,6 @@
 (ns gatz.api.contacts
   (:require [clojure.data.json :as json]
-            [clojure.set :as set]
+            [crdt.core :as crdt]
             [gatz.crdt.discussion :as crdt.discussion]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.group :as db.group]
@@ -83,12 +83,12 @@
 
 (def get-contact-params
   [:map
-   [:group_id {:optional true} uuid?]])
+   [:group_id {:optional true} schema/ulid?]])
 
 (defn parse-get-contact-params
   [{:keys [group_id]}]
   (cond-> {}
-    (some? group_id) (assoc :group_id (mt/-string->uuid group_id))))
+    (some? group_id) (assoc :group_id (crdt/parse-ulid group_id))))
 
 (def get-all-contacts-response
   [:map

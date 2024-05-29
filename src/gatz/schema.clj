@@ -3,13 +3,16 @@
             [malli.util :as mu]
             [crdt.core :as crdt]))
 
+(def ulid?
+  [:fn {:error/message "must crdt.ulid/ulid"} crdt/ulid?])
+
 (def UserId :uuid)
 (def MediaId :uuid)
 (def MessageId :uuid)
 (def DiscussionId :uuid)
 (def EvtId :uuid)
 (def ClientId :uuid)
-(def GroupId :uuid)
+(def GroupId ulid?)
 
 ;; ======================================================================  
 ;; User & Contacts

@@ -13,6 +13,7 @@
             [gatz.db.media :as db.media]
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
+            [gatz.schema :as schema]
             [malli.transform :as mt]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
@@ -39,7 +40,7 @@
    [:name {:optional true} string?]
    [:text string?]
    [:media_id {:optional true} uuid?]
-   [:group_id {:optional true} uuid?]
+   [:group_id {:optional true} schema/ulid?]
    [:selected_users {:optional true} [:vec uuid?]]
    [:originally_from {:optional true} [:map
                                        [:did uuid?]
@@ -60,7 +61,7 @@
   (cond-> {}
     (string? name)          (assoc :name (str/trim name))
     (string? text)          (assoc :text (str/trim text))
-    (some? group_id)        (assoc :group_id (mt/-string->uuid group_id))
+    (some? group_id)        (assoc :group_id (crdt/parse-ulid group_id))
     (some? media_id)        (assoc :media_id (mt/-string->uuid media_id))
     (some? originally_from) (assoc :originally_from (parse-originally-from originally_from))
     (some? selected_users)  (assoc :selected_users (set (keep mt/-string->uuid selected_users)))))

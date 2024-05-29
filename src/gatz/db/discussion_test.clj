@@ -12,8 +12,7 @@
             [gatz.schema :as schema]
             [malli.core :as malli]
             [xtdb.api :as xtdb]
-            [gatz.db :as db]
-            [gatz.db.discussion :as db.discussion])
+            [gatz.db :as db])
   (:import [java.util Date]))
 
 (deftest schemas
@@ -519,8 +518,10 @@
           t4 (crdt/inc-time t3)
           t5 (crdt/inc-time t4)
           t6 (crdt/inc-time t5)
-          [oid mid aid sid gid did1 did2 did3 did4 did5 did6]
-          (take 11 (repeatedly random-uuid))]
+          [oid mid aid sid did1 did2 did3 did4 did5 did6]
+          (take 10 (repeatedly random-uuid))
+
+          gid (crdt/random-ulid)]
 
       (db.user/create-user!
        ctx {:id oid :username "owner" :phone "+14159499000" :now now})
