@@ -55,6 +55,7 @@
         {:keys [from to now]} args
         from-contacts (by-uid db from)
         to-contacts   (by-uid db to)]
+    (assert (and from-contacts to-contacts))
     [[:xtdb.api/put (-> from-contacts
                         (assoc :contacts/updated_at now)
                         (update :contacts/ids conj to)

@@ -699,7 +699,7 @@
         (xtdb/sync node)
 
         (let [db (xtdb/db node)
-              d5 (crdt.discussion/->value (db.discussion/by-id db did5))]
+              d5 (crdt.discussion/->value (by-id db did5))]
           (is (= #{oid aid} (:discussion/members d5)))
           (is (= gid (:discussion/group_id d5)))
 
