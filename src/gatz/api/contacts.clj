@@ -104,8 +104,8 @@
         (json-response {:contacts (mapv #(-> % crdt.user/->value db.contacts/->contact)
                                         group-contacts)
                         :group group}))
-      (let [my-contacts (db.contacts/by-uid db user-id)
-            my-contacts (mapv (partial db.user/by-id db) my-contacts)]
+      (let [my-contact-ids (:contacts/ids (db.contacts/by-uid db user-id))
+            my-contacts (mapv (partial db.user/by-id db) my-contact-ids)]
         (json-response {:contacts (mapv #(-> % crdt.user/->value db.contacts/->contact)
                                         my-contacts)
                         :group nil})))))
