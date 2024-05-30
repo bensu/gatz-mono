@@ -74,9 +74,10 @@
                :db/type :gatz/discussion))))
 
 (defn v2->v3 [data]
-  (let [archived-uids (keys (or (:discussion/archived_at data) {}))]
+  (let [archived-uids (keys (or (:discussion/archived_at data) {}))
+        clock (:crdt/clock data)]
     (-> data
-        (assoc :discussion/archived_uids archived-uids)
+        (assoc :discussion/archived_uids (crdt/lww-set clock archived-uids))
         (dissoc :discussion/archived_at)
         (assoc :db/version 3
                :db/doc-type :gatz.crdt/discussion
