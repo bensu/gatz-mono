@@ -36,6 +36,7 @@
      :group/owner owner
      :group/created_by owner
      :group/members (conj members owner)
+     :group/archived_uids #{}
      :group/admins #{owner}
      :group/created_at now
      :group/updated_at now
@@ -44,9 +45,13 @@
 ;; ======================================================================
 ;; Queries
 
+(def default-fields
+  {:group/archived_uids #{}})
+
 (defn by-id [db id]
   {:pre [(crdt/ulid? id)]}
-  (xtdb/entity db id))
+  (when-let [e (xtdb/entity db id)]
+    (merge default-fields e)))
 
 (defn create!
   "Returns the created group"
@@ -90,9 +95,10 @@
    :group/update-attrs
    :group/remove-member
    :group/add-member
+   :group/add-admin
    :group/remove-admin
    :group/leave
-   :group/add-admin
+   :group/archive
    :group/transfer-ownership])
 
 (def action-types (set (rest ActionTypes)))
@@ -126,6 +132,13 @@
    [:map
     [:group/updated_at inst?]]))
 
+(def ArchiveDelta
+  (mu/closed-schema
+   [:map
+    [:group/updated_at inst?]]))
+
+(def UnArchiveDelta ArchiveDelta)
+
 (def TransferOwnershipDelta
   (mu/closed-schema
    [:map
@@ -140,10 +153,23 @@
    AddAdminDelta
    RemoveAdminDelta
    TransferOwnershipDelta
-   LeaveDelta])
+   LeaveDelta
+   ArchiveDelta
+   UnArchiveDelta])
 
 (def Action
+
   [:or
+   [:map
+    [:xt/id schema/GroupId]
+    [:group/by_uid schema/UserId]
+    [:group/action [:enum :group/archive]]
+    [:group/delta ArchiveDelta]]
+   [:map
+    [:xt/id schema/GroupId]
+    [:group/by_uid schema/UserId]
+    [:group/action [:enum :group/unarchive]]
+    [:group/delta UnArchiveDelta]]
 
    [:map
     [:xt/id schema/GroupId]
@@ -228,6 +254,18 @@
       (update :group/admins disj by_uid)
       (dissoc-in [:group/joined_at by_uid])))
 
+(defmethod apply-action :group/archive
+  [group {:group/keys [by_uid delta]}]
+  (-> group
+      (assoc :group/updated_at (:group/updated_at delta))
+      (update :group/archived_uids conj by_uid)))
+
+(defmethod apply-action :group/unarchive
+  [group {:group/keys [by_uid delta]}]
+  (-> group
+      (assoc :group/updated_at (:group/updated_at delta))
+      (update :group/archived_uids disj by_uid)))
+
 (defmethod apply-action :group/add-admin
   [group {:group/keys [delta]}]
   (let [to-be-added (:group/admins delta)]
@@ -283,6 +321,14 @@
   [{:group/keys [members owner]} {:group/keys [by_uid]}]
   (and (not= owner by_uid)
        (contains? members by_uid)))
+
+(defmethod authorized-for-action? :group/archive
+  [{:group/keys [members]} {:group/keys [by_uid]}]
+  (contains? members by_uid))
+
+(defmethod authorized-for-action? :group/unarchive
+  [{:group/keys [members]} {:group/keys [by_uid]}]
+  (contains? members by_uid))
 
 ;; Only owners can add or remove admins
 (defmethod authorized-for-action? :group/add-admin

@@ -91,6 +91,18 @@
                     :group/delta {:group/updated_at t8
                                   :group/admins #{member}}}
                    {:xt/id gid
+                    :group/by_uid member
+                    :group/action :group/archive
+                    :group/delta {:group/updated_at t9}}
+                   {:xt/id gid
+                    :group/by_uid member
+                    :group/action :group/unarchive
+                    :group/delta {:group/updated_at t9}}
+                   {:xt/id gid
+                    :group/by_uid owner
+                    :group/action :group/archive
+                    :group/delta {:group/updated_at t9}}
+                   {:xt/id gid
                     :group/by_uid owner
                     :group/action :group/transfer-ownership
                     :group/delta {:group/updated_at t9
@@ -103,6 +115,7 @@
                             :group/avatar nil
                             :group/owner owner
                             :group/created_by owner
+                            :group/archived_uids #{}
                             :group/members #{owner}
                             :group/admins #{owner}
                             :group/created_at now
@@ -115,6 +128,7 @@
                           :group/description "new description"
                           :group/avatar "new avatar"
                           :group/owner member
+                          :group/archived_uids #{owner}
                           :group/members #{owner member}
                           :group/admins #{owner member}
                           :group/created_by owner
@@ -191,7 +205,7 @@
         (doseq [action actions]
           (when-not (contains? #{:group/transfer-ownership :group/add-admin :group/leave}
                                (:group/action action))
-            (is (db.group/authorized-for-action? initial-group action)))))
+            (is (db.group/authorized-for-action? initial-group (assoc action :group/by_uid owner))))))
 
       (testing "we can check if the actions are authorized"
         (doseq [action actions]

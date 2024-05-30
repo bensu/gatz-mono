@@ -187,8 +187,10 @@
 
    [:group/owner #'UserId]
    [:group/admins [:set #'UserId]]
-   ;; When did somebody join a group?
    [:group/members [:set #'UserId]]
+   [:group/archived_uids [:set #'UserId]]
+
+   ;; When did somebody join a group?
    [:group/joined_at [:map-of #'UserId inst?]]])
 
 #_(def GroupRequestState
