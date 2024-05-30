@@ -68,9 +68,9 @@
       (is (false? (db.contacts/can-transition? bs-pending-request
                                                {:by bid :state :contact_request/requested})))
 
-      (is (= :contact_request/viewer_ignored_response
+      (is (= :contact_request/none
              (db.contacts/state-for bs-ignored-request aid)))
-      (is (= :contact_request/viewer_awaits_response
+      (is (= :contact_request/none
              (db.contacts/state-for bs-ignored-request bid))
           "Even when they've been ignored, it still looks like they await the response")
 
@@ -154,33 +154,59 @@
         (is (= :contact_request/viewer_awaits_response
                (db.contacts/state-for (first b-pending-requests) aid))))
 
-      (let [{:keys [request]}
-            (db.contacts/apply-request! (assoc ctx :auth/user-id bid)
-                                        {:them aid :action :contact_request/ignored})
-            _ (xtdb/sync node)
-            db (xtdb/db node)
-            b-contacts (db.contacts/by-uid db bid)
-            a-contacts (db.contacts/by-uid db aid)
-            ignored-request (first (db.contacts/requests-from-to db aid bid))]
+      (testing "they can ignore the request"
+        (let [{:keys [request]}
+              (db.contacts/apply-request! (assoc ctx :auth/user-id bid)
+                                          {:them aid :action :contact_request/ignored})
+              _ (xtdb/sync node)
+              db (xtdb/db node)
+              b-contacts (db.contacts/by-uid db bid)
+              a-contacts (db.contacts/by-uid db aid)]
 
-        (is-equal {:contacts/ids #{} :contacts/user_id aid}
-                  (select-keys a-contacts contact-ks))
-        (is-equal {:contacts/ids #{} :contacts/user_id bid}
-                  (select-keys b-contacts contact-ks))
-        (is (= request ignored-request))
+          (is-equal {:contacts/ids #{} :contacts/user_id aid}
+                    (select-keys a-contacts contact-ks))
+          (is-equal {:contacts/ids #{} :contacts/user_id bid}
+                    (select-keys b-contacts contact-ks))
 
-        (is (empty? (db.contacts/pending-requests-to db bid)))
-        (is (empty? (db.contacts/pending-requests-to db aid)))
+          (is (empty? (db.contacts/pending-requests-to db bid)))
+          (is (empty? (db.contacts/pending-requests-to db aid)))
 
-        (is-equal {:contact_request/from aid
-                   :contact_request/to bid
-                   :contact_request/state :contact_request/ignored}
-                  (select-keys ignored-request cr-ks))
+          (is-equal {:contact_request/from aid
+                     :contact_request/to bid
+                     :contact_request/state :contact_request/ignored}
+                    (select-keys request cr-ks))
 
-        (is (= :contact_request/viewer_awaits_response
-               (db.contacts/state-for ignored-request aid)))
-        (is (= :contact_request/viewer_ignored_response
-               (db.contacts/state-for ignored-request bid))))
+          (is (= :contact_request/none (db.contacts/state-for request aid)))
+          (is (= :contact_request/none (db.contacts/state-for request bid)))))
+
+      (testing "after they've ignored the request, they can retry"
+        (let [{:keys [request]}
+              (db.contacts/apply-request! (assoc ctx :auth/user-id aid)
+                                          {:them bid :action :contact_request/requested})
+              _ (xtdb/sync node)
+              db (xtdb/db node)
+              b-contacts (db.contacts/by-uid db bid)
+              a-contacts (db.contacts/by-uid db aid)
+              retried-req (first (db.contacts/requests-from-to db aid bid))]
+
+          (is-equal {:contacts/ids #{} :contacts/user_id aid}
+                    (select-keys a-contacts contact-ks))
+          (is-equal {:contacts/ids #{} :contacts/user_id bid}
+                    (select-keys b-contacts contact-ks))
+          (is-equal request retried-req)
+          (is (= :contact_request/requested (:contact_request/state request)))
+
+          (is (= [request] (db.contacts/pending-requests-to db bid)))
+          (is (empty? (db.contacts/pending-requests-to db aid)))
+
+          (is-equal {:contact_request/from aid
+                     :contact_request/to bid
+                     :contact_request/state :contact_request/requested}
+                    (select-keys request cr-ks))
+
+          (is (= :contact_request/viewer_awaits_response (db.contacts/state-for request aid)))
+          (is (= :contact_request/response_pending_from_viewer (db.contacts/state-for request bid)))))
+
       (.close node))))
 
 (deftest basic-flow
@@ -388,11 +414,12 @@
                             first
                             (select-keys contact-request-ks)))
 
-              (testing "it does nothing if you try again"
+              (testing "it does nothing if you accept again"
                 (db.contacts/apply-request! (assoc ctx :auth/user-id accepter-id)
                                             {:them requester-id :action :contact_request/accepted})
-                (db.contacts/apply-request! (assoc ctx :auth/user-id denier-id)
-                                            {:them requester-id :action :contact_request/ignored})
+                (is (thrown? clojure.lang.ExceptionInfo
+                             (db.contacts/apply-request! (assoc ctx :auth/user-id denier-id)
+                                                         {:them requester-id :action :contact_request/ignored})))
                 (xtdb/sync node)
                 (let [db (xtdb/db node)
                       r-contacts (db.contacts/by-uid db requester-id)
@@ -463,18 +490,19 @@
                 removed-expected {:contact_request/from requester-id
                                   :contact_request/to accepter-id
                                   :contact_request/state :contact_request/removed}
-                removed-request (db.contacts/requests-from-to db requester-id accepter-id)]
+                removed-requests (db.contacts/requests-from-to db requester-id accepter-id)
+                removed-request  (first removed-requests)]
 
-            (is (nil? request) "When a request is removed, it is as-if gone")
+            (is-equal request removed-request)
 
-            (is (= 1 (count removed-request)))
+            (is (= 1 (count removed-requests)))
             (is (= :contact_request/none
-                   (db.contacts/state-for (first removed-request) requester-id)))
+                   (db.contacts/state-for removed-request requester-id)))
             (is (= :contact_request/none
-                   (db.contacts/state-for (first removed-request) accepter-id)))
+                   (db.contacts/state-for removed-request accepter-id)))
 
             (is-equal removed-expected
-                      (select-keys (first removed-request) contact-request-ks))
+                      (select-keys removed-request contact-request-ks))
 
             (is-equal {:contacts/user_id requester-id :contacts/ids #{}}
                       (-> r-contacts (select-keys ks)))

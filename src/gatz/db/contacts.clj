@@ -179,10 +179,8 @@
         :contact_request/requested (if from-viewer?
                                      :contact_request/viewer_awaits_response
                                      :contact_request/response_pending_from_viewer)
-        :contact_request/ignored (if from-viewer?
-                                   :contact_request/viewer_awaits_response
-                                   :contact_request/viewer_ignored_response)
         :contact_request/accepted :contact_request/accepted
+        :contact_request/ignored :contact_request/none
         :contact_request/removed  :contact_request/none))))
 
 (defn pending-requests-to [db to]
@@ -203,8 +201,10 @@
                   [cr :contact_request/from from]]}
      to from))
 
+(def final-states #{:contact_request/removed :contact_request/ignored})
+
 (defn current? [cr]
-  (not (= :contact_request/removed (:contact_request/state cr))))
+  (not (contains? final-states (:contact_request/state cr))))
 
 (defn current-request-from-to [db from to]
   (let [rqs (->> (requests-from-to db from to)
@@ -335,7 +335,8 @@
         to user-id
         txn (decide-on-request! ctx {:from them :to to :by user-id
                                      :decision :contact_request/ignored})
-        request (current-request-from-to (xtdb/db node) from to)]
+        ;; We want to return the request we operated on
+        request (last (requests-from-to (xtdb/db node) from to))]
     {:txn txn :request request}))
 
 (defmethod -apply-request! :contact_request/removed
@@ -343,7 +344,8 @@
   (let [from them
         to user-id
         txn (remove-contact! ctx {:from from :to to :by user-id})
-        request (current-request-from-to (xtdb/db node) from to)]
+        ;; We want to return the request we operated on
+        request (last (requests-from-to (xtdb/db node) from to))]
     {:txn txn :request request}))
 
 (defn apply-request!
