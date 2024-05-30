@@ -99,6 +99,7 @@
    :group/remove-admin
    :group/leave
    :group/archive
+   :group/unarchive
    :group/transfer-ownership])
 
 (def action-types (set (rest ActionTypes)))

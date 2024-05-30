@@ -147,6 +147,8 @@
     :group/leave              "group.leave"
     :group/add-admin          "group.add_admins"
     :group/transfer-ownership "group.transfer_ownership"
+    :group/archive            "group.archive"
+    :group/unarchive          "group.unarchive"
     nil))
 
 (defn handle-request! [{:keys [auth/user-id] :as ctx}]
