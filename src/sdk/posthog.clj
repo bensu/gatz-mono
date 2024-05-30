@@ -34,7 +34,8 @@
     "discussion.read" "discussion.new" "discussion.mark_seen"
     "discussion.feed" "discussion.active"
     "message.new" "message.delete" "message.react" "message.undo_react" "message.edit"
-    "media.new"})
+    "media.new"
+    "contact.viewed" "contact.requested" "contact.accepted" "contact.ignored" "contact.removed"})
 
 ;; posthog.identify("user123", new Properties()
 ;;     .set("email", "user@example.com")

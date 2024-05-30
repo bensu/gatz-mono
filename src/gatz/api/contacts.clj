@@ -8,7 +8,8 @@
             [gatz.db.user :as db.user]
             [gatz.crdt.user :as crdt.user]
             [gatz.schema :as schema]
-            [malli.transform :as mt]))
+            [malli.transform :as mt]
+            [sdk.posthog :as posthog]))
 
 (defn json-response [body]
   {:status 200
@@ -69,6 +70,7 @@
             ;;            (mapv crdt.user/->value))
             ]
             ;; (db.contacts/pending-requests-from-to db id user-id)
+        (posthog/capture! ctx "contact.viewed" {:contact_id id :by user-id})
         (json-response
          {:contact (-> viewed-user crdt.user/->value db.contacts/->contact)
           :contact_request_state contact-request-state
@@ -147,6 +149,14 @@
     (some? (:to params)) (update :to strict-str->uuid)
     (some? (:action params)) (update :action parse-contact-request-action)))
 
+(defn action->evt-name [action]
+  (case action
+    :contact_request/requested "contact.requested"
+    :contact_request/accepted "contact.accepted"
+    :contact_request/ignored "contact.ignored"
+    :contact_request/removed "contact.removed"
+    nil))
+
 (defn handle-request! [{:keys [auth/user-id] :as ctx}]
   (let [{:keys [to action]} (parse-contact-request-params (:params ctx))]
     (cond
@@ -156,5 +166,9 @@
       :else
       (let [{:keys [request]} (db.contacts/apply-request! ctx {:them to :action action})
             contact-request-state (db.contacts/state-for request user-id)]
+        (when-let [event-name (action->evt-name action)]
+          (posthog/capture! ctx event-name {:contact_request_id (:id request)
+                                            :by user-id
+                                            :contact_id to}))
         (json-response {:status "success"
                         :state contact-request-state})))))
