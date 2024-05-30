@@ -117,6 +117,13 @@
     (and (user-in-discussion? uid d)
          (only-user-in-map-delta uid (:discussion/archived_uids delta)))))
 
+(defmethod authorized-for-delta? :discussion.crdt/unarchive
+  [d evt]
+  (let [uid (:evt/uid evt)
+        delta (get-in evt [:evt/data :discussion.crdt/delta])]
+    (and (user-in-discussion? uid d)
+         (only-user-in-map-delta uid (:discussion/archived_uids delta)))))
+
 (defmethod authorized-for-delta? :discussion.crdt/mark-message-read
   [d evt]
   (let [uid (:evt/uid evt)
@@ -226,6 +233,21 @@
                  :discussion.crdt/delta delta}]
      (apply-action! ctx did action))))
 
+(defn unarchive!
+  ([ctx did uid]
+   (unarchive! ctx did uid (Date.)))
+  ([ctx did uid now]
+   {:pre [(uuid? did) (uuid? uid) (inst? now)]}
+   (let [clock (crdt/new-hlc uid now)
+         delta {:crdt/clock clock
+                :discussion/updated_at now
+                :discussion/archived_uids {uid (crdt/lww clock false)}}
+         action {:discussion.crdt/action :discussion.crdt/unarchive
+                 :discussion.crdt/delta delta}]
+     (apply-action! ctx did action))))
+
+
+
 (defn archive!
   ([ctx did uid]
    (archive! ctx did uid (Date.)))
@@ -287,6 +309,7 @@
                 :order-by [[created-at :desc]]
                 :where [[did :db/type :gatz/discussion]
                         [did :discussion/members user-id]
+                        (not [did :discussion/archived_uids user-id])
                         [did :discussion/created_at created-at]]}
            uid)
         (map first)))
@@ -298,6 +321,7 @@
                 :order-by [[created-at :desc]]
                 :where [[did :db/type :gatz/discussion]
                         [did :discussion/members user-id]
+                        (not [did :discussion/archived_uids user-id])
                         [did :discussion/created_at created-at]
                         [(< created-at older-than-ts)]]}
            uid older-than-ts)
@@ -320,6 +344,7 @@
                 :order-by [[latest-activity-ts :desc]]
                 :where [[did :db/type :gatz/discussion]
                         [did :discussion/active_members user-id]
+                        (not [did :discussion/archived_uids user-id])
                         [did :discussion/first_message first-mid]
                         [did :discussion/latest_message latest-mid]
                         [(not= first-mid latest-mid)]
@@ -334,6 +359,7 @@
                 :order-by [[latest-activity-ts :desc]]
                 :where [[did :db/type :gatz/discussion]
                         [did :discussion/active_members user-id]
+                        (not [did :discussion/archived_uids user-id])
                         [did :discussion/first_message first-mid]
                         [did :discussion/latest_message latest-mid]
                         [(not= first-mid latest-mid)]

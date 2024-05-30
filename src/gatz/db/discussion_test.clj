@@ -654,6 +654,16 @@
           (is (= []          (active-for-user db mid)))
           (is (= []          (active-for-user db sid))))
 
+        (testing "if they archive a post, they don't see it in the feed"
+          (archive! (get-ctx aid) did2 aid)
+          (xtdb/sync node)
+          (let [db (xtdb/db node)]
+            (is (= [did3] (posts-for-user db aid)))
+            (is (= []     (active-for-user db aid)))))
+
+        (unarchive! (get-ctx aid) did2 aid)
+        (xtdb/sync node)
+
         (testing "there are feeds specific to the group"
           (db/create-discussion-with-message!
            (get-ctx oid)

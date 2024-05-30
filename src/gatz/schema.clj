@@ -524,6 +524,8 @@
    [:discussion/updated_at inst?]
    [:discussion/archived_uids (crdt/lww-set-delta-schema #'UserId)]])
 
+(def UnarchiveDiscussion ArchiveDiscussion)
+
 (def MarkMessageRead
   [:map
    [:crdt/clock crdt/hlc-schema]
@@ -562,6 +564,10 @@
     [:map
      [:discussion.crdt/action [:enum :discussion.crdt/archive]]
      [:discussion.crdt/delta #'ArchiveDiscussion]]
+    [:map
+     [:discussion.crdt/action [:enum :discussion.crdt/unarchive]]
+     [:discussion.crdt/delta #'UnarchiveDiscussion]]
+
     [:map
      [:discussion.crdt/action [:enum :discussion.crdt/mark-message-read]]
      [:discussion.crdt/delta #'MarkMessageRead]]
