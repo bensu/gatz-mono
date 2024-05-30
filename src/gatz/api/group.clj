@@ -9,7 +9,8 @@
             [gatz.crdt.user :as crdt.user]
             [gatz.schema :as schema]
             [malli.transform :as mt]
-            [malli.core :as m])
+            [malli.core :as m]
+            [sdk.posthog :as posthog])
   (:import [java.util Date]))
 
 
@@ -57,6 +58,7 @@
                                          crdt.user/->value
                                          (partial db.user/by-id db))
                                    all-contact-ids)]
+            (posthog/capture! ctx "group.viewed" {:id id})
             (json-response {:group group
             ;; should this include me?
                             :all_contacts all-contacts
@@ -98,6 +100,7 @@
                                      :name (:group/name params)
                                      :description (:group/description params)
                                      :avatar (:group/avatar params)})]
+    (posthog/capture! ctx "group.created" {:id (:xt/id group)})
     (json-response {:group group})))
 
 ;; ======================================================================
@@ -135,6 +138,17 @@
     (some? action) (assoc :group/action (parse-action-type action))
     (some? delta)  (assoc :group/delta (parse-delta delta))))
 
+(defn action->evt-name [action]
+  (case action
+    :group/update-attrs       "group.updated_attrs"
+    :group/remove-member      "group.remove_members"
+    :group/add-member         "group.add_members"
+    :group/remove-admin       "group.remove_admins"
+    :group/leave              "group.leave"
+    :group/add-admin          "group.add_admins"
+    :group/transfer-ownership "group.transfer_ownership"
+    nil))
+
 (defn handle-request! [{:keys [auth/user-id] :as ctx}]
   (let [{:group/keys [action delta]
          :xt/keys [id]}
@@ -142,12 +156,14 @@
     (if (not (and id action delta))
       (err-resp "invalid_params" "Invalid parameters")
       (let [now (Date.)
-            action {:xt/id id
-                    :group/by_uid user-id
-                    :group/action action
-                    :group/delta (assoc delta :group/updated_at now)}]
-        (if-not (m/validate db.group/Action action)
+            full-action {:xt/id id
+                         :group/by_uid user-id
+                         :group/action action
+                         :group/delta (assoc delta :group/updated_at now)}]
+        (if-not (m/validate db.group/Action full-action)
           (err-resp "invalid_params" "Invalid parameters")
-          (let [{:keys [group]} (db.group/apply-action! ctx action)]
+          (let [{:keys [group]} (db.group/apply-action! ctx full-action)]
+            (when-let [event-name (action->evt-name action)]
+              (posthog/capture! ctx event-name {:id id}))
             (json-response {:status "success"
                             :group group})))))))
