@@ -28,12 +28,15 @@
 ;; TODO: annotate CRDT fields
 (defn new-discussion
 
-  [{:keys [did uid mid originally-from member-uids group-id]}
+  [{:keys [did uid mid group-id originally-from
+           member-uids archived-uids]}
    {:keys [now]}]
 
   {:pre [(uuid? mid) (uuid? did) (uuid? uid)
+         (or (nil? group-id) (crdt/ulid? group-id))
          (set? member-uids) (every? uuid? member-uids)
-         (or (nil? group-id) (crdt/ulid? group-id))]
+         (or (nil? archived-uids)
+             (and (set? archived-uids) (every? uuid? archived-uids)))]
    :post [(malli/validate schema/DiscussionCRDT %)]}
 
   (let [clock (crdt/new-hlc uid now)]
@@ -62,7 +65,7 @@
      ;; We'll let the user see their own discussion in the feed as new
      ;; :discussion/seen_at {uid now}
      :discussion/seen_at {}
-     :discussion/archived_uids (crdt/lww-set clock #{})}))
+     :discussion/archived_uids (crdt/lww-set clock (or archived-uids #{}))}))
 
 
 (defn ->value [d]

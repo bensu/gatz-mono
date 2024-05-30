@@ -84,21 +84,29 @@
         originally-from (when originally_from originally_from)
         media (some->> media_id (db.media/by-id db))
 
-        member-uids (if group_id
-                      (let [group (db.group/by-id db group_id)
-                            members (:group/members group)]
-                        (assert group "Group passed doesn't exist")
-                        (assert (contains? (:group/members group) user-id)
-                                "Not authorized to post to this group")
-                        (if selected_users
-                          (do
-                            (assert (set/subset? selected_users members))
-                            selected_users)
-                          members))
-                      (let [member-uids (disj selected_users user-id)
-                            contacts (db.contacts/by-uid db user-id)]
-                        (assert (set/subset? member-uids (:contacts/ids contacts)))
-                        member-uids))
+        [member-uids archived-uids]
+        (if group_id
+          ;; The post is directed to a group
+          (let [group (db.group/by-id db group_id)
+                group-members (:group/members group)
+                archiver-uids (:group/archived_uids group)]
+            (assert group "Group passed doesn't exist")
+            (assert (contains? group-members user-id)
+                    "Not authorized to post to this group")
+
+            (if selected_users
+              ;; The post is directed to a subset of the group
+              (do
+                (assert (set/subset? selected_users group-members))
+                [selected_users (set/intersection archiver-uids selected_users)])
+              ;; The post is directed to the entire group
+              [group-members archiver-uids]))
+
+          ;; The post is directed to a set of users
+          (let [member-uids (disj selected_users user-id)
+                contacts (db.contacts/by-uid db user-id)]
+            (assert (set/subset? member-uids (:contacts/ids contacts)))
+            [member-uids #{}]))
 
         _ (assert (and (set? member-uids) (every? uuid? member-uids)))
 
@@ -108,7 +116,8 @@
         d (crdt.discussion/new-discussion
            {:did did :mid mid :uid user-id
             :originally-from originally-from
-            :member-uids member-uids :group-id group_id}
+            :member-uids member-uids :group-id group_id
+            :archived-uids archived-uids}
            {:now now})
         msg (crdt.message/new-message
              {:uid user-id :mid mid :did did

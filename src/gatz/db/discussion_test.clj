@@ -517,6 +517,8 @@
           t4 (crdt/inc-time t3)
           t5 (crdt/inc-time t4)
           t6 (crdt/inc-time t5)
+          t7 (crdt/inc-time t6)
+          t8 (crdt/inc-time t7)
           [oid mid aid sid did1 did2 did3 did4 did5 did6]
           (take 10 (repeatedly random-uuid))
 
@@ -699,7 +701,6 @@
             (is (= []          (active-for-group db gid sid))))))
 
       (testing "you can have subsets of the users"
-      ;; TODO: fix this which throws an error
         (db/create-discussion-with-message!
          (get-ctx oid)
          {:did did5 :group_id gid :selected_users #{oid aid}
@@ -741,4 +742,58 @@
                        :text "Hello everybody?" :now t4
                        :group_id gid
                        :selected_users #{(str sid)}}))))
-      (.close node))))
+
+      (testing "if a user archives the group, new posts don't show up in their feed"
+
+        (db.group/apply-action! (get-ctx aid)
+                                {:xt/id gid
+                                 :group/by_uid aid
+                                 :group/action :group/archive
+                                 :group/delta {:group/updated_at t6}})
+        (xtdb/sync node)
+        (db/create-discussion-with-message!
+         (get-ctx oid)
+         {:did did6 :group_id gid
+          :text "Hello to owner and member, to be ignored by admin"
+          :now t6})
+        (xtdb/sync node)
+        (db/create-message!
+         (get-ctx mid)
+         {:did did6 :text "Owner, member see this, ignored by admin" :now t7})
+        (db/create-message!
+         (get-ctx aid)
+         {:did did6 :text "Admin participates even though they archived" :now t8})
+        (xtdb/sync node)
+
+
+        (let [db (xtdb/db node)
+              d6 (crdt.discussion/->value (by-id db did6))]
+          (testing "the user that archived is a member but also archived the discussion"
+            (is (= #{oid mid aid} (:discussion/members d6)))
+            (is (= #{aid} (:discussion/archived_uids d6)))
+            (is (= gid (:discussion/group_id d6))))
+
+          (is (= [did6 did5 did4 did3 did2 did1] (posts-for-user db oid)))
+          (is (= [did5 did4 did3 did2]           (posts-for-user db aid)))
+          (is (= [did6 did4 did3]                (posts-for-user db mid)))
+          (is (= [did4]                          (posts-for-user db sid)))
+
+          (testing "we hide archived messages from active"
+            (is (= [did6 did2 did1] (active-for-user db oid)))
+            (is (= [did2]           (active-for-user db aid)))
+            (is (= [did6]           (active-for-user db mid)))
+            (is (= []               (active-for-user db sid))))
+
+          (testing "we don't hide archived messages when you look into a group's feed"
+            (is (= [did6 did5 did3 did2 did1] (posts-for-group db gid oid)))
+            (is (= [did6 did5 did3 did2]      (posts-for-group db gid aid)))
+            (is (= [did6 did3]                (posts-for-group db gid mid)))
+            (is (= []                         (posts-for-group db gid sid)))
+
+            (is (= [did6 did2 did1] (active-for-group db gid oid)))
+            (is (= [did6 did2]      (active-for-group db gid aid)))
+            (is (= [did6]           (active-for-group db gid mid)))
+            (is (= []               (active-for-group db gid sid)))))
+
+
+        (.close node)))))
