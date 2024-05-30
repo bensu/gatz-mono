@@ -27,7 +27,7 @@
                                    :discussion/last_message_read {uid (crdt/->LWW clock mid)}}
           archive-delta  {:crdt/clock clock
                           :discussion/updated_at t0
-                          :discussion/archived_at {uid (crdt/->LWW clock t0)}}
+                          :discussion/archived_uids {uid (crdt/->LWW clock true)}}
           subscribe-delta {:crdt/clock clock
                            :discussion/updated_at t0
                            :discussion/subscribers {uid (crdt/->LWW clock true)}}
@@ -91,13 +91,13 @@
                      :discussion.crdt/delta
                      {:crdt/clock c0
                       :discussion/updated_at t0
-                      :discussion/archived_at {poster-uid (crdt/->LWW c0 t0)}}}]
+                      :discussion/archived_uids {poster-uid (crdt/->LWW c0 true)}}}]
                    [commenter-uid
                     {:discussion.crdt/action :discussion.crdt/archive
                      :discussion.crdt/delta
                      {:crdt/clock c1
                       :discussion/updated_at t1
-                      :discussion/archived_at {commenter-uid (crdt/->LWW c1 t1)}}}]
+                      :discussion/archived_uids {commenter-uid (crdt/->LWW c1 true)}}}]
                    [commenter-uid
                     {:discussion.crdt/action :discussion.crdt/subscribe
                      :discussion.crdt/delta
@@ -114,7 +114,7 @@
           final-expected {:xt/id did
                           :crdt/clock c3
                           :db/type :gatz/discussion
-                          :db/version 2
+                          :db/version 3
                           :discussion/did did
                           :discussion/name nil
                           :discussion/created_at now
@@ -130,7 +130,7 @@
                           :discussion/seen_at {}
 
                           :discussion/updated_at t3
-                          :discussion/archived_at {poster-uid t0 commenter-uid t1}
+                          :discussion/archived_uids #{poster-uid commenter-uid}
                           :discussion/subscribers #{commenter-uid}
                           :discussion/last_message_read {poster-uid mid}}
           final (reduce crdt.discussion/apply-delta initial (shuffle (concat deltas deltas)))]
@@ -138,7 +138,7 @@
         (is-equal {:xt/id did
                    :crdt/clock cnow
                    :db/type :gatz/discussion
-                   :db/version 2
+                   :db/version 3
                    :discussion/did did
                    :discussion/name nil
                    :discussion/group_id nil
@@ -154,7 +154,7 @@
                    :discussion/latest_activity_ts now
                    :discussion/updated_at now
                    :discussion/seen_at {}
-                   :discussion/archived_at {}}
+                   :discussion/archived_uids #{}}
                   (crdt.discussion/->value initial))
         (is-equal final-expected (crdt.discussion/->value final)))
       (testing "via apply-action!"
@@ -200,11 +200,10 @@
                                                   :discussion/subscribers
                                                   :discussion/members
                                                   :discussion/active_members
-                                                  :discussion/archived_at
+                                                  :discussion/archived_uids
                                                   :discussion/last_message_read
                                                   :discussion/created_at
-                                                  :discussion/created_by])
-                                    (update :discussion/archived_at #(set (keys %)))))]
+                                                  :discussion/created_by])))]
             (is-equal (select-fields final-expected)
                       (select-fields (crdt.discussion/->value final))))
           (.close node))))))

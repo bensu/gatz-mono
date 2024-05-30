@@ -7,6 +7,7 @@
 (def discussion-defaults
   {:discussion/seen_at {}
    :discussion/archived_at {}
+   :discussion/archived_uids #{}
    :discussion/last_message_read {}
    :discussion/subscribers #{}
    :discussion/originally_from nil
@@ -40,7 +41,7 @@
     {:db/type :gatz/discussion
      :crdt/clock clock
      :xt/id did
-     :db/version 2
+     :db/version 3
      :discussion/did did
      :discussion/name nil
      :discussion/created_by uid
@@ -61,7 +62,7 @@
      ;; We'll let the user see their own discussion in the feed as new
      ;; :discussion/seen_at {uid now}
      :discussion/seen_at {}
-     :discussion/archived_at {}}))
+     :discussion/archived_uids (crdt/lww-set clock #{})}))
 
 
 (defn ->value [d]

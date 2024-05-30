@@ -538,6 +538,11 @@
    [:map
     [:xs [:map-of value-schema (lww-schema clock-schema boolean?)]]]))
 
+(defn lww-set-delta-schema
+  ([value-schema] (lww-set-delta-schema hlc-schema value-schema))
+  ([clock-schema value-schema]
+   [:map-of value-schema (lww-schema clock-schema boolean?)]))
+
 ;; This is not super ergonomic! 
 ;; The API you want knows which id you are removing
 (deftest lww-set-test

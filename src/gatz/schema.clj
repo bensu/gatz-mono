@@ -142,7 +142,7 @@
   [:map
    [:xt/id uuid?]
    [:db/type [:enum :gatz/contact_request]]
-   [:db/version 1]
+   [:db/version [:enum 1]]
    [:contact_request/from UserId]
    [:contact_request/to UserId]
    [:contact_request/created_at inst?]
@@ -299,7 +299,7 @@
   [:map
    [:xt/id #'DiscussionId]
    [:db/type [:enum :gatz/discussion]]
-   [:db/version [:enum 2]]
+   [:db/version [:enum 3]]
    [:discussion/did #'DiscussionId]
    [:discussion/name [:maybe string?]]
    [:discussion/created_by #'UserId]
@@ -324,7 +324,8 @@
    ;; {user-id (->MaxWins inst?)}
    [:discussion/seen_at [:map-of #'UserId (crdt/max-wins-schema inst?)]]
     ;; LWW, maybe?
-   [:discussion/archived_at [:map-of #'UserId (crdt/lww-schema inst?)]]
+   [:discussion/archived_uids (crdt/lww-set-schema #'UserId)]
+
    ;; {id MessageCRDT}
    [:discussion/messages {:optional true} [:map-of #'MessageId #'MessageCRDT]]])
 
@@ -332,7 +333,7 @@
   [:map
    [:xt/id #'DiscussionId]
    [:db/type [:enum :gatz/discussion]]
-   [:db/version [:enum 2]]
+   [:db/version [:enum 3]]
    [:crdt/clock crdt/hlc-schema]
    [:discussion/did #'DiscussionId]
    [:discussion/name [:maybe string?]]
@@ -358,7 +359,7 @@
    ;; {user-id (->LWW mid)} or MaxWins if mids can be ordered
    [:discussion/last_message_read [:map-of #'UserId #'MessageId]]
    ;; LWW
-   [:discussion/archived_at [:map-of #'UserId inst?]]
+   [:discussion/archived_uids [:set #'UserId]]
    ;; {id MessageCRDT}
    [:discussion/messages {:optional true} [:map-of #'MessageId #'MessageCRDT]]])
 
@@ -375,6 +376,7 @@
    :discussion/group_id
    :discussion/latest_message
    :discussion/active_members
+   :discussion/archived_uids
    :discussion/members])
 
 (def DiscussionDoc
@@ -520,7 +522,7 @@
   [:map
    [:crdt/clock crdt/hlc-schema]
    [:discussion/updated_at inst?]
-   [:discussion/archived_at [:map-of #'UserId (crdt/lww-schema inst?)]]])
+   [:discussion/archived_uids (crdt/lww-set-delta-schema #'UserId)]])
 
 (def MarkMessageRead
   [:map

@@ -73,9 +73,20 @@
                :db/doc-type :gatz.crdt/discussion
                :db/type :gatz/discussion))))
 
+(defn v2->v3 [data]
+  (let [archived-uids (keys (or (:discussion/archived_at data) {}))]
+    (-> data
+        (assoc :discussion/archived_uids archived-uids)
+        (dissoc :discussion/archived_at)
+        (assoc :db/version 3
+               :db/doc-type :gatz.crdt/discussion
+               :db/type :gatz/discussion))))
+
+
 (def all-migrations
   [{:from 0 :to 1 :transform v0->v1}
-   {:from 1 :to 2 :transform v1->v2}])
+   {:from 1 :to 2 :transform v1->v2}
+   {:from 2 :to 3 :transform v2->v3}])
 
 (defn by-id [db did]
   (-> (xtdb/entity db did)
@@ -103,7 +114,7 @@
   (let [uid (:evt/uid evt)
         delta (get-in evt [:evt/data :discussion.crdt/delta])]
     (and (user-in-discussion? uid d)
-         (only-user-in-map-delta uid (:discussion/archived_at delta)))))
+         (only-user-in-map-delta uid (:discussion/archived_uids delta)))))
 
 (defmethod authorized-for-delta? :discussion.crdt/mark-message-read
   [d evt]
@@ -222,7 +233,7 @@
    (let [clock (crdt/new-hlc uid now)
          delta {:crdt/clock clock
                 :discussion/updated_at now
-                :discussion/archived_at {uid (crdt/->LWW clock now)}}
+                :discussion/archived_uids {uid (crdt/lww clock true)}}
          action {:discussion.crdt/action :discussion.crdt/archive
                  :discussion.crdt/delta delta}]
      (apply-action! ctx did action))))
