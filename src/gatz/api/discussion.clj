@@ -287,19 +287,26 @@
                (db.discussion/posts-for-user db user-id {:older-than-ts older-than})
                (db.discussion/posts-for-user db user-id))
         ds (map (partial db/discussion-by-id db) dids)
-        group-ids (set (keep (comp :discussion/group_id :discussion) ds))
+        d-group-ids (set (keep (comp :discussion/group_id :discussion) ds))
+        d-user-ids  (reduce set/union (map :user_ids ds))
+
         contact-requests (db.contacts/pending-requests-to db user-id)
         crs (mapv (fn [{:contact_request/keys [from] :as cr}]
                     {:contact_request cr
                      :in_common {:contacts (db.contacts/get-in-common db user-id from)
                                  :groups (db.group/ids-with-members-in-common db user-id from)}})
                   contact-requests)
+        c-group-ids (reduce set/union (map (comp :groups :in_common) crs))
+        c-user-ids  (reduce set/union (map (comp :contacts :in_common) crs))
+
         ;; TODO: not only send the gruop-ids from the discussions, 
         ;; also from the contact request
-        groups (mapv (partial db.group/by-id db) group-ids)
+        groups (mapv (partial db.group/by-id db)
+                     (set/union c-group-ids d-group-ids))
         ;; TODO: only send the users that are in the discussions
         ;; and in the contact requests
-        users (db.user/all-users db)]
+        users (or (db.user/all-users db)
+                  (mapv (partial db.user/by-id db) (set/union d-user-ids c-user-ids)))]
     (json-response {:discussions (mapv crdt.discussion/->value ds)
                     :users (mapv crdt.user/->value users)
                     :groups groups
