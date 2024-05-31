@@ -83,6 +83,12 @@
      [:settings/notifications NotificationPreferences]]]
    [:user/push_tokens [:maybe PushTokens]]])
 
+(def contact-ks [:xt/id :user/name :user/avatar])
+
+(def Contact (mu/select-keys User contact-ks))
+
+(def ContactResponse Contact)
+
 (def UserCRDT
   [:map
    [:xt/id #'UserId]
@@ -163,11 +169,6 @@
    [:contacts/created_at inst?]
    [:contacts/updated_at inst?]
    [:contacts/ids [:set #'UserId]]])
-
-(def contact-ks [:xt/id :user/name :user/avatar])
-
-(def ContactResponse
-  (mu/select-keys User contact-ks))
 
 ;; ====================================================================== 
 ;; Groups

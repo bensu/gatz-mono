@@ -74,6 +74,20 @@
                uid)
        (mapv first)))
 
+(defn ids-with-members-in-common
+  "Returns group ids with the two members in common"
+  [db aid bid]
+  {:pre [(uuid? aid) (uuid? bid)]}
+  (->> (xtdb/q db
+               '{:find [g]
+                 :in [aid bid]
+                 :where [[g :db/type :gatz/group]
+                         [g :group/members aid]
+                         [g :group/members bid]]}
+               aid bid)
+       (map first)
+       set))
+
 (defn with-members-in-common
   "Returns groups with the two members in common"
   [db aid bid]

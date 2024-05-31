@@ -3,6 +3,7 @@
             [clojure.set :as set]
             [gatz.auth]
             [gatz.db :as db]
+            [gatz.db.contacts :as db.contacts]
             [gatz.db.discussion :as db.discussion]
             [gatz.db.group :as db.group]
             [gatz.db.message :as db.message]
@@ -11,6 +12,7 @@
             [gatz.crdt.message :as crdt.message]
             [gatz.crdt.user :as crdt.user]
             [gatz.notify :as notify]
+            [gatz.schema :as schema]
             [malli.transform :as mt]
             [sdk.posthog :as posthog]
             [xtdb.api :as xt])
@@ -251,6 +253,16 @@
   [:map
    [:last_did {:optional true} uuid?]])
 
+(def feed-response
+  [:map
+   [:discussion [:vec schema/Discussion]]
+   [:users [:vec schema/User]]
+   [:groups [:vec schema/Group]]
+   [:contact_requests [:vec [:contact_request schema/ContactRequest
+                             :contact schema/Contact
+                             :in_common [:contacts [:vec schema/Contact]
+                                         :groups [:vec schema/Group]]]]]])
+
 (defn strict-str->uuid [s]
   (let [out (mt/-string->uuid s)]
     (if (uuid? out) out nil)))
@@ -276,12 +288,22 @@
                (db.discussion/posts-for-user db user-id))
         ds (map (partial db/discussion-by-id db) dids)
         group-ids (set (keep (comp :discussion/group_id :discussion) ds))
+        contact-requests (db.contacts/pending-requests-to db user-id)
+        crs (mapv (fn [{:contact_request/keys [from] :as cr}]
+                    {:contact_request cr
+                     :in_common {:contacts (db.contacts/get-in-common db user-id from)
+                                 :groups (db.group/ids-with-members-in-common db user-id from)}})
+                  contact-requests)
+        ;; TODO: not only send the gruop-ids from the discussions, 
+        ;; also from the contact request
         groups (mapv (partial db.group/by-id db) group-ids)
         ;; TODO: only send the users that are in the discussions
+        ;; and in the contact requests
         users (db.user/all-users db)]
     (json-response {:discussions (mapv crdt.discussion/->value ds)
                     :users (mapv crdt.user/->value users)
                     :groups groups
+                    :contact_requests crs
                     ;; TODO: remove this
                     :current false
                     :latest_tx {:id (::xt/tx-id latest-tx)
@@ -311,6 +333,7 @@
     (json-response {:discussions (mapv crdt.discussion/->value ds)
                     :users (mapv crdt.user/->value users)
                     :groups groups
+                    :contact_requests []
                     ;; TODO: remove this
                     :current false
                     :latest_tx {:id (::xt/tx-id latest-tx)
