@@ -38,7 +38,8 @@
     "contact.viewed" "contact.requested" "contact.accepted" "contact.ignored" "contact.removed"
     "group.viewed" "group.created" "group.archive" "group.unarchive"
     "group.transfer_ownership" "group.add_admins" "group.remove_admins" "group.leave"
-    "group.updated_attrs" "group.remove_members" "group.add_members"})
+    "group.updated_attrs" "group.remove_members" "group.add_members"
+    "notifications.failed" "notifications.succeeded"})
 
 ;; posthog.identify("user123", new Properties()
 ;;     .set("email", "user@example.com")

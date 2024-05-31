@@ -12,6 +12,7 @@
             [gatz.schema :as schema]
             [sdk.expo :as expo]
             [sdk.heroku :as heroku]
+            [sdk.posthog :as posthog]
             [xtdb.api :as xt])
   (:import [java.time LocalDateTime ZoneId Instant Duration]
            [java.util Date]))
@@ -290,6 +291,7 @@
           (db.user/mark-active! (assoc ctx :auth/user-id uid))
           (catch Throwable e
             ;; TODO: handle
+            (posthog/capture! ctx "notifications.failed" {:type "daily" :uid uid})
             (println "Error in activity-for-all-users!")
             (println e)))))))
 
