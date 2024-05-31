@@ -2,7 +2,9 @@
  :tasks {:requires ([babashka.fs :as fs])
 
          ;; Used only in local development.
-         test             gatz.test/-main
+         test             {:requires ([babashka.tasks :refer [shell]])
+                           :task (do
+                                   (shell "clojure -M -m gatz.test"))}
          dev              com.biffweb.tasks/dev
          format           com.biffweb.tasks/format
          clean            com.biffweb.tasks/clean
