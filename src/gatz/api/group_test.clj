@@ -1,5 +1,6 @@
 (ns gatz.api.group-test
   (:require [clojure.test :as test :refer [deftest testing is]]
+            [crdt.core :as crdt]
             [gatz.api.group :as api.group]
             [gatz.db.util-test :as db.util-test :refer [is-equal]]
             [gatz.db.group :as db.group]
@@ -16,7 +17,7 @@
              (api.group/parse-delta json-delta)))))
   (testing "we can parse the different params"
 
-    (let [gid (random-uuid)
+    (let [gid (crdt/random-ulid)
           uid (random-uuid)
           now (Date.)]
 
@@ -53,7 +54,7 @@
           member (random-uuid)
           non-member (random-uuid)
           bad-admin (random-uuid)
-          gid (random-uuid)
+          gid (crdt/random-ulid)
           now (java.util.Date.)
           ctx (db.util-test/test-system)
           node (:biff.xtdb/node ctx)
