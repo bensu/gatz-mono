@@ -26,25 +26,29 @@
     (let [poster-uid (random-uuid)
           commenter-uid (random-uuid)
           lurker-uid (random-uuid)
+          ctoken "COMMENTER_TOKEN"
+          ptoken "POSTER_TOKEN"
           ctx (->ctx)
           node (:biff.xtdb/node ctx)
           get-ctx (fn [uid] (with-db (->auth-ctx ctx uid)))
-          _poster (db.user/create-user! (get-ctx poster-uid)
-                                        {:id poster-uid
-                                         :username "poster"
-                                         :phone "+11111111111"})
-          _commenter (db.user/create-user! (get-ctx commenter-uid)
-                                           {:id commenter-uid
-                                            :username "commenter"
-                                            :phone "+12222222222"})
-          _lurker (db.user/create-user! (get-ctx lurker-uid)
-                                        {:id lurker-uid
-                                         :username "lurker"
-                                         :phone "+13333333333"})
-          _ (db.contacts/force-contacts! ctx poster-uid commenter-uid)
-          _ (db.contacts/force-contacts! ctx poster-uid lurker-uid)
-          _ (db.contacts/force-contacts! ctx commenter-uid lurker-uid)
-          _ (xtdb/sync node)
+          _ (do
+              (db.user/create-user! (get-ctx poster-uid)
+                                    {:id poster-uid
+                                     :username "poster"
+                                     :phone "+11111111111"})
+              (db.user/create-user! (get-ctx commenter-uid)
+                                    {:id commenter-uid
+                                     :username "commenter"
+                                     :phone "+12222222222"})
+              (db.user/create-user! (get-ctx lurker-uid)
+                                    {:id lurker-uid
+                                     :username "lurker"
+                                     :phone "+13333333333"})
+              (xtdb/sync node)
+              (db.contacts/force-contacts! ctx poster-uid commenter-uid)
+              (db.contacts/force-contacts! ctx poster-uid lurker-uid)
+              (db.contacts/force-contacts! ctx commenter-uid lurker-uid)
+              (xtdb/sync node))
           {:keys [message discussion]} (db/create-discussion-with-message!
                                         (get-ctx poster-uid)
                                         {:name ""
@@ -82,13 +86,14 @@
               "The users don't have push notifications set up")))
 
       ;; TODO: should check that the first message doesn't trigger notifications
-      (testing "People subscribed to the discussion get notifications"
-        (let [ctoken "COMMENTER_TOKEN"
-              commenter (db.user/add-push-token! (get-ctx commenter-uid)
-                                                 {:push-token {:push/expo {:push/service :push/expo
-                                                                           :push/token ctoken
-                                                                           :push/created_at (Date.)}}})
-              nts4 (notify/notifications-for-comment (xtdb/db node) message)]
+      (testing "People subscribed with tokens to the discussion get notifications"
+        (db.user/add-push-token! (get-ctx commenter-uid)
+                                 {:push-token {:push/expo {:push/service :push/expo
+                                                           :push/token ctoken
+                                                           :push/created_at (Date.)}}})
+        (xtdb/sync node)
+        (let [db (xtdb/db node)
+              nts4 (notify/notifications-for-comment db message)]
           (is (= [{:expo/uid commenter-uid
                    :expo/to ctoken
                    :expo/body "First discussion!"
@@ -102,13 +107,15 @@
               nts5 (notify/notifications-for-comment (xtdb/db node) new-comment)]
           (is (empty? nts5) "Poster still doesn't have notifications set up")
 
-          (let [ptoken "POSTER_TOKEN"
-                _poster (db.user/add-push-token! (get-ctx poster-uid)
-                                                 {:push-token {:push/expo {:push/service :push/expo
-                                                                           :push/token ptoken
-                                                                           :push/created_at (java.util.Date.)}}})
-                nts-for-og-post (notify/notifications-for-comment (xtdb/db node) message)
-                nts-for-new-comment (notify/notifications-for-comment (xtdb/db node) new-comment)]
+          (db.user/add-push-token! (get-ctx poster-uid)
+                                   {:push-token {:push/expo {:push/service :push/expo
+                                                             :push/token ptoken
+                                                             :push/created_at (java.util.Date.)}}})
+          (xtdb/sync node)
+
+          (let [db (xtdb/db node)
+                nts-for-og-post (notify/notifications-for-comment db message)
+                nts-for-new-comment (notify/notifications-for-comment db new-comment)]
             (is (= #{commenter-uid} (set (map :expo/uid nts-for-og-post)))
                 "Only the commenter gets the notifications for the OG post")
             (is (= [{:expo/uid poster-uid

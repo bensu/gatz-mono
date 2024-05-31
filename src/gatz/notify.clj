@@ -124,6 +124,8 @@
         _ (assert d "No discussion for message")
         commenter (crdt.user/->value (db.user/by-id db (:message/user_id m)))
         poster (crdt.user/->value (db.user/by-id db (:discussion/created_by d)))
+        _ (assert poster)
+        _ (assert commenter)
         m-preview (message-preview m)
         data {:url (discussion-url (:message/did m))}]
     (->> (:discussion/subscribers d)
