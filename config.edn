@@ -17,6 +17,8 @@
         :gatz.auth/jwt-secret-old "GATZ_JWT_SECRET_OLD"
         :gatz.auth/jwt-secret "GATZ_JWT_SECRET"
 
+        :gatz/host "https://gatz.chat"
+
         :posthog/api_key "phc_abqkICUI7qZDw1rNLR53fB8uC41kOOjKWfE54NfoHus"
         :posthog/host "https://us.i.posthog.com"
         :posthog/enabled? true
@@ -33,7 +35,7 @@
 
         :heroku/dyno-name "DYNO"
 
-       :gatz.db.user/make-friends-with-everybody? true
+        :gatz.db.user/make-friends-with-everybody? true
 
         :biff/base-url "http://gatz.chat"
         ;; Postmark is used to send email sign-in links. Create an account at
@@ -59,6 +61,8 @@
        :biff/base-url "http://localhost:8080"
        :biff/host "0.0.0.0"
        :biff.middleware/secure false
+
+       :gatz/host "http://localhost:8081"
 
        :gatz.db.user/make-friends-with-everybody? false
 

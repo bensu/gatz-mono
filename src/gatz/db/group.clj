@@ -368,6 +368,7 @@
     (and (= by_uid owner) (contains? admins to-be-transferred))))
 
 (defn apply-action-txn [xtdb-ctx {:keys [action] :as _args}]
+  (assert action)
   (let [{:keys [xt/id]} action
         db (xtdb.api/db xtdb-ctx)
         group (gatz.db.group/by-id db id)]
@@ -396,3 +397,13 @@
             {:group (by-id db-after id)})
           (assert false "Transaction would've been invalid")))
       (assert false "Invalid action"))))
+
+
+(defn make-add-member-txn [{:keys [uid now gid by-uid]}]
+  {:pre [(crdt/ulid? gid) (uuid? uid) (uuid? by-uid) (inst? now)]}
+  [:xtdb.api/fn :gatz.db.group/apply-action
+   {:action {:xt/id gid
+             :group/by_uid by-uid
+             :group/action :group/add-member
+             :group/delta {:group/updated_at now
+                           :group/members #{uid}}}}])

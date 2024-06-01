@@ -182,7 +182,7 @@
    [:invite_link/created_by #'UserId]
    [:invite_link/created_at inst?]
    [:invite_link/used_at [:maybe inst?]]
-   [:invite_link/used_by #'UserId]])
+   [:invite_link/used_by [:maybe #'UserId]]])
 
 
 ;; ====================================================================== 

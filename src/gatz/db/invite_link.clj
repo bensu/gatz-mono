@@ -22,8 +22,11 @@
           (:gatz/host ctx)
           (str id)))
 
+(defn valid? [{:keys [] :as invite-link}]
+  (and (nil? (:invite_link/used_at invite-link))
+       (nil? (:invite_link/used_by invite-link))))
 
-(defn create [{:keys [uid gid now id]}]
+(defn make [{:keys [uid gid now id]}]
   {:pre [(uuid? uid) (crdt/ulid? gid)
          (or (nil? id) (crdt/ulid? id))
          (or (nil? now) (instance? Date now))]}
@@ -39,6 +42,12 @@
      :invite_link/expires_at now ;; TODO: in 7 days by default
      :invite_link/used_at nil
      :invite_link/used_by nil}))
+
+(defn create! [ctx opts]
+  (let [invite-link (make opts)]
+    (biff/submit-tx ctx
+                    [(assoc invite-link :db/doc-type :gatz/invite_link)])
+    invite-link))
 
 (defn mark-used [invite-link {:keys [by-uid now]}]
   {:pre [(uuid? by-uid) (instance? Date now)]}
