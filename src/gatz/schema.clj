@@ -170,6 +170,21 @@
    [:contacts/updated_at inst?]
    [:contacts/ids [:set #'UserId]]])
 
+
+(def InviteLink
+  [:map
+   [:xt/id ulid?]
+   [:db/type [:enum :gatz/invite_link]]
+   [:db/version [:enum 1]]
+   [:invite_link/type [:enum :invite_link/group]]
+   [:invite_link/group_id #'GroupId]
+   [:invite_link/expires_at inst?]
+   [:invite_link/created_by #'UserId]
+   [:invite_link/created_at inst?]
+   [:invite_link/used_at [:maybe inst?]]
+   [:invite_link/used_by #'UserId]])
+
+
 ;; ====================================================================== 
 ;; Groups
 
@@ -637,6 +652,7 @@
    :gatz/user_activity #'UserActivity
    :gatz/contacts #'UserContacts
    :gatz/group #'Group
+   :gatz/invite_link #'InviteLink
    :gatz.doc/discussion #'DiscussionDoc
    :gatz/discussion #'Discussion
    :gatz.crdt/discussion #'DiscussionCRDT
