@@ -189,11 +189,9 @@
   (let [params (parse-join-link-params (:params ctx))]
     (if-let [id (:id params)]
       (if-let [invite-link (invite-link/by-id db id)]
-        (if (invite-link/valid? invite-link)
-          (do
-            (invite-to-group! ctx invite-link)
-            (json-response {:success "true"}))
-          (err-resp "used_link" "This link has already been used"))
+        (do
+          (invite-to-group! ctx invite-link)
+          (json-response {:success "true"}))
         (err-resp "not_found" "Link not found"))
       (err-resp "invalid_params" "Invalid params"))))
 
