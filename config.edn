@@ -62,8 +62,6 @@
        :biff/host "0.0.0.0"
        :biff.middleware/secure false
 
-       :gatz/host "http://localhost:8081"
-
        :gatz.db.user/make-friends-with-everybody? false
 
        :expo/enabled? false
