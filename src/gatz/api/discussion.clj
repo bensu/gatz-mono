@@ -1,6 +1,7 @@
 (ns gatz.api.discussion
   (:require [clojure.data.json :as json]
             [clojure.set :as set]
+            [crdt.core :as crdt]
             [gatz.auth]
             [gatz.db :as db]
             [gatz.db.contacts :as db.contacts]
@@ -13,6 +14,8 @@
             [gatz.crdt.user :as crdt.user]
             [gatz.notify :as notify]
             [gatz.schema :as schema]
+            [malli.core :as m]
+            [malli.util :as mu]
             [malli.transform :as mt]
             [sdk.posthog :as posthog]
             [xtdb.api :as xt])
@@ -164,6 +167,63 @@
         {:keys [discussion]} (db.discussion/unsubscribe! ctx did user-id)]
     (posthog/capture! ctx "discussion.unsubscribe" {:did did})
     (json-response {:discussion (crdt.discussion/->value discussion)})))
+
+;; ====================================================================== 
+;; Actions
+
+(def action-params
+  [:map
+   [:id uuid?]
+   [:action [:enum :discussion/add-members]]
+   [:delta  [:or [(mu/select-keys schema/AddMembersDelta [:discussion/members])]]]])
+
+(defn parse-delta [{:keys [members]}]
+  (cond-> {}
+    (coll? members) (assoc :discussion/members (set (map mt/-string->uuid members)))))
+
+(defn parse-action-params [{:keys [id action delta]}]
+  (cond-> {}
+    (some? id) (assoc :id mt/-string->uuid)
+    (some? action) (assoc :action (keyword "discussion" action))
+    (some? delta) (assoc :delta (parse-delta delta))))
+
+(defn delta->crdt [clock {:discussion/keys [members]}]
+  (cond-> {}
+    (some? members) (assoc :discussion/members (crdt/lww-set-delta clock members))))
+
+(defn action->evt-name [action]
+  (case action
+    :discussion/add-members "discussion.add_members"
+    :discussion/archive "discussion.archive"
+    :discussion/unarchive "discussion.unarchive"
+    :discussion/subscribe "discussion.subscribe"
+    :discussion/unsubscribe "discussion.unsubscribe"
+    nil))
+
+(defn handle-request! [{:keys [auth/user-id] :as ctx}]
+  (let [now (Date.)
+        clock (crdt/new-hlc user-id now)
+        {:keys [id action delta]} (parse-action-params (:params ctx))
+        delta (delta->crdt clock delta)
+        full-action {:discussion/action action
+                     :discussion/delta (-> delta
+                                           (assoc :discussion/updated_at now)
+                                           (assoc :crdt/clock clock))}]
+    (cond
+      (not (and id action delta))
+      (err-resp "invalid_params" "Invalid params")
+
+      (not (m/validate schema/DiscussionAction full-action))
+      (err-resp "invalid_params" "Invalid params")
+
+      :else
+      (let [{:keys [discussion]}
+            (db.discussion/apply-action! ctx id full-action)]
+        (posthog/capture! ctx (action->evt-name action) {:id id})
+        (json-response {:discussion discussion})))))
+
+;; ====================================================================== 
+;; Feeds
 
 ;; The cut-off for discussions is when they were created but the feed sorting is
 ;; based on when they were updated. This will close problems when there is more activity
