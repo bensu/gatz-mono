@@ -311,6 +311,11 @@
     [:map-of #'UserId
      [:map-of string? (crdt/lww-schema [:maybe inst?])]]]])
 
+(def DiscussionMemberMode
+  [:enum
+   :discussion.member_mode/open
+   :discussion.member_mode/closed])
+
 (def DiscussionCRDT
   [:map
    [:xt/id #'DiscussionId]
@@ -325,6 +330,7 @@
                                          [:did #'DiscussionId]
                                          [:mid #'MessageId]]]]
    [:discussion/first_message [:maybe #'MessageId]]
+   [:discussion/member_mode DiscussionMemberMode]
    ;; LWW-set
    [:discussion/members (crdt/lww-set-schema #'UserId)]
    [:discussion/subscribers (crdt/lww-set-schema #'UserId)]
@@ -360,6 +366,7 @@
                                          [:did #'DiscussionId]
                                          [:mid #'MessageId]]]]
    [:discussion/first_message [:maybe #'MessageId]]
+   [:discussion/member_mode DiscussionMemberMode]
    ;; MaxWins
    [:discussion/updated_at inst?]
    ;; AddRemoveSet
@@ -570,6 +577,12 @@
    [:discussion/active_members #'UserId]
    [:discussion/updated_at inst?]])
 
+(def AddMembersDelta
+  [:map
+   [:crdt/clock crdt/hlc-schema]
+   [:discussion/updated_at inst?]
+   [:discussion/members (crdt/lww-set-delta-schema #'UserId)]])
+
 ;; I need a way for tagged unions to give me better error messages
 (def DiscussionAction
   (mu/closed-schema
@@ -583,6 +596,10 @@
     [:map
      [:discussion.crdt/action [:enum :discussion.crdt/unarchive]]
      [:discussion.crdt/delta #'UnarchiveDiscussion]]
+
+    [:map
+     [:discussion.crdt/action [:enum :discussion.crdt/add-members]]
+     [:discussion.crdt/delta #'AddMembersDelta]]
 
     [:map
      [:discussion.crdt/action [:enum :discussion.crdt/mark-message-read]]

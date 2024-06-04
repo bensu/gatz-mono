@@ -154,6 +154,13 @@
          (or (empty? (:discussion/subscribers delta))
              (only-user-in-map-delta uid (:discussion/subscribers delta))))))
 
+;; TODO: sometimes they are being added automatically, not by the owner
+(defmethod authorized-for-delta? :discussion.crdt/add-members
+  [d evt]
+  (let [uid (:evt/uid evt)]
+    (and (= :discussion.member_mode/open (:discussion/member_mode d))
+         (= uid (:discussion/created_by d)))))
+
 (defn apply-delta-xtdb
   [ctx {:keys [evt] :as _args}]
   (let [did (:evt/did evt)

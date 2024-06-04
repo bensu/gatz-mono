@@ -17,9 +17,7 @@
 
 (deftest schemas
   (testing "we can validate all the deltas"
-    (let [uid (random-uuid)
-          did (random-uuid)
-          mid (random-uuid)
+    (let [[uid did mid] (take 3 (repeatedly random-uuid))
           t0 (Date.)
           clock (crdt/new-hlc uid t0)
           mark-message-read-delta {:crdt/clock clock
@@ -31,6 +29,9 @@
           subscribe-delta {:crdt/clock clock
                            :discussion/updated_at t0
                            :discussion/subscribers {uid (crdt/->LWW clock true)}}
+          add-member-delta {:crdt/clock clock
+                            :discussion/updated_at t0
+                            :discussion/members {uid (crdt/->LWW clock true)}}
           unsubscribe-delta {:crdt/clock clock
                              :discussion/updated_at t0
                              :discussion/subscribers {uid (crdt/->LWW clock false)}}]
@@ -40,11 +41,15 @@
           (malli/explain  schema/ArchiveDiscussion archive-delta))
       (is (malli/validate schema/SubscribeDelta subscribe-delta)
           (malli/explain  schema/SubscribeDelta subscribe-delta))
+      (is (malli/validate schema/AddMembersDelta add-member-delta)
+          (malli/validate schema/AddMembersDelta add-member-delta))
       (is (malli/validate schema/SubscribeDelta unsubscribe-delta)
           (malli/explain  schema/SubscribeDelta unsubscribe-delta))
       (testing "and as actions"
         (let [actions [{:discussion.crdt/action :discussion.crdt/mark-message-read
                         :discussion.crdt/delta mark-message-read-delta}
+                       {:discussion.crdt/action :discussion.crdt/add-members
+                        :discussion.crdt/delta add-member-delta}
                        {:discussion.crdt/action :discussion.crdt/archive
                         :discussion.crdt/delta archive-delta}
                        {:discussion.crdt/action :discussion.crdt/subscribe
@@ -66,6 +71,35 @@
               (doseq [evt events]
                 (is (malli/validate schema/DiscussionEvt evt)
                     (malli/explain schema/DiscussionEvt evt))))))))))
+
+(deftest open-discussions
+  (testing "we can add members to a discussion with the CRDT"
+    (let [[uid did mid cid] (take 4 (repeatedly random-uuid))
+          t0 (Date.)
+          clock (crdt/new-hlc uid t0)
+          add-member-delta {:crdt/clock clock
+                            :discussion/updated_at t0
+                            :discussion/members {cid (crdt/->LWW clock true)}}
+          initial (crdt.discussion/new-discussion
+                   {:did did :mid mid :uid uid
+                    :originally-from nil :member-uids #{}}
+                   {:now t0})
+          final (crdt.discussion/->value (crdt.discussion/apply-delta initial add-member-delta))]
+      (is (= #{uid cid} (:discussion/members final)))
+      (testing "but we are only authorized if the discusion is open"
+        (let [action  {:discussion.crdt/action :discussion.crdt/add-members
+                       :discussion.crdt/delta add-member-delta}
+              open-discussion (assoc initial :discussion/member_mode :discussion.member_mode/open)]
+          (is (not
+               (authorized-for-delta? initial {:evt/uid uid
+                                               :evt/data action})))
+          (is (authorized-for-delta? open-discussion
+                                     {:evt/uid uid
+                                      :evt/data action}))
+          (is (not
+               (authorized-for-delta? open-discussion
+                                      {:evt/uid cid
+                                       :evt/data action}))))))))
 
 (deftest deltas
   (testing "we can apply the deltas"
@@ -122,6 +156,7 @@
                           :discussion/created_by poster-uid
                           :discussion/originally_from nil
                           :discussion/first_message mid
+                          :discussion/member_mode :discussion.member_mode/closed
 
                           :discussion/active_members #{poster-uid}
                           :discussion/members #{poster-uid commenter-uid}
@@ -146,6 +181,7 @@
                    :discussion/created_by poster-uid
                    :discussion/originally_from nil
                    :discussion/first_message mid
+                   :discussion/member_mode :discussion.member_mode/closed
                    :discussion/members #{poster-uid commenter-uid}
                    :discussion/subscribers #{poster-uid}
                    :discussion/active_members #{poster-uid}

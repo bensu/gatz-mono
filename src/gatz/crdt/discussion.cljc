@@ -12,6 +12,7 @@
    :discussion/subscribers #{}
    :discussion/originally_from nil
    :discussion/first_message nil
+   :discussion/member_mode :discussion.member_mode/closed
    :discussion/group_id nil
    :discussion/latest_message nil})
 
@@ -52,6 +53,7 @@
      :discussion/group_id group-id
      :discussion/originally_from originally-from
      :discussion/first_message mid
+     :discussion/member_mode :discussion.member_mode/closed
 
      :discussion/members (crdt/lww-set clock (conj member-uids uid))
      :discussion/subscribers (crdt/lww-set clock #{uid})
