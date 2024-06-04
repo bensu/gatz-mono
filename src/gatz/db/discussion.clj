@@ -8,7 +8,11 @@
             [malli.core :as malli]
             [medley.core :refer [map-vals]]
             [xtdb.api :as xtdb])
-  (:import [java.util Date]))
+  (:import [java.util Date]
+           [java.time Duration]))
+
+;; =======================================================================
+;; Utils
 
 (defn seen-by-user?
   "Has the user seen this discussion?
@@ -21,6 +25,10 @@
         updated-at (get-in d [:discussion/updated_at])]
     (boolean (or (nil? seen-at)
                  (< seen-at updated-at)))))
+
+
+;; =======================================================================
+;; DB & migrations
 
 (defn crdt->doc [dcrdt]
   #_{:pre [(malli/validate schema/DiscussionCRDT dcrdt)]
@@ -94,6 +102,26 @@
       doc->crdt
       (db.util/->latest-version all-migrations)))
 
+;; =======================================================================
+;; Open discussions
+
+(def default-open-duration (Duration/ofDays 7))
+
+(def ^:dynamic *open-until-testing-date* nil)
+
+(defn open-until ^Date [^Date created-at]
+  (or *open-until-testing-date*
+      (Date. (+ (.getTime created-at) (.toMillis default-open-duration)))))
+
+(defn before-ts? [^Date a ^Date b]
+  (<= (.getTime a) (.getTime b)))
+
+(defn open? [{:discussion/keys [member_mode open_until]}]
+  (and (= :discussion.member_mode/open member_mode)
+       (or (nil? open_until)
+           (before-ts? (Date.) open_until))))
+
+;; =======================================================================
 ;; Actions
 
 (defmulti authorized-for-delta?
@@ -285,26 +313,18 @@
 (defn open-for-group
   ([db gid]
    {:pre [(crdt/ulid? gid)]}
+   (open-for-group db gid {:now (Date.)}))
+  ([db gid {:keys [now]}]
+   {:pre [(crdt/ulid? gid) (inst? now)]}
    (->> (q db
            '{:find [did]
-             :in [gid]
-             :where [[did :db/type :gatz/discussion]
-                     [did :discussion/group_id gid]
-                     [did :discussion/member_mode :discussion.member_mode/open]]}
-           gid)
-        (map first)
-        set))
-  ([db gid {:keys [newer-than-ts]}]
-   {:pre [(crdt/ulid? gid) (inst? newer-than-ts)]}
-   (->> (q db
-           '{:find [did]
-             :in [gid newer-than-ts]
+             :in [gid now-ts]
              :where [[did :db/type :gatz/discussion]
                      [did :discussion/group_id gid]
                      [did :discussion/member_mode :discussion.member_mode/open]
-                     [did :discussion/created_at created-at]
-                     [(< newer-than-ts created-at)]]}
-           gid newer-than-ts)
+                     [did :discussion/open_until open-until]
+                     [(< now-ts open-until)]]}
+           gid now)
         (map first)
         set)))
 
@@ -484,7 +504,7 @@
 (defn add-member-to-group-txn
   [xtdb-ctx {:keys [gid now by-uid members]}]
   (let [db (xtdb/db xtdb-ctx)
-        dids (open-for-group db gid)]
+        dids (open-for-group db gid {:now now})]
     (add-member-to-dids-txn xtdb-ctx
                             {:gid gid
                              :now now

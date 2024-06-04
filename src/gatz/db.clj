@@ -121,7 +121,8 @@
            {:now now})
         d (cond-> d
             group_id
-            (assoc :discussion/member_mode :discussion.member_mode/open))
+            (assoc :discussion/member_mode :discussion.member_mode/open
+                   :discussion/open_until (db.discussion/open-until now)))
         msg (crdt.message/new-message
              {:uid user-id :mid mid :did did
               :text (or text "") :reply_to nil

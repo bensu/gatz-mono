@@ -385,16 +385,13 @@
   [xtdb-ctx {:keys [action]}]
   (let [{:group/keys [by_uid delta]} action
         gid (:xt/id action)
-        {:group/keys [updated_at members]} delta
-        out
-        (vec
-         (concat
-          [[:xtdb.api/fn :gatz.db.group/apply-action {:action action}]]
-          (db.discussion/add-member-to-group-txn xtdb-ctx
-                                                 {:gid gid :now updated_at
-                                                  :by-uid by_uid :members members})))]
-    (println out)
-    out))
+        {:group/keys [updated_at members]} delta]
+    (vec
+     (concat
+      [[:xtdb.api/fn :gatz.db.group/apply-action {:action action}]]
+      (db.discussion/add-member-to-group-txn xtdb-ctx
+                                             {:gid gid :now updated_at
+                                              :by-uid by_uid :members members})))))
 
 (def add-to-group-and-discussions-expr
   '(fn add-to-group-and-discussions-fn [xtdb-ctx args]
@@ -413,7 +410,6 @@
       (let [txns (if (= :group/add-member (:group/action action))
                    [[:xtdb.api/fn :gatz.db.group/add-to-group-and-discussions {:action action}]]
                    [[:xtdb.api/fn :gatz.db.group/apply-action {:action action}]])]
-        (println txns)
         (if-let [db-after (xtdb.api/with-tx db txns)]
           (do
             (biff/submit-tx (assoc ctx :biff.xtdb/retry false) txns)

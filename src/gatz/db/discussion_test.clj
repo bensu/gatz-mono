@@ -4,6 +4,7 @@
             [crdt.core :as crdt]
             [gatz.crdt.discussion :as crdt.discussion]
             [gatz.db.contacts :as db.contacts]
+            [gatz.db.discussion :as db.discussion]
             [gatz.db.discussion :refer :all]
             [gatz.db.evt :as db.evt]
             [gatz.db.group :as db.group]
@@ -72,7 +73,7 @@
                 (is (malli/validate schema/DiscussionEvt evt)
                     (malli/explain schema/DiscussionEvt evt))))))))))
 
-(deftest open-discussions
+(deftest open-discussions-crdt
   (testing "we can add members to a discussion with the CRDT"
     (let [[uid did mid cid] (take 4 (repeatedly random-uuid))
           t0 (Date.)
@@ -89,7 +90,8 @@
       (testing "but we are only authorized if the discusion is open"
         (let [action  {:discussion.crdt/action :discussion.crdt/add-members
                        :discussion.crdt/delta add-member-delta}
-              open-discussion (assoc initial :discussion/member_mode :discussion.member_mode/open)]
+              open-discussion (assoc initial
+                                     :discussion/member_mode :discussion.member_mode/open)]
           (is (not
                (authorized-for-delta? initial {:evt/uid uid
                                                :evt/data action})))
@@ -99,7 +101,91 @@
           (is (not
                (authorized-for-delta? open-discussion
                                       {:evt/uid cid
-                                       :evt/data action}))))))))
+                                       :evt/data action})))))))
+  (testing "group discussions are by default open"
+    (let [[owner-id admin-id member-id did1 did2 did3]
+          (take 7 (repeatedly random-uuid))
+          gid (crdt/random-ulid)
+          t0 (Date.)
+          t1 (crdt/inc-time t0)
+          t2 (crdt/inc-time t1)
+          t3 (crdt/inc-time t2)
+          ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (assoc ctx
+                           :biff/db (xtdb/db node)
+                           :auth/user-id uid :auth/cid uid))]
+      (db.user/create-user! ctx {:id owner-id
+                                 :username "owner"
+                                 :phone "+14159499000"
+                                 :now t0})
+      (db.user/create-user! ctx {:id admin-id
+                                 :username "admin"
+                                 :phone "+14159499001"
+                                 :now t0})
+      (db.user/create-user! ctx {:id member-id
+                                 :username "member"
+                                 :phone "+14159499002"
+                                 :now t0})
+      (xtdb/sync node)
+      (db.group/create! ctx
+                        {:id gid :owner owner-id :now t0
+                         :name "test" :members #{admin-id}})
+      (xtdb/sync node)
+
+      (binding [db.discussion/*open-until-testing-date* t2]
+        (db/create-discussion-with-message!
+         (get-ctx owner-id)
+         {:did did1 :group_id gid :text "Hello only to owner & admin" :now t1}))
+
+      (db/create-discussion-with-message!
+       (get-ctx owner-id)
+       {:did did2 :group_id gid
+        :text "Hello to owner, admin, and in the future, member"
+        :now t2})
+      (xtdb/sync node)
+      (let [db (xtdb/db node)
+            d1 (crdt.discussion/->value (db.discussion/by-id db did1))
+            d2 (crdt.discussion/->value (db.discussion/by-id db did2))]
+        (is (= :discussion.member_mode/open (:discussion/member_mode d1)))
+        (is (= #{owner-id admin-id} (:discussion/members d1)))
+        (is (= t2 (:discussion/open_until d1)))
+        (is (= :discussion.member_mode/open (:discussion/member_mode d2)))
+        (is (= #{owner-id admin-id} (:discussion/members d2)))
+        (is (= (db.discussion/open-until t2)
+               (:discussion/open_until d2))))
+
+      (let [add-member {:xt/id gid
+                        :group/by_uid owner-id
+                        :group/action :group/add-member
+                        :group/delta {:group/updated_at t3
+                                      :group/members #{member-id}}}]
+        (db.group/apply-action! (get-ctx owner-id) add-member))
+      (xtdb/sync node)
+
+      (db/create-discussion-with-message!
+       (get-ctx owner-id)
+       {:did did3 :group_id gid
+        :text "Hello to owner, admin, & currently member"
+        :now t3})
+
+      (xtdb/sync node)
+      (testing "new discussions have the member"
+        (let [db (xtdb/db node)
+              d3 (crdt.discussion/->value (db.discussion/by-id db did3))]
+          (is (= :discussion.member_mode/open (:discussion/member_mode d3)))
+          (is (= #{owner-id admin-id member-id} (:discussion/members d3)))))
+      (testing "recent discussions now have the member"
+        (let [db (xtdb/db node)
+              d2 (crdt.discussion/->value (db.discussion/by-id db did2))]
+          (is (= :discussion.member_mode/open (:discussion/member_mode d2)))
+          (is (= #{owner-id admin-id member-id} (:discussion/members d2)))))
+      (testing "but older discussions don't because their open period is over"
+        (let [db (xtdb/db node)
+              d1 (crdt.discussion/->value (db.discussion/by-id db did1))]
+          (is (= :discussion.member_mode/open (:discussion/member_mode d1)))
+          (is (= #{owner-id admin-id} (:discussion/members d1))))))))
 
 (deftest deltas
   (testing "we can apply the deltas"
@@ -156,6 +242,7 @@
                           :discussion/created_by poster-uid
                           :discussion/originally_from nil
                           :discussion/first_message mid
+                          :discussion/open_until nil
                           :discussion/member_mode :discussion.member_mode/closed
 
                           :discussion/active_members #{poster-uid}
@@ -181,6 +268,7 @@
                    :discussion/created_by poster-uid
                    :discussion/originally_from nil
                    :discussion/first_message mid
+                   :discussion/open_until nil
                    :discussion/member_mode :discussion.member_mode/closed
                    :discussion/members #{poster-uid commenter-uid}
                    :discussion/subscribers #{poster-uid}

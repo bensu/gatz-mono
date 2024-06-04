@@ -331,6 +331,7 @@
                                          [:mid #'MessageId]]]]
    [:discussion/first_message [:maybe #'MessageId]]
    [:discussion/member_mode DiscussionMemberMode]
+   [:discussion/open_until [:maybe inst?]]
    ;; LWW-set
    [:discussion/members (crdt/lww-set-schema #'UserId)]
    [:discussion/subscribers (crdt/lww-set-schema #'UserId)]
@@ -367,6 +368,7 @@
                                          [:mid #'MessageId]]]]
    [:discussion/first_message [:maybe #'MessageId]]
    [:discussion/member_mode DiscussionMemberMode]
+   [:discussion/open_until [:maybe inst?]] ;; only set when member_mode is open
    ;; MaxWins
    [:discussion/updated_at inst?]
    ;; AddRemoveSet
@@ -394,6 +396,7 @@
    :discussion/created_at
    :discussion/updated_at
    :discussion/member_mode
+   :discussion/open_until
    :discussion/latest_activity_ts
    :discussion/created_by
    :discussion/first_message
