@@ -13,9 +13,14 @@
 ;; ======================================================================
 ;; Data model
 
+(def default-settings
+  {:discussion/member_mode :discussion.member_mode/closed})
+
 (defn new-group
+
   [{:keys [now id owner members
-           name avatar description]}]
+           name avatar description
+           settings]}]
 
   {:pre [(or (nil? id) (crdt/ulid? id))
          (or (nil? now) (inst? now))
@@ -36,6 +41,7 @@
      :group/owner owner
      :group/created_by owner
      :group/members (conj members owner)
+     :group/settings (or settings default-settings)
      :group/archived_uids #{}
      :group/admins #{owner}
      :group/created_at now
@@ -46,7 +52,8 @@
 ;; Queries
 
 (def default-fields
-  {:group/archived_uids #{}})
+  {:group/archived_uids #{}
+   :group/settings default-settings})
 
 (defn by-id [db id]
   {:pre [(crdt/ulid? id)]}

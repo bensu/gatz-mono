@@ -84,11 +84,13 @@
         originally-from (when originally_from originally_from)
         media (some->> media_id (db.media/by-id db))
 
+        group (when group_id
+                (db.group/by-id db group_id))
+
         [member-uids archived-uids]
-        (if group_id
+        (if group
           ;; The post is directed to a group
-          (let [group (db.group/by-id db group_id)
-                group-members (:group/members group)
+          (let [group-members (:group/members group)
                 archiver-uids (:group/archived_uids group)]
             (assert group "Group passed doesn't exist")
             (assert (contains? group-members user-id)
@@ -120,7 +122,8 @@
             :archived-uids archived-uids}
            {:now now})
         d (cond-> d
-            group_id
+            (and group (= :discussion.member_mode/open
+                          (get-in group [:group/settings :discussion/member_mode])))
             (assoc :discussion/member_mode :discussion.member_mode/open
                    :discussion/open_until (db.discussion/open-until now)))
         msg (crdt.message/new-message

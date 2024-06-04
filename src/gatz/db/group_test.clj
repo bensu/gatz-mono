@@ -120,7 +120,9 @@
                             :group/admins #{owner}
                             :group/created_at now
                             :group/updated_at now
-                            :group/joined_at {owner now}}
+                            :group/joined_at {owner now}
+                            :group/settings {:discussion/member_mode :discussion.member_mode/closed}}
+
           expected-final {:xt/id gid
                           :db/version 1
                           :db/type :gatz/group
@@ -134,7 +136,8 @@
                           :group/created_by owner
                           :group/created_at now
                           :group/updated_at t9
-                          :group/joined_at {owner now member t3}}
+                          :group/joined_at {owner now member t3}
+                          :group/settings {:discussion/member_mode :discussion.member_mode/closed}}
           final-group (reduce db.group/apply-action initial-group actions)]
 
       (doseq [action actions]

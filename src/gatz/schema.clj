@@ -188,6 +188,11 @@
 ;; ====================================================================== 
 ;; Groups
 
+(def DiscussionMemberMode
+  [:enum
+   :discussion.member_mode/open
+   :discussion.member_mode/closed])
+
 (def Group
   [:map
    [:xt/id #'GroupId]
@@ -200,6 +205,9 @@
    [:group/name string?]
    [:group/description [:maybe string?]]
    [:group/avatar [:maybe string?]]
+
+   [:group/settings [:map
+                     [:discussion/member_mode DiscussionMemberMode]]]
 
    [:group/owner #'UserId]
    [:group/admins [:set #'UserId]]
@@ -310,11 +318,6 @@
    [:message/reactions
     [:map-of #'UserId
      [:map-of string? (crdt/lww-schema [:maybe inst?])]]]])
-
-(def DiscussionMemberMode
-  [:enum
-   :discussion.member_mode/open
-   :discussion.member_mode/closed])
 
 (def DiscussionCRDT
   [:map

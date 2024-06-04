@@ -102,7 +102,7 @@
                (authorized-for-delta? open-discussion
                                       {:evt/uid cid
                                        :evt/data action})))))))
-  (testing "group discussions are by default open"
+  (testing "group discussions can be open"
     (let [[owner-id admin-id member-id did1 did2 did3]
           (take 7 (repeatedly random-uuid))
           gid (crdt/random-ulid)
@@ -129,9 +129,12 @@
                                  :phone "+14159499002"
                                  :now t0})
       (xtdb/sync node)
+      ;; TODO: make the group open
       (db.group/create! ctx
                         {:id gid :owner owner-id :now t0
-                         :name "test" :members #{admin-id}})
+                         :name "test" :members #{admin-id}
+                         :settings {:discussion/member_mode :discussion.member_mode/open}})
+
       (xtdb/sync node)
 
       (binding [db.discussion/*open-until-testing-date* t2]
@@ -675,7 +678,8 @@
           (is (empty? (active-for-user db mid)))
           (is (empty? (active-for-user db aid)))))
 
-      (db.group/create! (get-ctx oid) {:id gid :name "group 1" :owner oid :members #{}})
+      (db.group/create! (get-ctx oid)
+                        {:id gid :name "group 1" :owner oid :members #{}})
       (xtdb/sync node)
 
       (testing "the feeds are still because we haven't posted anything to the group"
@@ -709,7 +713,7 @@
           (is (empty? (active-for-user db mid)))
           (is (empty? (active-for-user db aid)))))
 
-      (testing "once we add somebody to the group, they can see new posts but not older"
+      (testing "once we add somebody to the closed group, they can see new posts but not older"
         (db/create-message!
          (get-ctx oid)
          {:did did1 :text "Owner sees this" :now t2})
