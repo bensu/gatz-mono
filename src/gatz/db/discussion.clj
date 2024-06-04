@@ -205,27 +205,6 @@
 
 ;; Wrappers over actions
 
-(defn mark-as-seen!
-  [ctx uid dids now]
-  {:pre [(every? uuid? dids) (uuid? uid) (inst? now)]}
-  (let [clock (crdt/new-hlc uid now)
-        txns (mapv
-              (fn [did]
-                (let [delta {:crdt/clock clock
-                             :discussion/updated_at now
-                             :discussion/seen_at {uid (crdt/->MaxWins now)}}
-                      action {:discussion.crdt/action :discussion.crdt/mark-as-seen
-                              :discussion.crdt/delta delta}
-                      evt  (db.evt/new-evt {:evt/type :discussion.crdt/delta
-                                            :evt/uid uid
-                                            :evt/mid nil
-                                            :evt/did did
-                                            :evt/cid uid
-                                            :evt/data action})]
-                  [:xtdb.api/fn :gatz.db.discussion/apply-delta {:evt evt}]))
-              dids)]
-    (biff/submit-tx (assoc ctx :biff.xtdb/retry false) txns)))
-
 (defn mark-message-read!
   ([ctx uid did mid]
    (mark-message-read! ctx uid did mid (Date.)))
@@ -296,8 +275,38 @@
                  :discussion.crdt/delta delta}]
      (apply-action! ctx did action))))
 
-;; ====================================================================== 
+;; ======================================================================= 
 ;; Queries
+
+(def open-for-group-opts
+  [:map
+   [:newer-than-ts inst?]])
+
+(defn open-for-group
+  ([db gid]
+   {:pre [(crdt/ulid? gid)]}
+   (->> (q db
+           '{:find [did]
+             :in [gid]
+             :where [[did :db/type :gatz/discussion]
+                     [did :discussion/group_id gid]
+                     [did :discussion/member_mode :discussion.member_mode/open]]}
+           gid)
+        (map first)
+        set))
+  ([db gid {:keys [newer-than-ts]}]
+   {:pre [(crdt/ulid? gid) (inst? newer-than-ts)]}
+   (->> (q db
+           '{:find [did]
+             :in [gid newer-than-ts]
+             :where [[did :db/type :gatz/discussion]
+                     [did :discussion/group_id gid]
+                     [did :discussion/member_mode :discussion.member_mode/open]
+                     [did :discussion/created_at created-at]
+                     [(< newer-than-ts created-at)]]}
+           gid newer-than-ts)
+        (map first)
+        set)))
 
 (def posts-for-user-opts
   [:map
@@ -423,4 +432,63 @@
                        [did :discussion/latest_activity_ts latest-activity-ts]]}
           gid uid)
        (mapv first)))
+
+;; ====================================================================== 
+;; Actions over many discussions
+
+(defn mark-as-seen!
+  [ctx uid dids now]
+  {:pre [(every? uuid? dids) (uuid? uid) (inst? now)]}
+  (let [clock (crdt/new-hlc uid now)
+        txns (mapv
+              (fn [did]
+                (let [delta {:crdt/clock clock
+                             :discussion/updated_at now
+                             :discussion/seen_at {uid (crdt/->MaxWins now)}}
+                      action {:discussion.crdt/action :discussion.crdt/mark-as-seen
+                              :discussion.crdt/delta delta}
+                      evt  (db.evt/new-evt {:evt/type :discussion.crdt/delta
+                                            :evt/uid uid
+                                            :evt/mid nil
+                                            :evt/did did
+                                            :evt/cid uid
+                                            :evt/data action})]
+                  [:xtdb.api/fn :gatz.db.discussion/apply-delta {:evt evt}]))
+              ;; TODO: should dids be a set to avoid duplicating txns?
+              dids)]
+    (biff/submit-tx (assoc ctx :biff.xtdb/retry false) txns)))
+
+(defn add-member-to-dids-txn
+  "Adds a user to a set of discussions"
+  [_xtdb-ctx {:keys [now by-uid members dids]}]
+  {:pre [(inst? now) (uuid? by-uid)
+         (set? members) (every? uuid? members)
+         (set? dids) (every? uuid? dids)]}
+  (let [clock (crdt/new-hlc by-uid now)
+        delta {:crdt/clock clock
+               :discussion/updated_at now
+               :discussion/members (crdt/lww-set-delta clock members)}
+        action {:discussion.crdt/action :discussion.crdt/add-members
+                :discussion.crdt/delta delta}]
+    (mapv (fn [did]
+            (let [evt (db.evt/new-evt
+                       {:evt/type :discussion.crdt/delta
+                        :evt/uid by-uid
+                        :evt/mid nil
+                        :evt/did did
+                        :evt/cid by-uid
+                        :evt/data action})]
+              [:xtdb.api/fn :gatz.db.discussion/apply-delta {:evt evt}]))
+          (set dids))))
+
+(defn add-member-to-group-txn
+  [xtdb-ctx {:keys [gid now by-uid members]}]
+  (let [db (xtdb/db xtdb-ctx)
+        dids (open-for-group db gid)]
+    (add-member-to-dids-txn xtdb-ctx
+                            {:gid gid
+                             :now now
+                             :by-uid by-uid
+                             :members members
+                             :dids dids})))
 

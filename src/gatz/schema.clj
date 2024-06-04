@@ -393,6 +393,7 @@
    :discussion/did
    :discussion/created_at
    :discussion/updated_at
+   :discussion/member_mode
    :discussion/latest_activity_ts
    :discussion/created_by
    :discussion/first_message

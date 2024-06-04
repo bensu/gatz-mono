@@ -175,15 +175,19 @@
   [{:keys [auth/user-id] :as ctx} invite-link]
   (let [by-uid (:invite_link/created_by invite-link)
         gid (:invite_link/group_id invite-link)
-        now (Date.)]
+        now (Date.)
+        group-action {:xt/id gid
+                      :group/by_uid by-uid
+                      :group/action :group/add-member
+                      :group/delta {:group/updated_at now
+                                    :group/members #{user-id}}}]
     (assert gid)
-    (biff/submit-tx ctx [(db.group/make-add-member-txn {:gid gid
-                                                        :by-uid by-uid
-                                                        :uid user-id
-                                                        :now now})
-                         (-> invite-link
-                             (invite-link/mark-used {:by-uid user-id :now now})
-                             (assoc :db/doc-type :gatz/invite_link))])))
+    (biff/submit-tx
+     ctx
+     [[:xtdb.api/fn :gatz.db.group/add-to-group-and-discussions {:action group-action}]
+      (-> invite-link
+          (invite-link/mark-used {:by-uid user-id :now now})
+          (assoc :db/doc-type :gatz/invite_link))])))
 
 (defn post-join-invite-link [{:keys [biff/db] :as ctx}]
   (let [params (parse-join-link-params (:params ctx))]

@@ -119,6 +119,9 @@
             :member-uids member-uids :group-id group_id
             :archived-uids archived-uids}
            {:now now})
+        d (cond-> d
+            group_id
+            (assoc :discussion/member_mode :discussion.member_mode/open))
         msg (crdt.message/new-message
              {:uid user-id :mid mid :did did
               :text (or text "") :reply_to nil

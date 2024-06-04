@@ -1,8 +1,8 @@
 (ns gatz.db.group
   (:require [com.biffweb :as biff :refer [q]]
-            [gatz.schema :as schema]
             [crdt.core :as crdt]
-            [crdt.ulid :as ulid]
+            [gatz.db.discussion :as db.discussion]
+            [gatz.schema :as schema]
             [malli.util :as mu]
             [malli.core :as m]
             [medley.core :refer [filter-keys dissoc-in]]
@@ -381,8 +381,28 @@
   '(fn apply-action-fn [xtdb-ctx args]
      (gatz.db.group/apply-action-txn xtdb-ctx args)))
 
+(defn add-to-group-and-discussions-txn
+  [xtdb-ctx {:keys [action]}]
+  (let [{:group/keys [by_uid delta]} action
+        gid (:xt/id action)
+        {:group/keys [updated_at members]} delta
+        out
+        (vec
+         (concat
+          [[:xtdb.api/fn :gatz.db.group/apply-action {:action action}]]
+          (db.discussion/add-member-to-group-txn xtdb-ctx
+                                                 {:gid gid :now updated_at
+                                                  :by-uid by_uid :members members})))]
+    (println out)
+    out))
+
+(def add-to-group-and-discussions-expr
+  '(fn add-to-group-and-discussions-fn [xtdb-ctx args]
+     (gatz.db.group/add-to-group-and-discussions-txn xtdb-ctx args)))
+
 (def tx-fns
-  {:gatz.db.group/apply-action apply-action-expr})
+  {:gatz.db.group/apply-action apply-action-expr
+   :gatz.db.group/add-to-group-and-discussions add-to-group-and-discussions-expr})
 
 (defn apply-action!
 
@@ -390,20 +410,14 @@
 
   (let [id (:xt/id action)]
     (if (true? (m/validate Action action))
-      (let [txn [[:xtdb.api/fn :gatz.db.group/apply-action {:action action}]]]
-        (if-let [db-after (xtdb.api/with-tx db txn)]
+      (let [txns (if (= :group/add-member (:group/action action))
+                   [[:xtdb.api/fn :gatz.db.group/add-to-group-and-discussions {:action action}]]
+                   [[:xtdb.api/fn :gatz.db.group/apply-action {:action action}]])]
+        (println txns)
+        (if-let [db-after (xtdb.api/with-tx db txns)]
           (do
-            (biff/submit-tx (assoc ctx :biff.xtdb/retry false) txn)
+            (biff/submit-tx (assoc ctx :biff.xtdb/retry false) txns)
             {:group (by-id db-after id)})
           (assert false "Transaction would've been invalid")))
       (assert false "Invalid action"))))
 
-
-(defn make-add-member-txn [{:keys [uid now gid by-uid]}]
-  {:pre [(crdt/ulid? gid) (uuid? uid) (uuid? by-uid) (inst? now)]}
-  [:xtdb.api/fn :gatz.db.group/apply-action
-   {:action {:xt/id gid
-             :group/by_uid by-uid
-             :group/action :group/add-member
-             :group/delta {:group/updated_at now
-                           :group/members #{uid}}}}])
