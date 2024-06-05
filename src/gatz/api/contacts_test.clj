@@ -130,7 +130,15 @@
         (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
               ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
                                                                  (assoc :params params)))]
-          (is (= 200 (:status ok-resp)))))
+          (is (= 200 (:status ok-resp))))
+
+        (xtdb/sync node)
+
+        (testing "you can do this multiple times"
+          (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
+                ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
+                                                                   (assoc :params params)))]
+            (is (= 200 (:status ok-resp))))))
       (xtdb/sync node)
 
       (let [db (xtdb/db node)
