@@ -41,7 +41,7 @@
      :db/type :gatz/invite_link
      :db/version 1
      :invite_link/type type
-     :invite_link/group_id (when (= :invite_link/gropu type) gid)
+     :invite_link/group_id (when (= :invite_link/group type) gid)
      :invite_link/contact_id (when (= :invite_link/contact type) uid)
      :invite_link/created_by uid
      :invite_link/created_at now
@@ -76,4 +76,19 @@
       (biff/submit-tx ctx [(mark-used invite-link {:by-uid by-uid
                                                    :now now})]))))
 
+(defn mark-used-txn [xtdb-ctx {:keys [args]}]
+  (let [{:keys [id user-id now]} args
+        db (xtdb/db xtdb-ctx)
+        invite-link (by-id db id)]
+    (assert (uuid? user-id))
+    (assert (inst? now))
+    (assert (some? invite-link))
+    [[:xtdb.api/put (-> invite-link
+                        (mark-used {:by-uid user-id :now now}))]]))
 
+(def mark-used-expr
+  '(fn mark-used-fn [ctx args]
+     (gatz.db.invite-link/mark-used-txn ctx args)))
+
+(def tx-fns
+  {:gatz.db.invite-links/mark-used mark-used-expr})

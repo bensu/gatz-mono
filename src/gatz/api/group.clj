@@ -165,42 +165,6 @@
           (err-resp "link_not_found" "Link not found"))
         (err-resp "invalid_params" "Invalid params")))))
 
-(def post-join-invite-link-params
-  [:map
-   [:id crdt/ulid?]])
-
-(defn parse-join-link-params [params]
-  (cond-> params
-    (some? (:id params)) (update :id crdt/parse-ulid)))
-
-(defn invite-to-group!
-  [{:keys [auth/user-id] :as ctx} invite-link]
-  (let [by-uid (:invite_link/created_by invite-link)
-        gid (:invite_link/group_id invite-link)
-        now (Date.)
-        group-action {:xt/id gid
-                      :group/by_uid by-uid
-                      :group/action :group/add-member
-                      :group/delta {:group/updated_at now
-                                    :group/members #{user-id}}}]
-    (assert gid)
-    (biff/submit-tx
-     ctx
-     [[:xtdb.api/fn :gatz.db.group/add-to-group-and-discussions {:action group-action}]
-      (-> invite-link
-          (invite-link/mark-used {:by-uid user-id :now now})
-          (assoc :db/doc-type :gatz/invite_link))])))
-
-(defn post-join-invite-link [{:keys [biff/db] :as ctx}]
-  (let [params (parse-join-link-params (:params ctx))]
-    (if-let [id (:id params)]
-      (if-let [invite-link (invite-link/by-id db id)]
-        (do
-          (invite-to-group! ctx invite-link)
-          (json-response {:success "true"}))
-        (err-resp "not_found" "Link not found"))
-      (err-resp "invalid_params" "Invalid params"))))
-
 
 ;; ======================================================================
 ;; Handle request

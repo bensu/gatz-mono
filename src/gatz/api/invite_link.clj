@@ -1,6 +1,7 @@
 (ns gatz.api.invite-link
   (:require [clojure.data.json :as json]
             [crdt.core :as crdt]
+            [com.biffweb :as biff]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.group :as db.group]
             [gatz.db.invite-link :as invite-link]
@@ -93,4 +94,74 @@
             (json-response response))
           (err-resp "link_not_found" "Link not found"))
         (err-resp "invalid_params" "Invalid params")))))
+
+(def post-join-invite-link-params
+  [:map
+   [:id crdt/ulid?]])
+
+(defn parse-join-link-params [params]
+  (cond-> params
+    (some? (:id params)) (update :id crdt/parse-ulid)))
+
+(defn invite-to-group!
+  [{:keys [auth/user-id] :as ctx} invite-link]
+
+  (assert user-id)
+  (assert (= :invite_link/group (:invite_link/type invite-link)))
+  (assert (:invite_link/group_id invite-link))
+
+  (let [invited-by-uid (:invite_link/created_by invite-link)
+        now (Date.)
+        invite-link-args {:id (:xt/id invite-link)
+                          :user-id user-id
+                          :now now}
+        gid (:invite_link/group_id invite-link)
+        group-action {:xt/id gid
+                      :group/by_uid invited-by-uid
+                      :group/action :group/add-member
+                      :group/delta {:group/updated_at now
+                                    :group/members #{user-id}}}]
+    (biff/submit-tx
+     ctx
+     [[:xtdb.api/fn :gatz.db.group/add-to-group-and-discussions {:action group-action}]
+      [:xtdb.api/fn :gatz.db.invite-links/mark-used {:args invite-link-args}]])))
+
+(defn invite-to-contact!
+
+  [{:keys [auth/user-id] :as ctx} invite-link]
+
+  (assert user-id)
+  (assert (= :invite_link/contact (:invite_link/type invite-link)))
+  (assert (:invite_link/contact_id invite-link))
+
+  (let [by-uid (:invite_link/created_by invite-link)
+        now (Date.)
+        cid (:invite_link/contact_id invite-link)
+        contact-args {:by-uid cid
+                      :to-uid user-id
+                      :now now}
+        invite-link-args {:id (:xt/id invite-link) :user-id user-id :now now}
+        txns [[:xtdb.api/fn :gatz.db.contacts/invite-contact {:args contact-args}]
+              [:xtdb.api/fn :gatz.db.invite-links/mark-used {:args invite-link-args}]]]
+    (assert (= by-uid cid))
+    (biff/submit-tx ctx txns)))
+
+(defn post-join-invite-link
+
+  [{:keys [biff/db auth/user-id] :as ctx}]
+
+  (assert user-id)
+
+  (let [params (parse-join-link-params (:params ctx))]
+    (if-let [id (:id params)]
+      (if-let [invite-link (invite-link/by-id db id)]
+        (do
+          (case (:invite_link/type invite-link)
+            :invite_link/group
+            (invite-to-group! ctx invite-link)
+            :invite_link/contact
+            (invite-to-contact! ctx invite-link))
+          (json-response {:success "true"}))
+        (err-resp "not_found" "Link not found"))
+      (err-resp "invalid_params" "Invalid params"))))
 

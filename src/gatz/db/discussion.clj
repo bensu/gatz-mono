@@ -306,16 +306,59 @@
 ;; ======================================================================= 
 ;; Queries
 
+;; TODO: need to show that whoever you invite with the Share Link invite
+;; will be able to see your last 7 days.
+
+;; TODO:
+
+;; for open-for-user we need to track which ones are open
+;; the current state already does this
+;; but no contact discussions are ever started as open
+;; when discussions are created to "every contact" they will be assumed to be open
+;; and those are the ones that will be shown in the feed of the new invites
+
+(def open-for-contact-opts
+  [:map
+   [:newer-than-ts inst?]])
+
+(defn open-for-contact
+
+  ([db cid]
+   (open-for-contact db cid {:now (Date.)}))
+
+  ([db cid {:keys [now]}]
+
+   {:pre [(uuid? cid) (inst? now)]
+    :post [(set? %) (every? uuid? %)]}
+
+   (->> (q db
+           '{:find [did]
+             :in [cid now-ts]
+             :where [[did :db/type :gatz/discussion]
+                     [did :discussion/created_by cid]
+                     [did :discussion/member_mode :discussion.member_mode/open]
+                     [did :discussion/open_until open-until]
+                     [(< now-ts open-until)]]}
+           cid now)
+        (map first)
+        set)))
+
+
+
 (def open-for-group-opts
   [:map
    [:newer-than-ts inst?]])
 
 (defn open-for-group
+
   ([db gid]
-   {:pre [(crdt/ulid? gid)]}
    (open-for-group db gid {:now (Date.)}))
+
   ([db gid {:keys [now]}]
-   {:pre [(crdt/ulid? gid) (inst? now)]}
+
+   {:pre [(crdt/ulid? gid) (inst? now)]
+    :post [(set? %) (every? uuid? %)]}
+
    (->> (q db
            '{:find [did]
              :in [gid now-ts]
@@ -506,8 +549,7 @@
   (let [db (xtdb/db xtdb-ctx)
         dids (open-for-group db gid {:now now})]
     (add-member-to-dids-txn xtdb-ctx
-                            {:gid gid
-                             :now now
+                            {:now now
                              :by-uid by-uid
                              :members members
                              :dids dids})))

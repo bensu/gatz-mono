@@ -1,6 +1,7 @@
 (ns gatz.db.contacts
   (:require [clojure.set :as set]
             [com.biffweb :as biff :refer [q]]
+            [gatz.db.discussion :as db.discussion]
             [gatz.schema :as schema]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
@@ -276,12 +277,6 @@
   '(fn transition-to-fn [ctx args]
      (gatz.db.contacts/transition-to-txn ctx args)))
 
-(def tx-fns
-  {:gatz.db.contacts/add-contacts add-contacts-expr
-   :gatz.db.contacts/remove-contacts remove-contacts-expr
-   :gatz.db.contacts/new-request new-contact-request-expr
-   :gatz.db.contacts/transition-to transition-to-expr})
-
 ;; ====================================================================== 
 ;; Functions for the API
 
@@ -359,15 +354,17 @@
 
   (-apply-request! ctx args))
 
-
 ;; ======================================================================  
-;; Migrations
+;; Invites
 
 (defn forced-contact-txn
-  "Used only for migrations"
+  "Used for migrations and invites"
+
   ([db aid bid]
    (forced-contact-txn db aid bid {:now (Date.)}))
+
   ([db aid bid {:keys [now]}]
+
    {:pre [(uuid? aid) (uuid? bid) (inst? now)]}
 
    (let [a-contacts (by-uid db aid)
@@ -382,3 +379,28 @@
 (defn force-contacts!
   [{:keys [biff.xtdb/node] :as ctx} aid bid]
   (biff/submit-tx ctx (forced-contact-txn (xtdb/db node) aid bid)))
+
+(defn invite-contact-txn [xtdb-ctx {:keys [args]}]
+  (let [{:keys [by-uid to-uid now]} args
+        db (xtdb/db xtdb-ctx)
+        contact-txns (forced-contact-txn db by-uid to-uid {:now now})
+        dids (db.discussion/open-for-contact db by-uid)
+        discussion-txns (db.discussion/add-member-to-dids-txn db
+                                                              {:now now
+                                                               :by-uid by-uid
+                                                               :members #{to-uid}
+                                                               :dids dids})]
+    (vec (concat contact-txns discussion-txns))))
+
+(def invite-contact-expr
+  '(fn invite-contact-fn [xtdb-ctx args]
+     (gatz.db.contacts/invite-contact-txn xtdb-ctx args)))
+
+
+(def tx-fns
+  {:gatz.db.contacts/add-contacts add-contacts-expr
+   :gatz.db.contacts/remove-contacts remove-contacts-expr
+   :gatz.db.contacts/new-request new-contact-request-expr
+   :gatz.db.contacts/transition-to transition-to-expr
+   :gatz.db.contacts/invite-contact invite-contact-expr})
+

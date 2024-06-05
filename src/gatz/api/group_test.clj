@@ -1,13 +1,19 @@
 (ns gatz.api.group-test
   (:require [clojure.test :as test :refer [deftest testing is]]
+            [clojure.data.json :as json]
             [crdt.core :as crdt]
             [gatz.api.group :as api.group]
-            [gatz.db.util-test :as db.util-test :refer [is-equal]]
+            [gatz.api.invite-link :as api.invite-link]
+            [gatz.crdt.discussion :as crdt.discussion]
+            [gatz.db :as db]
+            [gatz.db.discussion :as db.discussion]
             [gatz.db.group :as db.group]
+            [gatz.db.invite-link :as db.invite-link]
+            [gatz.db.util-test :as db.util-test :refer [is-equal]]
+            [gatz.db.user :as db.user]
             [gatz.schema :as schema]
             [malli.core :as malli]
-            [xtdb.api :as xtdb]
-            [clojure.data.json :as json])
+            [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
 (deftest params
@@ -75,3 +81,72 @@
         (let [err-resp (api.group/get-group (-> (get-ctx non-member)
                                                 (assoc :params {:id (str gid)})))]
           (is (= 400 (:status err-resp))))))))
+
+(deftest invite-to-group
+  (testing "when inviting to a group, they can join open discussions"
+    (let [uid (random-uuid)
+          cid (random-uuid)
+          did (random-uuid)
+          gid (crdt/random-ulid)
+          now (Date.)
+          ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (-> ctx
+                        (assoc :biff/db (xtdb/db node))
+                        (assoc :auth/user-id uid)))]
+
+      (db.user/create-user!
+       ctx {:id uid :username "user_id" :phone "+14159499000" :now now})
+      (db.user/create-user!
+       ctx {:id cid :username "contact" :phone "+14159499001" :now now})
+      (xtdb/sync node)
+
+      (let [group (db.group/create! ctx
+                                    {:id gid :owner uid :now now
+                                     :settings {:discussion/member_mode :discussion.member_mode/open}
+                                     :name "test" :members #{}})]
+        (is (= :discussion.member_mode/open
+               (get-in group [:group/settings :discussion/member_mode]))))
+
+      (xtdb/sync node)
+      (db/create-discussion-with-message!
+       (get-ctx uid)
+       {:did did :group_id gid :text "Open discussion"})
+      (xtdb/sync node)
+
+      (let [db (xtdb/db node)
+            d (crdt.discussion/->value (db.discussion/by-id db did))]
+        (is (= #{uid} (:discussion/members d)))
+        (is (= :discussion.member_mode/open (:discussion/member_mode d))))
+
+      (let [params {:group_id (str gid)}
+            ok-resp (api.group/post-invite-link (-> (get-ctx uid)
+                                                    (assoc :params params)))
+            _ (xtdb/sync node)
+            db (xtdb/db node)
+
+            {:keys [url]} (json/read-str (:body ok-resp) {:key-fn keyword})
+            invite-link-id (db.invite-link/parse-url url)
+            invite-link (db.invite-link/by-id db invite-link-id)]
+
+        (is (= 200 (:status ok-resp)))
+        (is (crdt/ulid? invite-link-id))
+        (is (some? invite-link))
+        (is (= :invite_link/group (:invite_link/type invite-link)))
+        (is (= gid (:invite_link/group_id invite-link)))
+
+        (let [params (-> {:id invite-link-id}
+                         (json/write-str)
+                         (json/read-str {:key-fn keyword}))
+              ok-resp (api.invite-link/post-join-invite-link
+                       (-> (get-ctx cid) (assoc :params params)))]
+          (is (= 200 (:status ok-resp)))))
+
+      (xtdb/sync node)
+      (let [db (xtdb/db node)
+            d (crdt.discussion/->value (db.discussion/by-id db did))]
+        (is (= #{cid uid} (:discussion/members d))))
+
+      (.close node))))
+

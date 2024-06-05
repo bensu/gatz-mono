@@ -6,9 +6,14 @@
             [gatz.api.group :as api.group]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.group :as db.group]
+            [gatz.db.invite-link :as db.invite-link]
             [gatz.db.user :as db.user]
             [gatz.db.util-test :as db.util-test]
-            [xtdb.api :as xtdb])
+            [xtdb.api :as xtdb]
+            [gatz.db :as db]
+            [gatz.api.invite-link :as api.invite-link]
+            [gatz.db.discussion :as db.discussion]
+            [gatz.crdt.discussion :as crdt.discussion])
   (:import [java.util Date]))
 
 (deftest parse-params
@@ -83,5 +88,54 @@
         (is (= (str gid) (:id group)))
         (is (= (set (map str [sid uid cid]))
                (set (map :id contacts)))))
+
+      (.close node))))
+
+(deftest invite-contacts
+  (testing "when inviting a contact, they see your open discussions"
+    (let [uid (random-uuid)
+          cid (random-uuid)
+          did (random-uuid)
+          now (Date.)
+          ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (-> ctx
+                        (assoc :biff/db (xtdb/db node))
+                        (assoc :auth/user-id uid)))]
+
+      (db.user/create-user!
+       ctx {:id uid :username "user_id" :phone "+14159499000" :now now})
+      (db.user/create-user!
+       ctx {:id cid :username "contact" :phone "+14159499001" :now now})
+      (xtdb/sync node)
+
+      ;; TODO: how do we make discussions that are open?
+      (db/create-discussion-with-message!
+       (get-ctx uid)
+       {:did did :selected_users #{} :text "Open group that contact can join"})
+      (xtdb/sync node)
+
+      (let [db (xtdb/db node)
+            d (crdt.discussion/->value (db.discussion/by-id db did))]
+        (is (= #{uid} (:discussion/members d)))
+        (is (= :discussion.member_mode/open (:discussion/member_mode d))))
+
+      (let [ok-resp (api.contacts/post-invite-link (get-ctx uid))
+            {:keys [url]} (json/read-str (:body ok-resp) {:key-fn keyword})
+            invite-link-id (db.invite-link/parse-url url)]
+
+        (is (= 200 (:status ok-resp)))
+        (is (crdt/ulid? invite-link-id))
+
+        (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
+              ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
+                                                                 (assoc :params params)))]
+          (is (= 200 (:status ok-resp)))))
+
+      (xtdb/sync node)
+      (let [db (xtdb/db node)
+            d (crdt.discussion/->value (db.discussion/by-id db did))]
+        (is (= #{cid uid} (:discussion/members d))))
 
       (.close node))))

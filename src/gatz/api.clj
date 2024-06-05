@@ -281,7 +281,7 @@
                  ["/group/share-link" {:post api.group/post-invite-link}]
 
                  ["/invite-link" {:get api.invite-link/get-invite-link}]
-                 ["/invite-link/join" {:post api.group/post-join-invite-link}]
+                 ["/invite-link/join" {:post api.invite-link/post-join-invite-link}]
 
                  ["/discussions" {:get  api.discussion/get-full-discussions
                                   :post api.discussion/create-discussion!}]
