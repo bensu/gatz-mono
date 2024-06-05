@@ -3,17 +3,16 @@
             [clojure.test :refer [deftest is testing]]
             [crdt.core :as crdt]
             [gatz.crdt.discussion :as crdt.discussion]
+            [gatz.db :as db]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.discussion :as db.discussion]
-            [gatz.db.discussion :refer :all]
             [gatz.db.evt :as db.evt]
             [gatz.db.group :as db.group]
             [gatz.db.user :as db.user]
             [gatz.db.util-test :as db.util-test :refer [is-equal]]
             [gatz.schema :as schema]
             [malli.core :as malli]
-            [xtdb.api :as xtdb]
-            [gatz.db :as db])
+            [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
 (deftest schemas
@@ -93,15 +92,15 @@
               open-discussion (assoc initial
                                      :discussion/member_mode :discussion.member_mode/open)]
           (is (not
-               (authorized-for-delta? initial {:evt/uid uid
-                                               :evt/data action})))
-          (is (authorized-for-delta? open-discussion
-                                     {:evt/uid uid
-                                      :evt/data action}))
+               (db.discussion/authorized-for-delta? initial {:evt/uid uid
+                                                             :evt/data action})))
+          (is (db.discussion/authorized-for-delta? open-discussion
+                                                   {:evt/uid uid
+                                                    :evt/data action}))
           (is (not
-               (authorized-for-delta? open-discussion
-                                      {:evt/uid cid
-                                       :evt/data action})))))))
+               (db.discussion/authorized-for-delta? open-discussion
+                                                    {:evt/uid cid
+                                                     :evt/data action})))))))
   (testing "group discussions can be open"
     (let [[owner-id admin-id member-id did1 did2 did3]
           (take 7 (repeatedly random-uuid))
@@ -294,13 +293,13 @@
           (xtdb/submit-tx node [[:xtdb.api/put initial]])
           (xtdb/sync node)
           (doseq [[uid action] actions]
-            (apply-action! (assoc ctx :biff/db (xtdb/db node)
-                                  :auth/user-id uid
-                                  :auth/cid uid)
-                           did
-                           action))
+            (db.discussion/apply-action! (assoc ctx :biff/db (xtdb/db node)
+                                                :auth/user-id uid
+                                                :auth/cid uid)
+                                         did
+                                         action))
           (xtdb/sync node)
-          (let [final (by-id (xtdb/db node) did)]
+          (let [final (db.discussion/by-id (xtdb/db node) did)]
             (is-equal final-expected (crdt.discussion/->value final)))
           (.close node)))
       (testing "via direct functions"
@@ -314,13 +313,13 @@
           (xtdb/submit-tx node [[:xtdb.api/put initial]])
           (xtdb/sync node)
 
-          (mark-message-read! (get-ctx poster-uid) poster-uid did mid)
-          (archive! (get-ctx poster-uid) did poster-uid)
-          (archive! (get-ctx commenter-uid) did commenter-uid)
-          (subscribe! (get-ctx commenter-uid) did commenter-uid)
-          (unsubscribe! (get-ctx poster-uid) did poster-uid)
+          (db.discussion/mark-message-read! (get-ctx poster-uid) poster-uid did mid)
+          (db.discussion/archive! (get-ctx poster-uid) did poster-uid)
+          (db.discussion/archive! (get-ctx commenter-uid) did commenter-uid)
+          (db.discussion/subscribe! (get-ctx commenter-uid) did commenter-uid)
+          (db.discussion/unsubscribe! (get-ctx poster-uid) did poster-uid)
           (xtdb/sync node)
-          (let [final (by-id (xtdb/db node) did)
+          (let [final (db.discussion/by-id (xtdb/db node) did)
                 select-fields (fn [d]
                                 (-> d
                                     (select-keys [:xt/id
@@ -424,13 +423,13 @@
       (xtdb/sync node)
       (testing "the feeds start empty"
         (let [db (xtdb/db node)]
-          (is (empty? (posts-for-user db uid)))
-          (is (empty? (posts-for-user db cid)))
-          (is (empty? (posts-for-user db lid)))
+          (is (empty? (db.discussion/posts-for-user db uid)))
+          (is (empty? (db.discussion/posts-for-user db cid)))
+          (is (empty? (db.discussion/posts-for-user db lid)))
 
-          (is (empty? (active-for-user db uid)))
-          (is (empty? (active-for-user db cid)))
-          (is (empty? (active-for-user db lid)))))
+          (is (empty? (db.discussion/active-for-user db uid)))
+          (is (empty? (db.discussion/active-for-user db cid)))
+          (is (empty? (db.discussion/active-for-user db lid)))))
 
       (testing "the poster only sees their own posts"
         (db/create-discussion-with-message!
@@ -440,16 +439,16 @@
         (xtdb/sync node)
 
         (let [db (xtdb/db node)
-              d1 (crdt.discussion/->value (by-id db did1))]
+              d1 (crdt.discussion/->value (db.discussion/by-id db did1))]
           (is (= #{uid} (:discussion/members d1)))
           (is (= #{uid} (:discussion/active_members d1)))
-          (is (= [did1] (posts-for-user db uid)))
-          (is (= []     (posts-for-user db cid)))
-          (is (= []     (posts-for-user db lid)))
+          (is (= [did1] (db.discussion/posts-for-user db uid)))
+          (is (= []     (db.discussion/posts-for-user db cid)))
+          (is (= []     (db.discussion/posts-for-user db lid)))
 
-          (is (empty? (active-for-user db uid)))
-          (is (empty? (active-for-user db cid)))
-          (is (empty? (active-for-user db lid)))))
+          (is (empty? (db.discussion/active-for-user db uid)))
+          (is (empty? (db.discussion/active-for-user db cid)))
+          (is (empty? (db.discussion/active-for-user db lid)))))
 
       (testing "the commenter can put posts in the posters feed too"
         (db/create-discussion-with-message!
@@ -463,19 +462,19 @@
         (xtdb/sync node)
 
         (let [db (xtdb/db node)
-              d2 (crdt.discussion/->value (by-id db did2))]
+              d2 (crdt.discussion/->value (db.discussion/by-id db did2))]
           (is (= #{uid cid} (:discussion/members d2)))
           (is (= #{uid cid} (:discussion/active_members d2)))
 
-          (is (= [did2 did1] (posts-for-user db uid))
+          (is (= [did2 did1] (db.discussion/posts-for-user db uid))
               "They come in reverse chronological order")
-          (is (= [did2] (posts-for-user db cid)))
-          (is (= []     (posts-for-user db lid)))
+          (is (= [did2] (db.discussion/posts-for-user db cid)))
+          (is (= []     (db.discussion/posts-for-user db lid)))
 
           (testing "and the comment bumps the discussion into the activity feed"
-            (is (= [did2] (active-for-user db uid)))
-            (is (= [did2] (active-for-user db cid)))
-            (is (= []     (active-for-user db lid)))))
+            (is (= [did2] (db.discussion/active-for-user db uid)))
+            (is (= [did2] (db.discussion/active-for-user db cid)))
+            (is (= []     (db.discussion/active-for-user db lid)))))
 
         (db/create-discussion-with-message!
          (get-ctx cid)
@@ -488,18 +487,18 @@
         (xtdb/sync node)
 
         (let [db (xtdb/db node)
-              d3 (crdt.discussion/->value (by-id db did3))]
+              d3 (crdt.discussion/->value (db.discussion/by-id db did3))]
           (is (= #{uid cid} (:discussion/members d3)))
           (is (= #{cid}     (:discussion/active_members d3)))
 
-          (is (= [did3 did2 did1] (posts-for-user db uid)))
-          (is (= [did3 did2]      (posts-for-user db cid)))
-          (is (= []               (posts-for-user db lid)))
+          (is (= [did3 did2 did1] (db.discussion/posts-for-user db uid)))
+          (is (= [did3 did2]      (db.discussion/posts-for-user db cid)))
+          (is (= []               (db.discussion/posts-for-user db lid)))
 
           (testing "and the comment bumps the discussion into the activity feed"
-            (is (= [did1 did2] (active-for-user db uid)))
-            (is (= [did2]      (active-for-user db cid)))
-            (is (= []          (active-for-user db lid))))))
+            (is (= [did1 did2] (db.discussion/active-for-user db uid)))
+            (is (= [did2]      (db.discussion/active-for-user db cid)))
+            (is (= []          (db.discussion/active-for-user db lid))))))
 
       (testing "and the lurker has its own feed to the side"
         (db/create-discussion-with-message!
@@ -513,15 +512,15 @@
         (xtdb/sync node)
 
         (let [db (xtdb/db node)]
-          (is (= [did3 did2 did1] (posts-for-user db uid)))
-          (is (= [did3 did2]      (posts-for-user db cid)))
-          (is (= [did4]           (posts-for-user db lid)))
+          (is (= [did3 did2 did1] (db.discussion/posts-for-user db uid)))
+          (is (= [did3 did2]      (db.discussion/posts-for-user db cid)))
+          (is (= [did4]           (db.discussion/posts-for-user db lid)))
 
           (testing "and there is a new comment"
              ;; Changed
-            (is (= [did1 did2] (active-for-user db uid)))
-            (is (= [did3 did2] (active-for-user db cid)))
-            (is (= []          (active-for-user db lid)))))
+            (is (= [did1 did2] (db.discussion/active-for-user db uid)))
+            (is (= [did3 did2] (db.discussion/active-for-user db cid)))
+            (is (= []          (db.discussion/active-for-user db lid)))))
 
         (db/create-message!
          (get-ctx lid)
@@ -531,59 +530,59 @@
         (testing "and the comment bumps the discussion into the activity feed"
           (let [db (xtdb/db node)]
              ;; Changed
-            (is (= [did1 did2] (active-for-user db uid)))
-            (is (= [did3 did2] (active-for-user db cid)))
-            (is (= [did4]      (active-for-user db lid))))))
+            (is (= [did1 did2] (db.discussion/active-for-user db uid)))
+            (is (= [did3 did2] (db.discussion/active-for-user db cid)))
+            (is (= [did4]      (db.discussion/active-for-user db lid))))))
 
       (testing "the poster can ask for older posts"
         (let [db (xtdb/db node)]
-          (is (= []               (posts-for-user db uid {:older-than-ts now})))
-          (is (= []               (posts-for-user db uid {:older-than-ts t1})))
-          (is (= [did1]           (posts-for-user db uid {:older-than-ts t2})))
-          (is (= [did2 did1]      (posts-for-user db uid {:older-than-ts t3})))
-          (is (= [did3 did2 did1] (posts-for-user db uid {:older-than-ts t4})))
-          (is (= [did3 did2 did1] (posts-for-user db uid {:older-than-ts t5})))
+          (is (= []               (db.discussion/posts-for-user db uid {:older-than-ts now})))
+          (is (= []               (db.discussion/posts-for-user db uid {:older-than-ts t1})))
+          (is (= [did1]           (db.discussion/posts-for-user db uid {:older-than-ts t2})))
+          (is (= [did2 did1]      (db.discussion/posts-for-user db uid {:older-than-ts t3})))
+          (is (= [did3 did2 did1] (db.discussion/posts-for-user db uid {:older-than-ts t4})))
+          (is (= [did3 did2 did1] (db.discussion/posts-for-user db uid {:older-than-ts t5})))
 
-          (is (= []          (active-for-user db uid {:older-than-ts now})))
-          (is (= []          (active-for-user db uid {:older-than-ts t1})))
-          (is (= []          (active-for-user db uid {:older-than-ts t2})))
-          (is (= []          (active-for-user db uid {:older-than-ts t3})))
-          (is (= [did2]      (active-for-user db uid {:older-than-ts t4})))
-          (is (= [did1 did2] (active-for-user db uid {:older-than-ts t5})))
-          (is (= [did1 did2] (active-for-user db uid {:older-than-ts t6})))))
+          (is (= []          (db.discussion/active-for-user db uid {:older-than-ts now})))
+          (is (= []          (db.discussion/active-for-user db uid {:older-than-ts t1})))
+          (is (= []          (db.discussion/active-for-user db uid {:older-than-ts t2})))
+          (is (= []          (db.discussion/active-for-user db uid {:older-than-ts t3})))
+          (is (= [did2]      (db.discussion/active-for-user db uid {:older-than-ts t4})))
+          (is (= [did1 did2] (db.discussion/active-for-user db uid {:older-than-ts t5})))
+          (is (= [did1 did2] (db.discussion/active-for-user db uid {:older-than-ts t6})))))
 
       (testing "the commenter can ask for older posts"
         (let [db (xtdb/db node)]
-          (is (= []          (posts-for-user db cid {:older-than-ts now})))
-          (is (= []          (posts-for-user db cid {:older-than-ts t1})))
-          (is (= []          (posts-for-user db cid {:older-than-ts t2})))
-          (is (= [did2]      (posts-for-user db cid {:older-than-ts t3})))
-          (is (= [did3 did2] (posts-for-user db cid {:older-than-ts t4})))
+          (is (= []          (db.discussion/posts-for-user db cid {:older-than-ts now})))
+          (is (= []          (db.discussion/posts-for-user db cid {:older-than-ts t1})))
+          (is (= []          (db.discussion/posts-for-user db cid {:older-than-ts t2})))
+          (is (= [did2]      (db.discussion/posts-for-user db cid {:older-than-ts t3})))
+          (is (= [did3 did2] (db.discussion/posts-for-user db cid {:older-than-ts t4})))
 
-          (is (= []          (active-for-user db cid {:older-than-ts now})))
-          (is (= []          (active-for-user db cid {:older-than-ts t1})))
-          (is (= []          (active-for-user db cid {:older-than-ts t2})))
-          (is (= []          (active-for-user db cid {:older-than-ts t3})))
-          (is (= [did2]      (active-for-user db cid {:older-than-ts t4})))
-          (is (= [did3 did2] (active-for-user db cid {:older-than-ts t5})))
-          (is (= [did3 did2] (active-for-user db cid {:older-than-ts t6})))))
+          (is (= []          (db.discussion/active-for-user db cid {:older-than-ts now})))
+          (is (= []          (db.discussion/active-for-user db cid {:older-than-ts t1})))
+          (is (= []          (db.discussion/active-for-user db cid {:older-than-ts t2})))
+          (is (= []          (db.discussion/active-for-user db cid {:older-than-ts t3})))
+          (is (= [did2]      (db.discussion/active-for-user db cid {:older-than-ts t4})))
+          (is (= [did3 did2] (db.discussion/active-for-user db cid {:older-than-ts t5})))
+          (is (= [did3 did2] (db.discussion/active-for-user db cid {:older-than-ts t6})))))
 
       (testing "the lurker can ask for older posts"
         (let [db (xtdb/db node)]
-          (is (= []     (posts-for-user db lid {:older-than-ts now})))
-          (is (= []     (posts-for-user db lid {:older-than-ts t1})))
-          (is (= []     (posts-for-user db lid {:older-than-ts t2})))
-          (is (= []     (posts-for-user db lid {:older-than-ts t3})))
-          (is (= []     (posts-for-user db lid {:older-than-ts t4})))
-          (is (= [did4] (posts-for-user db lid {:older-than-ts t5})))
+          (is (= []     (db.discussion/posts-for-user db lid {:older-than-ts now})))
+          (is (= []     (db.discussion/posts-for-user db lid {:older-than-ts t1})))
+          (is (= []     (db.discussion/posts-for-user db lid {:older-than-ts t2})))
+          (is (= []     (db.discussion/posts-for-user db lid {:older-than-ts t3})))
+          (is (= []     (db.discussion/posts-for-user db lid {:older-than-ts t4})))
+          (is (= [did4] (db.discussion/posts-for-user db lid {:older-than-ts t5})))
 
-          (is (= []     (active-for-user db lid {:older-than-ts now})))
-          (is (= []     (active-for-user db lid {:older-than-ts t1})))
-          (is (= []     (active-for-user db lid {:older-than-ts t2})))
-          (is (= []     (active-for-user db lid {:older-than-ts t3})))
-          (is (= []     (active-for-user db lid {:older-than-ts t4})))
-          (is (= []     (active-for-user db lid {:older-than-ts t5})))
-          (is (= [did4] (active-for-user db lid {:older-than-ts t6})))))
+          (is (= []     (db.discussion/active-for-user db lid {:older-than-ts now})))
+          (is (= []     (db.discussion/active-for-user db lid {:older-than-ts t1})))
+          (is (= []     (db.discussion/active-for-user db lid {:older-than-ts t2})))
+          (is (= []     (db.discussion/active-for-user db lid {:older-than-ts t3})))
+          (is (= []     (db.discussion/active-for-user db lid {:older-than-ts t4})))
+          (is (= []     (db.discussion/active-for-user db lid {:older-than-ts t5})))
+          (is (= [did4] (db.discussion/active-for-user db lid {:older-than-ts t6})))))
 
       (testing "gives you 20 posts at a time, even if there are 45 there"
         (let [all-dids (take 45 (repeatedly random-uuid))]
@@ -602,11 +601,11 @@
           (xtdb/sync node)
           (testing "the post feed batches by 20 at a time"
             (let [db (xtdb/db node)
-                  first-feed     (posts-for-user db sid)
-                  first-last-ts  (:discussion/created_at (by-id db (last first-feed)))
-                  second-feed    (posts-for-user db sid {:older-than-ts first-last-ts})
-                  second-last-ts (:discussion/created_at (by-id db (last second-feed)))
-                  third-feed     (posts-for-user db sid {:older-than-ts second-last-ts})]
+                  first-feed     (db.discussion/posts-for-user db sid)
+                  first-last-ts  (:discussion/created_at (db.discussion/by-id db (last first-feed)))
+                  second-feed    (db.discussion/posts-for-user db sid {:older-than-ts first-last-ts})
+                  second-last-ts (:discussion/created_at (db.discussion/by-id db (last second-feed)))
+                  third-feed     (db.discussion/posts-for-user db sid {:older-than-ts second-last-ts})]
               (is (= 20 (count first-feed)))
               (is (= (take 20 (reverse all-dids)) first-feed))
               (is (= 20 (count second-feed)))
@@ -616,11 +615,11 @@
 
           (testing "the active feed batches by 20 at a time"
             (let [db (xtdb/db node)
-                  first-feed     (active-for-user db sid)
-                  first-last-ts  (:discussion/latest_activity_ts (by-id db (last first-feed)))
-                  second-feed    (active-for-user db sid {:older-than-ts (crdt/-value first-last-ts)})
-                  second-last-ts (:discussion/latest_activity_ts (by-id db (last second-feed)))
-                  third-feed     (active-for-user db sid {:older-than-ts (crdt/-value second-last-ts)})]
+                  first-feed     (db.discussion/active-for-user db sid)
+                  first-last-ts  (:discussion/latest_activity_ts (db.discussion/by-id db (last first-feed)))
+                  second-feed    (db.discussion/active-for-user db sid {:older-than-ts (crdt/-value first-last-ts)})
+                  second-last-ts (:discussion/latest_activity_ts (db.discussion/by-id db (last second-feed)))
+                  third-feed     (db.discussion/active-for-user db sid {:older-than-ts (crdt/-value second-last-ts)})]
               (is (= 20 (count first-feed)))
               (is (= (take 20 (reverse all-dids)) first-feed))
               (is (= 20 (count second-feed)))
@@ -670,13 +669,13 @@
 
       (testing "the feeds start empty"
         (let [db (xtdb/db node)]
-          (is (empty? (posts-for-user db oid)))
-          (is (empty? (posts-for-user db mid)))
-          (is (empty? (posts-for-user db aid)))
+          (is (empty? (db.discussion/posts-for-user db oid)))
+          (is (empty? (db.discussion/posts-for-user db mid)))
+          (is (empty? (db.discussion/posts-for-user db aid)))
 
-          (is (empty? (active-for-user db oid)))
-          (is (empty? (active-for-user db mid)))
-          (is (empty? (active-for-user db aid)))))
+          (is (empty? (db.discussion/active-for-user db oid)))
+          (is (empty? (db.discussion/active-for-user db mid)))
+          (is (empty? (db.discussion/active-for-user db aid)))))
 
       (db.group/create! (get-ctx oid)
                         {:id gid :name "group 1" :owner oid :members #{}})
@@ -684,13 +683,13 @@
 
       (testing "the feeds are still because we haven't posted anything to the group"
         (let [db (xtdb/db node)]
-          (is (empty? (posts-for-user db oid)))
-          (is (empty? (posts-for-user db mid)))
-          (is (empty? (posts-for-user db aid)))
+          (is (empty? (db.discussion/posts-for-user db oid)))
+          (is (empty? (db.discussion/posts-for-user db mid)))
+          (is (empty? (db.discussion/posts-for-user db aid)))
 
-          (is (empty? (active-for-user db oid)))
-          (is (empty? (active-for-user db mid)))
-          (is (empty? (active-for-user db aid)))))
+          (is (empty? (db.discussion/active-for-user db oid)))
+          (is (empty? (db.discussion/active-for-user db mid)))
+          (is (empty? (db.discussion/active-for-user db aid)))))
 
       (testing "only those in the group see the posts"
         (db/create-discussion-with-message!
@@ -699,19 +698,19 @@
         (xtdb/sync node)
 
         (let [db (xtdb/db node)
-              d1 (crdt.discussion/->value (by-id db did1))]
+              d1 (crdt.discussion/->value (db.discussion/by-id db did1))]
 
           (is (= gid (:discussion/group_id d1)))
 
           (is (= #{oid} (:discussion/members d1)))
           (is (= #{oid} (:discussion/active_members d1)))
-          (is (= [did1] (posts-for-user db oid)))
-          (is (= []     (posts-for-user db mid)))
-          (is (= []     (posts-for-user db aid)))
+          (is (= [did1] (db.discussion/posts-for-user db oid)))
+          (is (= []     (db.discussion/posts-for-user db mid)))
+          (is (= []     (db.discussion/posts-for-user db aid)))
 
-          (is (empty? (active-for-user db oid)))
-          (is (empty? (active-for-user db mid)))
-          (is (empty? (active-for-user db aid)))))
+          (is (empty? (db.discussion/active-for-user db oid)))
+          (is (empty? (db.discussion/active-for-user db mid)))
+          (is (empty? (db.discussion/active-for-user db aid)))))
 
       (testing "once we add somebody to the closed group, they can see new posts but not older"
         (db/create-message!
@@ -732,20 +731,20 @@
         (xtdb/sync node)
 
         (let [db (xtdb/db node)
-              d2 (crdt.discussion/->value (by-id db did2))]
+              d2 (crdt.discussion/->value (db.discussion/by-id db did2))]
 
           (is (= gid (:discussion/group_id d2)))
 
           (is (= #{oid aid} (:discussion/members d2)))
 
-          (is (= [did2 did1] (posts-for-user db oid))
+          (is (= [did2 did1] (db.discussion/posts-for-user db oid))
               "They come in reverse chronological order")
-          (is (= [did2] (posts-for-user db aid)))
-          (is (= []     (posts-for-user db mid)))
+          (is (= [did2] (db.discussion/posts-for-user db aid)))
+          (is (= []     (db.discussion/posts-for-user db mid)))
 
-          (is (= [did1] (active-for-user db oid)))
-          (is (empty? (active-for-user db mid)))
-          (is (empty? (active-for-user db aid))))
+          (is (= [did1] (db.discussion/active-for-user db oid)))
+          (is (empty? (db.discussion/active-for-user db mid)))
+          (is (empty? (db.discussion/active-for-user db aid))))
 
         (db/create-message!
          (get-ctx aid)
@@ -765,33 +764,33 @@
         (xtdb/sync node)
 
         (let [db (xtdb/db node)
-              d2 (crdt.discussion/->value (by-id db did2))
-              d3 (crdt.discussion/->value (by-id db did3))]
+              d2 (crdt.discussion/->value (db.discussion/by-id db did2))
+              d3 (crdt.discussion/->value (db.discussion/by-id db did3))]
 
           (is (= gid (:discussion/group_id d3)))
 
           (is (= #{oid aid} (:discussion/active_members d2)))
           (is (= #{oid aid mid} (:discussion/members d3)))
 
-          (is (= [did3 did2 did1] (posts-for-user db oid))
+          (is (= [did3 did2 did1] (db.discussion/posts-for-user db oid))
               "They come in reverse chronological order")
-          (is (= [did3 did2] (posts-for-user db aid)))
-          (is (= [did3]      (posts-for-user db mid)))
-          (is (= []          (posts-for-user db sid)))
+          (is (= [did3 did2] (db.discussion/posts-for-user db aid)))
+          (is (= [did3]      (db.discussion/posts-for-user db mid)))
+          (is (= []          (db.discussion/posts-for-user db sid)))
 
-          (is (= [did2 did1] (active-for-user db oid)))
-          (is (= [did2]      (active-for-user db aid)))
-          (is (= []          (active-for-user db mid)))
-          (is (= []          (active-for-user db sid))))
+          (is (= [did2 did1] (db.discussion/active-for-user db oid)))
+          (is (= [did2]      (db.discussion/active-for-user db aid)))
+          (is (= []          (db.discussion/active-for-user db mid)))
+          (is (= []          (db.discussion/active-for-user db sid))))
 
         (testing "if they archive a post, they don't see it in the feed"
-          (archive! (get-ctx aid) did2 aid)
+          (db.discussion/archive! (get-ctx aid) did2 aid)
           (xtdb/sync node)
           (let [db (xtdb/db node)]
-            (is (= [did3] (posts-for-user db aid)))
-            (is (= []     (active-for-user db aid)))))
+            (is (= [did3] (db.discussion/posts-for-user db aid)))
+            (is (= []     (db.discussion/active-for-user db aid)))))
 
-        (unarchive! (get-ctx aid) did2 aid)
+        (db.discussion/unarchive! (get-ctx aid) did2 aid)
         (xtdb/sync node)
 
         (testing "there are feeds specific to the group"
@@ -803,30 +802,30 @@
           (xtdb/sync node)
 
           (let [db (xtdb/db node)
-                d4 (crdt.discussion/->value (by-id db did4))]
+                d4 (crdt.discussion/->value (db.discussion/by-id db did4))]
 
             (is (nil? (:discussion/group_id d4)))
 
-            (is (= [did4 did3 did2 did1] (posts-for-user db oid)))
-            (is (= [did4 did3 did2] (posts-for-user db aid)))
-            (is (= [did4 did3]      (posts-for-user db mid)))
-            (is (= [did4]           (posts-for-user db sid)))
+            (is (= [did4 did3 did2 did1] (db.discussion/posts-for-user db oid)))
+            (is (= [did4 did3 did2]      (db.discussion/posts-for-user db aid)))
+            (is (= [did4 did3]           (db.discussion/posts-for-user db mid)))
+            (is (= [did4]                (db.discussion/posts-for-user db sid)))
 
-            (is (= [did2 did1] (active-for-user db oid)))
-            (is (= [did2]      (active-for-user db aid)))
-            (is (= []          (active-for-user db mid)))
-            (is (= []          (active-for-user db sid)))
+            (is (= [did2 did1] (db.discussion/active-for-user db oid)))
+            (is (= [did2]      (db.discussion/active-for-user db aid)))
+            (is (= []          (db.discussion/active-for-user db mid)))
+            (is (= []          (db.discussion/active-for-user db sid)))
 
 
-            (is (= [did3 did2 did1] (posts-for-group db gid oid)))
-            (is (= [did3 did2]      (posts-for-group db gid aid)))
-            (is (= [did3]           (posts-for-group db gid mid)))
-            (is (= []               (posts-for-group db gid sid)))
+            (is (= [did3 did2 did1] (db.discussion/posts-for-group db gid oid)))
+            (is (= [did3 did2]      (db.discussion/posts-for-group db gid aid)))
+            (is (= [did3]           (db.discussion/posts-for-group db gid mid)))
+            (is (= []               (db.discussion/posts-for-group db gid sid)))
 
-            (is (= [did2 did1] (active-for-group db gid oid)))
-            (is (= [did2]      (active-for-group db gid aid)))
-            (is (= []          (active-for-group db gid mid)))
-            (is (= []          (active-for-group db gid sid))))))
+            (is (= [did2 did1] (db.discussion/active-for-group db gid oid)))
+            (is (= [did2]      (db.discussion/active-for-group db gid aid)))
+            (is (= []          (db.discussion/active-for-group db gid mid)))
+            (is (= []          (db.discussion/active-for-group db gid sid))))))
 
       (testing "you can have subsets of the users"
         (db/create-discussion-with-message!
@@ -837,30 +836,30 @@
         (xtdb/sync node)
 
         (let [db (xtdb/db node)
-              d5 (crdt.discussion/->value (by-id db did5))]
+              d5 (crdt.discussion/->value (db.discussion/by-id db did5))]
           (is (= #{oid aid} (:discussion/members d5)))
           (is (= gid (:discussion/group_id d5)))
 
-          (is (= [did5 did4 did3 did2 did1] (posts-for-user db oid)))
-          (is (= [did5 did4 did3 did2]      (posts-for-user db aid)))
-          (is (= [did4 did3]                (posts-for-user db mid)))
-          (is (= [did4]                     (posts-for-user db sid)))
+          (is (= [did5 did4 did3 did2 did1] (db.discussion/posts-for-user db oid)))
+          (is (= [did5 did4 did3 did2]      (db.discussion/posts-for-user db aid)))
+          (is (= [did4 did3]                (db.discussion/posts-for-user db mid)))
+          (is (= [did4]                     (db.discussion/posts-for-user db sid)))
 
-          (is (= [did2 did1] (active-for-user db oid)))
-          (is (= [did2]      (active-for-user db aid)))
-          (is (= []          (active-for-user db mid)))
-          (is (= []          (active-for-user db sid)))
+          (is (= [did2 did1] (db.discussion/active-for-user db oid)))
+          (is (= [did2]      (db.discussion/active-for-user db aid)))
+          (is (= []          (db.discussion/active-for-user db mid)))
+          (is (= []          (db.discussion/active-for-user db sid)))
 
 
-          (is (= [did5 did3 did2 did1] (posts-for-group db gid oid)))
-          (is (= [did5 did3 did2]      (posts-for-group db gid aid)))
-          (is (= [did3]                (posts-for-group db gid mid)))
-          (is (= []                    (posts-for-group db gid sid)))
+          (is (= [did5 did3 did2 did1] (db.discussion/posts-for-group db gid oid)))
+          (is (= [did5 did3 did2]      (db.discussion/posts-for-group db gid aid)))
+          (is (= [did3]                (db.discussion/posts-for-group db gid mid)))
+          (is (= []                    (db.discussion/posts-for-group db gid sid)))
 
-          (is (= [did2 did1] (active-for-group db gid oid)))
-          (is (= [did2]      (active-for-group db gid aid)))
-          (is (= []          (active-for-group db gid mid)))
-          (is (= []          (active-for-group db gid sid)))))
+          (is (= [did2 did1] (db.discussion/active-for-group db gid oid)))
+          (is (= [did2]      (db.discussion/active-for-group db gid aid)))
+          (is (= []          (db.discussion/active-for-group db gid mid)))
+          (is (= []          (db.discussion/active-for-group db gid sid)))))
 
       (testing "if we try to sneak somebody in, it throws an error"
         (is (thrown? java.lang.AssertionError
@@ -895,33 +894,33 @@
 
 
         (let [db (xtdb/db node)
-              d6 (crdt.discussion/->value (by-id db did6))]
+              d6 (crdt.discussion/->value (db.discussion/by-id db did6))]
           (testing "the user that archived is a member but also archived the discussion"
             (is (= #{oid mid aid} (:discussion/members d6)))
             (is (= #{aid} (:discussion/archived_uids d6)))
             (is (= gid (:discussion/group_id d6))))
 
-          (is (= [did6 did5 did4 did3 did2 did1] (posts-for-user db oid)))
-          (is (= [did5 did4 did3 did2]           (posts-for-user db aid)))
-          (is (= [did6 did4 did3]                (posts-for-user db mid)))
-          (is (= [did4]                          (posts-for-user db sid)))
+          (is (= [did6 did5 did4 did3 did2 did1] (db.discussion/posts-for-user db oid)))
+          (is (= [did5 did4 did3 did2]           (db.discussion/posts-for-user db aid)))
+          (is (= [did6 did4 did3]                (db.discussion/posts-for-user db mid)))
+          (is (= [did4]                          (db.discussion/posts-for-user db sid)))
 
           (testing "we hide archived messages from active"
-            (is (= [did6 did2 did1] (active-for-user db oid)))
-            (is (= [did2]           (active-for-user db aid)))
-            (is (= [did6]           (active-for-user db mid)))
-            (is (= []               (active-for-user db sid))))
+            (is (= [did6 did2 did1] (db.discussion/active-for-user db oid)))
+            (is (= [did2]           (db.discussion/active-for-user db aid)))
+            (is (= [did6]           (db.discussion/active-for-user db mid)))
+            (is (= []               (db.discussion/active-for-user db sid))))
 
           (testing "we don't hide archived messages when you look into a group's feed"
-            (is (= [did6 did5 did3 did2 did1] (posts-for-group db gid oid)))
-            (is (= [did6 did5 did3 did2]      (posts-for-group db gid aid)))
-            (is (= [did6 did3]                (posts-for-group db gid mid)))
-            (is (= []                         (posts-for-group db gid sid)))
+            (is (= [did6 did5 did3 did2 did1] (db.discussion/posts-for-group db gid oid)))
+            (is (= [did6 did5 did3 did2]      (db.discussion/posts-for-group db gid aid)))
+            (is (= [did6 did3]                (db.discussion/posts-for-group db gid mid)))
+            (is (= []                         (db.discussion/posts-for-group db gid sid)))
 
-            (is (= [did6 did2 did1] (active-for-group db gid oid)))
-            (is (= [did6 did2]      (active-for-group db gid aid)))
-            (is (= [did6]           (active-for-group db gid mid)))
-            (is (= []               (active-for-group db gid sid)))))
+            (is (= [did6 did2 did1] (db.discussion/active-for-group db gid oid)))
+            (is (= [did6 did2]      (db.discussion/active-for-group db gid aid)))
+            (is (= [did6]           (db.discussion/active-for-group db gid mid)))
+            (is (= []               (db.discussion/active-for-group db gid sid)))))
 
 
         (.close node)))))
