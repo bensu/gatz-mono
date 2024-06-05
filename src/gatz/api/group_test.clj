@@ -48,27 +48,27 @@
                                                   (assoc-in [:group/delta :group/updated_at] now)))))))))
 
 (deftest basic-flow
-
   (testing "only members can get the group"
     (let [owner (random-uuid)
-          member (random-uuid)
           non-member (random-uuid)
-          bad-admin (random-uuid)
-          gid (crdt/random-ulid)
-          now (java.util.Date.)
           ctx (db.util-test/test-system)
           node (:biff.xtdb/node ctx)
           get-ctx (fn [uid]
                     (-> ctx
                         (assoc :biff/db (xtdb/db node))
-                        (assoc :auth/user-id uid)))
-          group (db.group/create! ctx
-                                  {:id gid :owner owner :now now
-                                   :name "test" :members #{}})]
+                        (assoc :auth/user-id uid)))]
 
-      (let [ok-resp (api.group/get-group (-> (get-ctx owner)
-                                             (assoc :params {:id (str gid)})))]
-        (is (= 200 (:status ok-resp))))
-      (let [err-resp (api.group/get-group (-> (get-ctx non-member)
-                                              (assoc :params {:id (str gid)})))]
-        (is (= 400 (:status err-resp)))))))
+      (let [ok-resp (api.group/create! (-> (get-ctx owner)
+                                           (assoc :params {:name "Test Group"
+                                                           :description nil
+                                                           :avatar nil})))
+            {:keys [group]} (json/read-str (:body ok-resp) {:key-fn keyword})
+            gid (crdt/parse-ulid (:id group))]
+        (is (= 200 (:status ok-resp)))
+        (is (crdt/ulid? gid))
+        (let [ok-resp (api.group/get-group (-> (get-ctx owner)
+                                               (assoc :params {:id (str gid)})))]
+          (is (= 200 (:status ok-resp))))
+        (let [err-resp (api.group/get-group (-> (get-ctx non-member)
+                                                (assoc :params {:id (str gid)})))]
+          (is (= 400 (:status err-resp))))))))
