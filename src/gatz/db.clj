@@ -42,6 +42,7 @@
    [:media_id {:optional true} uuid?]
    [:group_id {:optional true} schema/ulid?]
    [:selected_users {:optional true} [:vec uuid?]]
+   [:to_all_contacts {:optional true} boolean?]
    [:originally_from {:optional true} [:map
                                        [:did uuid?]
                                        [:mid uuid?]]]])
@@ -52,19 +53,20 @@
     (uuid? mid) (assoc :mid (mt/-string->uuid mid))))
 
 (defn parse-create-params
-  [{:keys [name group_id text media_id
+  [{:keys [name group_id text media_id to_all_contacts
            originally_from selected_users]}]
   {:pre [(or (nil? name)
              (and (string? name) (not (empty? name)))
              (valid-post? text media_id))
-         (or (some? selected_users) (some? group_id))]}
+         (or (some? selected_users) (some? group_id) (true? to_all_contacts))]}
   (cond-> {}
     (string? name)          (assoc :name (str/trim name))
     (string? text)          (assoc :text (str/trim text))
     (some? group_id)        (assoc :group_id (crdt/parse-ulid group_id))
     (some? media_id)        (assoc :media_id (mt/-string->uuid media_id))
     (some? originally_from) (assoc :originally_from (parse-originally-from originally_from))
-    (some? selected_users)  (assoc :selected_users (set (keep mt/-string->uuid selected_users)))))
+    (some? selected_users)  (assoc :selected_users (set (keep mt/-string->uuid selected_users)))
+    (boolean? to_all_contacts) (assoc :to_all_contacts to_all_contacts)))
 
 (defn create-discussion-with-message!
 
@@ -74,7 +76,8 @@
   {:pre [(or (nil? did) (uuid? did))
          (or (nil? now) (inst? now))]}
 
-  (let [{:keys [selected_users group_id text media_id originally_from]}
+  (let [{:keys [selected_users group_id to_all_contacts
+                text media_id originally_from]}
         (parse-create-params init-params)
 
         now (or now (Date.))
@@ -105,10 +108,12 @@
               [group-members archiver-uids]))
 
           ;; The post is directed to a set of users
-          (let [member-uids (disj selected_users user-id)
-                contacts (db.contacts/by-uid db user-id)]
-            (assert (set/subset? member-uids (:contacts/ids contacts)))
-            [member-uids #{}]))
+          (let [contacts (db.contacts/by-uid db user-id)]
+            (if to_all_contacts
+              [(:contacts/ids contacts) #{}]
+              (let [member-uids (disj selected_users user-id)]
+                (assert (set/subset? member-uids (:contacts/ids contacts)))
+                [member-uids #{}]))))
 
         _ (assert (and (set? member-uids) (every? uuid? member-uids)))
 
@@ -122,8 +127,9 @@
             :archived-uids archived-uids}
            {:now now})
         d (cond-> d
-            (and group (= :discussion.member_mode/open
-                          (get-in group [:group/settings :discussion/member_mode])))
+            (or to_all_contacts
+                (and group (= :discussion.member_mode/open
+                              (get-in group [:group/settings :discussion/member_mode]))))
             (assoc :discussion/member_mode :discussion.member_mode/open
                    :discussion/open_until (db.discussion/open-until now)))
         msg (crdt.message/new-message

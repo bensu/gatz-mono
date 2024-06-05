@@ -4,16 +4,16 @@
             [crdt.core :as crdt]
             [gatz.api.contacts :as api.contacts]
             [gatz.api.group :as api.group]
+            [gatz.crdt.discussion :as crdt.discussion]
+            [gatz.db :as db]
             [gatz.db.contacts :as db.contacts]
+            [gatz.db.discussion :as db.discussion]
             [gatz.db.group :as db.group]
             [gatz.db.invite-link :as db.invite-link]
             [gatz.db.user :as db.user]
             [gatz.db.util-test :as db.util-test]
             [xtdb.api :as xtdb]
-            [gatz.db :as db]
-            [gatz.api.invite-link :as api.invite-link]
-            [gatz.db.discussion :as db.discussion]
-            [gatz.crdt.discussion :as crdt.discussion])
+            [gatz.api.invite-link :as api.invite-link])
   (:import [java.util Date]))
 
 (deftest parse-params
@@ -110,10 +110,9 @@
        ctx {:id cid :username "contact" :phone "+14159499001" :now now})
       (xtdb/sync node)
 
-      ;; TODO: how do we make discussions that are open?
       (db/create-discussion-with-message!
        (get-ctx uid)
-       {:did did :selected_users #{} :text "Open group that contact can join"})
+       {:did did :to_all_contacts true :text "Open group that contact can join"})
       (xtdb/sync node)
 
       (let [db (xtdb/db node)
@@ -132,10 +131,14 @@
               ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
                                                                  (assoc :params params)))]
           (is (= 200 (:status ok-resp)))))
-
       (xtdb/sync node)
+
       (let [db (xtdb/db node)
-            d (crdt.discussion/->value (db.discussion/by-id db did))]
-        (is (= #{cid uid} (:discussion/members d))))
+            d (crdt.discussion/->value (db.discussion/by-id db did))
+            uid-contacts (db.contacts/by-uid db uid)
+            cid-contacts (db.contacts/by-uid db cid)]
+        (is (= #{cid uid} (:discussion/members d)))
+        (is (contains? (:contacts/ids uid-contacts) cid))
+        (is (contains? (:contacts/ids cid-contacts) uid)))
 
       (.close node))))
