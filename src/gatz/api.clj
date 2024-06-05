@@ -7,6 +7,7 @@
             [gatz.api.contacts :as api.contacts]
             [gatz.api.discussion :as api.discussion]
             [gatz.api.group :as api.group]
+            [gatz.api.invite-link :as api.invite-link]
             [gatz.api.media :as api.media]
             [gatz.api.message :as api.message]
             [gatz.api.user :as api.user]
@@ -272,13 +273,14 @@
                  ["/contact" {:get api.contacts/get-contact}]
                  ["/contacts" {:get api.contacts/get-all-contacts}]
                  ["/contact/request" {:post api.contacts/handle-request!}]
+                 ["/contact/share-link" {:post api.contacts/post-invite-link}]
 
                  ["/group" {:get api.group/get-group
                             :post api.group/create!}]
                  ["/group/request" {:post api.group/handle-request!}]
                  ["/group/share-link" {:post api.group/post-invite-link}]
 
-                 ["/invite-link" {:get api.group/get-invite-link}]
+                 ["/invite-link" {:get api.invite-link/get-invite-link}]
                  ["/invite-link/join" {:post api.group/post-join-invite-link}]
 
                  ["/discussions" {:get  api.discussion/get-full-discussions

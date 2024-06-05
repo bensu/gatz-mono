@@ -26,17 +26,23 @@
   (and (nil? (:invite_link/used_at invite-link))
        (nil? (:invite_link/used_by invite-link))))
 
-(defn make [{:keys [uid gid now id]}]
-  {:pre [(uuid? uid) (crdt/ulid? gid)
+(defn make [{:keys [type uid gid now id]}]
+  {:pre [(uuid? uid)
+         (contains? #{:invite_link/group :invite_link/contact} type)
          (or (nil? id) (crdt/ulid? id))
          (or (nil? now) (instance? Date now))]}
+
+  (when (= :invite_link/group type)
+    (assert (crdt/ulid? gid)))
+
   (let [id (or id (crdt/random-ulid))
         now (or now (Date.))]
     {:xt/id id
      :db/type :gatz/invite_link
      :db/version 1
-     :invite_link/type :invite_link/group
-     :invite_link/group_id gid
+     :invite_link/type type
+     :invite_link/group_id (when (= :invite_link/gropu type) gid)
+     :invite_link/contact_id (when (= :invite_link/contact type) uid)
      :invite_link/created_by uid
      :invite_link/created_at now
      :invite_link/expires_at now ;; TODO: in 7 days by default

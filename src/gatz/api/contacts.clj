@@ -1,12 +1,11 @@
 (ns gatz.api.contacts
   (:require [clojure.data.json :as json]
             [crdt.core :as crdt]
-            [gatz.crdt.discussion :as crdt.discussion]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.group :as db.group]
-            [gatz.db.discussion :as db.discussion]
             [gatz.db.user :as db.user]
             [gatz.crdt.user :as crdt.user]
+            [gatz.db.invite-link :as db.invite-link]
             [gatz.schema :as schema]
             [malli.transform :as mt]
             [sdk.posthog :as posthog]))
@@ -172,3 +171,11 @@
                                             :contact_id to}))
         (json-response {:status "success"
                         :state contact-request-state})))))
+
+(defn post-invite-link [{:keys [auth/user-id] :as ctx}]
+  (assert user-id "The user should be authenticated by now")
+  (let [invite-link (db.invite-link/create! ctx {:uid user-id
+                                                 :type :invite_link/contact})
+        link-id (:xt/id invite-link)]
+    (json-response {:url (db.invite-link/make-url ctx link-id)})))
+

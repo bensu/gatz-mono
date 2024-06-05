@@ -124,6 +124,7 @@
         (if (contains? (:group/admins group) user-id)
           (let [invite-link (invite-link/create! ctx {:uid user-id
                                                       :gid group-id
+                                                      :type :invite_link/group
                                                       :now (Date.)})
                 link-id (:xt/id invite-link)]
             (json-response {:url (invite-link/make-url ctx link-id)}))
