@@ -101,7 +101,8 @@
                                      :members #{}
                                      :name (:group/name params)
                                      :description (:group/description params)
-                                     :avatar (:group/avatar params)})]
+                                     :avatar (:group/avatar params)
+                                     :settings {:discussion/member_mode :discussion.member_mode/open}})]
     (posthog/capture! ctx "group.created" {:id (:xt/id group)})
     (json-response {:group group})))
 

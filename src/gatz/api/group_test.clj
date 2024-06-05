@@ -66,6 +66,9 @@
             gid (crdt/parse-ulid (:id group))]
         (is (= 200 (:status ok-resp)))
         (is (crdt/ulid? gid))
+
+        (is (= "open" (get-in group [:settings :member_mode])))
+
         (let [ok-resp (api.group/get-group (-> (get-ctx owner)
                                                (assoc :params {:id (str gid)})))]
           (is (= 200 (:status ok-resp))))
