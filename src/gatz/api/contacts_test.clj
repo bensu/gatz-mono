@@ -120,7 +120,7 @@
         (is (= #{uid} (:discussion/members d)))
         (is (= :discussion.member_mode/open (:discussion/member_mode d))))
 
-      (let [ok-resp (api.contacts/post-invite-link (get-ctx uid))
+      (let [ok-resp (api.invite-link/post-contact-invite-link (get-ctx uid))
             {:keys [url]} (json/read-str (:body ok-resp) {:key-fn keyword})
             invite-link-id (db.invite-link/parse-url url)]
 

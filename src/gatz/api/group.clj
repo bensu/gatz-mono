@@ -106,65 +106,6 @@
     (posthog/capture! ctx "group.created" {:id (:xt/id group)})
     (json-response {:group group})))
 
-;; ====================================================================== 
-;; Group Invite links
-
-(def post-invite-link-params
-  [:map
-   [:group_id crdt/ulid?]])
-
-(defn parse-invite-link-params [params]
-  (cond-> params
-    (some? (:group_id params)) (update :group_id crdt/parse-ulid)))
-
-(defn post-invite-link [{:keys [auth/user-id biff/db] :as ctx}]
-  (let [params (parse-invite-link-params (:params ctx))]
-    (if-let [group-id (:group_id params)]
-      (if-let [group (db.group/by-id db group-id)]
-        (if (contains? (:group/admins group) user-id)
-          (let [invite-link (invite-link/create! ctx {:uid user-id
-                                                      :gid group-id
-                                                      :type :invite_link/group
-                                                      :now (Date.)})
-                link-id (:xt/id invite-link)]
-            (json-response {:url (invite-link/make-url ctx link-id)}))
-          (err-resp "not_found" "Group not found"))
-        (err-resp "not_found" "Group not found"))
-      (err-resp "invalid_params" "Invalid params"))))
-
-(def get-invite-link-params
-  [:map
-   [:id crdt/ulid?]])
-
-(def get-invite-response
-  [:map
-   [:group schema/Group]
-   [:invite_link schema/InviteLink]
-   [:invited_by schema/Contact]])
-
-(defn parse-get-invite-link-params [params]
-  (cond-> params
-    (some? (:id params)) (update :id crdt/parse-ulid)))
-
-(defn get-invite-link [{:keys [auth/user-id biff/db] :as ctx}]
-  (if-not user-id
-    (err-resp "unauthenticated" "Must be authenticated")
-    (let [params (parse-get-invite-link-params (:params ctx))]
-      (if-let [invite-link-id (:id params)]
-        (if-let [invite-link (invite-link/by-id db invite-link-id)]
-          (let [group (when-let [gid (:invite_link/group_id invite-link)]
-                        (db.group/by-id db gid))
-                invited-by (when-let [uid (:invite_link/created_by invite-link)]
-                             (-> (db.user/by-id db uid)
-                                 crdt.user/->value
-                                 db.contacts/->contact))]
-            (json-response {:invite_link invite-link
-                            :invited_by invited-by
-                            :type (:invite_link/type invite-link)
-                            :group group}))
-          (err-resp "link_not_found" "Link not found"))
-        (err-resp "invalid_params" "Invalid params")))))
-
 
 ;; ======================================================================
 ;; Handle request

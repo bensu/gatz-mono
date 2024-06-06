@@ -171,11 +171,3 @@
                                             :contact_id to}))
         (json-response {:status "success"
                         :state contact-request-state})))))
-
-(defn post-invite-link [{:keys [auth/user-id] :as ctx}]
-  (assert user-id "The user should be authenticated by now")
-  (let [invite-link (db.invite-link/create! ctx {:uid user-id
-                                                 :type :invite_link/contact})
-        link-id (:xt/id invite-link)]
-    (json-response {:url (db.invite-link/make-url ctx link-id)})))
-

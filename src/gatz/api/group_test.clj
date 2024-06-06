@@ -131,8 +131,9 @@
         (is (= :discussion.member_mode/closed (:discussion/member_mode d2))))
 
       (let [params {:group_id (str gid)}
-            ok-resp (api.group/post-invite-link (-> (get-ctx uid)
-                                                    (assoc :params params)))
+            ok-resp (api.invite-link/post-group-invite-link
+                     (-> (get-ctx uid)
+                         (assoc :params params)))
             _ (xtdb/sync node)
             db (xtdb/db node)
 

@@ -24,6 +24,43 @@
    :headers {"Content-Type" "application/json"}
    :body (json/write-str {:type "error" :error err-type :message err-msg})})
 
+;; ======================================================================  
+;; Create invite link
+
+(def post-invite-link-response
+  [:map
+   [:url string?]])
+
+(defn post-contact-invite-link [{:keys [auth/user-id] :as ctx}]
+  (assert user-id "The user should be authenticated by now")
+  (let [invite-link (invite-link/create! ctx {:uid user-id
+                                              :type :invite_link/contact})
+        link-id (:xt/id invite-link)]
+    (json-response {:url (invite-link/make-url ctx link-id)})))
+
+(def post-group-invite-link-params
+  [:map
+   [:group_id crdt/ulid?]])
+
+(defn parse-group-invite-link-params [params]
+  (cond-> params
+    (some? (:group_id params)) (update :group_id crdt/parse-ulid)))
+
+(defn post-group-invite-link [{:keys [auth/user-id biff/db] :as ctx}]
+  (let [params (parse-group-invite-link-params (:params ctx))]
+    (if-let [group-id (:group_id params)]
+      (if-let [group (db.group/by-id db group-id)]
+        (if (contains? (:group/admins group) user-id)
+          (let [invite-link (invite-link/create! ctx {:uid user-id
+                                                      :gid group-id
+                                                      :type :invite_link/group
+                                                      :now (Date.)})
+                link-id (:xt/id invite-link)]
+            (json-response {:url (invite-link/make-url ctx link-id)}))
+          (err-resp "not_found" "Group not found"))
+        (err-resp "not_found" "Group not found"))
+      (err-resp "invalid_params" "Invalid params"))))
+
 ;; ====================================================================== 
 ;; Group Invite links
 
