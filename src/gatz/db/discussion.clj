@@ -306,17 +306,6 @@
 ;; ======================================================================= 
 ;; Queries
 
-;; TODO: need to show that whoever you invite with the Share Link invite
-;; will be able to see your last 7 days.
-
-;; TODO:
-
-;; for open-for-user we need to track which ones are open
-;; the current state already does this
-;; but no contact discussions are ever started as open
-;; when discussions are created to "every contact" they will be assumed to be open
-;; and those are the ones that will be shown in the feed of the new invites
-
 (def open-for-contact-opts
   [:map
    [:newer-than-ts inst?]])
