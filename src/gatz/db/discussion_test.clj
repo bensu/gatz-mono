@@ -128,7 +128,6 @@
                                  :phone "+14159499002"
                                  :now t0})
       (xtdb/sync node)
-      ;; TODO: make the group open
       (db.group/create! ctx
                         {:id gid :owner owner-id :now t0
                          :name "test" :members #{admin-id}
@@ -139,11 +138,15 @@
       (binding [db.discussion/*open-until-testing-date* t2]
         (db/create-discussion-with-message!
          (get-ctx owner-id)
-         {:did did1 :group_id gid :text "Hello only to owner & admin" :now t1}))
+         {:did did1 :group_id gid
+          :to_all_contacts true
+          :text "Hello only to owner & admin" :now t1}))
 
       (db/create-discussion-with-message!
        (get-ctx owner-id)
-       {:did did2 :group_id gid
+       {:did did2
+        :group_id gid
+        :to_all_contacts true
         :text "Hello to owner, admin, and in the future, member"
         :now t2})
       (xtdb/sync node)
@@ -169,6 +172,7 @@
       (db/create-discussion-with-message!
        (get-ctx owner-id)
        {:did did3 :group_id gid
+        :to_all_contacts true
         :text "Hello to owner, admin, & currently member"
         :now t3})
 
@@ -358,17 +362,24 @@
                      (db/create-discussion-with-message!
                       (get-ctx poster-id)
                       {:did (random-uuid) :selected_users #{contact-id}
+                       :to_all_contacts false
                        :text "Failed" :now now})))
         (is (thrown? java.lang.AssertionError
                      (db/create-discussion-with-message!
                       (get-ctx poster-id)
-                      {:did (random-uuid) :selected_users #{contact-id stranger-id}
-                       :text "Failed" :now now})))
+                      {:did (random-uuid)
+                       :to_all_contacts false
+                       :selected_users #{contact-id stranger-id}
+                       :text "Failed"
+                       :now now})))
         (is (thrown? java.lang.AssertionError
                      (db/create-discussion-with-message!
                       (get-ctx poster-id)
-                      {:did (random-uuid) :selected_users #{stranger-id}
-                       :text "Failed" :now now}))))
+                      {:did (random-uuid)
+                       :to_all_contacts false
+                       :selected_users #{stranger-id}
+                       :text "Failed"
+                       :now now}))))
 
       (testing "but once we add them as contacts, we can post to them"
         (db.contacts/force-contacts! ctx poster-id contact-id)
@@ -377,17 +388,23 @@
         (is (thrown? java.lang.AssertionError
                      (db/create-discussion-with-message!
                       (get-ctx poster-id)
-                      {:did (random-uuid) :selected_users #{contact-id stranger-id}
+                      {:did (random-uuid)
+                       :selected_users #{contact-id stranger-id}
+                       :to_all_contacts false
                        :text "Failed" :now now})))
         (is (thrown? java.lang.AssertionError
                      (db/create-discussion-with-message!
                       (get-ctx poster-id)
-                      {:did (random-uuid) :selected_users #{stranger-id}
+                      {:did (random-uuid)
+                       :selected_users #{stranger-id}
+                       :to_all_contacts false
                        :text "Failed" :now now})))
 
         (db/create-discussion-with-message!
          (get-ctx poster-id)
-         {:did (random-uuid) :selected_users #{contact-id}
+         {:did (random-uuid)
+          :selected_users #{contact-id}
+          :to_all_contacts false
           :text "Failed" :now now})))))
 
 (deftest feeds
@@ -453,7 +470,9 @@
       (testing "the commenter can put posts in the posters feed too"
         (db/create-discussion-with-message!
          (get-ctx uid)
-         {:did did2 :selected_users #{cid}
+         {:did did2
+          :selected_users #{cid}
+          :to_all_contacts false
           :text "Hello to poster and commenter"
           :now t2})
         (db/create-message!
@@ -479,6 +498,7 @@
         (db/create-discussion-with-message!
          (get-ctx cid)
          {:did did3 :selected_users #{uid}
+          :to_all_contacts false
           :text "Hello to poster and commenter. Poster will never comment"
           :now t3})
         (db/create-message!
@@ -504,6 +524,7 @@
         (db/create-discussion-with-message!
          (get-ctx lid)
          {:did did4 :selected_users #{lid}
+          :to_all_contacts false
           :text "Hello to only the lurker"
           :now t4})
         (db/create-message!
@@ -592,6 +613,7 @@
               (db/create-discussion-with-message!
                (get-ctx sid)
                {:did did :selected_users #{cid sid}
+                :to_all_contacts false
                 :text "Hello to spammer"
                 :now t})
               (db/create-message!
@@ -694,7 +716,9 @@
       (testing "only those in the group see the posts"
         (db/create-discussion-with-message!
          (get-ctx oid)
-         {:did did1 :group_id gid :text "Hello to only owner" :now t1})
+         {:did did1 :group_id gid
+          :to_all_contacts true
+          :text "Hello to only owner" :now t1})
         (xtdb/sync node)
 
         (let [db (xtdb/db node)
@@ -727,7 +751,9 @@
 
         (db/create-discussion-with-message!
          (get-ctx oid)
-         {:did did2 :group_id gid :text "Hello to owner and admin" :now t2})
+         {:did did2 :group_id gid
+          :to_all_contacts true
+          :text "Hello to owner and admin" :now t2})
         (xtdb/sync node)
 
         (let [db (xtdb/db node)
@@ -760,7 +786,9 @@
 
         (db/create-discussion-with-message!
          (get-ctx oid)
-         {:did did3 :group_id gid :text "Hello to owner, admin, and member" :now t3})
+         {:did did3 :group_id gid
+          :to_all_contacts true
+          :text "Hello to owner, admin, and member" :now t3})
         (xtdb/sync node)
 
         (let [db (xtdb/db node)
@@ -797,6 +825,7 @@
           (db/create-discussion-with-message!
            (get-ctx oid)
            {:did did4 :selected_users #{oid aid mid sid}
+            :to_all_contacts false
             :text "Hello to owner, admin, and member, stranger, outside the group"
             :now t4})
           (xtdb/sync node)
@@ -831,6 +860,7 @@
         (db/create-discussion-with-message!
          (get-ctx oid)
          {:did did5 :group_id gid :selected_users #{oid aid}
+          :to_all_contacts false
           :text "Hello to owner and admin, but not member"
           :now t5})
         (xtdb/sync node)
@@ -868,6 +898,7 @@
                       {:did did6
                        :text "Hello everybody?" :now t4
                        :group_id gid
+                       :to_all_contacts false
                        :selected_users #{(str sid)}}))))
 
       (testing "if a user archives the group, new posts don't show up in their feed"
@@ -881,6 +912,7 @@
         (db/create-discussion-with-message!
          (get-ctx oid)
          {:did did6 :group_id gid
+          :to_all_contacts true
           :text "Hello to owner and member, to be ignored by admin"
           :now t6})
         (xtdb/sync node)

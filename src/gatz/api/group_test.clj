@@ -87,6 +87,7 @@
     (let [uid (random-uuid)
           cid (random-uuid)
           did (random-uuid)
+          did2 (random-uuid)
           gid (crdt/random-ulid)
           now (Date.)
           ctx (db.util-test/test-system)
@@ -112,13 +113,22 @@
       (xtdb/sync node)
       (db/create-discussion-with-message!
        (get-ctx uid)
-       {:did did :group_id gid :text "Open discussion"})
+       {:did did :group_id gid :to_all_contacts true :text "Open discussion"})
+      (db/create-discussion-with-message!
+       (get-ctx uid)
+       {:did did2 :group_id gid
+        :to_all_contacts false
+        :selected_users #{}
+        :text "Closed discussion"})
       (xtdb/sync node)
 
       (let [db (xtdb/db node)
-            d (crdt.discussion/->value (db.discussion/by-id db did))]
-        (is (= #{uid} (:discussion/members d)))
-        (is (= :discussion.member_mode/open (:discussion/member_mode d))))
+            d1 (crdt.discussion/->value (db.discussion/by-id db did))
+            d2  (crdt.discussion/->value (db.discussion/by-id db did2))]
+        (is (= #{uid} (:discussion/members d1)))
+        (is (= :discussion.member_mode/open (:discussion/member_mode d1)))
+        (is (= #{uid} (:discussion/members d2)))
+        (is (= :discussion.member_mode/closed (:discussion/member_mode d2))))
 
       (let [params {:group_id (str gid)}
             ok-resp (api.group/post-invite-link (-> (get-ctx uid)
@@ -145,8 +155,10 @@
 
       (xtdb/sync node)
       (let [db (xtdb/db node)
-            d (crdt.discussion/->value (db.discussion/by-id db did))]
-        (is (= #{cid uid} (:discussion/members d))))
+            d (crdt.discussion/->value (db.discussion/by-id db did))
+            d2 (crdt.discussion/->value (db.discussion/by-id db did2))]
+        (is (= #{cid uid} (:discussion/members d)))
+        (is (= #{uid} (:discussion/members d2))))
 
       (.close node))))
 

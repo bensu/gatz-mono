@@ -265,7 +265,12 @@
   (if-let [post-text (:text params)]
     (if-not (db/valid-post? post-text (:media_id params))
       (err-resp "invalid_post" "Invalid post")
-      (let [{:keys [discussion message]} (db/create-discussion-with-message! ctx params)
+      (let [params (assoc params :to_all_contacts (if (boolean? (:to_all_contacts params))
+                                                    (:to_all_contacts params)
+                                                    (if (:selected_users params)
+                                                      false
+                                                      true)))
+            {:keys [discussion message]} (db/create-discussion-with-message! ctx params)
             d (crdt.discussion/->value discussion)]
         (posthog/capture! ctx "discussion.new" {:did (:xt/id d)})
         ;; TODO: change shape of response

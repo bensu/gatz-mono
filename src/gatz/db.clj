@@ -58,7 +58,8 @@
   {:pre [(or (nil? name)
              (and (string? name) (not (empty? name)))
              (valid-post? text media_id))
-         (or (some? selected_users) (some? group_id) (true? to_all_contacts))]}
+         (or (boolean? to_all_contacts)
+             (some? selected_users))]}
   (cond-> {}
     (string? name)          (assoc :name (str/trim name))
     (string? text)          (assoc :text (str/trim text))
@@ -105,15 +106,19 @@
                 (assert (set/subset? selected_users group-members))
                 [selected_users (set/intersection archiver-uids selected_users)])
               ;; The post is directed to the entire group
-              [group-members archiver-uids]))
+              (do
+                (assert to_all_contacts)
+                [group-members archiver-uids])))
 
           ;; The post is directed to a set of users
           (let [contacts (db.contacts/by-uid db user-id)]
-            (if to_all_contacts
-              [(:contacts/ids contacts) #{}]
+            (if selected_users
               (let [member-uids (disj selected_users user-id)]
                 (assert (set/subset? member-uids (:contacts/ids contacts)))
-                [member-uids #{}]))))
+                [member-uids #{}])
+              (do
+                (assert to_all_contacts)
+                [(:contacts/ids contacts) #{}]))))
 
         _ (assert (and (set? member-uids) (every? uuid? member-uids)))
 
@@ -126,10 +131,13 @@
             :member-uids member-uids :group-id group_id
             :archived-uids archived-uids}
            {:now now})
+        open? (if group
+                (and to_all_contacts
+                     (= :discussion.member_mode/open
+                        (get-in group [:group/settings :discussion/member_mode])))
+                to_all_contacts)
         d (cond-> d
-            (or to_all_contacts
-                (and group (= :discussion.member_mode/open
-                              (get-in group [:group/settings :discussion/member_mode]))))
+            open?
             (assoc :discussion/member_mode :discussion.member_mode/open
                    :discussion/open_until (db.discussion/open-until now)))
         msg (crdt.message/new-message
