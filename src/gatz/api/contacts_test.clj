@@ -4,6 +4,7 @@
             [crdt.core :as crdt]
             [gatz.api.contacts :as api.contacts]
             [gatz.api.group :as api.group]
+            [gatz.api.invite-link :as api.invite-link]
             [gatz.crdt.discussion :as crdt.discussion]
             [gatz.db :as db]
             [gatz.db.contacts :as db.contacts]
@@ -12,8 +13,7 @@
             [gatz.db.invite-link :as db.invite-link]
             [gatz.db.user :as db.user]
             [gatz.db.util-test :as db.util-test]
-            [xtdb.api :as xtdb]
-            [gatz.api.invite-link :as api.invite-link])
+            [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
 (deftest parse-params

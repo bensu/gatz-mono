@@ -3,7 +3,8 @@
             [com.biffweb :as biff :refer [q]]
             [xtdb.api :as xtdb]
             [clojure.string :as str])
-  (:import [java.util Date]))
+  (:import [java.util Date]
+           [java.time Duration]))
 
 (comment
 
@@ -26,7 +27,13 @@
   (and (nil? (:invite_link/used_at invite-link))
        (nil? (:invite_link/used_by invite-link))))
 
+(def default-open-duration (Duration/ofDays 7))
+
+(defn expires-on ^Date [^Date created-at]
+  (Date. (+ (.getTime created-at) (.toMillis default-open-duration))))
+
 (defn make [{:keys [type uid gid now id]}]
+
   {:pre [(uuid? uid)
          (contains? #{:invite_link/group :invite_link/contact} type)
          (or (nil? id) (crdt/ulid? id))
@@ -45,7 +52,7 @@
      :invite_link/contact_id (when (= :invite_link/contact type) uid)
      :invite_link/created_by uid
      :invite_link/created_at now
-     :invite_link/expires_at now ;; TODO: in 7 days by default
+     :invite_link/expires_at (expires-on now)
      :invite_link/used_at nil
      :invite_link/used_by nil}))
 
