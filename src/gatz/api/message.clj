@@ -47,10 +47,11 @@
       (json-response {:message (crdt.message/->value message)}))))
 
 (defn delete-message! [{:keys [params biff/db] :as ctx}]
-  (let [msg (some->> (:id params)
-                     mt/-string->uuid
-                     (db.message/by-id db)
-                     crdt.message/->value)]
+  (let [did (some->> (:did params) mt/-string->uuid)
+        mid (some->> (:id params) mt/-string->uuid)
+        msg (some->> mid (db.message/by-id db) crdt.message/->value)]
+    (when (nil? did)
+      (println "warning, no did passed for delete message" mid))
     (db.message/delete-message! ctx (:message/did msg) (:xt/id msg))
     (posthog/capture! ctx "message.delete" {:did (:message/did msg) :mid (:xt/id msg)})
     (json-response {:status "success"})))
