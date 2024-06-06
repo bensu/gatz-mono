@@ -68,9 +68,12 @@
          :invite_link/used_at now
          :invite_link/used_by by-uid))
 
+(def default-fields
+  {:invite_link/contact_id nil})
+
 (defn by-id [db id]
   {:pre [(crdt/ulid? id)]}
-  (xtdb/entity db id))
+  (merge default-fields (xtdb/entity db id)))
 
 (defn find-url [db url]
   (when-let [id (parse-url url)]
