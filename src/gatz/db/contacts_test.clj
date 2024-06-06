@@ -187,7 +187,9 @@
               db (xtdb/db node)
               b-contacts (db.contacts/by-uid db bid)
               a-contacts (db.contacts/by-uid db aid)
-              retried-req (first (db.contacts/requests-from-to db aid bid))]
+              retried-req (->> (db.contacts/requests-from-to db aid bid)
+                               (sort-by :contact_request/created_at)
+                               last)]
 
           (is-equal {:contacts/ids #{} :contacts/user_id aid}
                     (select-keys a-contacts contact-ks))
