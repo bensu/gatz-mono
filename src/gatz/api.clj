@@ -273,12 +273,11 @@
                  ["/contact" {:get api.contacts/get-contact}]
                  ["/contacts" {:get api.contacts/get-all-contacts}]
                  ["/contact/request" {:post api.contacts/handle-request!}]
+                 ["/contact/share-link" {:post api.invite-link/post-contact-invite-link}]
 
                  ["/group" {:get api.group/get-group
                             :post api.group/create!}]
                  ["/group/request" {:post api.group/handle-request!}]
-
-                 ["/contact/share-link" {:post api.invite-link/post-contact-invite-link}]
                  ["/group/share-link" {:post api.invite-link/post-group-invite-link}]
 
                  ["/invite-link" {:get api.invite-link/get-invite-link}]
