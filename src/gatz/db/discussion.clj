@@ -326,6 +326,7 @@
              :where [[did :db/type :gatz/discussion]
                      [did :discussion/created_by cid]
                      [did :discussion/member_mode :discussion.member_mode/open]
+                     [did :discussion/group_id nil]
                      [did :discussion/open_until open-until]
                      [(< now-ts open-until)]]}
            cid now)

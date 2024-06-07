@@ -96,6 +96,8 @@
     (let [uid (random-uuid)
           cid (random-uuid)
           did (random-uuid)
+          did2 (random-uuid)
+          gid (crdt/random-ulid)
           now (Date.)
           ctx (db.util-test/test-system)
           node (:biff.xtdb/node ctx)
@@ -110,9 +112,24 @@
        ctx {:id cid :username "contact" :phone "+14159499001" :now now})
       (xtdb/sync node)
 
+      (db.group/create! ctx
+                        {:id gid :owner uid :now now
+                         :settings {:discussion/member_mode :discussion.member_mode/open}
+                         :name "test" :members #{}})
+      (xtdb/sync node)
+
       (db/create-discussion-with-message!
        (get-ctx uid)
-       {:did did :to_all_contacts true :text "Open group that contact can join"})
+       {:did did
+        :to_all_contacts true
+        :text "Open discussion that contact can join"})
+      (db/create-discussion-with-message!
+       (get-ctx uid)
+       {:did did2
+        :to_all_contacts true
+        :group_id gid
+        :text "Open discussion _in a group_ contact can not join"})
+
       (xtdb/sync node)
 
       (let [db (xtdb/db node)
@@ -143,10 +160,17 @@
 
       (let [db (xtdb/db node)
             d (crdt.discussion/->value (db.discussion/by-id db did))
+            d2 (crdt.discussion/->value (db.discussion/by-id db did2))
             uid-contacts (db.contacts/by-uid db uid)
-            cid-contacts (db.contacts/by-uid db cid)]
-        (is (= #{cid uid} (:discussion/members d)))
-        (is (contains? (:contacts/ids uid-contacts) cid))
-        (is (contains? (:contacts/ids cid-contacts) uid)))
+            cid-contacts (db.contacts/by-uid db cid)
+            posts (db.discussion/posts-for-user db cid)]
+
+        (testing "they are now contacts with each other"
+          (is (contains? (:contacts/ids uid-contacts) cid))
+          (is (contains? (:contacts/ids cid-contacts) uid)))
+        (testing "the new contact can see personal posts but not group posts"
+          (is (= [did] posts))
+          (is (= #{cid uid} (:discussion/members d)))
+          (is (= #{uid} (:discussion/members d2)))))
 
       (.close node))))
