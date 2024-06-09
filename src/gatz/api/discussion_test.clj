@@ -2,7 +2,8 @@
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.data.json :as json]
             [crdt.core :as crdt]
-            [gatz.api.discussion :as api.discussion])
+            [gatz.api.discussion :as api.discussion]
+            [gatz.db :as db])
   (:import [java.util Date]))
 
 (deftest feed-params
@@ -24,3 +25,13 @@
       (is (= lww-set-delta (crdt/lww-set-delta clock (:discussion/members delta))))
       (is (= {:discussion/members lww-set-delta}
              (api.discussion/delta->crdt clock (api.discussion/parse-delta json-delta)))))))
+
+(deftest parse-create-params
+  (testing "we can parse create param discussion"
+    (let [params {:text "Here"
+                  :to_all_contacts true
+                  :group_id (crdt/random-ulid)
+                  :selected_users (set [(random-uuid) (random-uuid)])
+                  :originally_from {:did (random-uuid) :mid (random-uuid)}}
+          json-params (json/read-str (json/write-str params) {:key-fn keyword})]
+      (is (= params (db/parse-create-params json-params))))))
