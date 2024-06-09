@@ -49,8 +49,8 @@
 
 (defn parse-originally-from [{:keys [did mid]}]
   (cond-> {}
-    (uuid? did) (assoc :did (mt/-string->uuid did))
-    (uuid? mid) (assoc :mid (mt/-string->uuid mid))))
+    (some? did) (assoc :did (mt/-string->uuid did))
+    (some? mid) (assoc :mid (mt/-string->uuid mid))))
 
 (defn parse-create-params
   [{:keys [name group_id text media_id to_all_contacts
