@@ -1,4 +1,5 @@
 (ns sdk.posthog
+  (:require [clojure.data.json :as json])
   (:import [com.posthog.java PostHog]
            [java.text SimpleDateFormat]
            [java.util HashMap Date]))
@@ -39,6 +40,7 @@
     "group.viewed" "group.created" "group.archive" "group.unarchive"
     "group.transfer_ownership" "group.add_admins" "group.remove_admins" "group.leave"
     "group.updated_attrs" "group.remove_members" "group.add_members"
+    "invite_link.new" "invite_link.viewed" "invite_link.joined"
     "notifications.failed" "notifications.succeeded"})
 
 ;; posthog.identify("user123", new Properties()
@@ -73,9 +75,7 @@
        (when (:posthog/enabled? ctx)
          (if (empty? opts)
            (.capture posthog (str user-id) event-name)
-           ;; The opts need all to be strings. uuids get auto converted
-           ;; TODO: the keywords are showing up as strings with ":" prepended
-           (let [^HashMap hash-opts (HashMap. opts)]
+           (let [^HashMap hash-opts (HashMap. (json/read-str (json/write-str opts)))]
              (.capture posthog (str user-id) event-name hash-opts))))
        (catch Throwable t
          (println "failed at capturing events" t))))))

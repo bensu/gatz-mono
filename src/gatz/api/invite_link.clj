@@ -8,11 +8,8 @@
             [gatz.db.user :as db.user]
             [gatz.crdt.user :as crdt.user]
             [gatz.schema :as schema]
-            [malli.transform :as mt]
-            [malli.core :as m]
             [sdk.posthog :as posthog])
   (:import [java.util Date]))
-
 
 (defn json-response [body]
   {:status 200
@@ -36,6 +33,7 @@
   (let [invite-link (invite-link/create! ctx {:uid user-id
                                               :type :invite_link/contact})
         link-id (:xt/id invite-link)]
+    (posthog/capture! ctx "invite_link.new" invite-link)
     (json-response {:url (invite-link/make-url ctx link-id)})))
 
 (def post-group-invite-link-params
@@ -56,6 +54,7 @@
                                                       :type :invite_link/group
                                                       :now (Date.)})
                 link-id (:xt/id invite-link)]
+            (posthog/capture! ctx "invite_link.new" invite-link)
             (json-response {:url (invite-link/make-url ctx link-id)}))
           (err-resp "not_found" "Group not found"))
         (err-resp "not_found" "Group not found"))
@@ -128,6 +127,7 @@
       (if-let [invite-link-id (:id params)]
         (if-let [invite-link (invite-link/by-id db invite-link-id)]
           (let [response (invite-link-response ctx invite-link)]
+            (posthog/capture! ctx "invite_link.viewed" invite-link)
             (json-response response))
           (err-resp "link_not_found" "Link not found"))
         (err-resp "invalid_params" "Invalid params")))))
@@ -198,6 +198,7 @@
             (invite-to-group! ctx invite-link)
             :invite_link/contact
             (invite-to-contact! ctx invite-link))
+          (posthog/capture! ctx "invite_link.joined" invite-link)
           (json-response {:success "true"}))
         (err-resp "not_found" "Link not found"))
       (err-resp "invalid_params" "Invalid params"))))
