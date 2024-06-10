@@ -1,5 +1,6 @@
 (ns gatz.api.invite-link
   (:require [clojure.data.json :as json]
+            [clojure.set :as set]
             [crdt.core :as crdt]
             [com.biffweb :as biff]
             [gatz.db.contacts :as db.contacts]
@@ -176,7 +177,11 @@
 
 (def test-special-contact #uuid "7295a445-0935-4cf4-853b-dd6f8a991fc6")
 
-(def invite-all-users #{test-special-contact})
+(def prod-uids
+  {"sebas" #uuid "06942e79-cda8-4f55-8bd0-50ce61ebfb60"})
+
+(def invite-all-users
+  (set/union #{test-special-contact} (set (vals prod-uids))))
 
 (defn invite-to-contact!
 
