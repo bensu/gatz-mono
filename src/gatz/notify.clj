@@ -206,7 +206,9 @@
                                   #_notification-to-at-mentioned)
         notifications (vec (vals uid->notifications))]
     (when-not (empty? notifications)
-      (expo/push-many! ctx notifications))))
+      (expo/push-many! ctx notifications))
+    (doseq [uid (keys uid->notifications)]
+      (posthog/capture! (assoc ctx :auth/user-id uid) "notifications.comment"))))
 
 (comment
   (def trigger-emoji #{"❓" "❗"})
@@ -289,10 +291,10 @@
       (doseq [uid (db.user/all-ids db)]
         (try
           (when-let [notification (activity-notification-for-user db uid)]
-            (expo/push-many! ctx [notification]))
+            (expo/push-many! ctx [notification])
+            (posthog/capture! (assoc ctx :auth/user-id uid) "notifications.activity"))
           (db.user/mark-active! (assoc ctx :auth/user-id uid))
           (catch Throwable e
-            ;; TODO: handle
             (posthog/capture! ctx "notifications.failed" {:type "daily" :uid uid})
             (log/error e "Error in activity-for-all-users!")))))))
 

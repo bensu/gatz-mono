@@ -1,8 +1,7 @@
 (ns sdk.expo
   (:require [clj-http.client :as http]
             [clojure.data.json :as json]
-            [clojure.tools.logging :as log]
-            [sdk.posthog :as posthog]))
+            [clojure.tools.logging :as log]))
 
 (def base-url "https://exp.host/--")
 
@@ -13,6 +12,12 @@
 ;;   "title":"hello",
 ;;   "body": "world"
 ;; }'
+
+(def notification-schema
+  [:map
+   [:expo/to string?]
+   [:expo/title string?]
+   [:expo/body string?]])
 
 (defn valid-notification? [{:expo/keys [to title body]}]
   (and (string? to)
@@ -52,7 +57,7 @@
 
 (defn push-many!
 
-  [{:keys [expo/enabled? biff/secret] :as ctx} notifications]
+  [{:keys [expo/enabled? biff/secret] :as _ctx} notifications]
 
   {:pre [(< (count notifications) MAX_EXPO_NOTIFICATIONS)
          (every? valid-notification? notifications)]}
@@ -69,11 +74,9 @@
       (if (= 200 (:status r))
         (do
           (log/info (str "Sent " (count notifications) " push notifications"))
-          (posthog/capture! ctx "notifications.succeeded" {:count (count notifications)})
           (:data (:body r)))
         (let [e (ex-info "Failed to send push notification"
                          {:status (:status r)
                           :body (:body r)})]
-          (posthog/capture! ctx "notifications.failed" {:count (count notifications)})
           (log/error e)
           (throw e))))))

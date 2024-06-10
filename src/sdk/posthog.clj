@@ -1,5 +1,7 @@
 (ns sdk.posthog
-  (:require [clojure.data.json :as json])
+  (:require [clojure.data.json :as json]
+            [clojure.tools.logging :as log]
+            [medley.core :refer [map-vals]])
   (:import [com.posthog.java PostHog]
            [java.text SimpleDateFormat]
            [java.util HashMap Date]))
@@ -41,6 +43,7 @@
     "group.transfer_ownership" "group.add_admins" "group.remove_admins" "group.leave"
     "group.updated_attrs" "group.remove_members" "group.add_members"
     "invite_link.new" "invite_link.viewed" "invite_link.joined"
+    "notifications.activity" "notifications.comment"
     "notifications.failed" "notifications.succeeded"})
 
 ;; posthog.identify("user123", new Properties()
@@ -55,9 +58,11 @@
                                         "created_at" (fmt-date created_at)})]
       (try
         (when (:posthog/enabled? ctx)
-          (.identify posthog (str id) hash-opts))
+          (.identify posthog (str id) hash-opts)
+          (log/info "identified user" (str user)))
         (catch Throwable t
-          (println "failed at identifying user" t))))))
+          (log/error "Failed to identify user" (str user))
+          (log/error t))))))
 
 ;; posthog.capture (
 ;;   "distinct_id_of_the_user", 
@@ -66,16 +71,26 @@
 ;; }});
 
 (defn capture!
+  "Send an event to Posthog. It requires a user-id"
+
   ([ctx event-name]
-   (capture! ctx ^String event-name {}))
-  ([{:keys [auth/user-id] :as ctx} ^String event-name opts]
-   (when-let [^PostHog posthog (:biff/posthog ctx)]
+   (capture! ctx event-name {}))
+
+  ([{:keys [auth/user-id biff/posthog] :as ctx}
+    ^String event-name
+    opts]
+
+   {:pre [(uuid? user-id) (some? posthog)]}
+
+   (let [^PostHog posthog posthog]
      (try
        (assert (contains? events event-name))
        (when (:posthog/enabled? ctx)
          (if (empty? opts)
            (.capture posthog (str user-id) event-name)
-           (let [^HashMap hash-opts (HashMap. (json/read-str (json/write-str opts)))]
-             (.capture posthog (str user-id) event-name hash-opts))))
+           (let [^HashMap hash-opts (HashMap. (map-vals str (json/read-str (json/write-str opts))))]
+             (.capture posthog (str user-id) event-name hash-opts)))
+         (log/info "captured event " event-name))
        (catch Throwable t
-         (println "failed at capturing events" t))))))
+         (log/error "failed at capturing event")
+         (log/error t))))))
