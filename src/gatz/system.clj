@@ -26,6 +26,7 @@
             [nrepl.cmdline :as nrepl-cmd]
             [ring.adapter.jetty9]
             [to-jdbc-uri.core :refer [to-jdbc-uri]]
+            [sdk.heroku :as heroku]
             [sdk.posthog :as posthog]
             [xtdb.jdbc.psql])
   (:import [java.time Duration]
@@ -200,6 +201,7 @@
   [biff/use-config
    biff/use-secrets
    posthog/use-posthog
+   heroku/use-heroku-config
    (fn start-conns-state [ctx]
      (use-atom ctx :conns-state conns/init-state))
    (fn start-xtdb [ctx]

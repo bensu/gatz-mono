@@ -1,6 +1,7 @@
 (ns sdk.expo
   (:require [clj-http.client :as http]
             [clojure.data.json :as json]
+            [clojure.tools.logging :as log]
             [sdk.posthog :as posthog]))
 
 (def base-url "https://exp.host/--")
@@ -67,10 +68,12 @@
                             "Authorization" (str "Bearer " expo-token)}}))]
       (if (= 200 (:status r))
         (do
+          (log/info (str "Sent " (count notifications) " push notifications"))
           (posthog/capture! ctx "notifications.succeeded" {:count (count notifications)})
           (:data (:body r)))
-        (do
+        (let [e (ex-info "Failed to send push notification"
+                         {:status (:status r)
+                          :body (:body r)})]
           (posthog/capture! ctx "notifications.failed" {:count (count notifications)})
-          (throw (ex-info "Failed to send push notification"
-                          {:status (:status r)
-                           :body (:body r)})))))))
+          (log/error e)
+          (throw e))))))

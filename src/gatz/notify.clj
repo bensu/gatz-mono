@@ -1,5 +1,5 @@
 (ns gatz.notify
-  (:require [clojure.set :as set]
+  (:require [clojure.tools.logging :as log]
             [com.biffweb :as biff]
             [chime.core :as chime]
             [gatz.crdt.discussion :as crdt.discussion]
@@ -32,7 +32,7 @@
   (str "/discussion/" did))
 
 (defn new-discussion-to-members!
-  [{:keys [biff.xtdb/node biff/secret] :as ctx}
+  [{:keys [biff.xtdb/node] :as ctx}
    {:discussion/keys [members created_by] :as d}
    message]
   (let [db (xt/db node)
@@ -279,9 +279,11 @@
   ;; This task is executed by all dynos. 
   ;; Needs to be a singleton, so we check for web.1
 
-  (println "activity for all users")
-  (when (= "web.1" (heroku/dyno-name ctx))
-    (println "in singleton dyno")
+  (log/info "Notify activity for all users")
+  (when-not (heroku/singleton? ctx)
+    (log/info "Not in singleton dyno"))
+  (when (heroku/singleton? ctx)
+    (log/info "in singleton dyno")
     (let [db (xtdb.api/db node)
           ctx (assoc ctx :biff/db db)]
       (doseq [uid (db.user/all-ids db)]
@@ -292,8 +294,7 @@
           (catch Throwable e
             ;; TODO: handle
             (posthog/capture! ctx "notifications.failed" {:type "daily" :uid uid})
-            (println "Error in activity-for-all-users!")
-            (println e)))))))
+            (log/error e "Error in activity-for-all-users!")))))))
 
 (def plugin
   {:queues [{:id :notify/comment
