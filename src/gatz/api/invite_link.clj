@@ -8,7 +8,8 @@
             [gatz.db.user :as db.user]
             [gatz.crdt.user :as crdt.user]
             [gatz.schema :as schema]
-            [sdk.posthog :as posthog])
+            [sdk.posthog :as posthog]
+            [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
 (defn json-response [body]
@@ -163,25 +164,48 @@
      [[:xtdb.api/fn :gatz.db.group/add-to-group-and-discussions {:action group-action}]
       [:xtdb.api/fn :gatz.db.invite-links/mark-used {:args invite-link-args}]])))
 
+(defn make-friends-with-my-contacts-txn [db my-uid new-uid now]
+
+  {:pre [(uuid? my-uid) (uuid? new-uid) (inst? now)]}
+
+  (let [existing-uids (:contacts/ids (db.contacts/by-uid db my-uid))]
+    (mapv (fn [existing-uid]
+            (let [args {:from new-uid :to existing-uid :now now}]
+              [:xtdb.api/fn :gatz.db.contacts/add-contacts {:args args}]))
+          existing-uids)))
+
+(def test-special-contact #uuid "7295a445-0935-4cf4-853b-dd6f8a991fc6")
+
+(def invite-all-users #{test-special-contact})
+
 (defn invite-to-contact!
 
-  [{:keys [auth/user-id] :as ctx} invite-link]
+  ([ctx {:invite_link/keys [contact_id] :as invite-link}]
+   (let [special-contact? (contains? invite-all-users contact_id)]
+     (invite-to-contact! ctx invite-link {:make-friends-with-contacts? special-contact?})))
 
-  (assert user-id)
-  (assert (= :invite_link/contact (:invite_link/type invite-link)))
-  (assert (:invite_link/contact_id invite-link))
+  ([{:keys [auth/user-id biff.xtdb/node] :as ctx}
+    invite-link
+    {:keys [make-friends-with-contacts?]}]
 
-  (let [by-uid (:invite_link/created_by invite-link)
-        now (Date.)
-        cid (:invite_link/contact_id invite-link)
-        contact-args {:by-uid cid
-                      :to-uid user-id
-                      :now now}
-        invite-link-args {:id (:xt/id invite-link) :user-id user-id :now now}
-        txns [[:xtdb.api/fn :gatz.db.contacts/invite-contact {:args contact-args}]
-              [:xtdb.api/fn :gatz.db.invite-links/mark-used {:args invite-link-args}]]]
-    (assert (= by-uid cid))
-    (biff/submit-tx ctx txns)))
+   (assert user-id)
+   (assert (= :invite_link/contact (:invite_link/type invite-link)))
+   (assert (:invite_link/contact_id invite-link))
+
+   (let [db (xtdb/db node)
+         by-uid (:invite_link/created_by invite-link)
+         now (Date.)
+         cid (:invite_link/contact_id invite-link)
+         contact-args {:by-uid cid
+                       :to-uid user-id
+                       :now now}
+         invite-link-args {:id (:xt/id invite-link) :user-id user-id :now now}
+         txns (cond-> [[:xtdb.api/fn :gatz.db.contacts/invite-contact {:args contact-args}]
+                       [:xtdb.api/fn :gatz.db.invite-links/mark-used {:args invite-link-args}]]
+                make-friends-with-contacts?
+                (concat (make-friends-with-my-contacts-txn db cid user-id now)))]
+     (assert (= by-uid cid))
+     (biff/submit-tx ctx (vec txns)))))
 
 (defn post-join-invite-link
 

@@ -146,10 +146,7 @@
         (err-resp "phone_taken" "Phone is already taken")
 
         :else
-        (let [make-friends-with-everybody? (:gatz.db.user/make-friends-with-everybody? ctx)
-              user (db.user/create-user! ctx
-                                         {:username username :phone phone}
-                                         {:make-friends-with-everybody? make-friends-with-everybody?})]
+        (let [user (db.user/create-user! ctx {:username username :phone phone})]
           (posthog/capture! (assoc ctx :auth/user-id (:xt/id user)) "user.sign_up")
           (json-response {:type "sign_up"
                           :user  (crdt.user/->value user)

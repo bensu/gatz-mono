@@ -125,26 +125,13 @@
         (assoc :db/doc-type :gatz/contacts :db/op :create)
         (update :contacts/user_id as-unique))))
 
-(defn make-friends-with-everybody-txn [db new-uid now]
-
-  {:pre [(uuid? new-uid) (inst? now)]}
-
-  (let [existing-uids (all-ids db)]
-    (mapv (fn [existing-uid]
-            (let [args {:from new-uid :to existing-uid :now now}]
-              [:xtdb.api/fn :gatz.db.contacts/add-contacts {:args args}]))
-          existing-uids)))
-
 
 (defn create-user!
-  ([ctx args]
-   (create-user! ctx args {:make-friends-with-everybody? false}))
-  ([ctx {:keys [username phone id now]} {:keys [make-friends-with-everybody?]}]
+  ([ctx {:keys [username phone id now]}]
 
    {:pre [(crdt.user/valid-username? username) (string? phone)]}
 
    (let [id (or id (random-uuid))
-         db (xtdb.api/db (:biff.xtdb/node ctx))
          now (or now (Date.))
          user (crdt.user/new-user {:id id
                                    :phone phone
@@ -156,10 +143,7 @@
                    (update :user/name as-unique)
                    (update :user/phone_number as-unique))
                (new-contacts-txn {:uid id :now now})
-               (new-activity-doc {:uid id :now now})]
-         txns (if make-friends-with-everybody?
-                (vec (concat txns (make-friends-with-everybody-txn db id now)))
-                txns)]
+               (new-activity-doc {:uid id :now now})]]
      (biff/submit-tx ctx txns)
      user)))
 
