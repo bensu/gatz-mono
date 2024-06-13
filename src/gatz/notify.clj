@@ -13,7 +13,7 @@
             [sdk.expo :as expo]
             [sdk.heroku :as heroku]
             [sdk.posthog :as posthog]
-            [xtdb.api :as xt])
+            [xtdb.api :as xtdb])
   (:import [java.time LocalDateTime ZoneId Instant Duration]
            [java.util Date]))
 
@@ -35,7 +35,7 @@
   [{:keys [biff.xtdb/node] :as ctx}
    {:discussion/keys [members created_by] :as d}
    message]
-  (let [db (xt/db node)
+  (let [db (xtdb/db node)
         id (:xt/id d)
         ;; _ (assert message "No messages in discussion")
         ;; creator doesn't need a notification
@@ -154,7 +154,7 @@
 
 (defn comment!
   [{:keys [biff.xtdb/node biff/job] :as ctx}]
-  (let [db (xtdb.api/db node)
+  (let [db (xtdb/db node)
         comment (:notify/comment job)
         d (crdt.discussion/->value (db.discussion/by-id db (:message/did comment)))
         _ (assert d "No discussion for message")
@@ -215,7 +215,7 @@
 
   (def trigger-emoji-threshold 3)
 
-  (defn notification-on-reaction [db message reaction]
+  (defn on-special-reaction [db message reaction]
     (when (contains? trigger-emoji (:reaction/emoji reaction))
       (let [user (crdt.user/->value (db.user/by-id db (:message/user_id message)))]
         (when-let [token (->token user)]
@@ -235,11 +235,37 @@
                     :expo/title (format "%s friends are interested in your comment" n-reactions)
                     :expo/body "Consider posting more about it"}]))))))))
 
-  (defn notify-on-reaction!
+  (defn on-special-reaction!
     [{:keys [biff/db] :as ctx} message reaction]
-    (let [nts (notification-on-reaction db message reaction)]
+    (let [nts (on-special-reaction db message reaction)]
       (when-not (empty? nts)
         (expo/push-many! ctx nts)))))
+
+(defn on-reaction [db message reaction]
+  (let [commenter (crdt.user/->value (db.user/by-id db (:message/user_id message)))
+        reacter (crdt.user/->value (db.user/by-id db (:reaction/by_uid reaction)))]
+    (when-not (= (:xt/id commenter) (:xt/id reacter))
+      (when-let [token (->token commenter)]
+        (let [settings (get-in commenter [:user/settings :settings/notifications])]
+        ;; TODO: and subscribed to this thread with the right settings
+          (when (:settings.notification/overall settings)
+            (let [mid (:xt/id message)
+                  did (:message/did message)]
+              [{:expo/to token
+                :expo/uid (:xt/id commenter)
+                :expo/data {:url (str "/discussion/" did "/message/" mid)}
+                :expo/title (format "%s reacted to your comment" (:user/name reacter))
+                :expo/body (:reaction/emoji reaction)}])))))))
+
+(defn on-reaction!
+  [{:keys [biff.xtdb/node] :as ctx} message reaction]
+  (let [db (xtdb/db node)
+        nts (on-reaction db message reaction)]
+    (when-not (empty? nts)
+      ;; TODO: posthog
+      ;; TODO: log
+      ;; TODO: catch exceptions
+      (expo/push-many! ctx nts))))
 
 ;; sebas, ameesh, and tara are in gatz
 ;; 3 new posts, 2 replies
