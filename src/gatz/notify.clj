@@ -155,10 +155,11 @@
 ;; TODO: does this need to be running only in the singleton?
 (defn on-comment!
   [{:keys [biff.xtdb/node biff/job] :as ctx}]
-  (let [db (xtdb/db node)
-        comment (:notify/comment job)
-        d (crdt.discussion/->value (db.discussion/by-id db (:message/did comment)))
-        _ (assert d "No discussion for message")
+  (when (heroku/singleton? ctx)
+    (let [db (xtdb/db node)
+          comment (:notify/comment job)
+          d (crdt.discussion/->value (db.discussion/by-id db (:message/did comment)))
+          _ (assert d "No discussion for message")
         ;; commenter (db.user/by-id db (:message/user_id comment))
         ;; poster (db.user/by-id db (:discussion/created_by d))
         ;; m-preview (message-preview comment)
@@ -197,19 +198,19 @@
         ;;                      :title (render-at-mention-header commenter)}])))))
         ;;      (into {}))
 
-        notifications-to-subscribers (->> (notifications-for-comment db comment)
-                                          (map (fn [{:keys [expo/uid] :as n}]
-                                                 [uid n]))
-                                          (into {}))
+          notifications-to-subscribers (->> (notifications-for-comment db comment)
+                                            (map (fn [{:keys [expo/uid] :as n}]
+                                                   [uid n]))
+                                            (into {}))
         ;; this guarantees that each user will see at most one notification
-        uid->notifications (merge notifications-to-subscribers
-                                  #_notification-to-og-commenter
-                                  #_notification-to-at-mentioned)
-        notifications (vec (vals uid->notifications))]
-    (when-not (empty? notifications)
-      (expo/push-many! ctx notifications))
-    (doseq [uid (keys uid->notifications)]
-      (posthog/capture! (assoc ctx :auth/user-id uid) "notifications.comment"))))
+          uid->notifications (merge notifications-to-subscribers
+                                    #_notification-to-og-commenter
+                                    #_notification-to-at-mentioned)
+          notifications (vec (vals uid->notifications))]
+      (when-not (empty? notifications)
+        (expo/push-many! ctx notifications))
+      (doseq [uid (keys uid->notifications)]
+        (posthog/capture! (assoc ctx :auth/user-id uid) "notifications.comment")))))
 
 (comment
   (def trigger-emoji #{"❓" "❗"})
