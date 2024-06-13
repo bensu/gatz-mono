@@ -241,18 +241,17 @@
       (when-not (empty? nts)
         (expo/push-many! ctx nts)))))
 
-(defn on-reaction [db message reaction]
-  (let [commenter (crdt.user/->value (db.user/by-id db (:message/user_id message)))
+(defn on-reaction [db d m reaction]
+  (let [commenter (crdt.user/->value (db.user/by-id db (:message/user_id m)))
         reacter (crdt.user/->value (db.user/by-id db (:reaction/by_uid reaction)))
-        d (crdt.discussion/->value (db.discussion/by-id db (:message/did message)))
-        post? (= (:discussion/first_message d) (:xt/id message))]
+        post? (= (:discussion/first_message d) (:xt/id m))]
     (when-not (= (:xt/id commenter) (:xt/id reacter))
       (when (contains? (:discussion/subscribers d) (:xt/id commenter))
         (when-let [token (->token commenter)]
           (let [settings (get-in commenter [:user/settings :settings/notifications])]
             (when (:settings.notification/overall settings)
-              (let [mid (:xt/id message)
-                    did (:message/did message)]
+              (let [mid (:xt/id m)
+                    did (:message/did m)]
                 [{:expo/to token
                   :expo/uid (:xt/id commenter)
                   :expo/data (if post?
@@ -264,9 +263,9 @@
                   :expo/body (:reaction/emoji reaction)}]))))))))
 
 (defn on-reaction!
-  [{:keys [biff.xtdb/node] :as ctx} message reaction]
+  [{:keys [biff.xtdb/node] :as ctx} discussion message reaction]
   (let [db (xtdb/db node)
-        nts (on-reaction db message reaction)]
+        nts (on-reaction db discussion message reaction)]
     (when-not (empty? nts)
       ;; TODO: posthog
       ;; TODO: log

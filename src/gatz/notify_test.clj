@@ -320,7 +320,8 @@
               reactions (db.message/flatten-reactions did mid (:message/reactions delta))
               reaction (first reactions)
               db (xtdb/db node)
-              nts (notify/on-reaction db message reaction)]
+              d (crdt.discussion/->value (db.discussion/by-id db did))
+              nts (notify/on-reaction db d message reaction)]
 
           (testing "triggers a reaction to the poster"
             (is (= 1 (count nts)))
@@ -335,7 +336,7 @@
             (db.discussion/unsubscribe! (get-ctx uid) did uid)
             (xtdb/sync node)
             (let [db (xtdb/db node)
-                  nts (notify/on-reaction db message reaction)
+                  nts (notify/on-reaction db discussion message reaction)
                   d (crdt.discussion/->value (db.discussion/by-id db did))]
               (is (not (contains? (:discussion/subscribers d) uid)))
               (is (empty? nts))))))
@@ -353,7 +354,8 @@
 
           (testing "triggers a reaction to the commenter"
             (let [db (xtdb/db node)
-                  nts (notify/on-reaction db message reaction)]
+                  d (crdt.discussion/->value (db.discussion/by-id db did))
+                  nts (notify/on-reaction db d message reaction)]
               (is (= 1 (count nts)))
               (is-equal {:expo/to ctoken
                          :expo/uid cid
@@ -372,7 +374,8 @@
                 reactions (db.message/flatten-reactions did mid (:message/reactions delta))
                 reaction (first reactions)
                 _ (xtdb/sync node)
-                nts (notify/on-reaction (xtdb/db node) message reaction)]
+                db (xtdb/db node)
+                nts (notify/on-reaction db discussion message reaction)]
             (is (empty? nts))))))))
 
 #_(deftest special-reaction-notificactions
