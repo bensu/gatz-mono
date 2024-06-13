@@ -152,7 +152,8 @@
   (let [job {:notify/comment comment}]
     (biff/submit-job ctx :notify/comment job)))
 
-(defn comment!
+;; TODO: does this need to be running only in the singleton?
+(defn on-comment!
   [{:keys [biff.xtdb/node biff/job] :as ctx}]
   (let [db (xtdb/db node)
         comment (:notify/comment job)
@@ -262,15 +263,29 @@
                                 (format "%s reacted to your comment" (:user/name reacter)))
                   :expo/body (:reaction/emoji reaction)}]))))))))
 
+
 (defn on-reaction!
-  [{:keys [biff.xtdb/node] :as ctx} discussion message reaction]
-  (let [db (xtdb/db node)
-        uid (:reaction/by_uid reaction)
-        nts (on-reaction db discussion message reaction)]
-    (when-not (empty? nts)
-      (expo/push-many! ctx nts)
-      (log/info "Sent reaction notifications")
-      (posthog/capture! (assoc ctx :auth/user-id uid) "notifications.reaction"))))
+  [{:keys [biff.xtdb/node biff/job] :as ctx}]
+  (when (heroku/singleton? ctx)
+    (let [{:keys [discussion message reaction]} (:notify/reaction job)
+          db (xtdb/db node)
+          uid (:reaction/by_uid reaction)]
+      (try
+        (let [nts (on-reaction db discussion message reaction)]
+          (when-not (empty? nts)
+            (expo/push-many! ctx nts)
+            (log/info "Sent reaction notifications")
+            (posthog/capture! (assoc ctx :auth/user-id uid) "notifications.reaction")))
+        (catch Throwable t
+          (posthog/capture! (assoc ctx :auth/user-id uid) "notifications.failed")
+          (log/error "Failed to send reaction notification")
+          (log/error t))))))
+
+(defn submit-reaction-job! [ctx discussion message reaction]
+  (let [job {:notify/reaction {:discussion discussion
+                               :message message
+                               :reaction reaction}}]
+    (biff/submit-job ctx :notify/reaction job)))
 
 ;; sebas, ameesh, and tara are in gatz
 ;; 3 new posts, 2 replies
@@ -308,15 +323,8 @@
 
 (defn activity-for-all-users!
   [{:keys [biff.xtdb/node] :as ctx}]
-
-  ;; This task is executed by all dynos. 
-  ;; Needs to be a singleton, so we check for web.1
-
-  (log/info "Notify activity for all users")
-  (when-not (heroku/singleton? ctx)
-    (log/info "Not in singleton dyno"))
   (when (heroku/singleton? ctx)
-    (log/info "in singleton dyno")
+    (log/info "Notify activity for all users")
     (let [db (xtdb.api/db node)
           ctx (assoc ctx :biff/db db)]
       (doseq [uid (db.user/all-ids db)]
@@ -331,7 +339,10 @@
 
 (def plugin
   {:queues [{:id :notify/comment
-             :consumer #'comment!
+             :consumer #'on-comment!
+             :n-threads 1}
+            {:id :notify/reaction
+             :consumer #'on-reaction!
              :n-threads 1}]
    :tasks [{:task activity-for-all-users!
             :schedule (fn []

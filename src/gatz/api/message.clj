@@ -70,13 +70,7 @@
   (let [delta (get-in evt [:evt/data :message.crdt/delta])
         did (:evt/did evt)
         mid (:evt/mid evt)
-        uid (:evt/uid evt)
         reactions (db.message/flatten-reactions did mid (:message/reactions delta))]
     (doseq [reaction reactions]
-      (try
-        (notify/on-reaction! ctx d m reaction)
-        (catch Throwable t
-          (posthog/capture! (assoc ctx :auth/user-id uid) "notifications.failed")
-          (log/error "Failed to send reaction notification")
-          (log/error t))))))
+      (notify/submit-reaction-job! ctx d m reaction))))
 
