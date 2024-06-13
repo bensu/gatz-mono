@@ -158,7 +158,7 @@
         (if-let [db-after (xtdb.api/with-tx db txs)]
           (do
             (biff/submit-tx (assoc ctx :biff.xtdb/retry false) txs)
-            {:evt (xtdb.api/entity db-after (:evt/id evt))
+            {:evt (xtdb.api/entity db-after (:xt/id evt))
              :message (by-id db-after mid)})
           (assert false "Transaction would've failed")))
       (assert false "Invaild event"))))
@@ -223,7 +223,7 @@
      (keep (fn [[emoji ts]]
              (when ts
                {:reaction/emoji emoji
-                :reaction/created_at ts
+                :reaction/created_at (crdt/-value ts)
                 :reaction/to_mid mid
                 :reaction/by_uid uid
                 :reaction/did did}))

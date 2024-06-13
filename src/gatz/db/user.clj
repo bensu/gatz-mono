@@ -188,7 +188,7 @@
         (if-let [db-after (xtdb.api/with-tx db txs)]
           (do
             (biff/submit-tx (assoc ctx :biff.xtdb/retry false) txs)
-            {:evt (xtdb.api/entity db-after (:evt/id evt))
+            {:evt (xtdb.api/entity db-after (:xt/id evt))
              :user (by-id db-after user-id)})
           (assert false "Transaction would've failed")))
       (assert false "Invaild event"))))
