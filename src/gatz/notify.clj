@@ -211,6 +211,7 @@
       (when-not (empty? notifications)
         (expo/push-many! ctx notifications))
       (doseq [uid (keys uid->notifications)]
+        (db.user/mark-active! (assoc ctx :auth/user-id uid))
         (posthog/capture! (assoc ctx :auth/user-id uid) "notifications.comment")))))
 
 (comment
@@ -271,16 +272,17 @@
   [{:keys [biff.xtdb/node biff/job] :as ctx}]
   (when (heroku/singleton? ctx)
     (let [{:keys [discussion message reaction]} (:notify/reaction job)
-          db (xtdb/db node)
-          uid (:reaction/by_uid reaction)]
+          db (xtdb/db node)]
       (try
         (let [nts (on-reaction db discussion message reaction)]
           (when-not (empty? nts)
             (expo/push-many! ctx nts)
             (log/info "Sent reaction notifications")
-            (posthog/capture! (assoc ctx :auth/user-id uid) "notifications.reaction")))
+            (doseq [uid (map :expo/uid nts)]
+              (db.user/mark-active! (assoc ctx :auth/user-id uid))
+              (posthog/capture! (assoc ctx :auth/user-id uid) "notifications.reaction"))))
         (catch Throwable t
-          (posthog/capture! (assoc ctx :auth/user-id uid) "notifications.failed")
+          (posthog/capture! (assoc ctx :auth/user-id (:reaction/by_uid reaction)) "notifications.failed")
           (log/error "Failed to send reaction notification")
           (log/error t))))))
 
@@ -330,14 +332,16 @@
     (log/info "Notify activity for all users")
     (let [db (xtdb.api/db node)
           ctx (assoc ctx :biff/db db)]
-      (doseq [uid (db.user/all-ids db)]
+      (doseq [uid (set (db.user/all-ids db))]
         (try
           (when-let [notification (activity-notification-for-user db uid)]
             (expo/push-many! ctx [notification])
             (posthog/capture! (assoc ctx :auth/user-id uid) "notifications.activity"))
+          ;; We mark-active! even if there were no notifications. 
+          ;; This makes it easier for the next query to find what's new
           (db.user/mark-active! (assoc ctx :auth/user-id uid))
           (catch Throwable e
-            (posthog/capture! ctx "notifications.failed" {:type "daily" :uid uid})
+            (posthog/capture! (assoc ctx :auth/user-id uid) "notifications.failed" {:type "daily" :uid uid})
             (log/error e "Error in activity-for-all-users!")))))))
 
 (def plugin
