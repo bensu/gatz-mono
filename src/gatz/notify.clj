@@ -22,10 +22,11 @@
 
 (def MAX_MESSAGE_LENGTH 30)
 
-(defn message-preview [{:keys [message/text]}]
-  (if (<= (count text) MAX_MESSAGE_LENGTH)
-    text
-    (str (subs text 0 MAX_MESSAGE_LENGTH) "...")))
+(defn message-preview [message]
+  (let [{:keys [message/text]} (crdt.message/->value message)]
+    (if (<= (count text) MAX_MESSAGE_LENGTH)
+      text
+      (str (subs text 0 MAX_MESSAGE_LENGTH) "..."))))
 
 (defn discussion-url [did]
   {:pre [(uuid? did)]}
@@ -253,6 +254,7 @@
           (let [settings (get-in commenter [:user/settings :settings/notifications])]
             (when (:settings.notification/overall settings)
               (let [mid (:xt/id m)
+                    emoji (:reaction/emoji reaction)
                     did (:message/did m)]
                 [{:expo/to token
                   :expo/uid (:xt/id commenter)
@@ -260,9 +262,9 @@
                                {:url (str "/discussion/" did)}
                                {:url (str "/discussion/" did "/message/" mid)})
                   :expo/title (if post?
-                                (format "%s reacted to your post" (:user/name reacter))
-                                (format "%s reacted to your comment" (:user/name reacter)))
-                  :expo/body (:reaction/emoji reaction)}]))))))))
+                                (format "%s %s your post" (:user/name reacter) emoji)
+                                (format "%s %s your comment" (:user/name reacter) emoji))
+                  :expo/body (format "%s: %s" (:user/name commenter) (message-preview m))}]))))))))
 
 
 (defn on-reaction!

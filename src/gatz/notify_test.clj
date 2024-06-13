@@ -328,8 +328,8 @@
             (is-equal {:expo/to utoken
                        :expo/uid uid
                        :expo/data {:url (str "/discussion/" did)}
-                       :expo/title "commenter reacted to your post"
-                       :expo/body "❓"}
+                       :expo/title "commenter ❓ your post"
+                       :expo/body "poster: First discussion!"}
                       (first nts)))
 
           (testing "doesn't trigger a notification to the poster if they unsubscribed"
@@ -360,8 +360,8 @@
               (is-equal {:expo/to ctoken
                          :expo/uid cid
                          :expo/data {:url url}
-                         :expo/title "poster reacted to your comment"
-                         :expo/body "❓"}
+                         :expo/title "poster ❓ your comment"
+                         :expo/body "commenter: A commenter comment"}
                         (first nts)))))
 
         (testing "The commenters' reaction on the commenter's comment doesn't trigger notifications"
