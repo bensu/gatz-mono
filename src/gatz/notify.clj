@@ -265,12 +265,12 @@
 (defn on-reaction!
   [{:keys [biff.xtdb/node] :as ctx} discussion message reaction]
   (let [db (xtdb/db node)
+        uid (:reaction/by_uid reaction)
         nts (on-reaction db discussion message reaction)]
     (when-not (empty? nts)
-      ;; TODO: posthog
-      ;; TODO: log
-      ;; TODO: catch exceptions
-      (expo/push-many! ctx nts))))
+      (expo/push-many! ctx nts)
+      (log/info "Sent reaction notifications")
+      (posthog/capture! (assoc ctx :auth/user-id uid) "notifications.reaction"))))
 
 ;; sebas, ameesh, and tara are in gatz
 ;; 3 new posts, 2 replies

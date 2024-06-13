@@ -1,5 +1,6 @@
 (ns gatz.api.message
   (:require [clojure.data.json :as json]
+            [clojure.tools.logging :as log]
             [gatz.db.discussion :as db.discussion]
             [gatz.db.message :as db.message]
             [gatz.crdt.message :as crdt.message]
@@ -65,15 +66,17 @@
 (defmethod handle-message-evt! :default [_ _ _ _] nil)
 
 (defmethod handle-message-evt! :message.crdt/add-reaction
-  [_ctx _d _m _evt]
-  nil
-  #_(let [delta (get-in evt [:evt/data :message.crdt/delta])
-          did (:evt/did evt)
-          mid (:evt/mid evt)
-          reactions (db.message/flatten-reactions did mid (:message/reactions delta))]
-      (doseq [reaction reactions]
-        (try
-          (notify/notify-on-reaction! ctx m reaction)
-          (catch Exception e
-            (println "notificaitons failed" e))))))
+  [ctx d m evt]
+  (let [delta (get-in evt [:evt/data :message.crdt/delta])
+        did (:evt/did evt)
+        mid (:evt/mid evt)
+        uid (:evt/uid evt)
+        reactions (db.message/flatten-reactions did mid (:message/reactions delta))]
+    (doseq [reaction reactions]
+      (try
+        (notify/on-reaction! ctx d m reaction)
+        (catch Throwable t
+          (posthog/capture! (assoc ctx :auth/user-id uid) "notifications.failed")
+          (log/error "Failed to send reaction notification")
+          (log/error t))))))
 

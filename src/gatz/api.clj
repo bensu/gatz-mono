@@ -103,7 +103,7 @@
                         (:evt/type evt)))
 
 (defn propagate-user-delta-to-user!
-  [{:keys [conns-state biff.xtdb/node] :as _ctx} u delta]
+  [{:keys [conns-state] :as _ctx} u delta]
   (let [uid (:xt/id u)
         evt {:event/type (:gatz.crdt.user/action delta)
              :event/data {:user (crdt.user/->value u)
@@ -144,7 +144,7 @@
   (let [db (xtdb/db node)
         did (:evt/did evt)
         mid (:evt/mid evt)
-        discussion (db.discussion/by-id db did)
+        discussion (crdt.discussion/->value (db.discussion/by-id db did))
         message (crdt.message/->value (db.message/by-id db mid))]
     (propagate-message-delta! ctx message (:evt/data evt))
     (api.message/handle-message-evt! ctx discussion message evt)))
