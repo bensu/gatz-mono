@@ -243,19 +243,25 @@
 
 (defn on-reaction [db message reaction]
   (let [commenter (crdt.user/->value (db.user/by-id db (:message/user_id message)))
-        reacter (crdt.user/->value (db.user/by-id db (:reaction/by_uid reaction)))]
+        reacter (crdt.user/->value (db.user/by-id db (:reaction/by_uid reaction)))
+        d (crdt.discussion/->value (db.discussion/by-id db (:message/did message)))
+        post? (= (:discussion/first_message d) (:xt/id message))]
     (when-not (= (:xt/id commenter) (:xt/id reacter))
-      (when-let [token (->token commenter)]
-        (let [settings (get-in commenter [:user/settings :settings/notifications])]
-        ;; TODO: and subscribed to this thread with the right settings
-          (when (:settings.notification/overall settings)
-            (let [mid (:xt/id message)
-                  did (:message/did message)]
-              [{:expo/to token
-                :expo/uid (:xt/id commenter)
-                :expo/data {:url (str "/discussion/" did "/message/" mid)}
-                :expo/title (format "%s reacted to your comment" (:user/name reacter))
-                :expo/body (:reaction/emoji reaction)}])))))))
+      (when (contains? (:discussion/subscribers d) (:xt/id commenter))
+        (when-let [token (->token commenter)]
+          (let [settings (get-in commenter [:user/settings :settings/notifications])]
+            (when (:settings.notification/overall settings)
+              (let [mid (:xt/id message)
+                    did (:message/did message)]
+                [{:expo/to token
+                  :expo/uid (:xt/id commenter)
+                  :expo/data (if post?
+                               {:url (str "/discussion/" did)}
+                               {:url (str "/discussion/" did "/message/" mid)})
+                  :expo/title (if post?
+                                (format "%s reacted to your post" (:user/name reacter))
+                                (format "%s reacted to your comment" (:user/name reacter)))
+                  :expo/body (:reaction/emoji reaction)}]))))))))
 
 (defn on-reaction!
   [{:keys [biff.xtdb/node] :as ctx} message reaction]

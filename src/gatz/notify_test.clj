@@ -246,7 +246,7 @@
                 "No notifications if you opted out of them")))))))
 
 (deftest reaction-notificactions
-  (testing "Reactions triggersa notification"
+  (testing "Reactions triggers a notification"
     (let [ctx (->ctx)
           node (:biff.xtdb/node ctx)
           get-ctx (fn [uid] (with-db (->auth-ctx ctx uid)))
@@ -270,13 +270,28 @@
 
           _ (do
               (db.contacts/force-contacts! ctx uid cid)
-              (db.contacts/force-contacts! ctx uid lid))
+              (db.contacts/force-contacts! ctx uid lid)
+              (db.user/add-push-token!
+               (get-ctx uid)
+               {:push-token {:push/expo {:push/service :push/expo
+                                         :push/token utoken
+                                         :push/created_at (java.util.Date.)}}})
+              (db.user/add-push-token!
+               (get-ctx cid)
+               {:push-token {:push/expo {:push/service :push/expo
+                                         :push/token ctoken
+                                         :push/created_at (java.util.Date.)}}}))
 
-          {:keys [discussion]} (db/create-discussion-with-message!
-                                (get-ctx uid)
-                                {:name ""
-                                 :selected_users #{uid cid lid}
-                                 :text "First discussion!"})
+          _ (xtdb/sync node)
+
+          {:keys [discussion message]}
+          (db/create-discussion-with-message!
+           (get-ctx uid)
+           {:name ""
+            :selected_users #{uid cid lid}
+            :text "First discussion!"})
+          post-message message
+
           _ (xtdb/sync node)
 
           did (:xt/id discussion)
@@ -288,7 +303,44 @@
 
       (xtdb/sync node)
 
-      (testing "Other's reaction notify me when"
+      (testing "commenting on the post subscribed us to it"
+        (let [db (xtdb/db node)
+              d (crdt.discussion/->value (db.discussion/by-id db did))]
+          (is (= #{cid uid} (:discussion/subscribers d)))))
+
+      (testing "The commenter's reaction to the main post"
+        (let [{:keys [evt message]}
+              (db.message/react-to-message!
+               (get-ctx cid) {:reaction  "❓" :mid (:xt/id post-message) :did did})
+              _ (do
+                  (assert message)
+                  (assert evt)
+                  (xtdb/sync node))
+              delta (get-in evt [:evt/data :message.crdt/delta])
+              reactions (db.message/flatten-reactions did mid (:message/reactions delta))
+              reaction (first reactions)
+              db (xtdb/db node)
+              nts (notify/on-reaction db message reaction)]
+
+          (testing "triggers a reaction to the poster"
+            (is (= 1 (count nts)))
+            (is-equal {:expo/to utoken
+                       :expo/uid uid
+                       :expo/data {:url (str "/discussion/" did)}
+                       :expo/title "commenter reacted to your post"
+                       :expo/body "❓"}
+                      (first nts)))
+
+          (testing "doesn't trigger a notification to the poster if they unsubscribed"
+            (db.discussion/unsubscribe! (get-ctx uid) did uid)
+            (xtdb/sync node)
+            (let [db (xtdb/db node)
+                  nts (notify/on-reaction db message reaction)
+                  d (crdt.discussion/->value (db.discussion/by-id db did))]
+              (is (not (contains? (:discussion/subscribers d) uid)))
+              (is (empty? nts))))))
+
+      (testing "The posters reactions to the commenter's comment"
         (let [{:keys [evt message]}
               (db.message/react-to-message!
                (get-ctx uid) {:reaction  "❓" :mid mid :did did})
@@ -299,19 +351,7 @@
               reactions (db.message/flatten-reactions did mid (:message/reactions delta))
               reaction (first reactions)]
 
-          (testing "no notifications if I don't have them set up"
-            (let [db (xtdb/db node)
-                  nts (notify/on-reaction db message reaction)]
-              (is (empty? nts))))
-
-          (db.user/add-push-token!
-           (get-ctx cid)
-           {:push-token {:push/expo {:push/service :push/expo
-                                     :push/token ctoken
-                                     :push/created_at (java.util.Date.)}}})
-          (xtdb/sync node)
-
-          (testing "I have the notifications set up"
+          (testing "triggers a reaction to the commenter"
             (let [db (xtdb/db node)
                   nts (notify/on-reaction db message reaction)]
               (is (= 1 (count nts)))
@@ -320,20 +360,20 @@
                          :expo/data {:url url}
                          :expo/title "poster reacted to your comment"
                          :expo/body "❓"}
-                        (first nts))))
+                        (first nts)))))
 
-          (testing "My own reaction doesn't trigger notifications"
-            (let [{:keys [evt message]}
-                  (db.message/react-to-message!
-                   (get-ctx cid) {:reaction  "❓" :mid mid :did did})
-                  _ (assert message)
-                  _ (assert evt)
-                  delta (get-in evt [:evt/data :message.crdt/delta])
-                  reactions (db.message/flatten-reactions did mid (:message/reactions delta))
-                  reaction (first reactions)
-                  _ (xtdb/sync node)
-                  nts (notify/on-reaction (xtdb/db node) message reaction)]
-              (is (empty? nts)))))))))
+        (testing "The commenters' reaction on the commenter's comment doesn't trigger notifications"
+          (let [{:keys [evt message]}
+                (db.message/react-to-message!
+                 (get-ctx cid) {:reaction  "❓" :mid mid :did did})
+                _ (assert message)
+                _ (assert evt)
+                delta (get-in evt [:evt/data :message.crdt/delta])
+                reactions (db.message/flatten-reactions did mid (:message/reactions delta))
+                reaction (first reactions)
+                _ (xtdb/sync node)
+                nts (notify/on-reaction (xtdb/db node) message reaction)]
+            (is (empty? nts))))))))
 
 #_(deftest special-reaction-notificactions
     (testing "After 3 special reactions it triggers a notification"
