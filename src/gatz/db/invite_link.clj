@@ -58,7 +58,7 @@
 
 (defn create! [ctx opts]
   (let [invite-link (make opts)]
-    (biff/submit-tx ctx
+    (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
                     [(assoc invite-link :db/doc-type :gatz/invite_link)])
     invite-link))
 
@@ -82,9 +82,12 @@
 (defn mark-used!
   [{:keys [biff/db] :as ctx} id {:keys [by-uid now]}]
   (when-let [invite-link (by-id db id)]
-    (let [now (or now (Date.))]
-      (biff/submit-tx ctx [(mark-used invite-link {:by-uid by-uid
-                                                   :now now})]))))
+    (let [now (or now (Date.))
+          new-invite-link (mark-used invite-link {:by-uid by-uid
+                                                  :now now})]
+      (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
+                      [new-invite-link])
+      new-invite-link)))
 
 (defn mark-used-txn [xtdb-ctx {:keys [args]}]
   (let [{:keys [id user-id now]} args
