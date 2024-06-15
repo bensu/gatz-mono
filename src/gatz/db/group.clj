@@ -62,13 +62,18 @@
 
 (defn create!
   "Returns the created group"
-  [{:keys [biff.xtdb/node] :as ctx} group-opts]
-  (let [id (or (:id group-opts) (crdt/random-ulid))]
-    (biff/submit-tx ctx [(-> (assoc group-opts :id id)
-                             new-group
-                             (assoc :db/op :create)
-                             (assoc :db/doc-type :gatz/group))])
-    (by-id (xtdb/db node) id)))
+  [ctx group-opts]
+  (let [id (or (:id group-opts) (crdt/random-ulid))
+        group (-> group-opts
+                  (assoc :id id)
+                  new-group)]
+    ;; We are going to redirect the user to the entity
+    ;; Better to have it ready before they get there
+    (biff/submit-tx (assoc ctx :biff.xtdb/retry true)
+                    [(-> group
+                         (assoc :db/op :create)
+                         (assoc :db/doc-type :gatz/group))])
+    group))
 
 (defn by-member-uid
   "Returns all the groups the user is a member of"
