@@ -80,7 +80,7 @@
     ^String event-name
     opts]
 
-   {:pre [(uuid? user-id) (some? posthog)]}
+   {:pre [(uuid? user-id)]}
 
    (let [^PostHog posthog posthog]
      (try

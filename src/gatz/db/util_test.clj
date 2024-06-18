@@ -20,5 +20,6 @@
     (xtdb/sync node)
     {:biff.xtdb/node node
      :biff/db (xtdb/db node)
+     :posthog/enabled? false
      :biff/malli-opts #'gatz.system/malli-opts}))
 
