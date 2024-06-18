@@ -182,6 +182,10 @@
             (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
                   ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
                                                                      (assoc :params params)))]
+              (is (= 400 (:status ok-resp))))
+            (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
+                  ok-resp (api.invite-link/get-invite-link (-> (get-ctx cid)
+                                                               (assoc :params params)))]
               (is (= 400 (:status ok-resp)))))
 
           (binding [db.invite-link/*test-current-ts* before-expiry-ts]

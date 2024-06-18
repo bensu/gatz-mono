@@ -128,9 +128,11 @@
     (let [params (parse-get-invite-link-params (:params ctx))]
       (if-let [invite-link-id (:id params)]
         (if-let [invite-link (db.invite-link/by-id db invite-link-id)]
-          (let [response (invite-link-response ctx invite-link)]
-            (posthog/capture! ctx "invite_link.viewed" invite-link)
-            (json-response response))
+          (if (db.invite-link/expired? invite-link)
+            (err-resp "expired" "Invite Link expired")
+            (let [response (invite-link-response ctx invite-link)]
+              (posthog/capture! ctx "invite_link.viewed" invite-link)
+              (json-response response)))
           (err-resp "link_not_found" "Link not found"))
         (err-resp "invalid_params" "Invalid params")))))
 
