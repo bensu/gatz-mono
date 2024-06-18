@@ -32,6 +32,18 @@
 (defn expires-on ^Date [^Date created-at]
   (Date. (+ (.getTime created-at) (.toMillis default-open-duration))))
 
+(def ^:dynamic *test-current-ts* nil)
+
+(defn before? [^Date d1 ^Date d2]
+  (.before d1 d2))
+
+(defn expired?
+  ([invite-link]
+   (expired? invite-link {:now (or *test-current-ts* (Date.))}))
+  ([{:invite_link/keys [expires_at]} {:keys [now]}]
+   (boolean (and expires_at
+                 (before? expires_at now)))))
+
 (defn make [{:keys [type uid gid now id]}]
 
   {:pre [(uuid? uid)
@@ -59,7 +71,9 @@
 (defn create! [ctx opts]
   (let [invite-link (make opts)]
     (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
-                    [(assoc invite-link :db/doc-type :gatz/invite_link)])
+                    [(assoc invite-link
+                            :db/doc-type :gatz/invite_link
+                            :db/op :create)])
     invite-link))
 
 (defn mark-used [invite-link {:keys [by-uid now]}]
@@ -73,7 +87,8 @@
 
 (defn by-id [db id]
   {:pre [(crdt/ulid? id)]}
-  (merge default-fields (xtdb/entity db id)))
+  (when-let [e (xtdb/entity db id)]
+    (merge default-fields e)))
 
 (defn find-url [db url]
   (when-let [id (parse-url url)]

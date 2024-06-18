@@ -14,7 +14,8 @@
             [gatz.db.user :as db.user]
             [gatz.db.util-test :as db.util-test]
             [xtdb.api :as xtdb])
-  (:import [java.util Date]))
+  (:import [java.util Date]
+           [java.time Duration]))
 
 (deftest parse-params
   (testing "parsing the deltas works"
@@ -153,6 +154,8 @@
           (is (= 200 (:status ok-resp)))
           (is (crdt/ulid? invite-link-id))
 
+          (xtdb/sync node)
+
           (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
                 ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
                                                                    (assoc :params params)))]
@@ -193,6 +196,8 @@
           (is (= 200 (:status ok-resp)))
           (is (crdt/ulid? invite-link-id))
 
+          (xtdb/sync node)
+
           (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
                 ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
                                                                    (assoc :params params)))]
@@ -208,6 +213,33 @@
               (testing "and each others contacts"
                 (is (contains? (:contacts/ids sid-contacts) fid))
                 (is (contains? (:contacts/ids cid-contacts) fid)))))))
+
+      (testing "inviting through an expired link fails"
+        (let [now (Date.)
+              after-expiry-ts (Date. (+ (.getTime now)
+                                        (.toMillis (Duration/ofDays 8))))
+              ok-resp (api.invite-link/post-contact-invite-link (get-ctx uid))
+              {:keys [url]} (json/read-str (:body ok-resp) {:key-fn keyword})
+              invite-link-id (db.invite-link/parse-url url)]
+
+          (is (= 200 (:status ok-resp)))
+          (is (crdt/ulid? invite-link-id))
+
+          ;; Let the link expire
+          (binding [db.invite-link/*test-current-ts* after-expiry-ts]
+            (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
+                  ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
+                                                                     (assoc :params params)))]
+              (is (= 400 (:status ok-resp)))))
+
+          #_(testing "you can do this multiple times"
+              (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
+                    ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
+                                                                       (assoc :params params)))]
+                (is (= 200 (:status ok-resp)))))))
+      (xtdb/sync node)
+
+
 
       (.close node))))
 

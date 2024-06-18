@@ -5,7 +5,7 @@
             [com.biffweb :as biff]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.group :as db.group]
-            [gatz.db.invite-link :as invite-link]
+            [gatz.db.invite-link :as db.invite-link]
             [gatz.db.user :as db.user]
             [gatz.crdt.user :as crdt.user]
             [gatz.schema :as schema]
@@ -32,11 +32,11 @@
 
 (defn post-contact-invite-link [{:keys [auth/user-id] :as ctx}]
   (assert user-id "The user should be authenticated by now")
-  (let [invite-link (invite-link/create! ctx {:uid user-id
-                                              :type :invite_link/contact})
+  (let [invite-link (db.invite-link/create! ctx {:uid user-id
+                                                 :type :invite_link/contact})
         link-id (:xt/id invite-link)]
     (posthog/capture! ctx "invite_link.new" invite-link)
-    (json-response {:url (invite-link/make-url ctx link-id)})))
+    (json-response {:url (db.invite-link/make-url ctx link-id)})))
 
 (def post-group-invite-link-params
   [:map
@@ -51,13 +51,13 @@
     (if-let [group-id (:group_id params)]
       (if-let [group (db.group/by-id db group-id)]
         (if (contains? (:group/admins group) user-id)
-          (let [invite-link (invite-link/create! ctx {:uid user-id
-                                                      :gid group-id
-                                                      :type :invite_link/group
-                                                      :now (Date.)})
+          (let [invite-link (db.invite-link/create! ctx {:uid user-id
+                                                         :gid group-id
+                                                         :type :invite_link/group
+                                                         :now (Date.)})
                 link-id (:xt/id invite-link)]
             (posthog/capture! ctx "invite_link.new" invite-link)
-            (json-response {:url (invite-link/make-url ctx link-id)}))
+            (json-response {:url (db.invite-link/make-url ctx link-id)}))
           (err-resp "not_found" "Group not found"))
         (err-resp "not_found" "Group not found"))
       (err-resp "invalid_params" "Invalid params"))))
@@ -127,7 +127,7 @@
     (err-resp "unauthenticated" "Must be authenticated")
     (let [params (parse-get-invite-link-params (:params ctx))]
       (if-let [invite-link-id (:id params)]
-        (if-let [invite-link (invite-link/by-id db invite-link-id)]
+        (if-let [invite-link (db.invite-link/by-id db invite-link-id)]
           (let [response (invite-link-response ctx invite-link)]
             (posthog/capture! ctx "invite_link.viewed" invite-link)
             (json-response response))
@@ -220,15 +220,15 @@
 
   (let [params (parse-join-link-params (:params ctx))]
     (if-let [id (:id params)]
-      (if-let [invite-link (invite-link/by-id db id)]
-        (do
-          (case (:invite_link/type invite-link)
-            :invite_link/group
-            (invite-to-group! ctx invite-link)
-            :invite_link/contact
-            (invite-to-contact! ctx invite-link))
-          (posthog/capture! ctx "invite_link.joined" invite-link)
-          (json-response {:success "true"}))
-        (err-resp "not_found" "Link not found"))
+      (if-let [invite-link (db.invite-link/by-id db id)]
+        (if (db.invite-link/expired? invite-link)
+          (err-resp "expired" "Invite Link expired")
+          (do
+            (case (:invite_link/type invite-link)
+              :invite_link/group   (invite-to-group! ctx invite-link)
+              :invite_link/contact (invite-to-contact! ctx invite-link))
+            (posthog/capture! ctx "invite_link.joined" invite-link)
+            (json-response {:success "true"})))
+        (err-resp "not_found" "Invite Link not found"))
       (err-resp "invalid_params" "Invalid params"))))
 

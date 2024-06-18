@@ -318,6 +318,7 @@
           (is (= r-to-a (db.contacts/current-request-between db requester-id accepter-id)))
           (is (= r-to-a (db.contacts/current-request-between db accepter-id requester-id)))
 
+          ;; TODO: this is not great. Ideally you could retry and get the same invite
           (testing "if you retry, you get an error"
             (is (thrown? clojure.lang.ExceptionInfo
                          (db.contacts/apply-request! (assoc ctx :auth/user-id requester-id)
