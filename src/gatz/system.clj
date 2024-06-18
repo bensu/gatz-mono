@@ -151,9 +151,9 @@
   [{:keys [biff/secret] :as _ctx}]
   (let [bucket (secret :biff.xtdb.checkpointer/bucket)]
     (assert (string? bucket))
-    (println "checkpointing from S3" bucket)
+    (log/info "checkpointing from S3" bucket)
     {:xtdb/module 'xtdb.checkpoint/->checkpointer
-     :approx-frequency (Duration/ofHours 6)
+     :approx-frequency (Duration/ofHours 12)
      :retention-policy {:retain-at-least 5 :retain-newer-than (Duration/ofDays 7)}
      :store {:xtdb/module 'xtdb.s3.checkpoint/->cp-store :bucket bucket}}))
 
@@ -161,15 +161,16 @@
 (defn file-checkpoint-store
   "Used for local development"
   [_ctx]
+  (log/info "checkpointing from file")
   {:xtdb/module 'xtdb.checkpoint/->checkpointer
-   :approx-frequency (Duration/ofHours 6)
-   :retention-policy {:retain-newer-than (Duration/ofDays 7) :retain-at-least 5}
+   :approx-frequency (Duration/ofHours 12)
+   :retention-policy {:retain-at-least 5 :retain-newer-than (Duration/ofDays 7)}
    :store {:xtdb/module 'xtdb.checkpoint/->filesystem-checkpoint-store
            :path "storage/xtdb/checkpoints"}})
 
 (defn index-store [ctx]
   (let [node-id (or (System/getenv "NODE_ID") "local")]
-    (println (:biff.xtdb/checkpointer ctx))
+    (log/info "checkpointer used" (:biff.xtdb/checkpointer ctx))
     {:kv-store {:xtdb/module 'xtdb.rocksdb/->kv-store
                 :db-dir (io/file (format "storage/%s/xtdb/index" node-id))
                 :checkpointer (case (:biff.xtdb/checkpointer ctx)
