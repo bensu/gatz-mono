@@ -11,10 +11,10 @@
             [gatz.db.invite-link :as db.invite-link]
             [gatz.db.util-test :as db.util-test :refer [is-equal]]
             [gatz.db.user :as db.user]
-            [gatz.schema :as schema]
             [malli.core :as malli]
             [xtdb.api :as xtdb])
-  (:import [java.util Date]))
+  (:import [java.util Date]
+           [java.time Duration]))
 
 (deftest params
   (testing "parsing the deltas wors"
@@ -160,6 +160,35 @@
             d2 (crdt.discussion/->value (db.discussion/by-id db did2))]
         (is (= #{cid uid} (:discussion/members d)))
         (is (= #{uid} (:discussion/members d2))))
+
+      (testing "inviting through an expired link fails"
+        (let [now (Date.)
+              before-expiry-ts (Date. (+ (.getTime now)
+                                         (.toMillis (Duration/ofDays 6))))
+              after-expiry-ts (Date. (+ (.getTime now)
+                                        (.toMillis (Duration/ofDays 8))))
+              params {:group_id (str gid)}
+              ok-resp (api.invite-link/post-group-invite-link
+                       (-> (get-ctx uid)
+                           (assoc :params params)))
+              {:keys [url]} (json/read-str (:body ok-resp) {:key-fn keyword})
+              invite-link-id (db.invite-link/parse-url url)]
+
+          (is (= 200 (:status ok-resp)))
+          (is (crdt/ulid? invite-link-id))
+
+          ;; Let the link expire
+          (binding [db.invite-link/*test-current-ts* after-expiry-ts]
+            (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
+                  ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
+                                                                     (assoc :params params)))]
+              (is (= 400 (:status ok-resp)))))
+
+          (binding [db.invite-link/*test-current-ts* before-expiry-ts]
+            (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
+                  ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
+                                                                     (assoc :params params)))]
+              (is (= 200 (:status ok-resp)))))))
 
       (.close node))))
 

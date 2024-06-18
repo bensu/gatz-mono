@@ -216,6 +216,8 @@
 
       (testing "inviting through an expired link fails"
         (let [now (Date.)
+              before-expiry-ts (Date. (+ (.getTime now)
+                                         (.toMillis (Duration/ofDays 6))))
               after-expiry-ts (Date. (+ (.getTime now)
                                         (.toMillis (Duration/ofDays 8))))
               ok-resp (api.invite-link/post-contact-invite-link (get-ctx uid))
@@ -225,18 +227,20 @@
           (is (= 200 (:status ok-resp)))
           (is (crdt/ulid? invite-link-id))
 
+          (xtdb/sync node)
+
           ;; Let the link expire
           (binding [db.invite-link/*test-current-ts* after-expiry-ts]
             (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
                   ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
                                                                      (assoc :params params)))]
               (is (= 400 (:status ok-resp)))))
+          (binding [db.invite-link/*test-current-ts* before-expiry-ts]
+            (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
+                  ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
+                                                                     (assoc :params params)))]
+              (is (= 200 (:status ok-resp)))))))
 
-          #_(testing "you can do this multiple times"
-              (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
-                    ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
-                                                                       (assoc :params params)))]
-                (is (= 200 (:status ok-resp)))))))
       (xtdb/sync node)
 
 
