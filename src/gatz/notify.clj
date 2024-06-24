@@ -37,7 +37,7 @@
    {:discussion/keys [members created_by] :as d}
    message]
   (let [db (xtdb/db node)
-        id (:xt/id d)
+        did (:xt/id d)
         ;; _ (assert message "No messages in discussion")
         ;; creator doesn't need a notification
         creator (crdt.user/->value (db.user/by-id db created_by))
@@ -47,14 +47,16 @@
                    vec)
         title (format "%s started a discussion" (:user/name creator))
         body (message-preview message)
-        url (discussion-url id)
+        url (discussion-url did)
         notifications (->> users
                            (keep #(get-in % [:user/push_tokens :push/expo :push/token]))
                            (mapv (fn [expo-token]
                                    {:expo/to expo-token
                                     :expo/title title
                                     :expo/body body
-                                    :expo/data {:url url}})))]
+                                    :expo/data {:scope :notify/discussion
+                                                :url url
+                                                :did did}})))]
     ;; TODO: check for notification preferences
     (when-not (empty? notifications)
       (expo/push-many! ctx notifications))))
@@ -120,6 +122,12 @@
   #_(let [re #"\B@(\w+)\b"]
       (set (map second (re-seq re text)))))
 
+(def data-schema
+  [:map
+   [:url string?]
+   [:mid schema/MessageId]
+   [:did schema/DiscussionId]])
+
 (defn notifications-for-comment [db m]
   (let [m (crdt.message/->value m)
         d (crdt.discussion/->value (db.discussion/by-id db (:message/did m)))
@@ -129,7 +137,10 @@
         _ (assert poster)
         _ (assert commenter)
         m-preview (message-preview m)
-        data {:url (discussion-url (:message/did m))}]
+        data {:url (discussion-url (:message/did m))
+              :scope :notify/message
+              :did (:xt/id d)
+              :mid (:xt/id m)}]
     (->> (:discussion/subscribers d)
          (keep (comp crdt.user/->value (partial db.user/by-id db)))
          (keep (fn [receiver]
@@ -164,7 +175,11 @@
         ;; commenter (db.user/by-id db (:message/user_id comment))
         ;; poster (db.user/by-id db (:discussion/created_by d))
         ;; m-preview (message-preview comment)
-        ;; data {:url (discussion-url (:message/did comment))}
+        ;; data {:url (discussion-url (:message/did comment))
+        ;;       :scope :notify/message
+        ;;       :did (:xt/id d)
+        ;;       :mid (:xt/id comment)}
+
 
         ;; is it a reply to a comment?
         ;; notification-to-og-commenter
@@ -228,6 +243,10 @@
                        (:settings.notification/suggestions_from_gatz settings))
               (let [mid (:xt/id message)
                     did (:message/did message)
+                    data {:url (str "/discussion/" did "/message/" mid)
+                          :scope :notify/message
+                          :did did
+                          :mid mid}
                     flat-reactions (db.message/flatten-reactions mid did (:message/reactions message))
                     n-reactions (count (filter #(and (contains? trigger-emoji (:reaction/emoji %))
                                                      (not= (:xt/id user) (:reaction/by_uid %)))
@@ -235,7 +254,7 @@
                 (when (= trigger-emoji-threshold n-reactions)
                   [{:expo/to token
                     :expo/uid (:xt/id user)
-                    :expo/data {:url (str "/discussion/" did "/message/" mid)}
+                    :expo/data data
                     :expo/title (format "%s friends are interested in your comment" n-reactions)
                     :expo/body "Consider posting more about it"}]))))))))
 
@@ -260,8 +279,13 @@
                 [{:expo/to token
                   :expo/uid (:xt/id commenter)
                   :expo/data (if post?
-                               {:url (str "/discussion/" did)}
-                               {:url (str "/discussion/" did "/message/" mid)})
+                               {:url (str "/discussion/" did)
+                                :scope :notify/discussion
+                                :did did}
+                               {:url (str "/discussion/" did "/message/" mid)
+                                :scope :notify/message
+                                :did did
+                                :mid mid})
                   :expo/title (if post?
                                 (format "%s %s your post" (:user/name reacter) emoji)
                                 (format "%s %s your comment" (:user/name reacter) emoji))
@@ -321,6 +345,7 @@
           (when-not (empty? friends)
             {:expo/to expo-token
              :expo/uid uid
+             :expo/data {:scope :notify/activity :url "/"}
              :expo/title (if (= 1 (count friends))
                            (format "%s is in gatz" (render-friends friends))
                            (format "%s are in gatz" (render-friends friends)))
