@@ -21,7 +21,7 @@
     :body (json/write-str body)}))
 
 (defn err-resp [err-type err-msg]
-  (json-response {:type "error" :error err-type :message err-msg} 401))
+  (json-response {:type "error" :error err-type :message err-msg} 400))
 
 ;; ======================================================================  
 ;; Endpoints
@@ -131,11 +131,13 @@
     (not-empty phone)))
 
 ;; TODO: do params validation
-(defn sign-up!
-  [{:keys [params biff/db] :as ctx}]
+(defn sign-up! [{:keys [params biff/db] :as ctx}]
   (if-let [username (some-> (:username params) clean-username)]
     (if-let [phone (some-> (:phone_number params) clean-phone)]
       (cond
+        (:gatz.auth/signup-disabled? ctx)
+        (err-resp "signup_disabled" "Sign up is disabled right now")
+
         (not (crdt.user/valid-username? username))
         (err-resp "invalid_username" "Username is invalid")
 

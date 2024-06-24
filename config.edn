@@ -17,6 +17,8 @@
         :gatz.auth/jwt-secret-old "GATZ_JWT_SECRET_OLD"
         :gatz.auth/jwt-secret "GATZ_JWT_SECRET"
 
+        :gatz.auth/signup-disabled? false
+
         :gatz/host "https://gatz.chat"
 
         :posthog/api_key "phc_abqkICUI7qZDw1rNLR53fB8uC41kOOjKWfE54NfoHus"
