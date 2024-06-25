@@ -30,7 +30,11 @@
 
 (defn discussion-url [did]
   {:pre [(uuid? did)]}
-  (str "/discussion/" did))
+  (format "/discussion/%s" did))
+
+(defn message-url [did mid]
+  {:pre [(uuid? did) (uuid? mid)]}
+  (format "/discussion/%s/message/%s" did mid))
 
 (defn new-discussion-to-members!
   [{:keys [biff.xtdb/node] :as ctx}
@@ -137,7 +141,7 @@
         _ (assert poster)
         _ (assert commenter)
         m-preview (message-preview m)
-        data {:url (discussion-url (:message/did m))
+        data {:url (discussion-url (:xt/id d))
               :scope :notify/message
               :did (:xt/id d)
               :mid (:xt/id m)}]
@@ -175,7 +179,7 @@
         ;; commenter (db.user/by-id db (:message/user_id comment))
         ;; poster (db.user/by-id db (:discussion/created_by d))
         ;; m-preview (message-preview comment)
-        ;; data {:url (discussion-url (:message/did comment))
+        ;; data {:url (message-url (:xt/id d) (:xt/id comment))
         ;;       :scope :notify/message
         ;;       :did (:xt/id d)
         ;;       :mid (:xt/id comment)}
@@ -243,7 +247,7 @@
                        (:settings.notification/suggestions_from_gatz settings))
               (let [mid (:xt/id message)
                     did (:message/did message)
-                    data {:url (str "/discussion/" did "/message/" mid)
+                    data {:url (message-url did mid)
                           :scope :notify/message
                           :did did
                           :mid mid}
@@ -279,10 +283,10 @@
                 [{:expo/to token
                   :expo/uid (:xt/id commenter)
                   :expo/data (if post?
-                               {:url (str "/discussion/" did)
+                               {:url (discussion-url did)
                                 :scope :notify/discussion
                                 :did did}
-                               {:url (str "/discussion/" did "/message/" mid)
+                               {:url (message-url did mid)
                                 :scope :notify/message
                                 :did did
                                 :mid mid})
