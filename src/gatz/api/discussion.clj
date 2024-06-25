@@ -316,6 +316,8 @@
 
 (def feed-query-params
   [:map
+   [:group_id {:optional true} crdt/ulid?]
+   [:contact_id {:optional true} uuid?]
    [:last_did {:optional true} uuid?]])
 
 (def feed-response
@@ -334,7 +336,9 @@
 
 (defn parse-feed-params [params]
   (cond-> params
-    (some? (:last_did params)) (update :last_did strict-str->uuid)))
+    (some? (:contact_id params)) (update :contact_id strict-str->uuid)
+    (some? (:group_id params))   (update :group_id crdt/parse-ulid)
+    (some? (:last_did params))   (update :last_did strict-str->uuid)))
 
 (defn feed
   [{:keys [params biff.xtdb/node biff/db auth/user-id] :as ctx}]
@@ -346,11 +350,16 @@
   ;; TODO: should be using the latest-tx from the _db_ not the node
   (let [params (parse-feed-params params)
         latest-tx (xt/latest-completed-tx node)
-        dids (if-let [older-than (some->> (:last_did params)
-                                          (db.discussion/by-id db)
-                                          :discussion/created_at)]
-               (db.discussion/posts-for-user db user-id {:older-than-ts older-than})
-               (db.discussion/posts-for-user db user-id))
+        older-than (some->> (:last_did params)
+                            (db.discussion/by-id db)
+                            :discussion/created_at)
+        dids (if-let [contact (some->> (:contact_id params)
+                                       (db.user/by-id db))]
+               (db.discussion/posts-for-contact db (:xt/id contact) user-id {:older-than-ts older-than})
+               (if-let [group (some->> (:group_id params)
+                                       (db.group/by-id db))]
+                 (db.discussion/posts-for-group db (:xt/id group) user-id {:older-than-ts older-than})
+                 (db.discussion/posts-for-user db user-id {:older-than-ts older-than})))
         ds (map (partial db/discussion-by-id db) dids)
         d-group-ids (set (keep (comp :discussion/group_id :discussion) ds))
         d-user-ids  (reduce set/union (map :user_ids ds))
