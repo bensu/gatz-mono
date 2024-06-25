@@ -482,15 +482,15 @@
   ([db cid uid {:keys [older-than-ts]}]
    {:pre [(uuid? cid) (uuid? uid)
           (or (nil? older-than-ts) (inst? older-than-ts))]}
-   (->> (q db '{:find '[did created-at]
-                :in '[cid uid older-than-ts]
-                :limit 20
-                :order-by '[[created-at :desc]]
-                :where (cond-> '[[did :db/type :gatz/discussion]
-                                 [did :discussion/members uid]
-                                 [did :discussion/created_by cid]
-                                 [did :discussion/created_at created-at]]
-                         older-than-ts (conj '[(< created-at older-than-ts)]))}
+   (->> (q db {:find '[did created-at]
+               :in '[cid uid older-than-ts]
+               :limit 20
+               :order-by '[[created-at :desc]]
+               :where (cond-> '[[did :db/type :gatz/discussion]
+                                [did :discussion/members uid]
+                                [did :discussion/created_by cid]
+                                [did :discussion/created_at created-at]]
+                        older-than-ts (conj '[(< created-at older-than-ts)]))}
            cid uid older-than-ts)
         (mapv first))))
 
