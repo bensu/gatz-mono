@@ -353,13 +353,15 @@
         older-than (some->> (:last_did params)
                             (db.discussion/by-id db)
                             :discussion/created_at)
-        dids (if-let [contact (some->> (:contact_id params)
-                                       (db.user/by-id db))]
-               (db.discussion/posts-for-contact db (:xt/id contact) user-id {:older-than-ts older-than})
-               (if-let [group (some->> (:group_id params)
-                                       (db.group/by-id db))]
-                 (db.discussion/posts-for-group db (:xt/id group) user-id {:older-than-ts older-than})
-                 (db.discussion/posts-for-user db user-id {:older-than-ts older-than})))
+        contact_id (some->> (:contact_id params)
+                            (db.user/by-id db)
+                            :xt/id)
+        dids (if-let [group (some->> (:group_id params)
+                                     (db.group/by-id db))]
+               (db.discussion/posts-for-group db (:xt/id group) user-id {:older-than-ts older-than})
+               (db.discussion/posts-for-user db user-id
+                                             {:older-than-ts older-than
+                                              :contact_id contact_id}))
         ds (map (partial db/discussion-by-id db) dids)
         d-group-ids (set (keep (comp :discussion/group_id :discussion) ds))
         d-user-ids  (reduce set/union (map :user_ids ds))
@@ -402,11 +404,15 @@
   ;; TODO: should be using the latest-tx from the _db_ not the node
   (let [params (parse-active-params params)
         latest-tx (xt/latest-completed-tx node)
-        dids (if-let [older-than (some->> (:last_did params)
-                                          (db.discussion/by-id db)
-                                          :discussion/created_at)]
-               (db.discussion/active-for-user db user-id {:older-than-ts older-than})
-               (db.discussion/active-for-user db user-id))
+        older-than (some->> (:last_did params)
+                            (db.discussion/by-id db)
+                            :discussion/created_at)
+        contact_id (some->> (:contact_id params)
+                            (db.user/by-id db)
+                            :xt/id)
+        dids (db.discussion/active-for-user db user-id
+                                            {:older-than-ts older-than
+                                             :contact_id contact_id})
         ds (map (partial db/discussion-by-id db) dids)
         group-ids (set (keep (comp :discussion/group_id :discussion) ds))
         groups (mapv (partial db.group/by-id db) group-ids)

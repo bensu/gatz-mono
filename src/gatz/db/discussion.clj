@@ -373,19 +373,21 @@
 (defn posts-for-user
   ([db uid]
    (posts-for-user db uid {}))
-  ([db uid {:keys [older-than-ts]}]
+  ([db uid {:keys [older-than-ts contact_id]}]
    {:pre [(uuid? uid)
-          (or (nil? older-than-ts) (inst? older-than-ts))]}
+          (or (nil? older-than-ts) (inst? older-than-ts))
+          (or (nil? contact_id) (uuid? contact_id))]}
    (->> (q db {:find '[did created-at]
-               :in '[user-id older-than-ts]
+               :in '[user-id older-than-ts cid]
                :limit 20
                :order-by '[[created-at :desc]]
                :where (cond-> '[[did :db/type :gatz/discussion]
                                 [did :discussion/members user-id]
                                 (not [did :discussion/archived_uids user-id])
                                 [did :discussion/created_at created-at]]
+                        contact_id    (conj '[did :discussion/created_by cid])
                         older-than-ts (conj '[(< created-at older-than-ts)]))}
-           uid older-than-ts)
+           uid older-than-ts contact_id)
         (map first))))
 
 (def active-for-user-opts
@@ -400,10 +402,12 @@
 (defn active-for-user
   ([db uid]
    (active-for-user db uid {}))
-  ([db uid {:keys [older-than-ts]}]
-   {:pre [(uuid? uid) (or (nil? older-than-ts) (inst? older-than-ts))]}
+  ([db uid {:keys [older-than-ts contact_id]}]
+   {:pre [(uuid? uid)
+          (or (nil? older-than-ts) (inst? older-than-ts))
+          (or (nil? contact_id) (uuid? contact_id))]}
    (->> (q db {:find '[did latest-activity-ts]
-               :in '[user-id older-than-ts]
+               :in '[user-id older-than-ts cid]
                :limit 20
                :order-by '[[latest-activity-ts :desc]]
                :where (cond-> '[[did :db/type :gatz/discussion]
@@ -413,10 +417,10 @@
                                 [did :discussion/latest_message latest-mid]
                                 [(not= first-mid latest-mid)]
                                 [did :discussion/latest_activity_ts latest-activity-ts]]
+                        contact_id    (conj '[did :discussion/created_by cid])
                         older-than-ts (conj '[(< latest-activity-ts older-than-ts)]))}
-           uid older-than-ts)
+           uid older-than-ts contact_id)
         (map first))))
-
 
 (defn all-ids [db]
   (q db
@@ -474,45 +478,6 @@
                                 [did :discussion/latest_activity_ts latest-activity-ts]]
                         older-than-ts (conj '[(< latest-activity-ts older-than-ts)]))}
            gid uid older-than-ts)
-        (mapv first))))
-
-(defn posts-for-contact
-  ([db cid uid]
-   (posts-for-contact db cid uid {}))
-  ([db cid uid {:keys [older-than-ts]}]
-   {:pre [(uuid? cid) (uuid? uid)
-          (or (nil? older-than-ts) (inst? older-than-ts))]}
-   (->> (q db {:find '[did created-at]
-               :in '[cid uid older-than-ts]
-               :limit 20
-               :order-by '[[created-at :desc]]
-               :where (cond-> '[[did :db/type :gatz/discussion]
-                                [did :discussion/members uid]
-                                [did :discussion/created_by cid]
-                                [did :discussion/created_at created-at]]
-                        older-than-ts (conj '[(< created-at older-than-ts)]))}
-           cid uid older-than-ts)
-        (mapv first))))
-
-(defn active-for-contact
-  ([db cid uid]
-   (active-for-contact db cid uid {}))
-  ([db cid uid {:keys [older-than-ts]}]
-   {:pre [(uuid? cid) (uuid? uid)
-          (or (nil? older-than-ts) (inst? older-than-ts))]}
-   (->> (q db {:find '[did latest-activity-ts]
-               :in '[cid uid older-than-ts]
-               :limit 20
-               :order-by '[[latest-activity-ts :desc]]
-               :where (cond-> '[[did :db/type :gatz/discussion]
-                                [did :discussion/created_by cid]
-                                [did :discussion/active_members uid]
-                                [did :discussion/first_message first-mid]
-                                [did :discussion/latest_message latest-mid]
-                                [(not= first-mid latest-mid)]
-                                [did :discussion/latest_activity_ts latest-activity-ts]]
-                        older-than-ts (conj '[(< latest-activity-ts older-than-ts)]))}
-           cid uid older-than-ts)
         (mapv first))))
 
 ;; ====================================================================== 
