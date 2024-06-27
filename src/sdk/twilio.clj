@@ -1,5 +1,6 @@
 (ns sdk.twilio
   (:require [clj-http.client :as http]
+            [clojure.tools.logging :as log]
             [clojure.string :as str]))
 
 (def TEST_PHONES
@@ -20,13 +21,21 @@
   [env {:keys [phone]}]
   (if (contains? TEST_PHONES phone)
     {:sid "test_twilio_sid" :status "pending" :send_code_attempts []}
-    (-> (format "https://verify.twilio.com/v2/Services/%s/Verifications"
-                (env :twilio/verify-service))
-        (http/post
-         {:basic-auth [(env :twilio/sid) (env :twilio/auth-token)]
-          :as :json
-          :form-params {:Channel "sms" :To phone}})
-        :body)))
+    (try
+      (-> (format "https://verify.twilio.com/v2/Services/%s/Verifications"
+                  (env :twilio/verify-service))
+          (http/post
+           {:basic-auth [(env :twilio/sid) (env :twilio/auth-token)]
+            :as :json
+            :form-params {:Channel "sms" :To phone}})
+          :body)
+      (catch Throwable t
+        (log/error "Failed to start verification")
+        (log/error t)
+        (let [response (ex-data t)]
+          (if (= 400 (:status response))
+            {:status "failed" :attempts 0}
+            (throw t)))))))
 
 (def MAX_ATTEMPTS_REACHED 60202)
 
