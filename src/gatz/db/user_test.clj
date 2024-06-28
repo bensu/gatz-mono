@@ -87,6 +87,8 @@
           c1 (crdt/new-hlc cid t1)
           t2 (crdt/inc-time t1)
           c2 (crdt/new-hlc cid t2)
+          t3 (crdt/inc-time t2)
+          c3 (crdt/new-hlc cid t3)
           actions [{:gatz.crdt.user/action :gatz.crdt.user/update-avatar
                     :gatz.crdt.user/delta
                     {:crdt/clock c1
@@ -115,7 +117,11 @@
                      :user/updated_at t2
                      :user/settings {:settings/notifications
                                      (crdt/->lww-map {:settings.notification/activity :settings.notification/daily}
-                                                     c2)}}}]]
+                                                     c2)}}}
+                   {:gatz.crdt.user/action :gatz.crdt.user/mark-deleted
+                    :gatz.crdt.user/delta {:crdt/clock c3
+                                           :user/updated_at t3
+                                           :user/deleted_at t3}}]]
       (doseq [action actions]
         (is (malli/validate schema/UserAction action)
             (malli/explain schema/UserAction action)))
@@ -154,7 +160,7 @@
             (apply-action! (get-ctx uid) action))
           (xtdb/sync node)
           (let [final-user (by-id (xtdb/db node) uid)]
-            (is-equal {:crdt/clock c2
+            (is-equal {:crdt/clock c3
                        :xt/id uid
                        :db/type :gatz/user,
                        :user/is_test true,
@@ -163,9 +169,10 @@
                        :user/avatar "https://example.com/avatar.jpg",
                        :db/version 1,
                        :user/push_tokens nil,
+                       :user/deleted_at t3
                        :user/phone_number "4159499932",
                        :user/created_at now
-                       :user/updated_at t2
+                       :user/updated_at t3
                        :user/settings
                        #:settings{:notifications
                                   #:settings.notification{:overall false,
@@ -233,6 +240,7 @@
                        :user/push_tokens nil,
                        :user/phone_number "4159499932",
                        :user/created_at now
+                       :user/deleted_at nil
                        :user/updated_at t5
                        :user/settings
                        #:settings{:notifications

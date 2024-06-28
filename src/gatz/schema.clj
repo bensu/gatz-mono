@@ -75,6 +75,8 @@
    [:user/phone_number string?]
    ;; MaxWins
    [:user/updated_at inst?]
+   ;; MinWins
+   [:user/deleted_at [:maybe inst?]]
    ;; LWW
    [:user/avatar [:maybe string?]]
    ;; {k {k LWW}}
@@ -102,6 +104,7 @@
    [:user/phone_number string?]
    ;; MaxWins
    [:user/updated_at (crdt/max-wins-schema inst?)]
+   [:user/deleted_at (crdt/min-wins-schema [:maybe inst?])]
    ;; LWW
    [:user/avatar (crdt/lww-schema [:maybe string?])]
    ;; {k {k LWW}}
@@ -451,9 +454,18 @@
       ;; TODO: partial where all keys are optional
      [:settings/notifications (mu/optional-keys NotificationPreferencesCRDT)]]]])
 
+(def UserMarkDeleted
+  [:map
+   [:crdt/clock crdt/hlc-schema]
+   [:user/updated_at inst?]
+   [:user/deleted_at inst?]])
+
 (def UserAction
   (mu/closed-schema
    [:or
+    [:map
+     [:gatz.crdt.user/action [:enum :gatz.crdt.user/mark-deleted]]
+     [:gatz.crdt.user/delta UserMarkDeleted]]
     [:map
      [:gatz.crdt.user/action [:enum :gatz.crdt.user/update-avatar]]
      [:gatz.crdt.user/delta UserUpdateAvatar]]
