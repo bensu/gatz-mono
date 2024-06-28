@@ -257,6 +257,7 @@
                  ["/user/disable-push" {:post api.user/disable-push!}]
                  ["/user/avatar" {:post api.user/update-avatar!}]
                  ["/user/settings/notifications" {:post api.user/update-notification-settings!}]
+                 ["/user/delete" {:post api.user/delete-account!}]
 
                  ["/file/presign" {:post api.media/presigned-url!}]
                  ["/media" {:post api.media/create-media!}]

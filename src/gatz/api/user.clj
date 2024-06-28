@@ -205,3 +205,7 @@
       (json-response {:user (crdt.user/->value user)}))
     (err-resp "invalid_file_url" "Invalid file url")))
 
+(defn delete-account! [{:keys [auth/user-id] :as ctx}]
+  (db.user/mark-deleted! ctx user-id)
+  (posthog/capture! ctx "user.delete_account")
+  (json-response {:status "success"}))
