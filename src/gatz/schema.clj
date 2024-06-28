@@ -79,6 +79,8 @@
    [:user/deleted_at [:maybe inst?]]
    ;; LWW
    [:user/avatar [:maybe string?]]
+   ;; LWW set
+   [:user/blocked_uids [:set uuid?]]
    ;; {k {k LWW}}
    [:user/settings
     [:map
@@ -107,6 +109,8 @@
    [:user/deleted_at (crdt/min-wins-schema [:maybe inst?])]
    ;; LWW
    [:user/avatar (crdt/lww-schema [:maybe string?])]
+   ;; LWW set
+   [:user/blocked_uids (crdt/lww-set-schema #'UserId)]
    ;; {k {k LWW}}
    [:user/push_tokens (crdt/lww-schema [:maybe PushTokens])]
    [:user/settings
@@ -460,9 +464,18 @@
    [:user/updated_at inst?]
    [:user/deleted_at inst?]])
 
+(def UserBlocksAnotherUser
+  [:map
+   [:crdt/clock crdt/hlc-schema]
+   [:user/updated_at inst?]
+   [:user/blocked_uids (crdt/lww-set-delta-schema #'UserId)]])
+
 (def UserAction
   (mu/closed-schema
    [:or
+    [:map
+     [:gatz.crdt.user/action [:enum :gatz.crdt.user/block-another-user]]
+     [:gatz.crdt.user/delta UserBlocksAnotherUser]]
     [:map
      [:gatz.crdt.user/action [:enum :gatz.crdt.user/mark-deleted]]
      [:gatz.crdt.user/delta UserMarkDeleted]]

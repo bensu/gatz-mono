@@ -21,6 +21,7 @@
    :db/doc-type :gatz/user
    :user/avatar nil
    :user/deleted_at (crdt/min-wins nil)
+   :user/blocked_uids (crdt/lww-set)
    :user/push_tokens nil
    :user/is_test false
    :user/is_admin false})
@@ -92,6 +93,7 @@
      :user/name username
      :user/phone_number phone
      :user/updated_at (crdt/max-wins now)
+     :user/blocked_uids (crdt/lww-set clock #{})
      :user/avatar (crdt/lww clock nil)
      :user/push_tokens (crdt/lww clock nil)
      :user/settings {:settings/notifications (notifications-off-crdt clock)}}))

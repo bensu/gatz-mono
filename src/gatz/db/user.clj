@@ -289,6 +289,24 @@
                  :gatz.crdt.user/delta delta}]
      (apply-action! ctx action))))
 
+(defn block-user!
+
+  ([ctx blocked-uid]
+   (block-user! ctx blocked-uid {:now (Date.)}))
+
+  ([{:keys [auth/user-id] :as ctx} blocked-uid {:keys [now]}]
+
+   {:pre [(uuid? blocked-uid) (uuid? user-id) (not= blocked-uid user-id)]}
+
+   (let [clock (crdt/new-hlc user-id now)
+         delta {:crdt/clock clock
+                :user/updated_at now
+                :user/blocked_uids (crdt/lww-set-delta clock #{blocked-uid})}
+         action {:gatz.crdt.user/action :gatz.crdt.user/block-another-user
+                 :gatz.crdt.user/delta delta}]
+     (apply-action! ctx action))))
+
+
 (defn all-users [db]
   (mapv mask-deleted
         (q db '{:find (pull user [*])

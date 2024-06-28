@@ -82,6 +82,7 @@
   (testing "The user actions have the right schema"
     (let [now (Date.)
           cid (random-uuid)
+          blocked-uid (random-uuid)
           clock (crdt/new-hlc cid now)
           t1 (crdt/inc-time now)
           c1 (crdt/new-hlc cid t1)
@@ -89,6 +90,8 @@
           c2 (crdt/new-hlc cid t2)
           t3 (crdt/inc-time t2)
           c3 (crdt/new-hlc cid t3)
+          t4 (crdt/inc-time t3)
+          c4 (crdt/new-hlc cid t4)
           actions [{:gatz.crdt.user/action :gatz.crdt.user/update-avatar
                     :gatz.crdt.user/delta
                     {:crdt/clock c1
@@ -118,10 +121,14 @@
                      :user/settings {:settings/notifications
                                      (crdt/->lww-map {:settings.notification/activity :settings.notification/daily}
                                                      c2)}}}
-                   {:gatz.crdt.user/action :gatz.crdt.user/mark-deleted
+                   {:gatz.crdt.user/action :gatz.crdt.user/block-another-user
                     :gatz.crdt.user/delta {:crdt/clock c3
                                            :user/updated_at t3
-                                           :user/deleted_at t3}}]]
+                                           :user/blocked_uids (crdt/lww-set-delta c3 #{blocked-uid})}}
+                   {:gatz.crdt.user/action :gatz.crdt.user/mark-deleted
+                    :gatz.crdt.user/delta {:crdt/clock c4
+                                           :user/updated_at t4
+                                           :user/deleted_at t4}}]]
       (doseq [action actions]
         (is (malli/validate schema/UserAction action)
             (malli/explain schema/UserAction action)))
@@ -160,19 +167,21 @@
             (apply-action! (get-ctx uid) action))
           (xtdb/sync node)
           (let [final-user (by-id (xtdb/db node) uid)]
-            (is-equal {:crdt/clock c3
-                       :xt/id uid
+            (is-equal {:db/version 1,
+                       :db/doc-type :gatz/user
                        :db/type :gatz/user,
+                       :xt/id uid
                        :user/is_test true,
                        :user/is_admin false,
-                       :user/name "test_123",
-                       :user/avatar "https://example.com/avatar.jpg",
-                       :db/version 1,
+                       :user/name "[deleted]",
+                       :user/avatar nil
                        :user/push_tokens nil,
-                       :user/deleted_at t3
                        :user/phone_number "4159499932",
                        :user/created_at now
-                       :user/updated_at t3
+                       :crdt/clock c4
+                       :user/deleted_at t4
+                       :user/updated_at t4
+                       :user/blocked_uids #{blocked-uid}
                        :user/settings
                        #:settings{:notifications
                                   #:settings.notification{:overall false,
@@ -198,7 +207,8 @@
               t4 (crdt/inc-time t3)
               t5 (crdt/inc-time t4)
               t6 (crdt/inc-time t5)
-              [_c1 _c2 _c3 _c4 _c5 c6] (mapv (partial crdt/new-hlc uid) [t1 t2 t3 t4 t5 t6])]
+              t7 (crdt/inc-time t6)
+              [_c1 _c2 _c3 _c4 _c5 _c6 c7] (mapv (partial crdt/new-hlc uid) [t1 t2 t3 t4 t5 t6 t7])]
           (create-user! ctx {:id uid
                              :username "test_456"
                              :phone "4159499932"
@@ -227,23 +237,26 @@
           (edit-notifications! (get-ctx uid)
                                {:settings.notification/activity :settings.notification/daily}
                                {:now t5})
-          (mark-deleted! (get-ctx uid) {:now t6})
+          (block-user! (get-ctx uid) blocked-uid {:now t6})
+          (mark-deleted! (get-ctx uid) {:now t7})
           (xtdb/sync node)
 
           (let [final-user (by-id (xtdb/db node) uid)]
-            (is-equal {:crdt/clock c6
-                       :xt/id uid
+            (is-equal {:xt/id uid
                        :db/type :gatz/user,
                        :user/is_test true,
                        :user/is_admin false,
-                       :user/name "test_456",
-                       :user/avatar "https://example.com/avatar.jpg",
+                       :user/name "[deleted]",
+                       :user/avatar nil
+                       :db/doc-type :gatz/user
+                       :user/blocked_uids #{blocked-uid}
                        :db/version 1,
                        :user/push_tokens nil,
                        :user/phone_number "4159499932",
                        :user/created_at now
-                       :user/deleted_at t6
-                       :user/updated_at t6
+                       :crdt/clock c7
+                       :user/deleted_at t7
+                       :user/updated_at t7
                        :user/settings
                        #:settings{:notifications
                                   #:settings.notification{:overall false,

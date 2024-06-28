@@ -525,12 +525,14 @@
   (-freeze-without-meta! [this out]
     (nippy/freeze-to-out! out this)))
 
-(defn lww-set [clock xs]
+(defn lww-set
+  ([] (lww-set nil #{}))
+  ([clock xs]
   ;; {:pre [(or (nil? xs) (set? xs))]}
-  (if (instance? LWWSet xs)
-    xs
-    (let [inner (into {} (map (fn [x] [x (->LWW clock true)]) (or xs #{})))]
-      (->LWWSet inner))))
+   (if (instance? LWWSet xs)
+     xs
+     (let [inner (into {} (map (fn [x] [x (->LWW clock true)]) (or xs #{})))]
+       (->LWWSet inner)))))
 
 (defn lww-set-delta [clock s]
   {:pre [(or (map? s) (set? s))]}
