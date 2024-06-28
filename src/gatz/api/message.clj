@@ -39,23 +39,39 @@
 
 (defn undo-react-to-message! [{:keys [params] :as ctx}]
   (let [{:keys [reaction mid did]} params
+        _ (assert (string? reaction) "reaction must be a string")
         did (mt/-string->uuid did)
-        mid (some-> mid mt/-string->uuid)]
-    (assert (string? reaction) "reaction must be a string")
-    (let [{:keys [message]}
-          (db.message/undo-react! ctx {:did did :mid mid :reaction reaction})]
-      (posthog/capture! ctx "message.undo_react" {:did did :mid mid :reaction reaction})
-      (json-response {:message (crdt.message/->value message)}))))
+        mid (some-> mid mt/-string->uuid)
+        {:keys [message]}
+        (db.message/undo-react! ctx {:did did :mid mid :reaction reaction})]
+    (posthog/capture! ctx "message.undo_react" {:did did :mid mid :reaction reaction})
+    (json-response {:message (crdt.message/->value message)})))
 
 (defn delete-message! [{:keys [params biff/db] :as ctx}]
   (let [did (some->> (:did params) mt/-string->uuid)
         mid (some->> (:id params) mt/-string->uuid)
         msg (some->> mid (db.message/by-id db) crdt.message/->value)]
     (when (nil? did)
-      (println "warning, no did passed for delete message" mid))
+      (log/error "warning, no did passed for delete message" mid))
     (db.message/delete-message! ctx (:message/did msg) (:xt/id msg))
     (posthog/capture! ctx "message.delete" {:did (:message/did msg) :mid (:xt/id msg)})
     (json-response {:status "success"})))
+
+(def message-params
+  [:map
+   [:mid uuid?]
+   [:did uuid?]])
+
+(defn parse-message-params [params]
+  (cond-> {}
+    (some? (:mid params)) (assoc :mid (mt/-string->uuid (:mid params)))
+    (some? (:did params)) (assoc :did (mt/-string->uuid (:did params)))))
+
+(defn flag! [{:keys [params] :as ctx}]
+  (let [{:keys [mid did]} (parse-message-params params)
+        {:keys [message]} (db.message/flag! ctx did mid)]
+    (posthog/capture! ctx "message.flag" {:did did :mid mid})
+    (json-response {:message (crdt.message/->value message)})))
 
 ;; ============================================================================
 ;; Events

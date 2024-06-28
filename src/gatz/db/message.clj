@@ -60,9 +60,10 @@
 
 (defn by-id [db mid]
   {:pre [(uuid? mid)]}
-  (let [raw-msg (xtdb/entity db mid)]
+  (when-let [raw-msg (xtdb/entity db mid)]
     ;; This could be any version of the message
-    (db.util/->latest-version raw-msg all-migrations)))
+    (merge crdt.message/message-defaults
+           (db.util/->latest-version raw-msg all-migrations))))
 
 (defn by-did [db did]
   (->> (q db '{:find m
@@ -171,6 +172,22 @@
 
 ;; ====================================================================== 
 ;; Pre-CRDT clients
+
+(defn flag!
+  "Marks a message as deleted with :message/deleted_at"
+  [{:keys [auth/user-id] :as ctx}
+   did
+   mid]
+  ;; TODO: use cid
+  {:pre [(uuid? did) (uuid? mid) (uuid? user-id)]}
+  (let [now (Date.)
+        clock (crdt/new-hlc user-id now)
+        delta {:crdt/clock clock
+               :message/updated_at now
+               :message/flagged_uids (crdt/lww-set-delta clock #{user-id})}
+        action {:message.crdt/action :message.crdt/flag
+                :message.crdt/delta delta}]
+    (apply-action! ctx did mid action)))
 
 (defn delete-message!
   "Marks a message as deleted with :message/deleted_at"

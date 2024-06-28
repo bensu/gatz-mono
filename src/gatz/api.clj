@@ -265,6 +265,7 @@
 
                  ["/message" {:post api.discussion/create-message!}]
                  ["/message/delete" {:post api.message/delete-message!}]
+                 ["/message/flag" {:post api.message/flag!}]
                  ["/message/edit" {:post  api.message/edit-message!}]
                  ["/message/react" {:post api.message/react-to-message!}]
                  ["/message/undo-react" {:post api.message/undo-react-to-message!}]
