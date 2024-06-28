@@ -116,6 +116,12 @@
   [d _m {:keys [evt/uid] :as _evt}]
   (contains? (:discussion/members d) uid))
 
+(defmethod authorized-for-message-delta? :message.crdt/flag
+  [d m {:keys [evt/uid] :as _evt}]
+  ;; commenter can't flag their own post
+  (and (not= uid (:message/user_id m))
+       (contains? (:discussion/members d) uid)))
+
 (defn discussion-by-id
   [db did]
   (xtdb/entity db did))

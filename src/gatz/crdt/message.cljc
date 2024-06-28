@@ -13,6 +13,7 @@
    :message/reply_to nil
    :message/deleted_at nil
    :message/edits []
+   :message/flagged_uids (crdt/lww-set)
    :message/reactions {}
    :message/posted_as_discussion []})
 
@@ -39,6 +40,7 @@
      :message/reply_to reply_to
      :message/media media
      :message/created_at now
+     :message/flagged_uids (crdt/lww-set)
      :message/deleted_at #crdt/min-wins nil
      :message/updated_at (crdt/->MaxWins now)
      :message/posted_as_discussion #crdt/gos #{}

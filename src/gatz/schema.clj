@@ -294,6 +294,8 @@
    [:message/posted_as_discussion [:set #'DiscussionId]]
    ;; grow only set
    [:message/edits [:set MessageEdit]]
+   ;; LWW-set
+   [:message/flagged_uids [:set #'UserId]]
    ;; LWW
    [:message/text string?]
    ;; {user-id {emoji (->LWW ts?)}
@@ -320,6 +322,8 @@
    [:message/posted_as_discussion (crdt/grow-only-set-schema #'DiscussionId)]
    ;; grow only set
    [:message/edits (crdt/grow-only-set-schema MessageEdit)]
+   ;; LWW-set
+   [:message/flagged_uids (crdt/lww-set-schema #'UserId)]
    ;; LWW
    [:message/text (crdt/lww-schema string?)]
    ;; {user-id {emoji (->LWW ts?)}
@@ -542,6 +546,13 @@
     [:discussion/updated_at inst?]
     [:discussion/posted_as_discussion #'DiscussionId]]))
 
+(def FlagMessageDelta
+  (mu/closed-schema
+   [:map
+    [:crdt/clock crdt/hlc-schema]
+    [:message/updated_at inst?]
+    [:message/flagged_uids (crdt/lww-set-delta-schema #'UserId)]]))
+
 (def MessageAction
   (mu/closed-schema
    [:or
@@ -560,7 +571,10 @@
      [:message.crdt/delta AddReactionDelta]]
     [:map
      [:message.crdt/action [:enum :message.crdt/posted-as-discussion]]
-     [:message.crdt/delta #'PostedAsDiscussionDelta]]]))
+     [:message.crdt/delta #'PostedAsDiscussionDelta]]
+    [:map
+     [:message.crdt/action [:enum :message.crdt/flag]]
+     [:message.crdt/delta #'FlagMessageDelta]]]))
 
 (def MessageEvent
   [:map

@@ -114,6 +114,11 @@
                                 :message/updated_at now
                                 :message/reactions {commenter-uid {"like" (crdt/->LWW clock now)}}}}
 
+          {:message.crdt/action :message.crdt/flag
+           :message.crdt/delta {:crdt/clock clock
+                                :message/updated_at now
+                                :message/flagged_uids (crdt/lww-set-delta clock #{commenter-uid})}}
+
           {:message.crdt/action :message.crdt/remove-reaction
            :message.crdt/delta {:crdt/clock clock
                                 :message/updated_at now
@@ -156,6 +161,11 @@
                                 :message/text (crdt/->LWW clock "new text")
                                 :message/edits {:message/text "new text"
                                                 :message/edited_at now}}}
+
+          {:message.crdt/action :message.crdt/flag
+           :message.crdt/delta {:crdt/clock clock
+                                :message/updated_at now
+                                :message/flagged_uids (crdt/lww-set-delta clock #{outsider-uid})}}
 
           {:message.crdt/action :message.crdt/delete
            :message.crdt/delta {:crdt/clock clock
