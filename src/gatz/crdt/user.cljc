@@ -2,11 +2,7 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest testing is]]
             [crdt.core :as crdt]
-            [gatz.schema :as schema]
-            [malli.core :as malli]
-            [medley.core :refer [map-vals filter-vals]]
-            #?(:clj [taoensso.nippy :as nippy])
-            #?(:clj [juxt.clojars-mirrors.nippy.v3v1v1.taoensso.nippy :as juxt-nippy]))
+            [gatz.schema :as schema])
   (:import [java.util Date]))
 
 (def MIN_LENGTH_USERNAME 3)
@@ -24,7 +20,7 @@
   {:db/type :gatz/user
    :db/doc-type :gatz/user
    :user/avatar nil
-   :user/deleted_at nil
+   :user/deleted_at (crdt/min-wins nil)
    :user/push_tokens nil
    :user/is_test false
    :user/is_admin false})

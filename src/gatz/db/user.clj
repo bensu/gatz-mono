@@ -149,8 +149,9 @@
 
 (defn by-id [db user-id]
   {:pre [(uuid? user-id)]}
-  (-> (xtdb/entity db user-id)
-      (db.util/->latest-version all-migrations)))
+  (when-let [e (xtdb/entity db user-id)]
+    (-> (merge crdt.user/user-defaults e)
+        (db.util/->latest-version all-migrations))))
 
 ;; ====================================================================== 
 ;; Actions
@@ -270,6 +271,8 @@
                      [[:xtdb.api/fn :gatz.db.user/mark-active {:args args}]]))))
 
 (defn mark-deleted!
+  ([ctx]
+   (mark-deleted! ctx {:now (Date.)}))
   ([{:keys [auth/user-id] :as ctx} {:keys [now]}]
    {:pre [(uuid? user-id)]}
    (let [clock (crdt/new-hlc user-id now)
