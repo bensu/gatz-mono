@@ -80,6 +80,7 @@
       (let [did (mt/-string->uuid (:id params))
             {:keys [discussion messages user_ids]} (db/discussion-by-id db did)
             poster (db.user/by-id db (:discussion/created_by discussion))
+            _ (assert poster)
             _ (assert (not (db.user/mutually-blocked? user poster)))
             group (when-let [gid (:discussion/group_id discussion)]
                     (db.group/by-id db gid))

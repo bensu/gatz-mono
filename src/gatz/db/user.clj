@@ -286,9 +286,11 @@
      (apply-action! ctx action))))
 
 (defn mutually-blocked? [alice bob]
-  (or
-   (contains? (:user/blocked_uids (crdt.user/->value alice)) (:xt/id bob))
-   (contains? (:user/blocked_uids (crdt.user/->value bob)) (:xt/id alice))))
+  (boolean
+   (and alice bob
+        (or
+         (contains? (:user/blocked_uids (crdt.user/->value alice)) (:xt/id bob))
+         (contains? (:user/blocked_uids (crdt.user/->value bob)) (:xt/id alice))))))
 
 (defn- block-evt [{:keys [eid from to now]}]
   {:pre [(uuid? eid) (uuid? from) (uuid? to) (not= from to) (inst? now)]}
