@@ -147,11 +147,17 @@
      (biff/submit-tx ctx txns)
      user)))
 
+(defn mask-deleted [user]
+  (cond-> user
+    (some? (:user/deleted_at (crdt.user/->value user)))
+    (assoc :user/name "[deleted]" :user/avatar nil)))
+
 (defn by-id [db user-id]
   {:pre [(uuid? user-id)]}
   (when-let [e (xtdb/entity db user-id)]
     (-> (merge crdt.user/user-defaults e)
-        (db.util/->latest-version all-migrations))))
+        (db.util/->latest-version all-migrations)
+        mask-deleted)))
 
 ;; ====================================================================== 
 ;; Actions
@@ -284,8 +290,9 @@
      (apply-action! ctx action))))
 
 (defn all-users [db]
-  (vec (q db '{:find (pull user [*])
-               :where [[user :db/type :gatz/user]]})))
+  (mapv mask-deleted
+        (q db '{:find (pull user [*])
+                :where [[user :db/type :gatz/user]]})))
 
 
 (defn get-friend-ids [db uid]

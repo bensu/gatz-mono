@@ -165,14 +165,17 @@
 
 (defn verify-phone! [{:keys [params biff/db biff/secret] :as _ctx}]
   (let [{:keys [phone_number]} params
-        phone (clean-phone phone_number)]
-    (if-not (valid-phone? phone)
-      (err-resp "invalid_phone" "Invalid phone number")
-      (let [v (twilio/start-verification! secret {:phone phone})]
-        (json-response (merge {:phone_number phone}
-                              (twilio-to-response v)
-                              (when-let [user (db.user/by-phone db phone)]
-                                {:user (crdt.user/->value user)})))))))
+        phone (clean-phone phone_number)
+        user  (crdt.user/->value (db.user/by-phone db phone))]
+    (if (:user/deleted_at user)
+      (err-resp "account_deleted" "Account deleted")
+      (if-not (valid-phone? phone)
+        (err-resp "invalid_phone" "Invalid phone number")
+        (let [v (twilio/start-verification! secret {:phone phone})]
+          (json-response (merge {:phone_number phone}
+                                (twilio-to-response v)
+                                (when user
+                                  {:user user}))))))))
 
 (defn verify-code! [{:keys [params biff/secret biff/db] :as ctx}]
   (let [{:keys [phone_number code]} params
