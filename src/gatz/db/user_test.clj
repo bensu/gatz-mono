@@ -197,7 +197,8 @@
               t3 (crdt/inc-time t2)
               t4 (crdt/inc-time t3)
               t5 (crdt/inc-time t4)
-              [_c1 _c2 _c3 _c4 c5] (mapv (partial crdt/new-hlc uid) [t1 t2 t3 t4 t5])]
+              t6 (crdt/inc-time t5)
+              [_c1 _c2 _c3 _c4 _c5 c6] (mapv (partial crdt/new-hlc uid) [t1 t2 t3 t4 t5 t6])]
           (create-user! ctx {:id uid
                              :username "test_456"
                              :phone "4159499932"
@@ -226,10 +227,11 @@
           (edit-notifications! (get-ctx uid)
                                {:settings.notification/activity :settings.notification/daily}
                                {:now t5})
+          (mark-deleted! (get-ctx uid) {:now t6})
           (xtdb/sync node)
 
           (let [final-user (by-id (xtdb/db node) uid)]
-            (is-equal {:crdt/clock c5
+            (is-equal {:crdt/clock c6
                        :xt/id uid
                        :db/type :gatz/user,
                        :user/is_test true,
@@ -240,8 +242,8 @@
                        :user/push_tokens nil,
                        :user/phone_number "4159499932",
                        :user/created_at now
-                       :user/deleted_at nil
-                       :user/updated_at t5
+                       :user/deleted_at t6
+                       :user/updated_at t6
                        :user/settings
                        #:settings{:notifications
                                   #:settings.notification{:overall false,

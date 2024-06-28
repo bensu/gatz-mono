@@ -269,6 +269,17 @@
      (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
                      [[:xtdb.api/fn :gatz.db.user/mark-active {:args args}]]))))
 
+(defn mark-deleted!
+  ([{:keys [auth/user-id] :as ctx} {:keys [now]}]
+   {:pre [(uuid? user-id)]}
+   (let [clock (crdt/new-hlc user-id now)
+         delta {:crdt/clock clock
+                :user/updated_at now
+                :user/deleted_at now}
+         action {:gatz.crdt.user/action :gatz.crdt.user/mark-deleted
+                 :gatz.crdt.user/delta delta}]
+     (apply-action! ctx action))))
+
 (defn all-users [db]
   (vec (q db '{:find (pull user [*])
                :where [[user :db/type :gatz/user]]})))
