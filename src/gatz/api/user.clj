@@ -226,13 +226,15 @@
   (cond-> params
     (some? (:contact_id params)) (update :contact_id strict-str->uuid)))
 
-(defn block! [{:keys [biff/db] :as ctx}]
+(defn block! [{:keys [auth/user-id biff/db] :as ctx}]
   (let [params (parse-block-user-params (:params ctx))]
     (if-let [to-be-blocked (some->> (:contact_id params)
                                     (db.user/by-id db)
                                     crdt.user/->value)]
-      (do
-        (db.user/block-user! ctx (:xt/id to-be-blocked))
+      (let [contact_id (:xt/id to-be-blocked)]
+        (assert (not (= user-id contact_id)))
+        (db.contacts/force-remove-contacts! ctx user-id contact_id)
+        (db.user/block-user! ctx contact_id)
         (posthog/capture! ctx "user.block")
         (json-response {:status "success"}))
       (err-resp "not_found" "User not found"))))

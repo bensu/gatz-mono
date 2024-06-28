@@ -380,6 +380,12 @@
   [{:keys [biff.xtdb/node] :as ctx} aid bid]
   (biff/submit-tx ctx (forced-contact-txn (xtdb/db node) aid bid)))
 
+(defn force-remove-contacts!
+  [{:keys [biff.xtdb/node] :as ctx} aid bid]
+  {:pre [(uuid? aid) (uuid? bid) (not= aid bid)]}
+  (let [args {:from aid :to bid :now (Date.)}]
+    (biff/submit-tx ctx (remove-contacts-txn node {:args args}))))
+
 (defn invite-contact-txn [xtdb-ctx {:keys [args]}]
   (let [{:keys [by-uid to-uid now]} args
         db (xtdb/db xtdb-ctx)
