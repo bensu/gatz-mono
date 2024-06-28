@@ -505,3 +505,28 @@
                                                     :now (crdt/-value last_active)}))))
                    uids)]
     (biff/submit-tx ctx (vec txns))))
+
+(comment
+
+;; Make joeryu friends with everybody
+  (def -ctx @gatz.system/system)
+  (def -db (xtdb.api/db (:biff.xtdb/node -ctx)))
+
+  (def -joe-id #uuid "1e794e7a-08c0-4c79-9b51-78e458b40460")
+  (def -luke-id  #uuid "6faf925c-33a6-421d-b57e-9a25fac4e0a0")
+
+  (def -txn
+    (gatz.api.invite-link/make-friends-with-my-contacts-txn -db -luke-id -joe-id (Date.)))
+  (biff/submit-tx -ctx -txn)
+
+  (gatz.db.user/by-name -db "lconstable")
+  (gatz.db.user/by-name -db "joeryu")
+
+  (gatz.db.contacts/by-uid -db -joe-id)
+
+  (def -node (:biff.xtdb/node -ctx))
+
+  (gatz.db.contacts/invite-contact-txn -node {:args {:by-uid -luke-id :to-uid -joe-id :now (Date.)}})
+
+  ;; Add joeryu to all discussions
+  )
