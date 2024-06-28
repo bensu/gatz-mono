@@ -399,12 +399,13 @@
         tx (keep (fn [[username intl-phone]]
                    (let [u (db.user/by-name db username)]
                      (assert u)
-                     (-> u
-                         (assoc :user/phone_number intl-phone)
-                         (assoc :db/doc-type :gatz.crdt/user))))
+                     (when-not (= intl-phone (:user/phone_number u))
+                       (merge gatz.crdt.user/user-defaults
+                              (-> u
+                                  (assoc :user/phone_number intl-phone)
+                                  (assoc :db/doc-type :gatz.crdt/user))))))
                  intl-users)]
     (biff/submit-tx ctx (vec tx))))
-
 
 (defn add-active-members! [{:keys [biff.xtdb/node] :as ctx}]
   (let [bad-txn-ids (agent #{})
