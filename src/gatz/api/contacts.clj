@@ -5,7 +5,6 @@
             [gatz.db.group :as db.group]
             [gatz.db.user :as db.user]
             [gatz.crdt.user :as crdt.user]
-            [gatz.db.invite-link :as db.invite-link]
             [gatz.schema :as schema]
             [malli.transform :as mt]
             [sdk.posthog :as posthog]))
@@ -116,10 +115,10 @@
 
 
 ;; export type ContactRequestActionType =
-;; | "request"
-;; | "accept"
-;; | "ignore"
-;; | "remove";
+;; | "requested"
+;; | "accepted"
+;; | "ignored"
+;; | "removed";
 
 (def contact-request-actions-schema
   [:enum

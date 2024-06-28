@@ -213,3 +213,27 @@
   (db.user/mark-deleted! ctx)
   (posthog/capture! ctx "user.delete_account")
   (json-response {:status "success"}))
+
+(def block-user-params
+  [:map
+   [:contact_id uuid?]])
+
+(defn strict-str->uuid [s]
+  (let [out (mt/-string->uuid s)]
+    (if (uuid? out) out nil)))
+
+(defn parse-block-user-params [params]
+  (cond-> params
+    (some? (:contact_id params)) (update :contact_id strict-str->uuid)))
+
+(defn block! [{:keys [biff/db] :as ctx}]
+  (let [params (parse-block-user-params (:params ctx))]
+    (if-let [to-be-blocked (some->> (:contact_id params)
+                                    (db.user/by-id db)
+                                    crdt.user/->value)]
+      (do
+        (db.user/block-user! ctx (:xt/id to-be-blocked))
+        (posthog/capture! ctx "user.block")
+        (json-response {:status "success"}))
+      (err-resp "not_found" "User not found"))))
+
