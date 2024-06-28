@@ -70,7 +70,7 @@
 ;; Endpoints
 
 (defn get-discussion
-  [{:keys [biff/db biff.xtdb/node params auth/user-id] :as _ctx}]
+  [{:keys [biff/db biff.xtdb/node params auth/user auth/user-id] :as _ctx}]
   (let [latest-tx (xt/latest-completed-tx node)
         tx-id (some-> (:latest_tx params) mt/-string->long)]
     (if (= tx-id (::xt/tx-id latest-tx))
@@ -79,6 +79,8 @@
                                   :ts (::xt/tx-time latest-tx)}})
       (let [did (mt/-string->uuid (:id params))
             {:keys [discussion messages user_ids]} (db/discussion-by-id db did)
+            poster (db.user/by-id db (:discussion/created_by discussion))
+            _ (assert (not (db.user/mutually-blocked? user poster)))
             group (when-let [gid (:discussion/group_id discussion)]
                     (db.group/by-id db gid))
             all-user-ids (if group
@@ -341,7 +343,7 @@
     (some? (:last_did params))   (update :last_did strict-str->uuid)))
 
 (defn feed
-  [{:keys [params biff.xtdb/node biff/db auth/user-id] :as ctx}]
+  [{:keys [params biff.xtdb/node biff/db auth/user auth/user-id] :as ctx}]
 
   ;; TODO: specify what kind of feed it is
   (posthog/capture! ctx "discussion.feed")
@@ -353,17 +355,25 @@
         older-than (some->> (:last_did params)
                             (db.discussion/by-id db)
                             :discussion/created_at)
-        contact_id (some->> (:contact_id params)
-                            (db.user/by-id db)
-                            :xt/id)
+        contact (some->> (:contact_id params)
+                         (db.user/by-id db))
+        contact_id (some->> contact :xt/id)
         group_id (some->> (:group_id params)
                           (db.group/by-id db)
                           :xt/id)
+        _ (when contact
+            (assert (not (db.user/mutually-blocked? user contact))))
+
         dids (db.discussion/posts-for-user db user-id
                                            {:older-than-ts older-than
                                             :contact_id contact_id
                                             :group_id group_id})
-        ds (map (partial db/discussion-by-id db) dids)
+        blocked-uids (:user/blocked_uids (crdt.user/->value user))
+        poster-blocked? (fn [{:keys [discussion]}]
+                          (contains? blocked-uids (:discussion/created_by discussion)))
+        ds (->> dids
+                (map (partial db/discussion-by-id db))
+                (remove poster-blocked?))
         d-group-ids (set (keep (comp :discussion/group_id :discussion) ds))
         d-user-ids  (reduce set/union (map :user_ids ds))
 

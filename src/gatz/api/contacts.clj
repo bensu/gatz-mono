@@ -41,43 +41,38 @@
   (cond-> params
     (some? (:id params)) (update :id strict-str->uuid)))
 
-(defn get-contact [{:keys [auth/user-id biff/db] :as ctx}]
+(defn get-contact [{:keys [auth/user auth/user-id biff/db] :as ctx}]
   (let [params (parse-contact-params (:params ctx))]
     (if-let [id (:id params)]
-      (let [viewed-user (db.user/by-id db id)
-            their-contacts-ids (:contacts/ids (db.contacts/by-uid db id))
-            in-common-uids (db.contacts/get-in-common db user-id id)
-            already-my-contact? (contains? their-contacts-ids user-id)
-            their-contacts (->> their-contacts-ids
-                                (remove (partial contains? in-common-uids))
-                                (remove (partial = user-id))
-                                (mapv (partial db.user/by-id db)))
-            contacts-in-common (->> in-common-uids
+      (let [viewed-user (db.user/by-id db id)]
+        (if (db.user/mutually-blocked? viewed-user user)
+          (do
+            (posthog/capture! ctx "contact.viewed" {:contact_id id :by user-id})
+            (json-response
+             {:contact (-> viewed-user crdt.user/->value db.contacts/->contact)
+              :contact_request_state :contact_request/viewer_awaits_response
+              :their_contacts []
+              :in_common {:contacts  []}}))
+          (let [their-contacts-ids (:contacts/ids (db.contacts/by-uid db id))
+                in-common-uids (db.contacts/get-in-common db user-id id)
+                already-my-contact? (contains? their-contacts-ids user-id)
+                their-contacts (->> their-contacts-ids
+                                    (remove (partial contains? in-common-uids))
+                                    (remove (partial = user-id))
                                     (mapv (partial db.user/by-id db)))
-            contact-request-state (if already-my-contact?
-                                    :contact_request/accepted
-                                    (-> (db.contacts/current-request-between db user-id id)
-                                        (db.contacts/state-for user-id)))
-           ;; posts-in-common (->> (db.discussion/posts-in-common db user-id id)
-            ;;                      (map (partial db.discussion/by-id db))
-            ;;                      (mapv crdt.discussion/->value))
-            ;; users (->> posts-in-common
-            ;;            (mapcat :discussion/members)
-            ;;            set
-            ;;            (map (partial db.user/by-id db))
-            ;;            (mapv crdt.user/->value))
-            ]
-            ;; (db.contacts/pending-requests-from-to db id user-id)
-        (posthog/capture! ctx "contact.viewed" {:contact_id id :by user-id})
-        (json-response
-         {:contact (-> viewed-user crdt.user/->value db.contacts/->contact)
-          :contact_request_state contact-request-state
-          :their_contacts (mapv #(-> % crdt.user/->value db.contacts/->contact) their-contacts)
-          :in_common {:contacts (->> contacts-in-common
-                                     (mapv #(-> % crdt.user/->value db.contacts/->contact)))
-                      ;; :feed {:users users
-                      ;;        :discussions posts-in-common}
-                      }}))
+                contacts-in-common (->> in-common-uids
+                                        (mapv (partial db.user/by-id db)))
+                contact-request-state (if already-my-contact?
+                                        :contact_request/accepted
+                                        (-> (db.contacts/current-request-between db user-id id)
+                                            (db.contacts/state-for user-id)))]
+            (posthog/capture! ctx "contact.viewed" {:contact_id id :by user-id})
+            (json-response
+             {:contact (-> viewed-user crdt.user/->value db.contacts/->contact)
+              :contact_request_state contact-request-state
+              :their_contacts (mapv #(-> % crdt.user/->value db.contacts/->contact) their-contacts)
+              :in_common {:contacts (->> contacts-in-common
+                                         (mapv #(-> % crdt.user/->value db.contacts/->contact)))}}))))
 
       (err-resp "invalid_params" "Invalid params"))))
 
@@ -155,14 +150,17 @@
     :contact_request/removed "contact.removed"
     nil))
 
-(defn handle-request! [{:keys [auth/user-id] :as ctx}]
+(defn handle-request! [{:keys [biff/db auth/user auth/user-id] :as ctx}]
   (let [{:keys [to action]} (parse-contact-request-params (:params ctx))]
     (cond
       (not (and to action)) (err-resp "invalid_params" "Invalid parameters")
       (= user-id to) (err-resp "invalid_params" "Invalid parameters")
 
       :else
-      (let [{:keys [request]} (db.contacts/apply-request! ctx {:them to :action action})
+      (let [from-user user
+            to-user (db.user/by-id db to)
+            _ (assert (not (db.user/mutually-blocked? from-user to-user)))
+            {:keys [request]} (db.contacts/apply-request! ctx {:them to :action action})
             contact-request-state (db.contacts/state-for request user-id)]
         (when-let [event-name (action->evt-name action)]
           (posthog/capture! ctx event-name {:contact_request_id (:id request)
