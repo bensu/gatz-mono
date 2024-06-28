@@ -177,10 +177,6 @@
   '(fn user-apply-delta-fn [ctx args]
      (gatz.db.user/user-apply-delta ctx args)))
 
-(def tx-fns
-  {:gatz.db.user/apply-delta user-apply-delta-expr
-   :gatz.db.user/mark-active mark-active-expr})
-
 (defn apply-action!
   "Applies a delta to the user and stores it"
   [{:keys [biff/db auth/user-id auth/cid] :as ctx} action] ;; TODO: use cid
@@ -289,6 +285,40 @@
                  :gatz.crdt.user/delta delta}]
      (apply-action! ctx action))))
 
+(defn mutually-blocked? [alice bob]
+  (or
+   (contains? (:user/blocked_uids (crdt.user/->value alice)) (:xt/id bob))
+   (contains? (:user/blocked_uids (crdt.user/->value bob)) (:xt/id alice))))
+
+(defn- block-evt [{:keys [eid from to now]}]
+  {:pre [(uuid? eid) (uuid? from) (uuid? to) (not= from to) (inst? now)]}
+  (let [clock (crdt/new-hlc from now)
+        delta {:crdt/clock clock
+               :user/updated_at now
+               :user/blocked_uids (crdt/lww-set-delta clock #{to})}
+        action {:gatz.crdt.user/action :gatz.crdt.user/block-another-user
+                :gatz.crdt.user/delta delta}]
+    (db.evt/new-evt {:xt/id eid
+                     :evt/type :gatz.crdt.user/delta
+                     :evt/ts now
+                     :evt/uid from
+                     :evt/cid from
+                     :evt/data action})))
+
+(defn block-user-txn
+  [_ctx {:keys [aid bid now aeid beid] :as _args}]
+  (let [a-evt (block-evt {:eid aeid :from aid :to bid :now now})
+        b-evt (block-evt {:eid beid :from bid :to aid :now now})
+        args {:from aid :to bid :now now}]
+    [[:xtdb.api/fn :gatz.db.user/apply-delta {:evt a-evt}]
+     [:xtdb.api/fn :gatz.db.user/apply-delta {:evt b-evt}]
+     [:xtdb.api/fn :gatz.db.contacts/remove-contacts {:args args}]]))
+
+(def ^{:doc "This function will be stored in the db which is why it is an expression"}
+  block-user-expr
+  '(fn block-user-fn [ctx args]
+     (gatz.db.user/block-user-txn ctx args)))
+
 (defn block-user!
 
   ([ctx blocked-uid]
@@ -298,13 +328,15 @@
 
    {:pre [(uuid? blocked-uid) (uuid? user-id) (not= blocked-uid user-id)]}
 
-   (let [clock (crdt/new-hlc user-id now)
-         delta {:crdt/clock clock
-                :user/updated_at now
-                :user/blocked_uids (crdt/lww-set-delta clock #{blocked-uid})}
-         action {:gatz.crdt.user/action :gatz.crdt.user/block-another-user
-                 :gatz.crdt.user/delta delta}]
-     (apply-action! ctx action))))
+
+   (let [args {:aid user-id :bid blocked-uid
+               :now now :aeid (random-uuid) :beid (random-uuid)}]
+     (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.user/block-user args]]))))
+
+(def tx-fns
+  {:gatz.db.user/apply-delta user-apply-delta-expr
+   :gatz.db.user/block-user block-user-expr
+   :gatz.db.user/mark-active mark-active-expr})
 
 
 (defn all-users [db]

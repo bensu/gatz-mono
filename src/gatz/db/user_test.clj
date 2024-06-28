@@ -146,6 +146,10 @@
                              :username "test_123"
                              :phone "4159499932"
                              :now now})
+          (create-user! ctx {:id blocked-uid
+                             :username "blocked_user"
+                             :phone "4159499931"
+                             :now now})
           (xtdb/sync node)
 
           (let [db (xtdb/db node)
@@ -212,6 +216,10 @@
           (create-user! ctx {:id uid
                              :username "test_456"
                              :phone "4159499932"
+                             :now now})
+          (create-user! ctx {:id blocked-uid
+                             :username "blocked_user"
+                             :phone "4159499931"
                              :now now})
           (xtdb/sync node)
 

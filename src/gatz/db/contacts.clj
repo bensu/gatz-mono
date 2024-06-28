@@ -75,6 +75,8 @@
         {:keys [from to now]} args
         from-contacts (by-uid db from)
         to-contacts   (by-uid db to)]
+    (assert (inst? now))
+    (assert (and from-contacts to-contacts))
     [[:xtdb.api/put (-> from-contacts
                         (assoc :contacts/updated_at now)
                         (update :contacts/ids disj to)
@@ -381,10 +383,10 @@
   (biff/submit-tx ctx (forced-contact-txn (xtdb/db node) aid bid)))
 
 (defn force-remove-contacts!
-  [{:keys [biff.xtdb/node] :as ctx} aid bid]
+  [ctx aid bid]
   {:pre [(uuid? aid) (uuid? bid) (not= aid bid)]}
   (let [args {:from aid :to bid :now (Date.)}]
-    (biff/submit-tx ctx (remove-contacts-txn node {:args args}))))
+    (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.contacts/remove-contacts {:args args}]])))
 
 (defn invite-contact-txn [xtdb-ctx {:keys [args]}]
   (let [{:keys [by-uid to-uid now]} args
