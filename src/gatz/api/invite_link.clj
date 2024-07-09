@@ -74,11 +74,17 @@
    [:map
     [:group schema/Group]
     [:invite_link schema/InviteLink]
-    [:invited_by schema/Contact]]
+    [:invited_by schema/Contact]
+    [:in_common [:map
+                 [:contact_ids [:set schema/UserId]]
+                 [:contacts [:vec schema/Contact]]]]]
    [:map
     [:contact schema/Contact]
     [:invite_link schema/InviteLink]
-    [:invited_by schema/Contact]]])
+    [:invited_by schema/Contact]
+    [:in_common [:map
+                 [:contact_ids [:set schema/UserId]]
+                 [:contacts [:vec schema/Contact]]]]]])
 
 (defn parse-get-invite-link-params [params]
   (cond-> params
@@ -86,41 +92,58 @@
 
 (defn invite-link-response
 
-  [{:keys [biff/db] :as _ctx} invite-link]
+  [{:keys [biff/db auth/user-id] :as _ctx} invite-link]
 
-  (case (:invite_link/type invite-link)
+  (let [my-contacts (db.contacts/by-uid db user-id)
+        my-contact-ids (:contacts/ids my-contacts)]
+    (case (:invite_link/type invite-link)
 
-    :invite_link/group
-    (let [gid (:invite_link/group_id invite-link)
-          group (db.group/by-id db gid)
-          invited-by (when-let [uid (:invite_link/created_by invite-link)]
-                       (-> (db.user/by-id db uid)
-                           crdt.user/->value
-                           db.contacts/->contact))]
-      (assert group)
-      {:invite_link invite-link
-       :invited_by invited-by
-       :type :invite_link/group
-       :group group})
+      :invite_link/group
+      (let [gid (:invite_link/group_id invite-link)
+            group (db.group/by-id db gid)
+            member-ids (:group/members group)
+            in-common (set/intersection member-ids my-contact-ids)
+            contacts-in-common (mapv (comp db.contacts/->contact
+                                           crdt.user/->value
+                                           (partial db.user/by-id db))
+                                     in-common)
+            invited-by (when-let [uid (:invite_link/created_by invite-link)]
+                         (-> (db.user/by-id db uid)
+                             crdt.user/->value
+                             db.contacts/->contact))]
+        (assert group)
+        {:invite_link invite-link
+         :invited_by invited-by
+         :type :invite_link/group
+         :group group
+         :in_common {:contact_ids in-common
+                     :contacts contacts-in-common}})
 
-    :invite_link/contact
-    (let [cid (:invite_link/contact_id invite-link)
-          contact (-> (db.user/by-id db cid)
-                      crdt.user/->value
-                      db.contacts/->contact)
+      :invite_link/contact
+      (let [cid (:invite_link/contact_id invite-link)
+            contact (-> (db.user/by-id db cid)
+                        crdt.user/->value
+                        db.contacts/->contact)
+            in-common (db.contacts/get-in-common db user-id cid)
+            contacts-in-common (->> in-common
+                                    (mapv (comp db.contacts/->contact
+                                                crdt.user/->value
+                                                (partial db.user/by-id db))))
            ;; TODO: these are likely the same as contact
-          invited-by (when-let [uid (:invite_link/created_by invite-link)]
-                       (-> (db.user/by-id db uid)
-                           crdt.user/->value
-                           db.contacts/->contact))]
-      {:invite_link invite-link
-       :invited_by invited-by
-       :type :invite_link/contact
-       :contact contact})
+            invited-by (when-let [uid (:invite_link/created_by invite-link)]
+                         (-> (db.user/by-id db uid)
+                             crdt.user/->value
+                             db.contacts/->contact))]
+        {:invite_link invite-link
+         :invited_by invited-by
+         :type :invite_link/contact
+         :contact contact
+         :in_common {:contact_ids in-common
+                     :contacts contacts-in-common}})
 
-    {:type "error"
-     :error "unknown_type"
-     :message "We don't recognize this type of invite"}))
+      {:type "error"
+       :error "unknown_type"
+       :message "We don't recognize this type of invite"})))
 
 (defn get-invite-link [{:keys [auth/user-id biff/db] :as ctx}]
   (if-not user-id
