@@ -322,8 +322,9 @@
 
 ;; Any admin can edit the group's attributes
 (defmethod authorized-for-action? :group/update-attrs
-  [{:group/keys [admins]} {:group/keys [by_uid]}]
-  (contains? admins by_uid))
+  [{:group/keys [admins owner]} {:group/keys [by_uid]}]
+  (or (= by_uid owner)
+      (contains? admins by_uid)))
 
 ;; Any admin can add or remove members
 (defmethod authorized-for-action? :group/add-member
@@ -429,3 +430,11 @@
           (assert false "Transaction would've been invalid")))
       (assert false "Invalid action"))))
 
+
+(defn update-avatar! [{:keys [auth/user-id] :as ctx} group_id url]
+  {:pre [(crdt/ulid? group_id) (string? url)]}
+  (apply-action! ctx {:xt/id group_id
+                      :group/by_uid user-id
+                      :group/action :group/update-attrs
+                      :group/delta {:group/updated_at (Date.)
+                                    :group/avatar url}}))

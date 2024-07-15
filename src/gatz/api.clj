@@ -280,6 +280,7 @@
 
                  ["/group" {:get api.group/get-group
                             :post api.group/create!}]
+                 ["/group/avatar" {:post api.group/update-avatar!}]
                  ["/group/request" {:post api.group/handle-request!}]
                  ["/group/share-link" {:post api.invite-link/post-group-invite-link}]
 

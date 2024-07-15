@@ -173,3 +173,24 @@
               (posthog/capture! ctx event-name {:id id}))
             (json-response {:status "success"
                             :group group})))))))
+
+(def avatar-params
+  [:map
+   [:group_id crdt/ulid?]
+   [:file_url string?]])
+
+(defn parse-update-avatar-params [{:keys [group_id file_url]}]
+  (cond-> {}
+    (some? group_id) (assoc :group_id (crdt/parse-ulid group_id))
+    (some? file_url) (assoc :file_url file_url)))
+
+(defn update-avatar! [ctx]
+  (let [{:keys [file_url group_id]}
+        (parse-update-avatar-params (:params ctx))]
+    (if group_id
+      (if file_url
+        (let [{:keys [group]} (db.group/update-avatar! ctx group_id file_url)]
+          (posthog/capture! ctx "group.updated_avatar")
+          (json-response {:group group}))
+        (err-resp "invalid_file_url" "Invalid file url"))
+      (err-resp "missing_param" "Group id"))))
