@@ -37,6 +37,7 @@
 (defn before? [^Date d1 ^Date d2]
   (.before d1 d2))
 
+;; This dynamic var is a sign that I need effect handlers
 (defn expired?
   ([invite-link]
    (expired? invite-link {:now (or *test-current-ts* (Date.))}))
@@ -44,10 +45,13 @@
    (boolean (and expires_at
                  (before? expires_at now)))))
 
+#_(def default-settings
+  {:invite_link/multi-user-mode :invite_link/crew})
+
 (defn make [{:keys [type uid gid now id]}]
 
   {:pre [(uuid? uid)
-         (contains? #{:invite_link/group :invite_link/contact} type)
+         (contains? #{:invite_link/group :invite_link/contact :invite_link/crew} type)
          (or (nil? id) (crdt/ulid? id))
          (or (nil? now) (instance? Date now))]}
 
@@ -65,8 +69,9 @@
      :invite_link/created_by uid
      :invite_link/created_at now
      :invite_link/expires_at (expires-on now)
-     :invite_link/used_at nil
-     :invite_link/used_by nil}))
+     ;; :invite_link/settings default-settings
+     :invite_link/used_at {}
+     :invite_link/used_by #{}}))
 
 (defn create! [ctx opts]
   (let [invite-link (make opts)]
@@ -78,9 +83,9 @@
 
 (defn mark-used [invite-link {:keys [by-uid now]}]
   {:pre [(uuid? by-uid) (instance? Date now)]}
-  (assoc invite-link
-         :invite_link/used_at now
-         :invite_link/used_by by-uid))
+  (-> invite-link
+      (update :invite_link/used_at assoc by-uid now)
+      (update :invite_link/used_by conj by-uid)))
 
 (def default-fields
   {:invite_link/contact_id nil})
@@ -101,7 +106,7 @@
           new-invite-link (mark-used invite-link {:by-uid by-uid
                                                   :now now})]
       (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
-                      [new-invite-link])
+                      [(assoc new-invite-link :db/doc-type :gatz/invite_link)])
       new-invite-link)))
 
 (defn mark-used-txn [xtdb-ctx {:keys [args]}]

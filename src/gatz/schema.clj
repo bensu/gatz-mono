@@ -183,15 +183,14 @@
    [:xt/id ulid?]
    [:db/type [:enum :gatz/invite_link]]
    [:db/version [:enum 1]]
-   [:invite_link/type [:enum :invite_link/group :invite_link/contact]]
+   [:invite_link/type [:enum :invite_link/group :invite_link/contact :invite_link/crew]]
    [:invite_link/group_id [:maybe #'GroupId]]
    [:invite_link/contact_id [:maybe #'UserId]]
    [:invite_link/expires_at inst?]
    [:invite_link/created_by #'UserId]
    [:invite_link/created_at inst?]
-   [:invite_link/used_at [:maybe inst?]]
-   [:invite_link/used_by [:maybe #'UserId]]])
-
+   [:invite_link/used_at [:map-of #'UserId inst?]]
+   [:invite_link/used_by [:set #'UserId]]])
 
 ;; ====================================================================== 
 ;; Groups

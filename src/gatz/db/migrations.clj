@@ -7,6 +7,7 @@
             [gatz.db.contacts :as db.contacts]
             [gatz.db.discussion :as db.discussion]
             [gatz.db.message :as db.message]
+            [gatz.db.invite-link :as db.invite-link]
             [gatz.db.user :as db.user]
             [gatz.crdt.discussion :as crdt.discussion]
             [gatz.crdt.user :as crdt.user]
@@ -186,7 +187,6 @@
                (<= n (db.message/count-reactions reactions))))
            (get-all-messages db))))
 
-
 (defn add-notification-settings-to-users!
   [{:keys [biff.xtdb/node] :as ctx}]
   (let [db (xtdb/db node)
@@ -249,7 +249,6 @@
                      (crdt.discussion/update-discussion now))))]
     (biff/submit-tx ctx (vec (remove nil? txns)))))
 
-
 (defn fix-first-and-last-message! [{:keys [biff.xtdb/node] :as ctx}]
   (let [db (xtdb/db node)
         all-discussions (get-all-discussions db)
@@ -301,7 +300,6 @@
         (send bad-txn-ids clojure.set/union (set (map :xt/id bad)))
         (biff/submit-tx ctx (vec good))))
     @bad-txn-ids))
-
 
 (comment
 
@@ -440,7 +438,6 @@
 
   (add-active-members! -ctx))
 
-
 (defn add-empty-contacts! [{:keys [biff.xtdb/node] :as ctx}]
   (let [db (xtdb/db node)
         now (Date.)
@@ -494,7 +491,6 @@
                      uid-pairs)]
     (biff/submit-tx ctx (vec txns))))
 
-
 (defn add-user-activity-docs! [{:keys [biff.xtdb/node] :as ctx}]
   (let [db (xtdb/db node)
         uids (db.user/all-ids db)
@@ -505,6 +501,29 @@
                                                     :now (crdt/-value last_active)}))))
                    uids)]
     (biff/submit-tx ctx (vec txns))))
+
+(defn all-invite-links [db]
+  (q db '{:find (pull id [*])
+          :where [[id :db/type :gatz/invite_link]]}))
+
+(defn invite-links-multiple! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        ils (all-invite-links db)
+        txns (mapv (fn [{:keys [used_at used_by] :as il}]
+                     (-> (merge db.invite-link/default-fields il)
+                         (assoc :db/doc-type :gatz/invite_link)
+                         (assoc :invite_link/used_at (if used_at
+                                                       (if (map? used_at)
+                                                         used_at
+                                                         {used_by used_at})
+                                                       {}))
+                         (assoc :invite_link/used_by (if used_by
+                                                       (if (set? used_by)
+                                                         used_by
+                                                         #{used_by})
+                                                       #{}))))
+                   ils)]
+    (biff/submit-tx ctx txns)))
 
 (comment
 

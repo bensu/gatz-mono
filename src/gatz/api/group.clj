@@ -6,7 +6,6 @@
             [crdt.core :as crdt]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.group :as db.group]
-            [gatz.db.invite-link :as invite-link]
             [gatz.db.user :as db.user]
             [gatz.crdt.user :as crdt.user]
             [gatz.schema :as schema]

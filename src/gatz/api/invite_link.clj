@@ -23,12 +23,20 @@
    :headers {"Content-Type" "application/json"}
    :body (json/write-str {:type "error" :error err-type :message err-msg})})
 
-;; ======================================================================  
+;; ======================================================================
 ;; Create invite link
 
 (def post-invite-link-response
   [:map
    [:url string?]])
+
+(defn post-crew-invite-link [{:keys [auth/user-id] :as ctx}]
+  (assert user-id "The user should be authenticated by now")
+  (let [invite-link (db.invite-link/create! ctx {:uid user-id
+                                                 :type :invite_link/crew})
+        link-id (:xt/id invite-link)]
+    (posthog/capture! ctx "invite_link.new" invite-link)
+    (json-response {:url (db.invite-link/make-url ctx link-id)})))
 
 (defn post-contact-invite-link [{:keys [auth/user-id] :as ctx}]
   (assert user-id "The user should be authenticated by now")
@@ -62,7 +70,7 @@
         (err-resp "not_found" "Group not found"))
       (err-resp "invalid_params" "Invalid params"))))
 
-;; ====================================================================== 
+;; ======================================================================
 ;; Group Invite links
 
 (def get-invite-link-params
@@ -190,15 +198,19 @@
      [[:xtdb.api/fn :gatz.db.group/add-to-group-and-discussions {:action group-action}]
       [:xtdb.api/fn :gatz.db.invite-links/mark-used {:args invite-link-args}]])))
 
+(defn make-contacts-with-txn [new-uid contact-ids now]
+  {:pre [(every? uuid? contact-ids) (uuid? new-uid) (inst? now)]}
+  (mapv (fn [cid]
+          (let [args {:from new-uid :to cid :now now}]
+            [:xtdb.api/fn :gatz.db.contacts/add-contacts {:args args}]))
+        (set contact-ids)))
+
 (defn make-friends-with-my-contacts-txn [db my-uid new-uid now]
 
   {:pre [(uuid? my-uid) (uuid? new-uid) (inst? now)]}
 
   (let [existing-uids (:contacts/ids (db.contacts/by-uid db my-uid))]
-    (mapv (fn [existing-uid]
-            (let [args {:from new-uid :to existing-uid :now now}]
-              [:xtdb.api/fn :gatz.db.contacts/add-contacts {:args args}]))
-          existing-uids)))
+    (make-contacts-with-txn new-uid existing-uids now)))
 
 (def test-special-contact #uuid "7295a445-0935-4cf4-853b-dd6f8a991fc6")
 
@@ -237,6 +249,31 @@
      (assert (= by-uid cid))
      (biff/submit-tx ctx (vec txns)))))
 
+(defn invite-to-crew!
+
+  ([{:keys [auth/user-id biff.xtdb/node] :as ctx} invite-link]
+
+   (assert user-id)
+   (assert (= :invite_link/crew (:invite_link/type invite-link)))
+   ;; (assert (:invite_link/contact_id invite-link))
+
+   (let [db (xtdb/db node)
+         by-uid (:invite_link/created_by invite-link)
+         now (Date.)
+         ;; cid (:invite_link/contact_id invite-link)
+         contact-args {:by-uid by-uid
+                       :to-uid user-id
+                       :now now}
+         crew-members (conj (:invite_link/used_by invite-link) by-uid)
+         invite-link-args {:id (:xt/id invite-link) :user-id user-id :now now}
+         txns (concat
+               [[:xtdb.api/fn :gatz.db.contacts/invite-contact {:args contact-args}]
+                [:xtdb.api/fn :gatz.db.invite-links/mark-used {:args invite-link-args}]]
+               (make-contacts-with-txn user-id crew-members now))]
+
+     ;; (assert (= by-uid cid))
+     (biff/submit-tx ctx (vec txns)))))
+
 (defn post-join-invite-link
 
   [{:keys [biff/db auth/user-id] :as ctx}]
@@ -250,10 +287,10 @@
           (err-resp "expired" "Invite Link expired")
           (do
             (case (:invite_link/type invite-link)
+              :invite_link/crew    (invite-to-crew! ctx invite-link)
               :invite_link/group   (invite-to-group! ctx invite-link)
               :invite_link/contact (invite-to-contact! ctx invite-link))
             (posthog/capture! ctx "invite_link.joined" invite-link)
             (json-response {:success "true"})))
         (err-resp "not_found" "Invite Link not found"))
       (err-resp "invalid_params" "Invalid params"))))
-
