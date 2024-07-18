@@ -83,13 +83,20 @@
     [:group schema/Group]
     [:invite_link schema/InviteLink]
     [:invited_by schema/Contact]
+    [:type [:enum :invite_link/group]]
     [:in_common [:map
                  [:contact_ids [:set schema/UserId]]
                  [:contacts [:vec schema/Contact]]]]]
    [:map
+    [:invte_link schema/InviteLink]
+    [:invited_by schema/Contact]
+    [:type [:enum :invite_link/crew]]
+    [:members [:vec schema/Contact]]]
+   [:map
     [:contact schema/Contact]
     [:invite_link schema/InviteLink]
     [:invited_by schema/Contact]
+    [:type [:enum :invite_link/contact]]
     [:in_common [:map
                  [:contact_ids [:set schema/UserId]]
                  [:contacts [:vec schema/Contact]]]]]])
@@ -105,6 +112,22 @@
   (let [my-contacts (db.contacts/by-uid db user-id)
         my-contact-ids (:contacts/ids my-contacts)]
     (case (:invite_link/type invite-link)
+
+      :invite_link/crew
+      (let [invited-by (when-let [uid (:invite_link/created_by invite-link)]
+                         (-> (db.user/by-id db uid)
+                             crdt.user/->value
+                             db.contacts/->contact))
+
+            member-ids (:invite_link/used_by invite-link)
+            members (mapv (comp db.contacts/->contact
+                                crdt.user/->value
+                                (partial db.user/by-id db))
+                          (conj member-ids (:xt/id invited-by)))]
+        {:invite_link invite-link
+         :invited_by invited-by
+         :type :invite_link/crew
+         :members members})
 
       :invite_link/group
       (let [gid (:invite_link/group_id invite-link)
@@ -255,12 +278,10 @@
 
    (assert user-id)
    (assert (= :invite_link/crew (:invite_link/type invite-link)))
-   ;; (assert (:invite_link/contact_id invite-link))
 
    (let [db (xtdb/db node)
          by-uid (:invite_link/created_by invite-link)
          now (Date.)
-         ;; cid (:invite_link/contact_id invite-link)
          contact-args {:by-uid by-uid
                        :to-uid user-id
                        :now now}

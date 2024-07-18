@@ -6,7 +6,7 @@
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
-;; ====================================================================== 
+;; ======================================================================
 ;; Contacts
 
 (defn ->contact [u] (select-keys u schema/contact-ks))
@@ -90,13 +90,13 @@
   '(fn remove-contacts-fn [ctx args]
      (gatz.db.contacts/remove-contacts-txn ctx args)))
 
-;; ====================================================================== 
+;; ======================================================================
 ;; Contact Requests
 
 ;; Tracks how two users want to be contacts
 ;; in a state machine with the following transitions:
 
-;; 1. :contact_request/request 
+;; 1. :contact_request/request
 ;; new -> :contact_request/requested
 
 (defn new-contact-request [{:keys [id from to now]}]
@@ -126,7 +126,9 @@
     :contact_request/removed})
 
 (defn can-transition? [contact-request {:keys [by state]}]
-  {:pre [(uuid? by) (contains? contact-request-states state)]
+  {:pre [(some? contact-request)
+         (uuid? by)
+         (contains? contact-request-states state)]
    :post [(boolean? %)]}
   (let [from-actor? (= by (:contact_request/from contact-request))]
     (case (:contact_request/state contact-request)
@@ -235,7 +237,7 @@
 
     (assert (empty? current-requests))
     ;; Here we could be smarter and:
-    ;; - If the requester has a pending request for them, 
+    ;; - If the requester has a pending request for them,
     ;;   then it means both sides want to be contacts
     [[:xtdb.api/put (-> contact-request
                         (assoc :db/doc-type :gatz/contact_request))]]))
@@ -251,35 +253,38 @@
         _ (assert (uuid? to))
         _ (assert (uuid? from))
         _ (assert (inst? now))
-        _ (assert (some? state))
-        current-request (if (= :contact_request/removed state)
-                          ;; removed doesn't care who is who
-                          (current-request-between db from to)
-                          (let [reqs (->> (requests-from-to db from to)
-                                          (filter current?))]
-                            (assert (= 1 (count reqs)))
-                            (first reqs)))]
-    (when-not (= state (:contact_request/state current-request))
-      (assert (can-transition? current-request {:by by :state state}))
-      (let [new-contact-request (-> current-request
-                                    (transition-to {:by by :state state :now now})
-                                    (assoc :db/doc-type :gatz/contact_request))]
-        (cond
-          (= state :contact_request/accepted)
-          [[:xtdb.api/put new-contact-request]
-           [:xtdb.api/fn :gatz.db.contacts/add-contacts {:args {:from from :to to :now now}}]]
+        _ (assert (some? state))]
+    (if-let [current-request (if (= :contact_request/removed state)
+                               ;; removed doesn't care who is who
+                               (current-request-between db from to)
+                               (let [reqs (->> (requests-from-to db from to)
+                                               (filter current?))]
+                                 (assert (= 1 (count reqs)))
+                                 (first reqs)))]
+      (when-not (= state (:contact_request/state current-request))
+        (assert (can-transition? current-request {:by by :state state}))
+        (let [new-contact-request (-> current-request
+                                      (transition-to {:by by :state state :now now})
+                                      (assoc :db/doc-type :gatz/contact_request))]
+          (cond
+            (= state :contact_request/accepted)
+            [[:xtdb.api/put new-contact-request]
+             [:xtdb.api/fn :gatz.db.contacts/add-contacts {:args {:from from :to to :now now}}]]
 
-          (= state :contact_request/removed)
-          [[:xtdb.api/put new-contact-request]
-           [:xtdb.api/fn :gatz.db.contacts/remove-contacts {:args {:from from :to to :now now}}]]
+            (= state :contact_request/removed)
+            [[:xtdb.api/put new-contact-request]
+             [:xtdb.api/fn :gatz.db.contacts/remove-contacts {:args {:from from :to to :now now}}]]
 
-          :else [[:xtdb.api/put new-contact-request]])))))
+            :else [[:xtdb.api/put new-contact-request]])))
+      (if (= :contact_request/removed state)
+        [[:xtdb.api/fn :gatz.db.contacts/remove-contacts {:args {:from from :to to :now now}}]]
+        (assert false "Can't move to other states without a live contact_request")))))
 
 (def transition-to-expr
   '(fn transition-to-fn [ctx args]
      (gatz.db.contacts/transition-to-txn ctx args)))
 
-;; ====================================================================== 
+;; ======================================================================
 ;; Functions for the API
 
 (defn request-contact! [ctx {:keys [from to]}]
@@ -356,7 +361,7 @@
 
   (-apply-request! ctx args))
 
-;; ======================================================================  
+;; ======================================================================
 ;; Invites
 
 (defn forced-contact-txn
@@ -404,11 +409,9 @@
   '(fn invite-contact-fn [xtdb-ctx args]
      (gatz.db.contacts/invite-contact-txn xtdb-ctx args)))
 
-
 (def tx-fns
   {:gatz.db.contacts/add-contacts add-contacts-expr
    :gatz.db.contacts/remove-contacts remove-contacts-expr
    :gatz.db.contacts/new-request new-contact-request-expr
    :gatz.db.contacts/transition-to transition-to-expr
    :gatz.db.contacts/invite-contact invite-contact-expr})
-
