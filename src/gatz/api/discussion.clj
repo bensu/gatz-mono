@@ -356,12 +356,10 @@
         older-than (some->> (:last_did params)
                             (db.discussion/by-id db)
                             :discussion/created_at)
-        contact (some->> (:contact_id params)
-                         (db.user/by-id db))
+        contact (some->> (:contact_id params) (db.user/by-id db))
         contact_id (some->> contact :xt/id)
-        group_id (some->> (:group_id params)
-                          (db.group/by-id db)
-                          :xt/id)
+        group (some->> (:group_id params) (db.group/by-id db))
+        group_id (:xt/id group)
         _ (when contact
             (assert (not (db.user/mutually-blocked? user contact))))
 
@@ -389,8 +387,9 @@
 
         ;; TODO: not only send the gruop-ids from the discussions, 
         ;; also from the contact request
-        groups (mapv (partial db.group/by-id db)
-                     (set/union c-group-ids d-group-ids))
+        groups (conj (mapv (partial db.group/by-id db)
+                           (set/union c-group-ids d-group-ids))
+                     group)
         ;; TODO: only send the users that are in the discussions
         ;; and in the contact requests
         users (or (db.user/all-users db)
