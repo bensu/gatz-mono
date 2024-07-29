@@ -1,5 +1,6 @@
 (ns gatz.db.util-test
   (:require [gatz.system :as system]
+            [clojure.data.json :as json]
             [clojure.data] ;; this is necessary for clojure.data
             [com.biffweb.impl.xtdb :as biff.xtdb]
             [xtdb.api :as xtdb]))
@@ -23,3 +24,8 @@
      :posthog/enabled? false
      :biff/malli-opts #'gatz.system/malli-opts}))
 
+(defn json-params [m]
+  {:pre [(map? m)] :post [(map? %)]}
+  (-> m
+      (json/write-str)
+      (json/read-str {:key-fn keyword})))
