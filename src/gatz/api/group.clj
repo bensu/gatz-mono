@@ -151,24 +151,30 @@
     :group/unarchive          "group.unarchive"
     nil))
 
-(defn handle-request! [{:keys [auth/user-id] :as ctx}]
+(defn handle-request!
+
+  [{:keys [biff/db auth/user-id] :as ctx}]
+
   (let [{:group/keys [action delta]
          :xt/keys [id]}
         (parse-request-params (:params ctx))]
     (if (not (and id action delta))
       (err-resp "invalid_params" "Invalid parameters")
       (let [now (Date.)
+            group (db.group/by-id db id)
             full-action {:xt/id id
                          :group/by_uid user-id
                          :group/action action
                          :group/delta (assoc delta :group/updated_at now)}]
         (if-not (m/validate db.group/Action full-action)
           (err-resp "invalid_params" "Invalid parameters")
-          (let [{:keys [group]} (db.group/apply-action! ctx full-action)]
-            (when-let [event-name (action->evt-name action)]
-              (posthog/capture! ctx event-name {:id id}))
-            (json-response {:status "success"
-                            :group group})))))))
+          (if-not (db.group/authorized-for-action? group full-action)
+            (err-resp "unauthorized" "You are not authorized for this operation")
+            (let [{:keys [group]} (db.group/apply-action! ctx full-action)]
+              (when-let [event-name (action->evt-name action)]
+                (posthog/capture! ctx event-name {:id id}))
+              (json-response {:status "success"
+                              :group group}))))))))
 
 (def avatar-params
   [:map
