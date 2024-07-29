@@ -14,7 +14,6 @@
             [sdk.posthog :as posthog])
   (:import [java.util Date]))
 
-
 (defn json-response [body]
   {:status 200
    :headers {"Content-Type" "application/json"}
@@ -24,7 +23,6 @@
   {:status 400
    :headers {"Content-Type" "application/json"}
    :body (json/write-str {:type "error" :error err-type :message err-msg})})
-
 
 (def get-group-params
   [:map
@@ -93,7 +91,6 @@
     (string? description) (assoc :group/description (str/trim description))
     (string? avatar)      (assoc :group/avatar (parse-url avatar))))
 
-
 (defn create! [{:keys [auth/user-id] :as ctx}]
   (let [params (parse-create-group (:params ctx))
         group (db.group/create! ctx {:owner user-id
@@ -104,7 +101,6 @@
                                      :settings {:discussion/member_mode :discussion.member_mode/open}})]
     (posthog/capture! ctx "group.created" {:id (:xt/id group)})
     (json-response {:group group})))
-
 
 ;; ======================================================================
 ;; Handle request
@@ -193,3 +189,15 @@
           (json-response {:group group}))
         (err-resp "invalid_file_url" "Invalid file url"))
       (err-resp "missing_param" "Group id"))))
+
+(def get-groups-response
+  [:map
+   [:groups [:vec schema/Group]]
+   [:public_groups [:vec schema/Group]]])
+
+(defn get-user-groups
+  [{:keys [auth/user-id biff/db] :as ctx}]
+  (let [groups (db.group/by-member-uid db user-id)
+        public-groups (db.group/all-public-groups db)]
+    (json-response {:groups groups
+                    :public_groups public-groups})))

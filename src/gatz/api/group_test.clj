@@ -89,6 +89,7 @@
           did (random-uuid)
           did2 (random-uuid)
           gid (crdt/random-ulid)
+          public-gid (crdt/random-ulid)
           now (Date.)
           ctx (db.util-test/test-system)
           node (:biff.xtdb/node ctx)
@@ -110,6 +111,15 @@
         (is (= :discussion.member_mode/open
                (get-in group [:group/settings :discussion/member_mode]))))
 
+      (let [public-group (db.group/create! ctx
+                                           {:id public-gid :owner uid :now now
+                                            :is_public true
+                                            :settings {:discussion/member_mode :discussion.member_mode/open}
+                                            :name "public" :members #{}})]
+        (is (true? (:group/is_public public-group)))
+        (is (= :discussion.member_mode/open
+               (get-in public-group [:group/settings :discussion/member_mode]))))
+
       (xtdb/sync node)
       (db/create-discussion-with-message!
        (get-ctx uid)
@@ -129,6 +139,18 @@
         (is (= :discussion.member_mode/open (:discussion/member_mode d1)))
         (is (= #{uid} (:discussion/members d2)))
         (is (= :discussion.member_mode/closed (:discussion/member_mode d2))))
+
+      (testing "before they join, they can't see the group"
+        (let [db (xtdb/db node)
+              r (api.group/get-user-groups (get-ctx uid))
+              {:keys [groups public_groups]} (json/read-str (:body r) {:key-fn keyword})]
+          (is (= #{(str public-gid) (str gid)} (set (map :id groups))))
+          (is (= [(str public-gid)] (map :id public_groups))))
+        (let [db (xtdb/db node)
+              r (api.group/get-user-groups (get-ctx cid))
+              {:keys [groups public_groups]} (json/read-str (:body r) {:key-fn keyword})]
+          (is (= [] (map :id groups)))
+          (is (= [(str public-gid)] (map :id public_groups)))))
 
       (let [params {:group_id (str gid)}
             ok-resp (api.invite-link/post-group-invite-link
@@ -161,13 +183,22 @@
         (is (= #{cid uid} (:discussion/members d)))
         (is (= #{uid} (:discussion/members d2))))
 
+      (testing "after they join, they can see the group"
+        (let [db (xtdb/db node)
+              r (api.group/get-user-groups (get-ctx uid))
+              {:keys [groups]} (json/read-str (:body r) {:key-fn keyword})]
+          (is (= #{(str public-gid) (str gid)} (set (map :id groups)))))
+        (let [db (xtdb/db node)
+              r (api.group/get-user-groups (get-ctx cid))
+              {:keys [groups]} (json/read-str (:body r) {:key-fn keyword})]
+          (is (= [(str gid)] (map :id groups)))))
+
       (testing "inviting through an expired link fails"
-        (let [now (Date.)
-              before-expiry-ts (Date. (+ (.getTime now)
+        (let [before-expiry-ts (Date. (+ (.getTime now)
                                          (.toMillis (Duration/ofDays 6))))
               after-expiry-ts (Date. (+ (.getTime now)
                                         (.toMillis (Duration/ofDays 8))))
-              params {:group_id (str gid)}
+              params (db.util-test/json-params {:group_id gid})
               ok-resp (api.invite-link/post-group-invite-link
                        (-> (get-ctx uid)
                            (assoc :params params)))
@@ -177,22 +208,30 @@
           (is (= 200 (:status ok-resp)))
           (is (crdt/ulid? invite-link-id))
 
+          (xtdb/sync node)
+
           ;; Let the link expire
           (binding [db.invite-link/*test-current-ts* after-expiry-ts]
-            (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
+            (let [db (xtdb/db node)
+                  il (db.invite-link/by-id db invite-link-id)
+                  params  (db.util-test/json-params {:id invite-link-id})
                   ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
                                                                      (assoc :params params)))]
+              (is (db.invite-link/expired? il))
               (is (= 400 (:status ok-resp))))
-            (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
+            (let [params  (db.util-test/json-params {:id invite-link-id})
                   ok-resp (api.invite-link/get-invite-link (-> (get-ctx cid)
                                                                (assoc :params params)))]
               (is (= 400 (:status ok-resp)))))
 
           (binding [db.invite-link/*test-current-ts* before-expiry-ts]
-            (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
-                  ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
-                                                                     (assoc :params params)))]
+            (let [db (xtdb/db node)
+                  il (db.invite-link/by-id db invite-link-id)
+                  params  (db.util-test/json-params {:id invite-link-id})
+                  ok-resp (api.invite-link/post-join-invite-link
+                           (-> (get-ctx cid)
+                               (assoc :params params)))]
+              (is (not (db.invite-link/expired? il)))
               (is (= 200 (:status ok-resp)))))))
 
       (.close node))))
-
