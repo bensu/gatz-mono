@@ -47,7 +47,8 @@
   (let [params (parse-group-params (:params ctx))]
     (if-let [id (:id params)]
       (if-let [group (db.group/by-id db id)]
-        (if (contains? (:group/members group) user-id)
+        (if (or (:group/is_public group)
+                (contains? (:group/members group) user-id))
           (let [member-ids (:group/members group)
                 my-contacts (db.contacts/by-uid db user-id)
                 my-contact-ids (:contacts/ids my-contacts)
