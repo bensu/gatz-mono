@@ -12,6 +12,7 @@
 logs/
 .lein-repl-history
 *.backup
+.nrepl-port
 
 .DS_Store
 **/.calva/repl.calva-repl
