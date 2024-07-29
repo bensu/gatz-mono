@@ -31,6 +31,11 @@
          (set? members) (every? uuid? members)
          (or (nil? is_public) (boolean? is_public))]}
 
+  (when is_public
+    (assert
+     (= :discussion.member_mode/open
+        (get settings :discussion/member_mode))))
+
   (let [id (or id (crdt/random-ulid))
         now (or now (Date.))]
     {:xt/id id
@@ -259,8 +264,10 @@
   [group {:group/keys [delta]}]
   (let [ts (:group/updated_at delta)
         to-be-added (:group/members delta)
-        new-joined-at (into {} (map (fn [uid] [uid ts]) to-be-added))]
-    (if (set/subset? (:group/members group) to-be-added)
+        new-joined-at (->> to-be-added
+                           (map (fn [uid] [uid ts]))
+                           (into {}))]
+    (if (set/subset? to-be-added (:group/members group))
       group
       (-> group
           (assoc :group/updated_at ts)
@@ -331,9 +338,14 @@
       (contains? admins by_uid)))
 
 ;; Any admin can add or remove members
+;; You can autojoin public groups
 (defmethod authorized-for-action? :group/add-member
-  [{:group/keys [admins]} {:group/keys [by_uid]}]
-  (contains? admins by_uid))
+  [{:group/keys [admins is_public]} {:group/keys [by_uid delta]}]
+  (let [new-members (:group/members delta)]
+    (if is_public
+      (or (= #{by_uid} new-members)
+          (contains? admins by_uid))
+      (contains? admins by_uid))))
 
 (defmethod authorized-for-action? :group/remove-member
   [{:group/keys [admins owner]} {:group/keys [by_uid delta]}]
@@ -390,6 +402,8 @@
         db (xtdb.api/db xtdb-ctx)
         group (gatz.db.group/by-id db id)]
     (when (m/validate Action action)
+      (assert (authorized-for-action? group action))
+
       (when (authorized-for-action? group action)
         (let [updated-group (apply-action group action)]
           [[:xtdb.api/put updated-group]])))))
@@ -400,15 +414,18 @@
 
 (defn add-to-group-and-discussions-txn
   [xtdb-ctx {:keys [action]}]
-  (let [{:group/keys [by_uid delta]} action
+  (let [db (xtdb/db xtdb-ctx)
+        {:group/keys [by_uid delta]} action
         gid (:xt/id action)
+        group (by-id db gid)
         {:group/keys [updated_at members]} delta]
-    (vec
-     (concat
-      [[:xtdb.api/fn :gatz.db.group/apply-action {:action action}]]
-      (db.discussion/add-member-to-group-txn xtdb-ctx
-                                             {:gid gid :now updated_at
-                                              :by-uid by_uid :members members})))))
+    (when (authorized-for-action? group action)
+      (vec
+       (concat
+        [[:xtdb.api/fn :gatz.db.group/apply-action {:action action}]]
+        (db.discussion/add-member-to-group-txn xtdb-ctx
+                                               {:gid gid :now updated_at
+                                                :by-uid by_uid :members members}))))))
 
 (def add-to-group-and-discussions-expr
   '(fn add-to-group-and-discussions-fn [xtdb-ctx args]
@@ -422,16 +439,21 @@
 
   [{:keys [biff/db] :as ctx} action]
 
-  (let [id (:xt/id action)]
+  {:post [(some? %)]}
+
+  (let [id (:xt/id action)
+        group (by-id db id)]
     (if (true? (m/validate Action action))
-      (let [txns (if (= :group/add-member (:group/action action))
-                   [[:xtdb.api/fn :gatz.db.group/add-to-group-and-discussions {:action action}]]
-                   [[:xtdb.api/fn :gatz.db.group/apply-action {:action action}]])]
-        (if-let [db-after (xtdb.api/with-tx db txns)]
-          (do
-            (biff/submit-tx (assoc ctx :biff.xtdb/retry false) txns)
-            {:group (by-id db-after id)})
-          (assert false "Transaction would've been invalid")))
+      (if (authorized-for-action? group action)
+        (let [txns (if (= :group/add-member (:group/action action))
+                     [[:xtdb.api/fn :gatz.db.group/add-to-group-and-discussions {:action action}]]
+                     [[:xtdb.api/fn :gatz.db.group/apply-action {:action action}]])]
+          (if-let [db-after (xtdb.api/with-tx db txns)]
+            (do
+              (biff/submit-tx (assoc ctx :biff.xtdb/retry false) txns)
+              {:group (by-id db-after id)})
+            (assert false "Transaction would've been invalid")))
+        (assert false "Unauthorized action"))
       (assert false "Invalid action"))))
 
 (defn update-avatar! [{:keys [auth/user-id] :as ctx} group_id url]

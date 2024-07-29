@@ -1,6 +1,7 @@
 (ns gatz.db.group-test
   (:require [clojure.test :as test :refer [deftest testing is]]
             [crdt.core :as crdt]
+            [gatz.db.user :as db.user]
             [gatz.db.util-test :as db.util-test :refer [is-equal]]
             [gatz.db.group :as db.group]
             [gatz.schema :as schema]
@@ -292,28 +293,82 @@
           public-gid (crdt/random-ulid)
           private-gid (crdt/random-ulid)
           now (java.util.Date.)
+          t0 (crdt/inc-time now)
+          t1 (crdt/inc-time t0)
           ;; TODO: make the group
           ctx (db.util-test/test-system)
-          node (:biff.xtdb/node ctx)]
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (assoc ctx :biff/db (xtdb/db node) :auth/user-id uid))]
 
-      (db.group/create! ctx
-                        {:id public-gid :owner owner :now now
-                         :name "public" :members #{} :is_public true})
+      (db.group/create!
+       ctx
+       {:id public-gid :owner owner :now now
+        :settings {:discussion/member_mode :discussion.member_mode/open}
+        :name "public" :members #{} :is_public true})
       (db.group/create! ctx
                         {:id private-gid :owner owner :now now
                          :name "private" :members #{} :is_public false})
+      (db.user/create-user!
+       ctx {:id member :username "user_id" :phone "+14159499000" :now now})
+
       (xtdb/sync node)
 
       (testing "the groups are what we expect"
         (let [db (xtdb/db node)
               pu-group (db.group/by-id db public-gid)
               pr-group (db.group/by-id db private-gid)]
+          (is (= #{owner} (:group/members pu-group)))
+          (is (= #{owner} (:group/members pr-group)))
+          (is (= #{owner} (:group/admins pu-group)))
+          (is (= #{owner} (:group/admins pr-group)))
+          (is (= owner (:group/owner pu-group)))
+          (is (= owner (:group/owner pr-group)))
           (is (true? (:group/is_public pu-group)))
           (is (false? (:group/is_public pr-group)))))
+
       (testing "we can list the public groups"
         (let [db (xtdb/db node)
               gids (db.group/all-public-group-ids db)
               public-groups (db.group/all-public-groups db)]
           (is (= #{public-gid} gids))
           (is (every? :group/is_public public-groups))
-          (is (= [public-gid] (map :xt/id public-groups))))))))
+          (is (= [public-gid] (map :xt/id public-groups)))))
+
+      (let [action {:xt/id public-gid
+                    :group/by_uid member
+                    :group/action :group/add-member
+                    :group/delta {:group/updated_at t0
+                                  :group/members #{member}}}]
+        (db.group/apply-action! (get-ctx member) action))
+
+      (let [action {:xt/id private-gid
+                    :group/by_uid member
+                    :group/action :group/add-member
+                    :group/delta {:group/updated_at t0
+                                  :group/members #{member}}}]
+        (is (thrown?
+             java.lang.AssertionError
+             (db.group/apply-action! (get-ctx member) action))))
+
+      (let [action {:xt/id public-gid
+                    :group/by_uid member
+                    :group/action :group/add-member
+                    :group/delta {:group/updated_at t0
+                                  :group/members #{non-member}}}]
+        (is (thrown?
+             java.lang.AssertionError
+             (db.group/apply-action! (get-ctx member) action))))
+
+      (xtdb/sync node)
+
+      (testing "the groups are what we expect"
+        (let [db (xtdb/db node)
+              pu-group (db.group/by-id db public-gid)
+              pr-group (db.group/by-id db private-gid)]
+          (is (= #{owner member} (:group/members pu-group)))
+          (is (= #{owner} (:group/members pr-group)))
+          (is (= owner (:group/owner pu-group)))
+          (is (= owner (:group/owner pr-group)))
+          (is (true? (:group/is_public pu-group)))
+          (is (false? (:group/is_public pr-group))))))))
