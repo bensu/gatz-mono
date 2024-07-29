@@ -57,6 +57,8 @@
 
   (when (= :invite_link/group type)
     (assert (crdt/ulid? gid)))
+  (when (= :invite_link/crew type)
+    (assert (crdt/ulid? gid)))
 
   (let [id (or id (crdt/random-ulid))
         now (or now (Date.))]
@@ -64,7 +66,7 @@
      :db/type :gatz/invite_link
      :db/version 1
      :invite_link/type type
-     :invite_link/group_id (when (= :invite_link/group type) gid)
+     :invite_link/group_id gid
      :invite_link/contact_id (when (= :invite_link/contact type) uid)
      :invite_link/created_by uid
      :invite_link/created_at now

@@ -30,9 +30,22 @@
   [:map
    [:url string?]])
 
-(defn post-crew-invite-link [{:keys [auth/user-id] :as ctx}]
+(def post-group-invite-link-params
+  [:map
+   [:group_id crdt/ulid?]])
+
+(defn parse-group-invite-link-params [params]
+  (cond-> params
+    (some? (:group_id params)) (update :group_id crdt/parse-ulid)))
+
+(def post-invite-link-crew-params post-group-invite-link)
+(def parse-invite-link-crew-params parse-group-invite-link-params)
+
+(defn post-crew-invite-link [{:keys [auth/user-id params] :as ctx}]
   (assert user-id "The user should be authenticated by now")
-  (let [invite-link (db.invite-link/create! ctx {:uid user-id
+  (let [{:keys [group_id]} (parse-group-invite-link-params params)
+        invite-link (db.invite-link/create! ctx {:uid user-id
+                                                 :gid group_id
                                                  :type :invite_link/crew})
         link-id (:xt/id invite-link)]
     (posthog/capture! ctx "invite_link.new" invite-link)
@@ -45,14 +58,6 @@
         link-id (:xt/id invite-link)]
     (posthog/capture! ctx "invite_link.new" invite-link)
     (json-response {:url (db.invite-link/make-url ctx link-id)})))
-
-(def post-group-invite-link-params
-  [:map
-   [:group_id crdt/ulid?]])
-
-(defn parse-group-invite-link-params [params]
-  (cond-> params
-    (some? (:group_id params)) (update :group_id crdt/parse-ulid)))
 
 (defn post-group-invite-link [{:keys [auth/user-id biff/db] :as ctx}]
   (let [params (parse-group-invite-link-params (:params ctx))]
@@ -91,6 +96,7 @@
     [:invte_link schema/InviteLink]
     [:invited_by schema/Contact]
     [:type [:enum :invite_link/crew]]
+    [:group schema/Group]
     [:members [:vec schema/Contact]]]
    [:map
     [:contact schema/Contact]
@@ -118,7 +124,8 @@
                          (-> (db.user/by-id db uid)
                              crdt.user/->value
                              db.contacts/->contact))
-
+            group (when-let [gid (:invite_link/group_id invite-link)]
+                    (db.group/by-id db gid))
             member-ids (:invite_link/used_by invite-link)
             members (mapv (comp db.contacts/->contact
                                 crdt.user/->value
@@ -126,6 +133,7 @@
                           (conj member-ids (:xt/id invited-by)))]
         {:invite_link invite-link
          :invited_by invited-by
+         :group group
          :type :invite_link/crew
          :members members})
 
@@ -285,11 +293,24 @@
          contact-args {:by-uid by-uid
                        :to-uid user-id
                        :now now}
-         crew-members (conj (:invite_link/used_by invite-link) by-uid)
+         group (when-let [gid (:invite_link/group_id invite-link)]
+                 (db.group/by-id db gid))
+         group-action (when group
+                        {:xt/id (:xt/id group)
+                         :group/by_uid by-uid
+                         :group/action :group/add-member
+                         :group/delta {:group/updated_at now
+                                       :group/members #{user-id}}})
+         crew-members (if group
+                        (:group/members group)
+                        (conj (:invite_link/used_by invite-link) by-uid))
          invite-link-args {:id (:xt/id invite-link) :user-id user-id :now now}
          txns (concat
                [[:xtdb.api/fn :gatz.db.contacts/invite-contact {:args contact-args}]
                 [:xtdb.api/fn :gatz.db.invite-links/mark-used {:args invite-link-args}]]
+               (if group
+                 [[:xtdb.api/fn :gatz.db.group/add-to-group-and-discussions {:action group-action}]]
+                 [])
                (make-contacts-with-txn user-id crew-members now))]
 
      ;; (assert (= by-uid cid))
