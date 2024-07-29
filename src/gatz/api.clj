@@ -32,7 +32,7 @@
 (defn err-resp [err-type err-msg]
   (json-response {:type "error" :error err-type :message err-msg}))
 
-;; ====================================================================== 
+;; ======================================================================
 ;; Websocket
 
 (defn connection-response [user-id conn-id]
@@ -47,7 +47,6 @@
      (catch Exception e#
        (def -e e#)
        (println e#))))
-
 
 (defn start-connection
   [{:keys [conns-state auth/user-id biff/db biff.xtdb/node] :as ctx}]
@@ -83,7 +82,7 @@
                        (db.user/mark-active! (assoc ctx :auth/user-id user-id)))
            :on-text (fn [ws text]
                       (jetty/send! ws (json/write-str {:conn-id conn-id :user-id user-id :echo text :state @conns-state}))
-                      ;; TODO: create discussion or add member 
+                      ;; TODO: create discussion or add member
                       ;; are special because they change the conns-state
                       )}))
        {:status 400 :body "Invalid user"}))))
@@ -128,7 +127,6 @@
                             :delta (crdt/-value delta)}}]
       (doseq [ws (conns/uids->wss @conns-state friend-ids)]
         (jetty/send! ws (json/write-str evt))))))
-
 
 (defmethod handle-evt! :gatz.crdt.user/delta
   [{:keys [biff.xtdb/node] :as ctx} evt]
@@ -213,7 +211,6 @@
             (catch Exception e
               (println "Exception handler threw an error" e))))))))
 
-
 ;; TODO: if one of these throws an exception, the rest of the on-tx should still run
 (defn on-tx [ctx tx]
   (on-evt! ctx tx))
@@ -280,6 +277,7 @@
 
                  ["/group" {:get api.group/get-group
                             :post api.group/create!}]
+                 ["/groups" {:get api.group/get-user-groups}]
                  ["/group/avatar" {:post api.group/update-avatar!}]
                  ["/group/request" {:post api.group/handle-request!}]
                  ["/group/share-link" {:post api.invite-link/post-group-invite-link}]
