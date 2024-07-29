@@ -213,6 +213,8 @@
    [:group/description [:maybe string?]]
    [:group/avatar [:maybe string?]]
 
+   [:group/is_public boolean?]
+
    [:group/settings [:map
                      [:discussion/member_mode DiscussionMemberMode]]]
 

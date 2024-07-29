@@ -115,6 +115,7 @@
                             :group/avatar nil
                             :group/owner owner
                             :group/created_by owner
+                            :group/is_public false
                             :group/archived_uids #{}
                             :group/members #{owner}
                             :group/admins #{owner}
@@ -130,6 +131,7 @@
                           :group/description "new description"
                           :group/avatar "new avatar"
                           :group/owner member
+                          :group/is_public false
                           :group/archived_uids #{owner}
                           :group/members #{owner member}
                           :group/admins #{owner member}
@@ -280,3 +282,38 @@
             (is (empty? non-member-groups))
             (is (empty? (db.group/with-members-in-common db owner non-member)))
             (is (empty? (db.group/with-members-in-common db member non-member)))))))))
+
+(deftest public-groups
+  (testing "we can list the public groups"
+    (let [owner (random-uuid)
+          member (random-uuid)
+          non-member (random-uuid)
+          bad-admin (random-uuid)
+          public-gid (crdt/random-ulid)
+          private-gid (crdt/random-ulid)
+          now (java.util.Date.)
+          ;; TODO: make the group
+          ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)]
+
+      (db.group/create! ctx
+                        {:id public-gid :owner owner :now now
+                         :name "public" :members #{} :is_public true})
+      (db.group/create! ctx
+                        {:id private-gid :owner owner :now now
+                         :name "private" :members #{} :is_public false})
+      (xtdb/sync node)
+
+      (testing "the groups are what we expect"
+        (let [db (xtdb/db node)
+              pu-group (db.group/by-id db public-gid)
+              pr-group (db.group/by-id db private-gid)]
+          (is (true? (:group/is_public pu-group)))
+          (is (false? (:group/is_public pr-group)))))
+      (testing "we can list the public groups"
+        (let [db (xtdb/db node)
+              gids (db.group/all-public-group-ids db)
+              public-groups (db.group/all-public-groups db)]
+          (is (= #{public-gid} gids))
+          (is (every? :group/is_public public-groups))
+          (is (= [public-gid] (map :xt/id public-groups))))))))

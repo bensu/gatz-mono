@@ -1,13 +1,13 @@
 (ns gatz.db.group
   (:require [com.biffweb :as biff :refer [q]]
             [crdt.core :as crdt]
+            [clojure.set :as set]
             [gatz.db.discussion :as db.discussion]
             [gatz.schema :as schema]
             [malli.util :as mu]
             [malli.core :as m]
             [medley.core :refer [filter-keys dissoc-in]]
-            [xtdb.api :as xtdb]
-            [clojure.set :as set])
+            [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
 ;; ======================================================================
@@ -20,7 +20,7 @@
 
   [{:keys [now id owner members
            name avatar description
-           settings]}]
+           settings is_public]}]
 
   {:pre [(or (nil? id) (crdt/ulid? id))
          (or (nil? now) (inst? now))
@@ -28,7 +28,8 @@
          (string? name)
          (or (nil? avatar) (string? avatar))
          (or (nil? description) (string? description))
-         (set? members) (every? uuid? members)]}
+         (set? members) (every? uuid? members)
+         (or (nil? is_public) (boolean? is_public))]}
 
   (let [id (or id (crdt/random-ulid))
         now (or now (Date.))]
@@ -40,6 +41,9 @@
      :group/avatar avatar
      :group/owner owner
      :group/created_by owner
+     :group/is_public (if (boolean? is_public)
+                        is_public
+                        false)
      :group/members (conj members owner)
      :group/settings (or settings default-settings)
      :group/archived_uids #{}
@@ -53,6 +57,7 @@
 
 (def default-fields
   {:group/archived_uids #{}
+   :group/is_public false
    :group/settings default-settings})
 
 (defn by-id [db id]
@@ -237,7 +242,6 @@
     [:group/by_uid schema/UserId]
     [:group/action [:enum :group/transfer-ownership]]
     [:group/delta TransferOwnershipDelta]]])
-
 
 (defmulti apply-action
   (fn [_group action]
@@ -430,7 +434,6 @@
           (assert false "Transaction would've been invalid")))
       (assert false "Invalid action"))))
 
-
 (defn update-avatar! [{:keys [auth/user-id] :as ctx} group_id url]
   {:pre [(crdt/ulid? group_id) (string? url)]}
   (apply-action! ctx {:xt/id group_id
@@ -438,3 +441,18 @@
                       :group/action :group/update-attrs
                       :group/delta {:group/updated_at (Date.)
                                     :group/avatar url}}))
+
+;; ======================================================================
+;; Public groups
+
+(defn all-public-group-ids [db]
+  (set
+   (q db '{:find ?gid
+           :where [[?gid :db/type :gatz/group]
+                   [?gid :group/is_public true]]})))
+
+(defn all-public-groups [db]
+  (vec
+   (q db '{:find (pull ?gid [*])
+           :where [[?gid :db/type :gatz/group]
+                   [?gid :group/is_public true]]})))
