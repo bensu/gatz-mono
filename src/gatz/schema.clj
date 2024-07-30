@@ -216,6 +216,7 @@
    [:group/is_public boolean?]
 
    [:group/settings [:map
+                     [:invites/mode [:maybe [:enum :group.invites/crew]]]
                      [:discussion/member_mode DiscussionMemberMode]]]
 
    [:group/owner #'UserId]

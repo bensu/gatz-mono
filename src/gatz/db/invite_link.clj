@@ -57,7 +57,9 @@
 
   (when (= :invite_link/group type)
     (assert (crdt/ulid? gid)))
-  (when (= :invite_link/crew type)
+  ;; we'll let people create invite_link/crew without
+  ;; groups for a week while installed apps can do it
+  #_(when (= :invite_link/crew type)
     (assert (crdt/ulid? gid)))
 
   (let [id (or id (crdt/random-ulid))

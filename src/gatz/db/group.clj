@@ -14,7 +14,8 @@
 ;; Data model
 
 (def default-settings
-  {:discussion/member_mode :discussion.member_mode/closed})
+  {:discussion/member_mode :discussion.member_mode/closed
+   :invites/mode nil})
 
 (defn new-group
 
@@ -34,7 +35,9 @@
   (when is_public
     (assert
      (= :discussion.member_mode/open
-        (get settings :discussion/member_mode))))
+        (get settings :discussion/member_mode)))
+    (assert
+     (nil? (get settings :invites/mode))))
 
   (let [id (or id (crdt/random-ulid))
         now (or now (Date.))]
@@ -50,7 +53,7 @@
                         is_public
                         false)
      :group/members (conj members owner)
-     :group/settings (or settings default-settings)
+     :group/settings (merge default-settings settings)
      :group/archived_uids #{}
      :group/admins #{owner}
      :group/created_at now
@@ -68,7 +71,8 @@
 (defn by-id [db id]
   {:pre [(crdt/ulid? id)]}
   (when-let [e (xtdb/entity db id)]
-    (merge default-fields e)))
+    (-> (merge default-fields e)
+        (update :group/settings #(merge default-settings %)))))
 
 (defn create!
   "Returns the created group"

@@ -123,7 +123,8 @@
                             :group/created_at now
                             :group/updated_at now
                             :group/joined_at {owner now}
-                            :group/settings {:discussion/member_mode :discussion.member_mode/closed}}
+                            :group/settings {:invites/mode nil
+                                             :discussion/member_mode :discussion.member_mode/closed}}
 
           expected-final {:xt/id gid
                           :db/version 1
@@ -140,7 +141,8 @@
                           :group/created_at now
                           :group/updated_at t9
                           :group/joined_at {owner now member t3}
-                          :group/settings {:discussion/member_mode :discussion.member_mode/closed}}
+                          :group/settings {:invites/mode nil
+                                           :discussion/member_mode :discussion.member_mode/closed}}
           final-group (reduce db.group/apply-action initial-group actions)]
 
       (doseq [action actions]
@@ -231,8 +233,10 @@
               (recur (rest actions)
                      (db.group/apply-action group action))))))
 
-      (is (malli/validate schema/Group initial-group))
-      (is (malli/validate schema/Group expected-final))
+      (is (malli/validate schema/Group initial-group)
+          (malli/explain schema/Group initial-group))
+      (is (malli/validate schema/Group expected-final)
+          (malli/explain schema/Group expected-final))
 
       (is (empty? (:errors (malli/explain schema/Group initial-group))))
 
@@ -283,6 +287,36 @@
             (is (empty? non-member-groups))
             (is (empty? (db.group/with-members-in-common db owner non-member)))
             (is (empty? (db.group/with-members-in-common db member non-member)))))))))
+
+(deftest crew-group
+  (testing "we can create groups that you can invite people to"
+    (let [owner (random-uuid)
+          member (random-uuid)
+          non-member (random-uuid)
+          bad-admin (random-uuid)
+          gid (crdt/random-ulid)
+          now (java.util.Date.)
+          t0 (crdt/inc-time now)
+          t1 (crdt/inc-time t0)
+          ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (assoc ctx :biff/db (xtdb/db node) :auth/user-id uid))]
+
+      (db.user/create-user!
+       ctx {:id member :username "user_id" :phone "+14159499000" :now now})
+      (db.group/create!
+       ctx
+       {:id gid :owner owner :now now
+        :name "public" :members #{}
+        :settings {:discussion/member_mode :discussion.member_mode/open
+                   :invites/mode :group.invites/crew}})
+      (xtdb/sync node)
+
+      (let [db (xtdb/db node)
+            group (db.group/by-id db gid)]
+        (is (= :group.invites/crew
+               (get-in group [:group/settings :invites/mode])))))))
 
 (deftest public-groups
   (testing "we can list the public groups"
