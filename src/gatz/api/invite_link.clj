@@ -38,7 +38,7 @@
   (cond-> params
     (some? (:group_id params)) (update :group_id crdt/parse-ulid)))
 
-(def post-invite-link-crew-params post-group-invite-link)
+(def post-invite-link-crew-params post-group-invite-link-params)
 (def parse-invite-link-crew-params parse-group-invite-link-params)
 
 (defn post-crew-invite-link [{:keys [auth/user-id params] :as ctx}]
