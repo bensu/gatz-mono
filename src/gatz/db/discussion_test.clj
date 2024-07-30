@@ -250,6 +250,7 @@
                           :discussion/first_message mid
                           :discussion/open_until nil
                           :discussion/member_mode :discussion.member_mode/closed
+                          :discussion/public_mode :discussion.public_mode/hidden
 
                           :discussion/active_members #{poster-uid}
                           :discussion/members #{poster-uid commenter-uid}
@@ -276,6 +277,7 @@
                    :discussion/first_message mid
                    :discussion/open_until nil
                    :discussion/member_mode :discussion.member_mode/closed
+                   :discussion/public_mode :discussion.public_mode/hidden
                    :discussion/members #{poster-uid commenter-uid}
                    :discussion/subscribers #{poster-uid}
                    :discussion/active_members #{poster-uid}
@@ -725,6 +727,8 @@
               d1 (crdt.discussion/->value (db.discussion/by-id db did1))]
 
           (is (= gid (:discussion/group_id d1)))
+          (is (= :discussion.member_mode/closed (:discussion/member_mode d1)))
+          (is (= :discussion.public_mode/hidden (:discussion/public_mode d1)))
 
           (is (= #{oid} (:discussion/members d1)))
           (is (= #{oid} (:discussion/active_members d1)))
@@ -1028,6 +1032,8 @@
         (let [db (xtdb/db node)
               d1 (crdt.discussion/->value (db.discussion/by-id db did1))]
 
+          (is (= :discussion.member_mode/open (:discussion/member_mode d1)))
+          (is (= :discussion.public_mode/hidden (:discussion/public_mode d1)))
           (is (= gid (:discussion/group_id d1)))
 
           (is (= #{oid} (:discussion/members d1)))
@@ -1048,6 +1054,160 @@
         (db.group/apply-action! (get-ctx oid)
                                 {:xt/id gid
                                  :group/by_uid oid
+                                 :group/action :group/add-member
+                                 :group/delta {:group/members #{aid}
+                                               :group/updated_at t1}})
+        (xtdb/sync node)
+
+        (db/create-discussion-with-message!
+         (get-ctx oid)
+         {:did did2 :group_id gid
+          :to_all_contacts true
+          :text "Hello to all future members" :now t2})
+        (xtdb/sync node)
+
+        (let [db (xtdb/db node)
+              d1 (crdt.discussion/->value (db.discussion/by-id db did1))
+              d2 (crdt.discussion/->value (db.discussion/by-id db did2))]
+
+          (is (= #{oid aid} (:discussion/members d1)))
+          (is (= #{oid aid} (:discussion/members d2)))
+
+          (is (= [did2 did1] (db.discussion/posts-for-user db oid))
+              "They come in reverse chronological order")
+          (is (= [did2 did1] (db.discussion/posts-for-user db aid)))
+          (is (= []          (db.discussion/posts-for-user db mid)))
+
+          (is (= [did1] (db.discussion/active-for-user db oid)))
+          (is (= []     (db.discussion/active-for-user db aid)))
+          (is (= []     (db.discussion/active-for-user db mid))))
+
+        (db.group/apply-action! (get-ctx oid)
+                                {:xt/id gid
+                                 :group/by_uid oid
+                                 :group/action :group/add-member
+                                 :group/delta {:group/members #{mid}
+                                               :group/updated_at t2}})
+        (db/create-message!
+         (get-ctx aid)
+         {:did did2 :text "Owner and admin see this as active" :now t3})
+        (xtdb/sync node)
+
+        (let [db (xtdb/db node)
+              d1 (crdt.discussion/->value (db.discussion/by-id db did1))
+              d2 (crdt.discussion/->value (db.discussion/by-id db did2))]
+
+          (is (= #{oid aid mid} (:discussion/members d1)))
+          (is (= #{oid aid mid} (:discussion/members d2)))
+
+          (is (= [did2 did1] (db.discussion/posts-for-user db oid)))
+          (is (= [did2 did1] (db.discussion/posts-for-user db aid)))
+          (is (= [did2 did1] (db.discussion/posts-for-user db mid)))
+
+          (is (= [did2 did1] (db.discussion/active-for-user db oid)))
+          (is (= [did2]      (db.discussion/active-for-user db aid)))
+          (is (= []          (db.discussion/active-for-user db mid))))
+
+        (.close node)))))
+
+(deftest public-group-feeds
+  (testing "there is a basic chronological feed"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (assoc ctx :biff/db (xtdb/db node)
+                           :auth/user-id uid :auth/cid uid))
+          now (Date.)
+          t1 (crdt/inc-time now)
+          t2 (crdt/inc-time t1)
+          t3 (crdt/inc-time t2)
+          t4 (crdt/inc-time t3)
+          t5 (crdt/inc-time t4)
+          t6 (crdt/inc-time t5)
+          t7 (crdt/inc-time t6)
+          t8 (crdt/inc-time t7)
+          [oid mid aid sid did1 did2 did3 did4 did5 did6]
+          (take 10 (repeatedly random-uuid))
+
+          gid (crdt/random-ulid)]
+
+      (db.user/create-user!
+       ctx {:id oid :username "owner" :phone "+14159499000" :now now})
+      (db.user/create-user!
+       ctx {:id aid :username "admin" :phone "+14159499002" :now now})
+      (db.user/create-user!
+       ctx {:id mid :username "member" :phone "+14159499001" :now now})
+      (db.user/create-user!
+       ctx {:id sid :username "stranger" :phone "+14159499003" :now now})
+      (xtdb/sync node)
+      (doseq [[from to] [[oid mid]
+                         [oid aid]
+                         [mid aid]
+                         [oid sid]
+                         [mid sid]]]
+        (db.contacts/force-contacts! ctx from to))
+      (xtdb/sync node)
+
+      (testing "the feeds start empty"
+        (let [db (xtdb/db node)]
+          (is (empty? (db.discussion/posts-for-user db oid)))
+          (is (empty? (db.discussion/posts-for-user db mid)))
+          (is (empty? (db.discussion/posts-for-user db aid)))
+
+          (is (empty? (db.discussion/active-for-user db oid)))
+          (is (empty? (db.discussion/active-for-user db mid)))
+          (is (empty? (db.discussion/active-for-user db aid)))))
+
+      (db.group/create! (get-ctx oid)
+                        {:id gid :name "group 1"
+                         :owner oid :members #{}
+                         :is_public true
+                         :settings {:discussion/member_mode :discussion.member_mode/open}})
+      (xtdb/sync node)
+
+      (testing "the feeds are still because we haven't posted anything to the group"
+        (let [db (xtdb/db node)]
+          (is (empty? (db.discussion/posts-for-user db oid)))
+          (is (empty? (db.discussion/posts-for-user db mid)))
+          (is (empty? (db.discussion/posts-for-user db aid)))
+
+          (is (empty? (db.discussion/active-for-user db oid)))
+          (is (empty? (db.discussion/active-for-user db mid)))
+          (is (empty? (db.discussion/active-for-user db aid)))))
+
+      (testing "only those in the group see the posts"
+        (db/create-discussion-with-message!
+         (get-ctx oid)
+         {:did did1 :group_id gid
+          :to_all_contacts true
+          :text "Hello to only owner" :now t1})
+        (xtdb/sync node)
+
+        (let [db (xtdb/db node)
+              d1 (crdt.discussion/->value (db.discussion/by-id db did1))]
+
+          (is (= :discussion.member_mode/open   (:discussion/member_mode d1)))
+          (is (= :discussion.public_mode/public (:discussion/public_mode d1)))
+          (is (= gid (:discussion/group_id d1)))
+
+          (is (= #{oid} (:discussion/members d1)))
+          (is (= #{oid} (:discussion/active_members d1)))
+          (is (= [did1] (db.discussion/posts-for-user db oid)))
+          (is (= []     (db.discussion/posts-for-user db mid)))
+          (is (= []     (db.discussion/posts-for-user db aid)))
+
+          (is (empty? (db.discussion/active-for-user db oid)))
+          (is (empty? (db.discussion/active-for-user db mid)))
+          (is (empty? (db.discussion/active-for-user db aid)))))
+
+      (testing "once they add themselves to the group, they can see older posts"
+        (db/create-message!
+         (get-ctx oid)
+         {:did did1 :text "Owner sees this" :now t2})
+
+        (db.group/apply-action! (get-ctx oid)
+                                {:xt/id gid
+                                 :group/by_uid aid
                                  :group/action :group/add-member
                                  :group/delta {:group/members #{aid}
                                                :group/updated_at t1}})

@@ -136,10 +136,13 @@
                      (= :discussion.member_mode/open
                         (get-in group [:group/settings :discussion/member_mode])))
                 to_all_contacts)
+        public? (if group
+                  (:group/is_public group)
+                  false)
         d (cond-> d
-            open?
-            (assoc :discussion/member_mode :discussion.member_mode/open
-                   :discussion/open_until (db.discussion/open-until now)))
+            public? (assoc :discussion/public_mode :discussion.public_mode/public)
+            open?   (assoc :discussion/member_mode :discussion.member_mode/open
+                           :discussion/open_until (db.discussion/open-until now)))
         msg (crdt.message/new-message
              {:uid user-id :mid mid :did did
               :text (or text "") :reply_to nil

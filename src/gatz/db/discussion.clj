@@ -16,7 +16,7 @@
 
 (defn seen-by-user?
   "Has the user seen this discussion?
- 
+
   Should be kept in-sync with the client version of this function"
   [uid d]
   {:pre [(uuid? uid)]
@@ -25,7 +25,6 @@
         updated-at (get-in d [:discussion/updated_at])]
     (boolean (or (nil? seen-at)
                  (< seen-at updated-at)))))
-
 
 ;; =======================================================================
 ;; DB & migrations
@@ -90,7 +89,6 @@
         (assoc :db/version 3
                :db/doc-type :gatz.crdt/discussion
                :db/type :gatz/discussion))))
-
 
 (def all-migrations
   [{:from 0 :to 1 :transform v0->v1}
@@ -183,11 +181,14 @@
              (only-user-in-map-delta uid (:discussion/subscribers delta))))))
 
 ;; TODO: sometimes they are being added automatically, not by the owner
+;; TODO: you can't add members after the time has passed
 (defmethod authorized-for-delta? :discussion.crdt/add-members
   [d evt]
-  (let [uid (:evt/uid evt)]
-    (and (= :discussion.member_mode/open (:discussion/member_mode d))
-         (= uid (:discussion/created_by d)))))
+  (let [open? (= :discussion.member_mode/open (:discussion/member_mode d))
+        uid (:evt/uid evt)]
+    (if (= :discussion.public_mode/public (:discussion/public_mode d))
+      open?
+      (and open? (= uid (:discussion/created_by d))))))
 
 (defn apply-delta-xtdb
   [ctx {:keys [evt] :as _args}]
@@ -260,8 +261,6 @@
                  :discussion.crdt/delta delta}]
      (apply-action! ctx did action))))
 
-
-
 (defn archive!
   ([ctx did uid]
    (archive! ctx did uid (Date.)))
@@ -303,7 +302,7 @@
                  :discussion.crdt/delta delta}]
      (apply-action! ctx did action))))
 
-;; ======================================================================= 
+;; =======================================================================
 ;; Queries
 
 (def open-for-contact-opts
@@ -332,8 +331,6 @@
            cid now)
         (map first)
         set)))
-
-
 
 (def open-for-group-opts
   [:map
@@ -459,7 +456,7 @@
           aid bid)
        (mapv first)))
 
-;; ====================================================================== 
+;; ======================================================================
 ;; Actions over many discussions
 
 (defn mark-as-seen!
@@ -516,4 +513,3 @@
                              :by-uid by-uid
                              :members members
                              :dids dids})))
-

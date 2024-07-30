@@ -200,6 +200,9 @@
    :discussion.member_mode/open
    :discussion.member_mode/closed])
 
+(def DiscussionPublicMode
+  [:enum :discussion.public_mode/hidden :discussion.public_mode/public])
+
 (def Group
   [:map
    [:xt/id #'GroupId]
@@ -347,6 +350,7 @@
                                          [:did #'DiscussionId]
                                          [:mid #'MessageId]]]]
    [:discussion/first_message [:maybe #'MessageId]]
+   [:discussion/public_mode DiscussionPublicMode]
    [:discussion/member_mode DiscussionMemberMode]
    [:discussion/open_until [:maybe inst?]]
    ;; LWW-set
@@ -384,6 +388,7 @@
                                          [:did #'DiscussionId]
                                          [:mid #'MessageId]]]]
    [:discussion/first_message [:maybe #'MessageId]]
+   [:discussion/public_mode DiscussionPublicMode]
    [:discussion/member_mode DiscussionMemberMode]
    [:discussion/open_until [:maybe inst?]] ;; only set when member_mode is open
    ;; MaxWins
