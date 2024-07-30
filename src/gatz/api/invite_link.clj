@@ -60,14 +60,20 @@
     (json-response {:url (db.invite-link/make-url ctx link-id)})))
 
 (defn post-group-invite-link [{:keys [auth/user-id biff/db] :as ctx}]
-  (let [params (parse-group-invite-link-params (:params ctx))]
+  (let [now (Date.)
+        params (parse-group-invite-link-params (:params ctx))]
     (if-let [group-id (:group_id params)]
       (if-let [group (db.group/by-id db group-id)]
         (if (contains? (:group/admins group) user-id)
-          (let [invite-link (db.invite-link/create! ctx {:uid user-id
-                                                         :gid group-id
-                                                         :type :invite_link/group
-                                                         :now (Date.)})
+          (let [crew? (= :group.invites/crew
+                         (get-in group [:group/settings :invites/mode]))
+                il-type (if crew?
+                          :invite_link/crew
+                          :invite_link/group)
+                invite-link (db.invite-link/create!
+                             ctx {:uid user-id
+                                  :gid group-id
+                                  :type il-type                                  :now now})
                 link-id (:xt/id invite-link)]
             (posthog/capture! ctx "invite_link.new" invite-link)
             (json-response {:url (db.invite-link/make-url ctx link-id)}))

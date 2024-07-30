@@ -74,7 +74,8 @@
   [:map
    [:name string?]
    [:description {:optional true} string?]
-   [:avatar {:optional true} string?]])
+   [:avatar {:optional true} string?]
+   [:is_crew {:optional true} boolean?]])
 
 (def create-group-response
   [:map
@@ -86,20 +87,24 @@
     nil
     s))
 
-(defn parse-create-group [{:keys [name description avatar]}]
+(defn parse-create-group [{:keys [name description avatar is_crew]}]
   (cond-> {}
     (string? name)        (assoc :group/name (str/trim name))
     (string? description) (assoc :group/description (str/trim description))
-    (string? avatar)      (assoc :group/avatar (parse-url avatar))))
+    (string? avatar)      (assoc :group/avatar (parse-url avatar))
+    (boolean? is_crew)    (assoc :group/is_crew is_crew)))
 
 (defn create! [{:keys [auth/user-id] :as ctx}]
   (let [params (parse-create-group (:params ctx))
-        group (db.group/create! ctx {:owner user-id
-                                     :members #{}
-                                     :name (:group/name params)
-                                     :description (:group/description params)
-                                     :avatar (:group/avatar params)
-                                     :settings {:discussion/member_mode :discussion.member_mode/open}})]
+        group (db.group/create!
+               ctx {:owner user-id
+                    :members #{}
+                    :name (:group/name params)
+                    :description (:group/description params)
+                    :avatar (:group/avatar params)
+                    :settings {:discussion/member_mode :discussion.member_mode/open
+                               :invites/mode (when (:group/is_crew params)
+                                               :group.invites/crew)}})]
     (posthog/capture! ctx "group.created" {:id (:xt/id group)})
     (json-response {:group group})))
 
