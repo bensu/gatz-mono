@@ -3,6 +3,7 @@
   (:require [chime.core :as chime]
             [clojure.data.json :as json]
             [crdt.core :as crdt]
+            [ddl.api :as ddl.api]
             [gatz.auth :as auth]
             [gatz.api.contacts :as api.contacts]
             [gatz.api.discussion :as api.discussion]
@@ -285,6 +286,8 @@
                  ["/invite-link" {:get api.invite-link/get-invite-link}]
                  ["/invite-link/join" {:post api.invite-link/post-join-invite-link}]
                  ["/invite-link/crew-share-link" {:post api.invite-link/post-crew-invite-link}]
+
+                 ["/ddl/pending" {:post ddl.api/pending-links!}]
 
                  ["/discussions" {:get  api.discussion/get-full-discussions
                                   :post api.discussion/create-discussion!}]
