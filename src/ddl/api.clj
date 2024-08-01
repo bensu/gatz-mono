@@ -173,8 +173,8 @@
       (when (:ddl/mobile? browser-matcher)
         (put-link! ip url browser-matcher))))
   #_(catch Exception e
-      (log/error "Failed to register ddl link")
-      (log/error e))
+    (log/error "Failed to register ddl link")
+    (log/error e))
   {:status 200
    :headers {"content-type" "application/json"}
    :body (json/write-str {:success :ok})})
