@@ -243,6 +243,8 @@
                  ["/signin" {:post api.user/sign-in!}]
                  ["/signup" {:post api.user/sign-up!}]
 
+                 ["/ddl/register" {:post ddl.api/register-link!}]
+
                  ["/verify/start" {:post api.user/verify-phone!}]
                  ["/verify/code" {:post api.user/verify-code!}]
                  ["/user/check-username" {:post api.user/check-username}]]
