@@ -299,7 +299,13 @@
   (let [{:keys [text id discussion_id]} params
         mid (let [mid (some-> id mt/-string->uuid)]
               (if (uuid? mid) mid (random-uuid)))
-        media-id (some-> (:media_id params) mt/-string->uuid)
+        media-ids (if-let [media-id (some-> (:media_id params) mt/-string->uuid)]
+                    [media-id]
+                    (when-let [media-ids (some->> (:media_ids params)
+                                                  (map mt/-string->uuid)
+                                                  (distinct))]
+                      (assert (<= (count media-ids) 10))
+                      media-ids))
         reply-to (some-> (:reply_to params) mt/-string->uuid)
         did (mt/-string->uuid discussion_id)
         d (crdt.discussion/->value (db.discussion/by-id db did))]
@@ -309,7 +315,7 @@
                                         :mid mid
                                         :text text
                                         :reply_to reply-to
-                                        :media_id media-id})]
+                                        :media_ids media-ids})]
        (try
          (notify/submit-comment-job! ctx (crdt.message/->value msg))
          (catch Exception e

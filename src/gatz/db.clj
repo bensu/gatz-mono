@@ -18,7 +18,7 @@
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
-;; ====================================================================== 
+;; ======================================================================
 ;; Utils
 
 (defn valid-post? [s media-id]
@@ -26,8 +26,8 @@
        (or (not (empty? s))
            (some? media-id))))
 
-;; ====================================================================== 
-;; Discussion 
+;; ======================================================================
+;; Discussion
 
 (defn sort-feed [user-id discussions]
   (let [seen-discussions (group-by (partial db.discussion/seen-by-user? user-id) discussions)]
@@ -213,7 +213,6 @@
                 user-id)]
     (set (map first dids))))
 
-
 ;; ----------------------------------------------------------------------------
 ;; Feed
 
@@ -236,7 +235,6 @@
                 user-id)]
     (mapv first dids)))
 
-
 (defn discussions-by-user-id-older-than
 
   [db user-id older-than-ts]
@@ -254,7 +252,7 @@
                 user-id older-than-ts)]
     (mapv first dids)))
 
-;; ====================================================================== 
+;; ======================================================================
 ;; Messages
 
 #_(defn ->uuid [s]
@@ -266,13 +264,13 @@
 (defn create-message!
 
   [{:keys [auth/user-id auth/cid biff/db] :as ctx} ;; TODO: get connection id
-   {:keys [text mid did media_id reply_to now]}]
+   {:keys [text mid did media_ids reply_to now]}]
 
   {:pre [(string? text)
          (or (nil? mid) (uuid? mid))
          (or (nil? now) (inst? now))
          (uuid? did) (uuid? user-id)
-         (or (nil? media_id) (uuid? media_id))
+         (or (nil? media_ids) (every? uuid? media_ids))
          (or (nil? reply_to) (uuid? reply_to))]}
 
   (let [now (or now (Date.))
@@ -283,17 +281,18 @@
                                  :settings/notifications
                                  :settings.notification/subscribe_on_comment]
                            false)
-        media (when media_id
-                (db.media/by-id db media_id))
-        updated-media (some-> media
-                              (assoc :media/message_id mid)
-                              (db.media/update-media))
+        updated-medias (when media_ids
+                         (mapv (fn [media-id]
+                                 (some-> (db.media/by-id db media-id)
+                                         (assoc :media/message_id mid)
+                                         (db.media/update-media)))
+                               media_ids))
         ;; TODO: put directly in discussion
         clock (crdt/new-hlc user-id now)
         msg (crdt.message/new-message
              {:uid user-id :mid mid :did did
               :text text  :reply_to reply_to
-              :media (when updated-media [updated-media])}
+              :media updated-medias}
              ;; TODO: get real connection id
              {:clock clock :now now})
         delta {:crdt/clock clock
@@ -312,9 +311,10 @@
                              :evt/mid mid
                              :evt/cid cid
                              :evt/data action})
-        txns [(assoc msg :db/doc-type :gatz.crdt/message :db/op :create)
-              updated-media
-              [:xtdb.api/fn :gatz.db.discussion/apply-delta {:evt evt}]]]
+        txns (concat
+              [(assoc msg :db/doc-type :gatz.crdt/message :db/op :create)
+               [:xtdb.api/fn :gatz.db.discussion/apply-delta {:evt evt}]]
+              (or updated-medias []))]
     (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
                     (vec (remove nil? txns)))
     msg))
