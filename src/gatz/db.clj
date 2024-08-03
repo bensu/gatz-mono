@@ -21,10 +21,17 @@
 ;; ======================================================================
 ;; Utils
 
-(defn valid-post? [s media-id]
+;; deprecated when single media-id is deprecated
+(defn old-valid-post? [s media-id]
   (and (string? s)
        (or (not (empty? s))
            (some? media-id))))
+
+(defn valid-post? [s media-ids]
+  (and (string? s)
+       (or (not (empty? s))
+           (and (coll? media-ids)
+                (not (empty? media-ids))))))
 
 ;; ======================================================================
 ;; Discussion
@@ -40,6 +47,7 @@
    [:name {:optional true} string?]
    [:text string?]
    [:media_id {:optional true} uuid?]
+   [:media_ids [:vec uuid?]]
    [:group_id {:optional true} schema/ulid?]
    [:selected_users {:optional true} [:vec uuid?]]
    [:to_all_contacts {:optional true} boolean?]
@@ -53,20 +61,24 @@
     (some? mid) (assoc :mid (mt/-string->uuid mid))))
 
 (defn parse-create-params
-  [{:keys [name group_id text media_id to_all_contacts
+  [{:keys [name group_id text to_all_contacts
+           media_id media_ids
            originally_from selected_users]}]
   {:pre [(or (nil? name)
              (and (string? name) (not (empty? name)))
-             (valid-post? text media_id))
+             (or (old-valid-post? text media_id)
+                 (valid-post? text media_ids)))
          (or (boolean? to_all_contacts)
              (some? selected_users))]}
   (cond-> {}
-    (string? name)          (assoc :name (str/trim name))
-    (string? text)          (assoc :text (str/trim text))
-    (some? group_id)        (assoc :group_id (crdt/parse-ulid group_id))
-    (some? media_id)        (assoc :media_id (mt/-string->uuid media_id))
-    (some? originally_from) (assoc :originally_from (parse-originally-from originally_from))
-    (some? selected_users)  (assoc :selected_users (set (keep mt/-string->uuid selected_users)))
+    (string? name)   (assoc :name (str/trim name))
+    (string? text)   (assoc :text (str/trim text))
+    (some? group_id) (assoc :group_id (crdt/parse-ulid group_id))
+    (some? media_id) (assoc :media_ids (when-let [media-id (mt/-string->uuid media_id)]
+                                         [media-id]))
+    (coll? media_ids)          (assoc :media_ids (vec (keep mt/-string->uuid media_ids)))
+    (some? originally_from)    (assoc :originally_from (parse-originally-from originally_from))
+    (some? selected_users)     (assoc :selected_users (set (keep mt/-string->uuid selected_users)))
     (boolean? to_all_contacts) (assoc :to_all_contacts to_all_contacts)))
 
 (defn create-discussion-with-message!
@@ -78,7 +90,7 @@
          (or (nil? now) (inst? now))]}
 
   (let [{:keys [selected_users group_id to_all_contacts
-                text media_id originally_from]}
+                text media_ids originally_from]}
         (parse-create-params init-params)
 
         now (or now (Date.))
@@ -86,7 +98,14 @@
         mid (random-uuid)
 
         originally-from (when originally_from originally_from)
-        media (some->> media_id (db.media/by-id db))
+
+        updated-medias (some->> media_ids
+                                (keep (partial db.media/by-id db))
+                                (mapv (fn [m]
+                                        (-> m
+                                            (assoc :media/message_id mid)
+                                            (assoc :db/doct-type :gatz/media)
+                                            (db.media/update-media)))))
 
         group (when group_id
                 (db.group/by-id db group_id))
@@ -146,7 +165,7 @@
         msg (crdt.message/new-message
              {:uid user-id :mid mid :did did
               :text (or text "") :reply_to nil
-              :media (when media [media])}
+              :media updated-medias}
              {:now now :cid user-id :clock clock})
         evt-data {:discussion.crdt/action :discussion.crdt/new
                   :discussion.crdt/delta (assoc d :discussion/messages {mid msg})}
@@ -167,20 +186,18 @@
                                         :message.crdt/delta {:message/posted_as_discussion did
                                                              :message/updated_at now
                                                              :crdt/clock clock}}}))
-        txns [(-> d
-                  (db.discussion/crdt->doc)
-                  (assoc :db/doc-type :gatz.doc/discussion :db/op :create))
-              (assoc msg :db/doc-type :gatz.crdt/message :db/op :create)
-              (assoc evt :db/doct-type :gatz/evt :db/op :create)
-              ;; TODO: update original discussion, not just message for it
-              (when original-msg-evt
-                [:xtdb.api/fn :gatz.db.message/apply-delta {:evt original-msg-evt}])
-              (some-> media
-                      (assoc :media/message_id mid)
-                      (db.media/update-media)
-                      (assoc :db/doct-type :gatz/media))]]
+        txns (concat
+              [(-> d
+                   (db.discussion/crdt->doc)
+                   (assoc :db/doc-type :gatz.doc/discussion :db/op :create))
+               (assoc msg :db/doc-type :gatz.crdt/message :db/op :create)
+               (assoc evt :db/doct-type :gatz/evt :db/op :create)
+               ;; TODO: update original discussion, not just message for it
+               (when original-msg-evt
+                 [:xtdb.api/fn :gatz.db.message/apply-delta {:evt original-msg-evt}])]
+              updated-medias)]
     (biff/submit-tx ctx (vec (remove nil? txns)))
-    {:discussion d :message msg}))
+    {:discussion d :message msg :txns txns}))
 
 (defn get-all-discussions [db]
   (q db

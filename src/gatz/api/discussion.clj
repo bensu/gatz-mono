@@ -295,27 +295,40 @@
              (json-response {:discussion (crdt.discussion/->value d)}))))
         {:status 400 :body "invalid params"})))
 
+(def create-message-params
+  [:map
+   [:text string?]
+   [:id [:maybe uuid?]]
+   [:reply_to [:maybe uuid?]]
+   [:discussion_id [:maybe uuid?]]
+   ;; deprecated
+   [:media_id [:maybe uuid?]]
+   [:media_ids [:vec uuid?]]])
+
+(defn parse-create-message-params
+  [{:keys [text id discussion_id media_id media_ids reply_to]}]
+  (cond-> {}
+    (string? text)          (assoc :text text)
+    (string? id)            (assoc :mid (mt/-string->uuid id))
+    (string? reply_to)      (assoc :reply_to (mt/-string->uuid reply_to))
+    (string? discussion_id) (assoc :did (mt/-string->uuid discussion_id))
+    (string? media_id)      (assoc :media_ids [(mt/-string->uuid media_id)])
+    (coll? media_ids)       (assoc :media_ids (vec (keep mt/-string->uuid media_ids)))))
+
 (defn create-message! [{:keys [params biff/db auth/user-id] :as ctx}]
-  (let [{:keys [text id discussion_id]} params
-        mid (let [mid (some-> id mt/-string->uuid)]
-              (if (uuid? mid) mid (random-uuid)))
-        media-ids (if-let [media-id (some-> (:media_id params) mt/-string->uuid)]
-                    [media-id]
-                    (when-let [media-ids (some->> (:media_ids params)
-                                                  (map mt/-string->uuid)
-                                                  (distinct))]
-                      (assert (<= (count media-ids) 10))
-                      media-ids))
-        reply-to (some-> (:reply_to params) mt/-string->uuid)
-        did (mt/-string->uuid discussion_id)
+  (def -ctx ctx)
+  (let [{:keys [text mid did media_ids reply_to]} (parse-create-message-params params)
+        mid (or mid (random-uuid))
         d (crdt.discussion/->value (db.discussion/by-id db did))]
+    (when media_ids
+      (assert (<= (count media_ids) 10)))
     (if-authorized-for-discussion
      [user-id d]
      (let [msg (db/create-message! ctx {:did did
                                         :mid mid
                                         :text text
-                                        :reply_to reply-to
-                                        :media_ids media-ids})]
+                                        :reply_to reply_to
+                                        :media_ids media_ids})]
        (try
          (notify/submit-comment-job! ctx (crdt.message/->value msg))
          (catch Exception e
