@@ -90,6 +90,17 @@
   '(fn remove-contacts-fn [ctx args]
      (gatz.db.contacts/remove-contacts-txn ctx args)))
 
+(defn remove-all-user-contacts-txn
+  "Helper for migrations"
+  [node uid now]
+  {:pre [(uuid? uid) (inst? now)]}
+  (let [db (xtdb.api/db node)
+        all-cids (:contacts/ids (by-uid db uid))]
+    (map (fn [cid]
+              (let [args {:from cid :to uid :now now}]
+                [:xtdb.api/fn :gatz.db.contacts/remove-contacts {:args args}]))
+            all-cids)))
+
 ;; ======================================================================
 ;; Contact Requests
 

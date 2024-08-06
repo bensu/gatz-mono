@@ -6,6 +6,7 @@
             [gatz.db :refer :all]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.discussion :as db.discussion]
+            [gatz.db.group :as db.group]
             [gatz.db.message :as db.message]
             [gatz.db.invite-link :as db.invite-link]
             [gatz.db.user :as db.user]
@@ -549,3 +550,57 @@
 
   ;; Add joeryu to all discussions
   )
+
+(comment
+
+  ;; remove usernames from people's contacts
+
+  (def -test-usernames
+    #{"test" "test2" "test3" "test4" "bensu" "sbensu"
+      "test1231" "test235"})
+
+  (def -ctx @gatz.system/system)
+
+  (isolate-test-users! -ctx -test-usernames)
+
+  )
+
+(defn isolate-test-users! [ctx usernames]
+  {:pre [(every? string? usernames) (set? usernames)]}
+  (let [now (Date.)
+        node (:biff.xtdb/node ctx)
+        db (xtdb.api/db node)
+        txns (->> usernames
+                  (keep (partial db.user/by-name db))
+                  (mapcat (fn [u]
+                            (let [uid (:xt/id u)]
+                              (println uid)
+                              (db.contacts/remove-all-user-contacts-txn node uid now))))
+                  vec)]
+    txns
+    (biff/submit-tx ctx txns)))
+
+(comment
+
+  ;; Test first with -prod-test-group-id
+  ;; And if that works well, then do it to -fc-group-id
+
+  (def -fc-group-id #crdt/ulid "01J47H8AAW0QRSPKNQ9BHWAEAB")
+
+  (def -prod-test-group-id #crdt/ulid "01HZ36170VHFEF0XZZ8XVZGSGQ")
+  (def -crew-group-ids #{-prod-test-group-id})
+
+  (def -ctx @gatz.system/system)
+
+  (mark-group-crew! -ctx -crew-group-ids))
+
+(defn mark-group-crew! [ctx group-ids]
+  {:pre [(every? crdt/ulid? group-ids) (set? group-ids)]}
+
+  (let [db (xtdb.api/db (:biff.xtdb/node ctx))
+        txns (keep (fn [gid]
+                     (some-> (db.group/by-id db gid)
+                             (db.group/mark-crew)
+                             (assoc :db/doc-type :gatz/group)))
+                   group-ids)]
+    (biff/submit-tx ctx (vec txns))))

@@ -482,3 +482,10 @@
    (q db '{:find (pull ?gid [*])
            :where [[?gid :db/type :gatz/group]
                    [?gid :group/is_public true]]})))
+
+
+;; ======================================================================
+;; Crews
+
+(defn mark-crew [group]
+  (assoc-in group [:group/settings :invites/mode] :group.invites/crew))
