@@ -102,8 +102,9 @@
                                                     {:evt/uid cid
                                                      :evt/data action})))))))
   (testing "group discussions can be open"
-    (let [[owner-id admin-id member-id did1 did2 did3]
-          (take 7 (repeatedly random-uuid))
+    (let [[owner-id admin-id member-id second-member
+           did1 did2 did3 did4]
+          (take 9 (repeatedly random-uuid))
           gid (crdt/random-ulid)
           t0 (Date.)
           t1 (crdt/inc-time t0)
@@ -127,6 +128,11 @@
                                  :username "member"
                                  :phone "+14159499002"
                                  :now t0})
+      (db.user/create-user! ctx {:id second-member
+                                 :username "second"
+                                 :phone "+14159499003"
+                                 :now t0})
+
       (xtdb/sync node)
       (db.group/create! ctx
                         {:id gid :owner owner-id :now t0
@@ -150,6 +156,7 @@
         :text "Hello to owner, admin, and in the future, member"
         :now t2})
       (xtdb/sync node)
+
       (let [db (xtdb/db node)
             d1 (crdt.discussion/->value (db.discussion/by-id db did1))
             d2 (crdt.discussion/->value (db.discussion/by-id db did2))]
@@ -191,7 +198,33 @@
         (let [db (xtdb/db node)
               d1 (crdt.discussion/->value (db.discussion/by-id db did1))]
           (is (= :discussion.member_mode/open (:discussion/member_mode d1)))
-          (is (= #{owner-id admin-id} (:discussion/members d1))))))))
+          (is (= #{owner-id admin-id} (:discussion/members d1)))))
+
+      (db/create-discussion-with-message!
+       (get-ctx admin-id)
+       {:did did4 :group_id gid
+        :to_all_contacts true
+        :text "Hello from admin, to future users"
+        :now t3})
+      (xtdb/sync node)
+
+      (testing "adding a second user, they can also see the open posts"
+
+        (let [db (xtdb/db node)
+              d4 (crdt.discussion/->value (db.discussion/by-id db did4))]
+          (is (= #{owner-id admin-id member-id}
+                 (:discussion/members d4))))
+        (let [add-member {:xt/id gid
+                          :group/by_uid owner-id
+                          :group/action :group/add-member
+                          :group/delta {:group/updated_at t3
+                                        :group/members #{second-member}}}]
+          (db.group/apply-action! (get-ctx owner-id) add-member))
+        (xtdb/sync node)
+        (let [db (xtdb/db node)
+              d4 (crdt.discussion/->value (db.discussion/by-id db did4))]
+          (is (= #{owner-id admin-id member-id second-member}
+                 (:discussion/members d4))))))))
 
 (deftest deltas
   (testing "we can apply the deltas"
