@@ -619,10 +619,13 @@
   ;; add to open groups
 
   (def -ctx @gatz.system/system)
+
   (def -node (:biff.xtdb/node -ctx))
+
   (def -db (xtdb.api/db -node))
 
   (def -me (db.user/by-name -db "sebas"))
+
   (def -yasmin (db.user/by-name -db "yasmin"))
   (def -adaobi (db.user/by-name -db "adaobi"))
   (def -adaobi-posts
@@ -630,12 +633,11 @@
                                   {:contact_id (:xt/id -adaobi)}))
 
 
-  (def -groups (db.groups/by-member-uid db (:xt/id -me)))
+  (def -groups (db.groups/by-member-uid -db (:xt/id -me)))
 
   (def -fc-group
-    (first
-     (filter #(= "Frontier Camp '24" (:group/name %))
-             -groups)))
+    (first -groups)
+    )
 
   (def -fc-posts
     (db.discussion/posts-for-group -db (:xt/id -fc-group)
@@ -644,23 +646,24 @@
 
   (db.discussion/open-for-group -db (:xt/id -fc-group))
 
-  (let [members (->> -fc-usernames
-                     (keep (partial db.user/by-name db))
-                     (map :xt/id)
-                     set)
-        _ (assert (= (count -fc-usernames)
-                     (count members)))
-        txns
-        (db.discussion/add-member-to-group-txn -node
-                                               {:gid (:xt/id -fc-group)
-                                                :now (Date.)
-                                                :by-uid (:xt/id -me)
-                                                :members members})
-        ]
+  (def -txns
+    (let [members (->> -fc-usernames
+                       (keep (partial db.user/by-name -db))
+                       (map :xt/id)
+                       set)
 
-    txns
-    #_(biff/submit-tx -ctx txns)
-    )
+          _ (assert (= (count -fc-usernames)
+                       (count members)))
+          txns
+          (db.discussion/add-member-to-group-txn -node
+                                                 {:gid (:xt/id -fc-group)
+                                                  :now (Date.)
+                                                  :by-uid (:xt/id -me)
+                                                  :members members})
+          ]
+
+      (biff/submit-tx -ctx txns)
+      ))
 
 
   )
