@@ -452,7 +452,8 @@
                    uids))]
     (biff/submit-tx ctx txns)))
 
-(defn make-everybody-contacts! [{:keys [biff.xtdb/node] :as ctx}]
+(defn make-everybody-contacts!
+  [{:keys [biff.xtdb/node] :as ctx}]
   (let [db (xtdb/db node)
         now (Date.)
         uids (db.user/all-ids db)
@@ -574,10 +575,8 @@
                   (keep (partial db.user/by-name db))
                   (mapcat (fn [u]
                             (let [uid (:xt/id u)]
-                              (println uid)
                               (db.contacts/remove-all-user-contacts-txn node uid now))))
                   vec)]
-    txns
     (biff/submit-tx ctx txns)))
 
 (comment
@@ -587,12 +586,15 @@
 
   (def -fc-group-id #crdt/ulid "01J47H8AAW0QRSPKNQ9BHWAEAB")
 
-  (def -prod-test-group-id #crdt/ulid "01HZ36170VHFEF0XZZ8XVZGSGQ")
-  (def -crew-group-ids #{-prod-test-group-id})
+  (def -prod-test-group-id  #crdt/ulid "01J4JHT8T75BCMKX1QFYQ987K8")
+
+  (def -crew-group-ids #{-fc-group-id})
 
   (def -ctx @gatz.system/system)
 
-  (mark-group-crew! -ctx -crew-group-ids))
+  (mark-group-crew! -ctx -crew-group-ids)
+
+  )
 
 (defn mark-group-crew! [ctx group-ids]
   {:pre [(every? crdt/ulid? group-ids) (set? group-ids)]}
@@ -604,3 +606,100 @@
                              (assoc :db/doc-type :gatz/group)))
                    group-ids)]
     (biff/submit-tx ctx (vec txns))))
+
+;; I want some poeple to see the full gammit of what is
+;; happening in Gatz to see if they like it
+;; including what others have posted
+;;
+(comment
+
+  (def -fc-usernames
+    #{"yasmin" "ivan" "woloski"})
+
+  ;; add to open groups
+
+  (def -ctx @gatz.system/system)
+  (def -node (:biff.xtdb/node -ctx))
+  (def -db (xtdb.api/db -node))
+
+  (def -me (db.user/by-name -db "sebas"))
+  (def -yasmin (db.user/by-name -db "yasmin"))
+  (def -adaobi (db.user/by-name -db "adaobi"))
+  (def -adaobi-posts
+    (db.discussion/posts-for-user -db (:xt/id -adaobi)
+                                  {:contact_id (:xt/id -adaobi)}))
+
+
+  (def -groups (db.groups/by-member-uid db (:xt/id -me)))
+
+  (def -fc-group
+    (first
+     (filter #(= "Frontier Camp '24" (:group/name %))
+             -groups)))
+
+  (def -fc-posts
+    (db.discussion/posts-for-group -db (:xt/id -fc-group)
+                                   (:xt/id -me)))
+
+
+  (db.discussion/open-for-group -db (:xt/id -fc-group))
+
+  (let [members (->> -fc-usernames
+                     (keep (partial db.user/by-name db))
+                     (map :xt/id)
+                     set)
+        _ (assert (= (count -fc-usernames)
+                     (count members)))
+        txns
+        (db.discussion/add-member-to-group-txn -node
+                                               {:gid (:xt/id -fc-group)
+                                                :now (Date.)
+                                                :by-uid (:xt/id -me)
+                                                :members members})
+        ]
+
+    txns
+    #_(biff/submit-tx -ctx txns)
+    )
+
+
+  )
+
+(comment
+
+  (def -new-usernames
+    #{"dwarkesh", "davidrobertson", "sholto",
+      "nan", "moxie"})
+
+
+  )
+
+
+#_(defn make-contacts-with-my-friends!
+  [{:keys [biff.xtdb/node] :as ctx}
+   my-username
+   usernames]
+  (let [db (xtdb/db node)
+        now (Date.)
+        my-id (:xt/id (db.user/by-name db my-username))
+        _ (assert my-id)
+        target-uids (->> usernames
+                         (keep (partial db.user/by-name db)
+                               )
+                         (map :xt/id))
+        _ (assert (= (count usernames)
+                     (count target-uids)))
+        my-contacts (:contacts/ids (db.contacts/by-uid db my-id))
+        _ (assert (set? my-contacts))
+        uid-pairs (->> (for [aid target-uids
+                             bid my-contacts
+                             :when (not= aid bid)]
+                         #{aid bid})
+                       (set)
+                       (mapv vec))
+        txns (mapcat (fn [[a b]]
+                       (db.contacts/forced-contact-txn db a b {:now now}))
+                     uid-pairs)]
+    ;; txns
+    (biff/submit-tx ctx (vec txns))
+    ))
