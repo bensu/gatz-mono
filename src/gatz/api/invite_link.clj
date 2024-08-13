@@ -132,11 +132,11 @@
                              db.contacts/->contact))
             group (when-let [gid (:invite_link/group_id invite-link)]
                     (db.group/by-id db gid))
-            member-ids (:invite_link/used_by invite-link)
+            member-ids (conj (:group/members group) (:xt/id invited-by))
             members (mapv (comp db.contacts/->contact
                                 crdt.user/->value
                                 (partial db.user/by-id db))
-                          (conj member-ids (:xt/id invited-by)))]
+                          member-ids)]
         {:invite_link invite-link
          :invited_by invited-by
          :group group
