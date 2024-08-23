@@ -1,5 +1,6 @@
 (ns gatz.db.message
   (:require [com.biffweb :as biff :refer [q]]
+            [clojure.string :as str]
             [crdt.core :as crdt]
             [gatz.crdt.discussion :as crdt.discussion]
             [gatz.crdt.message :as crdt.message]
@@ -11,6 +12,15 @@
             [medley.core :refer [map-vals]]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
+
+
+(defn extract-mentions [text]
+  {:pre [(string? text)]
+   :post [(every? string? %)]}
+  (or (->> (re-seq #"(?:^|(?<![\w@]))@([a-z][a-z0-9_]*)(?:(?=\W|$)|(?=@))"
+                   (str/lower-case text))
+           (map second))
+      []))
 
 ;; ========================================================================
 ;; Versions

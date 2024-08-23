@@ -6,6 +6,8 @@
 
 (def discussion-defaults
   {:discussion/seen_at {}
+   :discussion/mentioned_at {}
+   ;; :discussion/mentioned (crdt/gos #{})
    :discussion/archived_at {}
    :discussion/archived_uids #{}
    :discussion/last_message_read {}
@@ -71,6 +73,8 @@
      ;; We'll let the user see their own discussion in the feed as new
      ;; :discussion/seen_at {uid now}
      :discussion/seen_at {}
+     :discussion/mentioned_at {}
+     ;; :discussion/mentioned (crdt/gos #{})
      :discussion/archived_uids (crdt/lww-set clock (or archived-uids #{}))}))
 
 

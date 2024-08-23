@@ -21,7 +21,7 @@
             [xtdb.api :as xt])
   (:import [java.util Date]))
 
-;; ====================================================================== 
+;; ======================================================================
 ;; Utils
 
 (defn json-response [body]
@@ -66,7 +66,7 @@
      (do ~@body)
      :else (err-resp "not_admin" "You are not an admin for this discussion")))
 
-;; ====================================================================== 
+;; ======================================================================
 ;; Endpoints
 
 (defn get-discussion
@@ -171,7 +171,7 @@
     (posthog/capture! ctx "discussion.unsubscribe" {:did did})
     (json-response {:discussion (crdt.discussion/->value discussion)})))
 
-;; ====================================================================== 
+;; ======================================================================
 ;; Actions
 
 (def action-params
@@ -225,7 +225,7 @@
         (posthog/capture! ctx (action->evt-name action) {:id id})
         (json-response {:discussion discussion})))))
 
-;; ====================================================================== 
+;; ======================================================================
 ;; Feeds
 
 ;; The cut-off for discussions is when they were created but the feed sorting is
@@ -372,48 +372,79 @@
   ;; TODO: should be using the latest-tx from the _db_ not the node
   (let [params (parse-feed-params params)
         latest-tx (xt/latest-completed-tx node)
+
         older-than (some->> (:last_did params)
                             (db.discussion/by-id db)
                             :discussion/created_at)
+
+        ;; Is this a contact's feed?
         contact (some->> (:contact_id params) (db.user/by-id db))
         contact_id (some->> contact :xt/id)
-        group (some->> (:group_id params) (db.group/by-id db))
-        group_id (:xt/id group)
         _ (when contact
             (assert (not (db.user/mutually-blocked? user contact))))
+
+        ;; Is this a group feed?
+        group (some->> (:group_id params) (db.group/by-id db))
+        group_id (:xt/id group)
 
         dids (db.discussion/posts-for-user db user-id
                                            {:older-than-ts older-than
                                             :contact_id contact_id
                                             :group_id group_id})
+
         blocked-uids (:user/blocked_uids (crdt.user/->value user))
         poster-blocked? (fn [{:keys [discussion]}]
                           (contains? blocked-uids (:discussion/created_by discussion)))
+
         ds (->> dids
                 (map (partial db/discussion-by-id db))
                 (remove poster-blocked?))
+
+        ;; TODO: pass older-than, contact_id, group_id
+        mentioned-dids (db.discussion/mentions-for-user db user-id)
+        ;; TODO: I need the message as well
+        mentioned-ds (->> mentioned-dids
+                          (map (partial db/discussion-by-id db))
+                          (remove poster-blocked?)
+                          (keep (fn [{:discussion/keys [mentions] :as dr}]
+                                  (let [mentions (crdt/-value mentions)]
+                                    (when-let [mention (some->> (get mentions user-id)
+                                                                (sort-by :mention/ts)
+                                                                (last))]
+                                      (-> dr
+                                          (assoc :message_id (:mention/mid mention)
+                                                 :by_user_id (:mention/by_uid mention))))))))
+
+        ;; What are the groups and users in those discussions?
         d-group-ids (set (keep (comp :discussion/group_id :discussion) ds))
         d-user-ids  (reduce set/union (map :user_ids ds))
+        m-group-ids (set (keep (comp :discussion/group_id :discussion) mentioned-ds))
+        m-user-ids  (reduce set/union (map :user_ids mentioned-ds))
 
+        ;; Any pending contact requests?
         contact-requests (db.contacts/pending-requests-to db user-id)
         crs (mapv (fn [{:contact_request/keys [from] :as cr}]
                     {:contact_request cr
                      :in_common {:contacts (db.contacts/get-in-common db user-id from)
                                  :groups (db.group/ids-with-members-in-common db user-id from)}})
                   contact-requests)
+        ;; What are the groups and users in those contact requests?
         c-group-ids (reduce set/union (map (comp :groups :in_common) crs))
         c-user-ids  (reduce set/union (map (comp :contacts :in_common) crs))
 
-        ;; TODO: not only send the gruop-ids from the discussions, 
+        ;; TODO: not only send the gruop-ids from the discussions,
         ;; also from the contact request
         groups (conj (mapv (partial db.group/by-id db)
-                           (set/union c-group-ids d-group-ids))
+                           (set/union c-group-ids d-group-ids m-group-ids))
                      group)
+
         ;; TODO: only send the users that are in the discussions
         ;; and in the contact requests
         users (or (db.user/all-users db)
-                  (mapv (partial db.user/by-id db) (set/union d-user-ids c-user-ids)))]
+                  (mapv (partial db.user/by-id db)
+                        (set/union d-user-ids c-user-ids m-user-ids)))]
     (json-response {:discussions (mapv crdt.discussion/->value ds)
+                    :mentions [] ;; (mapv crdt.discussion/->value mentioned-ds)
                     :users (mapv crdt.user/->value users)
                     :groups groups
                     :contact_requests crs
@@ -459,4 +490,3 @@
                     :current false
                     :latest_tx {:id (::xt/tx-id latest-tx)
                                 :ts (::xt/tx-time latest-tx)}})))
-

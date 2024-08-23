@@ -292,8 +292,25 @@
 
   (let [now (or now (Date.))
         mid (or mid (random-uuid))
+
         user (crdt.user/->value (db.user/by-id db user-id))
         _ (assert user)
+
+        d (crdt.discussion/->value (db.discussion/by-id db did))
+        members (:discussion/members d)
+
+        possible-mentions (db.message/extract-mentions text)
+        mentioned_at (if-not (empty? possible-mentions)
+                       (->> possible-mentions
+                            set
+                            (keep (partial db.user/by-name db))
+                            (filter (fn [u]
+                                      (contains? members (:xt/id u))))
+                            (map (fn [u]
+                                   [(:xt/id u) (crdt/min-wins now)]))
+                            (into {}))
+                       {})
+
         subscribe? (get-in user [:user/settings
                                  :settings/notifications
                                  :settings.notification/subscribe_on_comment]
@@ -308,13 +325,17 @@
         clock (crdt/new-hlc user-id now)
         msg (crdt.message/new-message
              {:uid user-id :mid mid :did did
-              :text text  :reply_to reply_to
+              :text text
+              :reply_to reply_to
               :media updated-medias}
              ;; TODO: get real connection id
              {:clock clock :now now})
         delta {:crdt/clock clock
                :discussion/updated_at now
                :discussion/latest_message (crdt/lww clock mid)
+               :discussion/mentioned_at mentioned_at
+               ;; :discussion/mentions {}
+               ;; :discussion/mentions {user-id }
                :discussion/latest_activity_ts (crdt/max-wins now)
                :discussion/active_members user-id
                :discussion/seen_at {user-id (crdt/max-wins now)}}

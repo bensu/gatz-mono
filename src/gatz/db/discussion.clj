@@ -370,6 +370,40 @@
            [:=> [:cat any? schema/UserId] [:sequential schema/DiscussionId]]
            [:=> [:cat any? schema/UserId posts-for-user-opts] [:sequential schema/DiscussionId]]])
 
+#_(defn inspect-query-plan [node]
+  (let [db (xt/db node)
+        plan (xt/with-tx-log node
+               (xt/q db {:find '[did]
+                :in '[user-id]
+                :limit 20
+                :order-by '[[mentioned-at :desc]]
+                :where '[[did :db/type :gatz/discussion]
+                         ;; [did :discussion/mentioned_at user-id]
+                         [(get-attr did :discussion/mentioned_at) [uids->ts ...]]
+                         [(get uids->ts user-id) mentioned-at]
+                         [(some? mentioned-at)]
+                         ]}))]
+    (clojure.pprint/pprint plan)))
+
+;; There is only one mention per discussion, the first one
+;; The mention includes the message where you were mentioned
+
+;; TODO: does this scan every discussion by the user to find the mentions?
+(defn mentions-for-user
+  ([db uid]
+   (->> (q db {:find '[did mentioned-at]
+                :in '[user-id]
+                :limit 20
+                :order-by '[[mentioned-at :desc]]
+                :where '[[did :db/type :gatz/discussion]
+                         [did :discussion/members user-id]
+                         [did :discussion/mentioned_at uids->ts]
+                         [(get uids->ts user-id) mentioned-at]
+                         [(some? mentioned-at)]
+                         ]}
+           uid)
+        (map first))))
+
 (defn posts-for-user
   ([db uid]
    (posts-for-user db uid {}))

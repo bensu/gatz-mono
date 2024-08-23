@@ -336,6 +336,13 @@
     [:map-of #'UserId
      [:map-of string? (crdt/lww-schema [:maybe inst?])]]]])
 
+(def Mention
+  [:map
+   [:mention/by_uid #'UserId]
+   [:mention/to_uid #'UserId]
+   [:mention/mid #'MessageId]
+   [:mention/ts inst?]])
+
 (def DiscussionCRDT
   [:map
    [:xt/id #'DiscussionId]
@@ -367,6 +374,11 @@
    [:discussion/latest_activity_ts (crdt/max-wins-schema inst?)]
    ;; {user-id (->MaxWins inst?)}
    [:discussion/seen_at [:map-of #'UserId (crdt/max-wins-schema inst?)]]
+   ;; {user-id (->MinWins inst?)}
+   [:discussion/mentioned_at [:map-of #'UserId (crdt/min-wins-schema inst?)]]
+   ;; {user-id (GrowOnlySet Mention)}
+   ;; [:discussion/mentions [:map-of (crdt/grow-only-set-schema #'Mention)]]
+   ;; [:discussion/mentioned (crdt/grow-only-set-schema #'UserId)]
     ;; LWW, maybe?
    [:discussion/archived_uids (crdt/lww-set-schema #'UserId)]
 
@@ -403,6 +415,12 @@
    [:discussion/latest_activity_ts inst?]
    ;; {user-id (->MaxWins inst?)}
    [:discussion/seen_at [:map-of #'UserId inst?]]
+   ;; {user-id (->MinWins inst?)}
+   [:discussion/mentioned_at [:map-of #'UserId inst?]]
+   ;; {user-id (GrowOnlySet Mention)}
+   ;; [:discussion/mentions [:map-of #'UserId [:set #'Mention]]]
+   ;; Grow Only Set
+   ;; [:discussion/mentioned [:set #'UserId]]
    ;; {user-id (->LWW mid)} or MaxWins if mids can be ordered
    [:discussion/last_message_read [:map-of #'UserId #'MessageId]]
    ;; LWW
@@ -426,6 +444,7 @@
    :discussion/latest_message
    :discussion/active_members
    :discussion/archived_uids
+   :discussion/mentioned_at
    :discussion/members])
 
 (def DiscussionDoc
@@ -628,6 +647,7 @@
    [:discussion/latest_activity_ts (crdt/max-wins-schema inst?)]
    [:discussion/seen_at [:map-of #'UserId (crdt/max-wins-schema inst?)]]
    [:discussion/subscribers {:optional true} [:map-of #'UserId (crdt/lww-schema boolean?)]]
+   [:discussion/mentioned_at {:optional true} [:map-of #'UserId (crdt/min-wins-schema inst?)] ]
    [:discussion/active_members #'UserId]
    [:discussion/updated_at inst?]])
 

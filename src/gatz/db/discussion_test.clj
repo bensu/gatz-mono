@@ -32,11 +32,21 @@
           add-member-delta {:crdt/clock clock
                             :discussion/updated_at t0
                             :discussion/members {uid (crdt/->LWW clock true)}}
+          append-msg-delta {:crdt/clock clock
+                            :discussion/latest_message (crdt/lww clock mid)
+                            :discussion/latest_activity_ts (crdt/max-wins t0)
+                            :discussion/seen_at {uid (crdt/max-wins t0)}
+                            :discussion/subscribers {uid (crdt/lww clock true)}
+                            :discussion/active_members uid
+                            :discussion/mentioned_at {uid (crdt/min-wins t0)}
+                            :discussion/updated_at t0}
           unsubscribe-delta {:crdt/clock clock
                              :discussion/updated_at t0
                              :discussion/subscribers {uid (crdt/->LWW clock false)}}]
       (is (malli/validate schema/MarkMessageRead mark-message-read-delta)
           (malli/explain  schema/MarkMessageRead mark-message-read-delta))
+      (is (malli/validate schema/AppendMessageDelta append-msg-delta)
+          (malli/explain  schema/AppendMessageDelta append-msg-delta))
       (is (malli/validate schema/ArchiveDiscussion archive-delta)
           (malli/explain  schema/ArchiveDiscussion archive-delta))
       (is (malli/validate schema/SubscribeDelta subscribe-delta)
@@ -290,7 +300,7 @@
                           :discussion/latest_message mid
                           :discussion/latest_activity_ts now
                           :discussion/seen_at {}
-
+                          :discussion/mentioned_at {}
                           :discussion/updated_at t3
                           :discussion/archived_uids #{poster-uid commenter-uid}
                           :discussion/subscribers #{commenter-uid}
@@ -318,6 +328,7 @@
                    :discussion/last_message_read {}
                    :discussion/latest_activity_ts now
                    :discussion/updated_at now
+                   :discussion/mentioned_at {}
                    :discussion/seen_at {}
                    :discussion/archived_uids #{}}
                   (crdt.discussion/->value initial))
@@ -447,8 +458,10 @@
     (let [ctx (db.util-test/test-system)
           node (:biff.xtdb/node ctx)
           get-ctx (fn [uid]
-                    (assoc ctx :biff/db (xtdb/db node)
-                           :auth/user-id uid :auth/cid uid))
+                    (assoc ctx
+                           :biff/db (xtdb/db node)
+                           :auth/user-id uid
+                           :auth/cid uid))
           now (Date.)
           t1 (crdt/inc-time now)
           t2 (crdt/inc-time t1)
@@ -473,6 +486,7 @@
                          [cid sid]]]
         (db.contacts/force-contacts! ctx from to))
       (xtdb/sync node)
+
       (testing "the feeds start empty"
         (let [db (xtdb/db node)]
           (is (empty? (db.discussion/posts-for-user db uid)))
@@ -512,11 +526,12 @@
           :now t2})
         (db/create-message!
          (get-ctx cid)
-         {:did did2 :text "I see this" :now t3})
+         {:did did2 :text "I see this @poster_000" :now t3})
         (xtdb/sync node)
 
         (let [db (xtdb/db node)
               d2 (crdt.discussion/->value (db.discussion/by-id db did2))]
+          (is (= {uid t3} (:discussion/mentioned_at d2)))
           (is (= #{uid cid} (:discussion/members d2)))
           (is (= #{uid cid} (:discussion/active_members d2)))
 
@@ -524,6 +539,9 @@
               "They come in reverse chronological order")
           (is (= [did2] (db.discussion/posts-for-user db cid)))
           (is (= []     (db.discussion/posts-for-user db lid)))
+
+          (is (= [did2] (db.discussion/mentions-for-user db uid)))
+          (is (= [] (db.discussion/mentions-for-user db cid)))
 
           (testing "and the comment bumps the discussion into the activity feed"
             (is (= [did2] (db.discussion/active-for-user db uid)))
@@ -538,13 +556,18 @@
           :now t3})
         (db/create-message!
          (get-ctx uid)
-         {:did did1 :text "I see the first post" :now t4})
+         {:did did1 :text "I tag @commenter_000 but they are not here" :now t4})
         (xtdb/sync node)
 
         (let [db (xtdb/db node)
+              d1 (crdt.discussion/->value (db.discussion/by-id db did1))
               d3 (crdt.discussion/->value (db.discussion/by-id db did3))]
+
           (is (= #{uid cid} (:discussion/members d3)))
           (is (= #{cid}     (:discussion/active_members d3)))
+
+          (is (= [did2] (db.discussion/mentions-for-user db uid)))
+          (is (= [] (db.discussion/mentions-for-user db cid)))
 
           (is (= [did3 did2 did1] (db.discussion/posts-for-user db uid)))
           (is (= [did3 did2]      (db.discussion/posts-for-user db cid)))
@@ -639,6 +662,25 @@
           (is (= []     (db.discussion/active-for-user db lid {:older-than-ts t4})))
           (is (= []     (db.discussion/active-for-user db lid {:older-than-ts t5})))
           (is (= [did4] (db.discussion/active-for-user db lid {:older-than-ts t6})))))
+
+      (testing "repeated tags don't do anything"
+        (db/create-message!
+         (get-ctx uid)
+         {:did did3 :text "I tag @commenter_000 and they are here now" :now t4})
+        (db/create-message!
+         (get-ctx uid)
+         {:did did3 :text "I tag @commenter_000 again but it doesn't matter" :now t5})
+        (db/create-message!
+         (get-ctx cid)
+         {:did did3 :text "I tag @lurker_000 but but they are not a member" :now t5})
+        (xtdb/sync node)
+        (let [db (xtdb/db node)
+              d3 (crdt.discussion/->value (db.discussion/by-id db did3))]
+          (is (= {cid t4} (:discussion/mentioned_at d3))
+              "They are tagged at the earlier ts")
+          (is (= []     (db.discussion/mentions-for-user db lid)))
+          (is (= [did2] (db.discussion/mentions-for-user db uid)))
+          (is (= [did3] (db.discussion/mentions-for-user db cid)))))
 
       (testing "gives you 20 posts at a time, even if there are 45 there"
         (let [all-dids (take 45 (repeatedly random-uuid))]

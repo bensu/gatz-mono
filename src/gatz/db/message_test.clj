@@ -5,6 +5,7 @@
             [taoensso.nippy :as taoensso-nippy]
             [crdt.core :as crdt]
             [gatz.db :as db]
+            [gatz.db.message :as db.message]
             [gatz.db.message :refer :all]
             [gatz.db.user :as db.user]
             [gatz.db.util-test :as db.util-test]
@@ -12,6 +13,50 @@
             [malli.core :as malli]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
+
+
+(deftest at-mentions
+  (are [input expected] (= expected (db.message/extract-mentions input))
+    ;; Basic cases
+    "Hello @user123 and @another_user!" ["user123" "another_user"]
+    "@start middle @end" ["start" "end"]
+
+    ;; Edge cases
+    "No mentions here" []
+    "@" []  ; Single @ without username
+    "@@" []  ; Double @ without username
+    "@123" []  ; Numeric username
+    "@1abc" []
+    "@_underscore" []
+    "@end_underscore_" ["end_underscore_"]  ; Ending with underscore
+    "@multiple__underscores" ["multiple__underscores"]  ; Multiple underscores
+
+    ;; for other test cases
+    "me and @poster_000 are here" ["poster_000"]
+    "Hey @commenter_000, what is up" ["commenter_000"]
+
+    ;; Invalid characters
+    "@UPPERCASE" ["uppercase"]  ; Uppercase is parsed as lowercase
+    "@with-dash" ["with"]  ; Dash not allowed, should only match up to 'with'
+    "@special!char" ["special"]  ; Special characters not allowed
+
+    "@special, @another, @more" ["special" "another" "more"]
+
+    ;; Multiple mentions and positioning
+    "@start @middle @end" ["start" "middle" "end"]
+    "@adjacent@mentions" ["adjacent"]
+
+    ;; Mentions within other text
+    "email@example.com is not a mention" []
+    "Text with a @mention.in_it!" ["mention"]
+
+    ;; Long usernames
+    "@verylongusername1234567890_" ["verylongusername1234567890_"]
+
+    ;; Mentions at start/end of string
+    "@startmention text" ["startmention"]
+    "text @endmention" ["endmention"]))
+
 
 (deftest message-events
   (testing "Events can be validated"
