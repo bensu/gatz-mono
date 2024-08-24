@@ -441,11 +441,19 @@
       (is (= #crdt/lww [0 0] (read-string (pr-str #crdt/lww [0 0]))))
       (is (= #crdt/lww [0 0] (nippy/thaw (nippy/freeze #crdt/lww [0 0])))))))
 
+(declare grow-only-set-instance?)
+
 (defrecord GrowOnlySet [xs]
+  CRDTDelta
+  (-init [_]
+    (->GrowOnlySet #{}))
   OpCRDT
   (-value [_] xs)
   (-apply-delta [_ delta]
-    (->GrowOnlySet (conj xs (-value delta))))
+     ;; TODO: can you pass a set to a GOS and have it be merged in?
+    (cond
+      (grow-only-set-instance? delta) (->GrowOnlySet (set/union xs (-value delta)))
+      :else (->GrowOnlySet (conj xs (-value delta)))))
   StateCRDT
   (-merge [this that]
     (->GrowOnlySet (set/union (:xs this) (:xs that))))
@@ -667,6 +675,12 @@
                                        "like"  (not (even? user-id))}])
                            user-ids))
              (-value final)))))
+  (testing "you can apply from the right side"
+    (let [initial {}
+          deltas [{1 (gos #{1 2 3})}]
+          final (reduce -apply-delta initial deltas)]
+      (is {1 #{1 2 3}}
+          (-value final))))
   (testing "you can merge recursively"
     (let [initial {}
           user-ids (range 10)
