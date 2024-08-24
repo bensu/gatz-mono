@@ -395,12 +395,10 @@
                 :in '[user-id]
                 :limit 20
                 :order-by '[[mentioned-at :desc]]
-                :where '[[did :db/type :gatz/discussion]
-                         [did :discussion/members user-id]
-                         [did :discussion/mentioned_at uids->ts]
-                         [(get uids->ts user-id) mentioned-at]
-                         [(some? mentioned-at)]
-                         ]}
+                :where '[[mention :db/type :gatz/mention]
+                         [mention :mention/to_uid user-id]
+                         [mention :mention/did did]
+                         [mention :mention/ts mentioned-at]]}
            uid)
         (map first))))
 

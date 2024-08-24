@@ -300,16 +300,28 @@
         members (:discussion/members d)
 
         possible-mentions (db.message/extract-mentions text)
-        mentioned_at (if-not (empty? possible-mentions)
-                       (->> possible-mentions
-                            set
-                            (keep (partial db.user/by-name db))
-                            (filter (fn [u]
-                                      (contains? members (:xt/id u))))
-                            (map (fn [u]
-                                   [(:xt/id u) (crdt/min-wins now)]))
-                            (into {}))
-                       {})
+        mentions (if-not (empty? possible-mentions)
+                   (->> possible-mentions
+                        set
+                        (keep (partial db.user/by-name db))
+                        (filter (fn [{:keys [xt/id]}]
+                                  (and (not= user-id id)
+                                       (contains? members id))))
+                        (mapv (fn [u]
+                                {:xt/id (random-uuid)
+                                 :db/type :gatz/mention
+                                 :db/version 1
+                                 :mention/by_uid user-id
+                                 :mention/to_uid (:xt/id u)
+                                 :mention/did did
+                                 :mention/mid mid
+                                 :mention/ts now})))
+                   [])
+        uid->mentions (zipmap (map :mention/to_uid mentions)
+                              (map (fn [m] (crdt/gos #{m})) mentions))
+        mentions-txns (map (fn [m]
+                             [:xtdb.api/fn :gatz.db.mention/add {:mention m}])
+                           mentions)
 
         subscribe? (get-in user [:user/settings
                                  :settings/notifications
@@ -333,9 +345,7 @@
         delta {:crdt/clock clock
                :discussion/updated_at now
                :discussion/latest_message (crdt/lww clock mid)
-               :discussion/mentioned_at mentioned_at
-               ;; :discussion/mentions {}
-               ;; :discussion/mentions {user-id }
+               :discussion/mentions uid->mentions
                :discussion/latest_activity_ts (crdt/max-wins now)
                :discussion/active_members user-id
                :discussion/seen_at {user-id (crdt/max-wins now)}}
@@ -352,6 +362,7 @@
         txns (concat
               [(assoc msg :db/doc-type :gatz.crdt/message :db/op :create)
                [:xtdb.api/fn :gatz.db.discussion/apply-delta {:evt evt}]]
+              mentions-txns
               (or updated-medias []))]
     (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
                     (vec (remove nil? txns)))

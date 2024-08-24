@@ -14,7 +14,7 @@
 (def ClientId :uuid)
 (def GroupId ulid?)
 
-;; ======================================================================  
+;; ======================================================================
 ;; User & Contacts
 
 (def PushToken
@@ -45,8 +45,6 @@
    ;; [:settings.notification/reactions_to_comment boolean?]
    ;; [:settings.notification/at_mentions boolean?]
    ])
-
-
 (def NotificationPreferences
   [:map
    [:settings.notification/overall boolean?]
@@ -119,7 +117,7 @@
 
 (def UserActivity
   [:map
-   [:xt/id :uuid] ;; unused 
+   [:xt/id :uuid] ;; unused
    [:db/type [:enum :gatz/user_activity]]
    [:db/version [:enum 1]]
    [:user_activity/user_id #'UserId]
@@ -136,7 +134,9 @@
 (def ContactRequestId :uuid)
 
 (def ContactViewedState
+
   [:enum
+
    :contact_request/self
    :contact_request/none
    :contact_request/viewer_awaits_response
@@ -177,7 +177,6 @@
    [:contacts/updated_at inst?]
    [:contacts/ids [:set #'UserId]]])
 
-
 (def InviteLink
   [:map
    [:xt/id ulid?]
@@ -192,7 +191,7 @@
    [:invite_link/used_at [:map-of #'UserId inst?]]
    [:invite_link/used_by [:set #'UserId]]])
 
-;; ====================================================================== 
+;; ======================================================================
 ;; Groups
 
 (def DiscussionMemberMode
@@ -256,8 +255,20 @@
      [:group_request/state GroupRequestState]
      [:group_request/log [:vec GroupRequestLog]]])
 
+(def Mention
+  [:map
+   [:xt/id ulid?]
+   [:db/type [:enum :gatz/mention]]
+   [:db/version [:enum 1]]
+   [:mention/by_uid #'UserId]
+   [:mention/to_uid #'UserId]
+   [:mention/did #'DiscussionId]
+   [:mention/mid #'MessageId]
+   [:mention/ts inst?]])
 
-;; ====================================================================== 
+
+
+;; ======================================================================
 ;; Message & Media
 
 (def Media
@@ -336,13 +347,6 @@
     [:map-of #'UserId
      [:map-of string? (crdt/lww-schema [:maybe inst?])]]]])
 
-(def Mention
-  [:map
-   [:mention/by_uid #'UserId]
-   [:mention/to_uid #'UserId]
-   [:mention/mid #'MessageId]
-   [:mention/ts inst?]])
-
 (def DiscussionCRDT
   [:map
    [:xt/id #'DiscussionId]
@@ -375,9 +379,9 @@
    ;; {user-id (->MaxWins inst?)}
    [:discussion/seen_at [:map-of #'UserId (crdt/max-wins-schema inst?)]]
    ;; {user-id (->MinWins inst?)}
-   [:discussion/mentioned_at [:map-of #'UserId (crdt/min-wins-schema inst?)]]
+   ;; [:discussion/mentioned_at [:map-of #'UserId (crdt/min-wins-schema inst?)]]
    ;; {user-id (GrowOnlySet Mention)}
-   ;; [:discussion/mentions [:map-of (crdt/grow-only-set-schema #'Mention)]]
+   ;; [:discussion/mentions [:map-of #'UserId (crdt/grow-only-set-schema #'Mention)]]
    ;; [:discussion/mentioned (crdt/grow-only-set-schema #'UserId)]
     ;; LWW, maybe?
    [:discussion/archived_uids (crdt/lww-set-schema #'UserId)]
@@ -416,9 +420,9 @@
    ;; {user-id (->MaxWins inst?)}
    [:discussion/seen_at [:map-of #'UserId inst?]]
    ;; {user-id (->MinWins inst?)}
-   [:discussion/mentioned_at [:map-of #'UserId inst?]]
+   [:discussion/mentions [:map-of #'UserId [:set #'Mention]]]
+
    ;; {user-id (GrowOnlySet Mention)}
-   ;; [:discussion/mentions [:map-of #'UserId [:set #'Mention]]]
    ;; Grow Only Set
    ;; [:discussion/mentioned [:set #'UserId]]
    ;; {user-id (->LWW mid)} or MaxWins if mids can be ordered
@@ -444,7 +448,6 @@
    :discussion/latest_message
    :discussion/active_members
    :discussion/archived_uids
-   :discussion/mentioned_at
    :discussion/members])
 
 (def DiscussionDoc
@@ -452,7 +455,7 @@
       (mu/select-keys discussion-indexed-fields)
       (mu/assoc :db/full-doc DiscussionCRDT)))
 
-;; ====================================================================== 
+;; ======================================================================
 ;; Events
 
 (def UserUpdateAvatar
@@ -646,8 +649,10 @@
    [:discussion/latest_message (crdt/lww-schema #'MessageId)]
    [:discussion/latest_activity_ts (crdt/max-wins-schema inst?)]
    [:discussion/seen_at [:map-of #'UserId (crdt/max-wins-schema inst?)]]
-   [:discussion/subscribers {:optional true} [:map-of #'UserId (crdt/lww-schema boolean?)]]
-   [:discussion/mentioned_at {:optional true} [:map-of #'UserId (crdt/min-wins-schema inst?)] ]
+   [:discussion/subscribers {:optional true}
+    [:map-of #'UserId (crdt/lww-schema boolean?)]]
+   [:discussion/mentions {:optional true}
+    [:map-of #'UserId (crdt/grow-only-set-schema #'Mention)]]
    [:discussion/active_members #'UserId]
    [:discussion/updated_at inst?]])
 
@@ -728,7 +733,7 @@
 (def Event
   [:or #'DiscussionEvt #'MessageEvent #'ReactionEvt])
 
-;; ====================================================================== 
+;; ======================================================================
 ;; Final schema
 
 (def schema
@@ -751,6 +756,7 @@
    :gatz/media #'Media
    :gatz/message Message
    :gatz.crdt/message #'MessageCRDT
+   :gatz/mention #'Mention
    :gatz/push PushToken})
 
 (def plugin {:schema schema})

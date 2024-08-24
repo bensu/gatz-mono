@@ -32,17 +32,27 @@
           add-member-delta {:crdt/clock clock
                             :discussion/updated_at t0
                             :discussion/members {uid (crdt/->LWW clock true)}}
+          mention {:xt/id (crdt/random-ulid)
+                   :db/type :gatz/mention
+                   :db/version 1
+                   :mention/to_uid uid
+                   :mention/by_uid uid
+                   :mention/ts t0
+                   :mention/did did
+                   :mention/mid mid}
           append-msg-delta {:crdt/clock clock
                             :discussion/latest_message (crdt/lww clock mid)
                             :discussion/latest_activity_ts (crdt/max-wins t0)
                             :discussion/seen_at {uid (crdt/max-wins t0)}
                             :discussion/subscribers {uid (crdt/lww clock true)}
                             :discussion/active_members uid
-                            :discussion/mentioned_at {uid (crdt/min-wins t0)}
+                            :discussion/mentions {uid (crdt/gos #{mention})}
                             :discussion/updated_at t0}
           unsubscribe-delta {:crdt/clock clock
                              :discussion/updated_at t0
                              :discussion/subscribers {uid (crdt/->LWW clock false)}}]
+      (is (malli/validate #'schema/Mention mention mention))
+      (is (malli/validate (crdt/grow-only-set-schema #'schema/Mention) (crdt/gos #{mention})))
       (is (malli/validate schema/MarkMessageRead mark-message-read-delta)
           (malli/explain  schema/MarkMessageRead mark-message-read-delta))
       (is (malli/validate schema/AppendMessageDelta append-msg-delta)
@@ -60,6 +70,8 @@
                         :discussion.crdt/delta mark-message-read-delta}
                        {:discussion.crdt/action :discussion.crdt/add-members
                         :discussion.crdt/delta add-member-delta}
+                       {:discussion.crdt/action :discussion.crdt/append-message
+                        :discussion.crdt/delta append-msg-delta}
                        {:discussion.crdt/action :discussion.crdt/archive
                         :discussion.crdt/delta archive-delta}
                        {:discussion.crdt/action :discussion.crdt/subscribe
@@ -300,7 +312,7 @@
                           :discussion/latest_message mid
                           :discussion/latest_activity_ts now
                           :discussion/seen_at {}
-                          :discussion/mentioned_at {}
+                          :discussion/mentions {}
                           :discussion/updated_at t3
                           :discussion/archived_uids #{poster-uid commenter-uid}
                           :discussion/subscribers #{commenter-uid}
@@ -328,7 +340,7 @@
                    :discussion/last_message_read {}
                    :discussion/latest_activity_ts now
                    :discussion/updated_at now
-                   :discussion/mentioned_at {}
+                   :discussion/mentions {}
                    :discussion/seen_at {}
                    :discussion/archived_uids #{}}
                   (crdt.discussion/->value initial))
@@ -531,7 +543,7 @@
 
         (let [db (xtdb/db node)
               d2 (crdt.discussion/->value (db.discussion/by-id db did2))]
-          (is (= {uid t3} (:discussion/mentioned_at d2)))
+          (is (= #{uid} (set (keys (:discussion/mentions d2)))))
           (is (= #{uid cid} (:discussion/members d2)))
           (is (= #{uid cid} (:discussion/active_members d2)))
 
@@ -669,6 +681,9 @@
          {:did did3 :text "I tag @commenter_000 and they are here now" :now t4})
         (db/create-message!
          (get-ctx uid)
+         {:did did3 :text "I tag @poster_000 myself but it doesn't matter" :now t5})
+        (db/create-message!
+         (get-ctx uid)
          {:did did3 :text "I tag @commenter_000 again but it doesn't matter" :now t5})
         (db/create-message!
          (get-ctx cid)
@@ -676,8 +691,7 @@
         (xtdb/sync node)
         (let [db (xtdb/db node)
               d3 (crdt.discussion/->value (db.discussion/by-id db did3))]
-          (is (= {cid t4} (:discussion/mentioned_at d3))
-              "They are tagged at the earlier ts")
+          (is (= #{cid} (set (keys (:discussion/mentions d3)))))
           (is (= []     (db.discussion/mentions-for-user db lid)))
           (is (= [did2] (db.discussion/mentions-for-user db uid)))
           (is (= [did3] (db.discussion/mentions-for-user db cid)))))
