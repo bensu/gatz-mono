@@ -184,7 +184,7 @@
 ;; Pre-CRDT clients
 
 (defn flag!
-  "Marks a message as deleted with :message/deleted_at"
+  "Blocks some content for the user"
   [{:keys [auth/user-id] :as ctx}
    did
    mid]
