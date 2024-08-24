@@ -15,7 +15,8 @@
             [gatz.db.user :as db.user]
             [gatz.schema :as schema]
             [malli.transform :as mt]
-            [xtdb.api :as xtdb])
+            [xtdb.api :as xtdb]
+            [clojure.tools.logging :as log])
   (:import [java.util Date]))
 
 ;; ======================================================================
@@ -308,7 +309,7 @@
                                   (and (not= user-id id)
                                        (contains? members id))))
                         (mapv (fn [u]
-                                {:xt/id (random-uuid)
+                                {:xt/id (crdt/random-ulid)
                                  :db/type :gatz/mention
                                  :db/version 1
                                  :mention/by_uid user-id
@@ -322,6 +323,8 @@
         mentions-txns (map (fn [m]
                              [:xtdb.api/fn :gatz.db.mention/add {:mention m}])
                            mentions)
+
+        _ (log/info "new mentions" mentions)
 
         subscribe? (get-in user [:user/settings
                                  :settings/notifications

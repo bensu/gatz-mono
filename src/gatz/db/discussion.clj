@@ -389,41 +389,49 @@
 ;; The mention includes the message where you were mentioned
 
 ;; TODO: does this scan every discussion by the user to find the mentions?
+(defn mentions-for-user-with-ts
+  ([db uid]
+   (q db {:find '[did mentioned-at]
+          :in '[user-id]
+          :limit 20
+          :order-by '[[mentioned-at :desc]]
+          :where '[[mention :db/type :gatz/mention]
+                   [mention :mention/to_uid user-id]
+                   [mention :mention/did did]
+                   [mention :mention/ts mentioned-at]]}
+      uid)))
+
 (defn mentions-for-user
   ([db uid]
-   (->> (q db {:find '[did mentioned-at]
-                :in '[user-id]
-                :limit 20
-                :order-by '[[mentioned-at :desc]]
-                :where '[[mention :db/type :gatz/mention]
-                         [mention :mention/to_uid user-id]
-                         [mention :mention/did did]
-                         [mention :mention/ts mentioned-at]]}
-           uid)
-        (map first))))
+   (map first (mentions-for-user-with-ts db uid))))
 
-(defn posts-for-user
+(defn posts-for-user-with-ts
   ([db uid]
-   (posts-for-user db uid {}))
+   (posts-for-user-with-ts db uid {}))
   ([db uid {:keys [older-than-ts contact_id group_id]}]
    {:pre [(uuid? uid)
           (or (nil? older-than-ts) (inst? older-than-ts))
           (or (nil? contact_id) (uuid? contact_id))
           (or (nil? group_id) (crdt/ulid? group_id))]}
    (let [exclude-archive? (and (not group_id) (not contact_id))]
-     (->> (q db {:find '[did created-at]
-                 :in '[user-id older-than-ts cid gid]
-                 :limit 20
-                 :order-by '[[created-at :desc]]
-                 :where (cond-> '[[did :db/type :gatz/discussion]
-                                  [did :discussion/members user-id]
-                                  [did :discussion/created_at created-at]]
-                          contact_id       (conj '[did :discussion/created_by cid])
-                          group_id         (conj '[did :discussion/group_id gid])
-                          exclude-archive? (conj '(not [did :discussion/archived_uids user-id]))
-                          older-than-ts    (conj '[(< created-at older-than-ts)]))}
-             uid older-than-ts contact_id group_id)
-          (map first)))))
+     (q db {:find '[did created-at]
+            :in '[user-id older-than-ts cid gid]
+            :limit 20
+            :order-by '[[created-at :desc]]
+            :where (cond-> '[[did :db/type :gatz/discussion]
+                             [did :discussion/members user-id]
+                             [did :discussion/created_at created-at]]
+                     contact_id       (conj '[did :discussion/created_by cid])
+                     group_id         (conj '[did :discussion/group_id gid])
+                     exclude-archive? (conj '(not [did :discussion/archived_uids user-id]))
+                     older-than-ts    (conj '[(< created-at older-than-ts)]))}
+        uid older-than-ts contact_id group_id))))
+
+(defn posts-for-user
+  ([db uid]
+   (posts-for-user db uid {}))
+  ([db uid opts]
+   (map first (posts-for-user-with-ts db uid opts))))
 
 (defn posts-for-group
   ([db gid uid]

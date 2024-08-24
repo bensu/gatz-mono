@@ -387,39 +387,44 @@
         group (some->> (:group_id params) (db.group/by-id db))
         group_id (:xt/id group)
 
-        dids (db.discussion/posts-for-user db user-id
-                                           {:older-than-ts older-than
-                                            :contact_id contact_id
-                                            :group_id group_id})
+        dids-ts (db.discussion/posts-for-user-with-ts
+                 db user-id {:older-than-ts older-than
+                             :contact_id contact_id
+                             :group_id group_id})
+        mentioned-dids-ts (db.discussion/mentions-for-user-with-ts db user-id)
+
+        dids (->> (concat dids-ts mentioned-dids-ts)
+                  (sort-by (fn [[_ tsa]] tsa))
+                  (reverse)
+                  (map first)
+                  (distinct)
+                  (take 20))
 
         blocked-uids (:user/blocked_uids (crdt.user/->value user))
         poster-blocked? (fn [{:keys [discussion]}]
                           (contains? blocked-uids (:discussion/created_by discussion)))
 
-        ds (->> dids
+        ds (->> (set/union (set dids) (set dids))
                 (map (partial db/discussion-by-id db))
                 (remove poster-blocked?))
 
         ;; TODO: pass older-than, contact_id, group_id
-        mentioned-dids (db.discussion/mentions-for-user db user-id)
         ;; TODO: I need the message as well
-        mentioned-ds (->> mentioned-dids
-                          (map (partial db/discussion-by-id db))
-                          (remove poster-blocked?)
-                          (keep (fn [{:discussion/keys [mentions] :as dr}]
-                                  (let [mentions (crdt/-value mentions)]
-                                    (when-let [mention (some->> (get mentions user-id)
-                                                                (sort-by :mention/ts)
-                                                                (last))]
-                                      (-> dr
-                                          (assoc :message_id (:mention/mid mention)
-                                                 :by_user_id (:mention/by_uid mention))))))))
+        ;; mentioned-ds (->> mentioned-dids
+        ;;                   (map (partial db/discussion-by-id db))
+        ;;                   (remove poster-blocked?)
+        ;;                   (keep (fn [{:discussion/keys [mentions] :as dr}]
+        ;;                           (let [mentions (crdt/-value mentions)]
+        ;;                             (when-let [mention (some->> (get mentions user-id)
+        ;;                                                         (sort-by :mention/ts)
+        ;;                                                         (last))]
+        ;;                               (-> dr
+        ;;                                   (assoc :message_id (:mention/mid mention)
+        ;;                                          :by_user_id (:mention/by_uid mention))))))))
 
         ;; What are the groups and users in those discussions?
         d-group-ids (set (keep (comp :discussion/group_id :discussion) ds))
         d-user-ids  (reduce set/union (map :user_ids ds))
-        m-group-ids (set (keep (comp :discussion/group_id :discussion) mentioned-ds))
-        m-user-ids  (reduce set/union (map :user_ids mentioned-ds))
 
         ;; Any pending contact requests?
         contact-requests (db.contacts/pending-requests-to db user-id)
@@ -435,16 +440,15 @@
         ;; TODO: not only send the gruop-ids from the discussions,
         ;; also from the contact request
         groups (conj (mapv (partial db.group/by-id db)
-                           (set/union c-group-ids d-group-ids m-group-ids))
+                           (set/union c-group-ids d-group-ids))
                      group)
 
         ;; TODO: only send the users that are in the discussions
         ;; and in the contact requests
         users (or (db.user/all-users db)
                   (mapv (partial db.user/by-id db)
-                        (set/union d-user-ids c-user-ids m-user-ids)))]
+                        (set/union d-user-ids c-user-ids)))]
     (json-response {:discussions (mapv crdt.discussion/->value ds)
-                    :mentions [] ;; (mapv crdt.discussion/->value mentioned-ds)
                     :users (mapv crdt.user/->value users)
                     :groups groups
                     :contact_requests crs
