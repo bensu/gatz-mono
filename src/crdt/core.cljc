@@ -13,6 +13,7 @@
            [java.lang Comparable Thread]))
 
 (defn random-ulid [] (ulid/random))
+(defn rand-uuid [] (ulid/rand-uuid))
 (defn ulid? [x] (ulid/ulid? x))
 (defn parse-ulid [x] (ulid/maybe-parse x))
 
@@ -57,7 +58,7 @@
 
 (defn read-min-wins
   "Used by the reader like so:
-  
+
    #crdt/min-wins 1
    #crdt/min-wins \"a\"
    #crdt/min-wins #inst \"2021-06-01\"
@@ -133,7 +134,7 @@
 
 (defn read-max-wins
   "Used by the reader like so:
-  
+
    #crdt/max-wins 1
    #crdt/max-wins \"a\"
    #crdt/max-wins #inst \"2021-06-01\"
@@ -213,9 +214,9 @@
     (stagger-compare [:ts :counter :node] this that))
   CRDTDelta
   (-init [_] (->HLC ts 0 node))
-  OpCRDT ;; as a LWW where the value is itself 
+  OpCRDT ;; as a LWW where the value is itself
   (-value [this] this)
-  ;; TODO: shouldn't this move things forward by using 
+  ;; TODO: shouldn't this move things forward by using
   ;; either -increment or -receive?
   (-apply-delta [this delta]
     (case (compare this delta)
@@ -238,7 +239,7 @@
 
 (defn read-hlc
   "Used by the reader like so:
-  
+
    #crdt/hlc [#uuid \"08f711cd-1d4d-4f61-b157-c36a8be8ef95\"]
    #crdt/hlc [1 #uuid \"08f711cd-1d4d-4f61-b157-c36a8be8ef95\"]
    #crdt/hlc [#inst \"2021-06-01\" 1 #uuid \"08f711cd-1d4d-4f61-b157-c36a8be8ef95\"]"
@@ -364,7 +365,7 @@
   "Used by the reader like so:
 
    #crdt/lww [clock value]
-  
+
    #crdt/lww [1 \"a\"]
    #crdt/lww [#inst \"2021-06-01\" nil]
    #crdt/lww [#crdt/hlc [#uuid \"08f711cd-1d4d-4f61-b157-c36a8be8ef95\"] 3]"
@@ -561,7 +562,7 @@
   ([clock-schema value-schema]
    [:map-of value-schema (lww-schema clock-schema boolean?)]))
 
-;; This is not super ergonomic! 
+;; This is not super ergonomic!
 ;; The API you want knows which id you are removing
 (deftest lww-set-test
   (testing "we can check the schema"

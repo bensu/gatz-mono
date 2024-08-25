@@ -1,8 +1,11 @@
 (ns crdt.ulid
   (:require [clojure.data.json]
-            [xtdb.codec])
+            [xtdb.codec]
+            [taoensso.nippy :as nippy]
+            [juxt.clojars-mirrors.nippy.v3v1v1.taoensso.nippy :as juxt-nippy])
   (:import [com.github.f4b6a3.ulid Ulid UlidCreator]
            [java.io Writer]
+           [java.util UUID]
            [java.nio.charset StandardCharsets]
            [org.agrona MutableDirectBuffer]))
 
@@ -13,6 +16,9 @@
 
 (defn random ^Ulid []
   (UlidCreator/getUlid))
+
+(defn rand-uuid ^UUID []
+  (.toUuid (UlidCreator/getUlid)))
 
 (defn monotonic ^Ulid []
   (UlidCreator/getMonotonicUlid))
@@ -41,12 +47,15 @@
 (defmethod print-dup Ulid [^Ulid ulid ^java.io.Writer w]
   (.write w (str "#=(crdt.ulid/read-ulid " (pr-str (.toString ulid)) ")")))
 
-(extend-protocol xtdb.codec/IdToBuffer
-  Ulid
-  (id->buffer [^Ulid ulid ^MutableDirectBuffer to]
-    (xtdb.codec/id-function to (.getBytes (.toString ulid) StandardCharsets/UTF_8))))
-
 (extend-type Ulid
+  xtdb.codec/IdToBuffer
+  (id->buffer [^Ulid ulid ^MutableDirectBuffer to]
+    (xtdb.codec/id-function to (.getBytes (.toString ulid) StandardCharsets/UTF_8)))
+
+  juxt-nippy/IFreezable1
+  (-freeze-without-meta! [this out]
+    (nippy/freeze-to-out! out this))
+
   clojure.data.json/JSONWriter
   (-write [^Ulid ulid ^Appendable out _options]
     (.append out \")
