@@ -293,6 +293,7 @@
 
   (let [now (or now (Date.))
         mid (or mid (random-uuid))
+        clock (crdt/new-hlc user-id now)
 
         user (crdt.user/->value (db.user/by-id db user-id))
         _ (assert user)
@@ -309,7 +310,7 @@
                                   (and (not= user-id id)
                                        (contains? members id))))
                         (mapv (fn [u]
-                                {:xt/id (crdt/random-ulid)
+                                {:xt/id (crdt/rand-uuid)
                                  :db/type :gatz/mention
                                  :db/version 1
                                  :mention/by_uid user-id
@@ -336,12 +337,11 @@
                                          (assoc :media/message_id mid)
                                          (db.media/update-media)))
                                media_ids))
-        ;; TODO: put directly in discussion
-        clock (crdt/new-hlc user-id now)
         msg (crdt.message/new-message
              {:uid user-id :mid mid :did did
               :text text
               :reply_to reply_to
+              :mentions mentions
               :media updated-medias}
              ;; TODO: get real connection id
              {:clock clock :now now})

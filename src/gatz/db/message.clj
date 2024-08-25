@@ -31,6 +31,7 @@
    :message/deleted_at nil
    :message/edits []
    :message/reactions {}
+   :message/mentions {}
    :message/posted_as_discussion []})
 
 ;; This is the same as reserialize as a CRDT
