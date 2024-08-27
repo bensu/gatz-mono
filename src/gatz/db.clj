@@ -325,8 +325,6 @@
                              [:xtdb.api/fn :gatz.db.mention/add {:mention m}])
                            mentions)
 
-        _ (log/info "new mentions" mentions)
-
         subscribe? (get-in user [:user/settings
                                  :settings/notifications
                                  :settings.notification/subscribe_on_comment]

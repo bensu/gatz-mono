@@ -861,13 +861,16 @@
           (is (= [did2] (db.discussion/posts-for-user db aid)))
           (is (= []     (db.discussion/posts-for-user db mid)))
 
+          (is (= [] (db.discussion/mentions-for-user db oid {:group_id gid})))
+          (is (= [] (db.discussion/mentions-for-user db aid {:group_id gid})))
+
           (is (= [did1] (db.discussion/active-for-user db oid)))
           (is (empty? (db.discussion/active-for-user db mid)))
           (is (empty? (db.discussion/active-for-user db aid))))
 
         (db/create-message!
          (get-ctx aid)
-         {:did did2 :text "Owner and admin see this" :now t3})
+         {:did did2 :text "@owner and admin see this" :now t3})
 
         (db.group/apply-action! (get-ctx oid)
                                 {:xt/id gid
@@ -887,6 +890,11 @@
         (let [db (xtdb/db node)
               d2 (crdt.discussion/->value (db.discussion/by-id db did2))
               d3 (crdt.discussion/->value (db.discussion/by-id db did3))]
+
+          (testing "the mentions are shown in the discussion feed"
+            (is (= #{oid} (set (keys (:discussion/mentions d2)))))
+            (is (= [did2] (db.discussion/mentions-for-user db oid {:group_id gid})))
+            (is (= [] (db.discussion/mentions-for-user db aid {:group_id gid}))))
 
           (is (= gid (:discussion/group_id d3)))
 

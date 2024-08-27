@@ -371,19 +371,18 @@
            [:=> [:cat any? schema/UserId posts-for-user-opts] [:sequential schema/DiscussionId]]])
 
 #_(defn inspect-query-plan [node]
-  (let [db (xt/db node)
-        plan (xt/with-tx-log node
-               (xt/q db {:find '[did]
-                :in '[user-id]
-                :limit 20
-                :order-by '[[mentioned-at :desc]]
-                :where '[[did :db/type :gatz/discussion]
+    (let [db (xt/db node)
+          plan (xt/with-tx-log node
+                 (xt/q db {:find '[did]
+                           :in '[user-id]
+                           :limit 20
+                           :order-by '[[mentioned-at :desc]]
+                           :where '[[did :db/type :gatz/discussion]
                          ;; [did :discussion/mentioned_at user-id]
-                         [(get-attr did :discussion/mentioned_at) [uids->ts ...]]
-                         [(get uids->ts user-id) mentioned-at]
-                         [(some? mentioned-at)]
-                         ]}))]
-    (clojure.pprint/pprint plan)))
+                                    [(get-attr did :discussion/mentioned_at) [uids->ts ...]]
+                                    [(get uids->ts user-id) mentioned-at]
+                                    [(some? mentioned-at)]]}))]
+      (clojure.pprint/pprint plan)))
 
 ;; There is only one mention per discussion, the first one
 ;; The mention includes the message where you were mentioned
@@ -391,19 +390,32 @@
 ;; TODO: does this scan every discussion by the user to find the mentions?
 (defn mentions-for-user-with-ts
   ([db uid]
+   (mentions-for-user-with-ts db uid {}))
+
+  ([db uid {:keys [older-than-ts contact_id group_id]}]
+
+   {:pre [(or (nil? older-than-ts) (inst? older-than-ts))
+          (or (nil? contact_id) (uuid? contact_id))
+          (or (nil? group_id) (crdt/ulid? group_id))]}
+
    (q db {:find '[did mentioned-at]
-          :in '[user-id]
+          :in '[user-id older-than-ts cid gid]
           :limit 20
           :order-by '[[mentioned-at :desc]]
-          :where '[[mention :db/type :gatz/mention]
-                   [mention :mention/to_uid user-id]
-                   [mention :mention/did did]
-                   [mention :mention/ts mentioned-at]]}
-      uid)))
+          :where  (cond-> '[[mention :db/type :gatz/mention]
+                            [mention :mention/to_uid user-id]
+                            [mention :mention/did did]
+                            [mention :mention/ts mentioned-at]]
+                    contact_id    (conj '[did :discussion/created_by cid])
+                    group_id      (conj '[did :discussion/group_id gid])
+                    older-than-ts (conj '[(< mentioned-at older-than-ts)]))}
+      uid older-than-ts contact_id group_id)))
 
 (defn mentions-for-user
   ([db uid]
-   (map first (mentions-for-user-with-ts db uid))))
+   (mentions-for-user db uid {}))
+  ([db uid opts]
+   (map first (mentions-for-user-with-ts db uid opts))))
 
 (defn posts-for-user-with-ts
   ([db uid]

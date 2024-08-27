@@ -385,12 +385,11 @@
         ;; Is this a group feed?
         group (some->> (:group_id params) (db.group/by-id db))
         group_id (:xt/id group)
-
-        dids-ts (db.discussion/posts-for-user-with-ts
-                 db user-id {:older-than-ts older-than
-                             :contact_id contact_id
-                             :group_id group_id})
-        mentioned-dids-ts (db.discussion/mentions-for-user-with-ts db user-id)
+        feed-query {:older-than-ts older-than
+                    :contact_id contact_id
+                    :group_id group_id}
+        dids-ts (db.discussion/posts-for-user-with-ts db user-id feed-query)
+        mentioned-dids-ts (db.discussion/mentions-for-user-with-ts db user-id feed-query)
 
         dids (->> (concat dids-ts mentioned-dids-ts)
                   (sort-by (fn [[_ tsa]] tsa))
