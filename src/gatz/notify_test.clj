@@ -198,8 +198,9 @@
           (is (= {:expo/to ctoken
                   :expo/uid cid
                   :expo/title "poster is in gatz"
-                ;; TODO: this is an error: we are double counting the first message
-                ;; of the discussion as a new post and a new reply
+                  :expo/data {:scope :notify/activity :url "/"}
+                  ;; TODO: this is an error: we are double counting the first message
+                  ;; of the discussion as a new post and a new reply
                   :expo/body "1 new post, 1 new reply"}
                  (notify/activity-notification-for-user db cid))
               "Friends get notifications from your activity"))
@@ -232,8 +233,9 @@
             (is (= {:expo/to ctoken
                     :expo/uid cid
                     :expo/title "poster is in gatz"
-                ;; TODO: this is an error: we are double counting the first message
-                ;; of the discussion as a new post and a new reply
+                    :expo/data {:scope :notify/activity :url "/"}
+                    ;; TODO: this is an error: we are double counting the first message
+                    ;; of the discussion as a new post and a new reply
                     :expo/body "3 new posts, 3 new replies"}
                    (notify/activity-notification-for-user db cid))
                 "Friends get notifications from your activity"))

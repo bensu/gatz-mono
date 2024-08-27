@@ -316,7 +316,6 @@
     (coll? media_ids)       (assoc :media_ids (vec (keep mt/-string->uuid media_ids)))))
 
 (defn create-message! [{:keys [params biff/db auth/user-id] :as ctx}]
-  (def -ctx ctx)
   (let [{:keys [text mid did media_ids reply_to]} (parse-create-message-params params)
         mid (or mid (random-uuid))
         d (crdt.discussion/->value (db.discussion/by-id db did))]
