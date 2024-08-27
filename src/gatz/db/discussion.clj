@@ -193,6 +193,15 @@
       group? open?
       :else (and open? (= uid (:discussion/created_by d))))))
 
+;; TODO: group admins can remove people from discussions
+(defmethod authorized-for-delta? :discussion.crdt/remove-members
+  [d evt]
+  (let [uid (:evt/uid evt)
+        delta (get-in evt [:evt/data :discussion.crdt/delta])
+        members (crdt.discussion/->value (:discussion/members delta))]
+    (or (= uid (:discussion/created_by d))
+        (= #{uid} members))))
+
 (defn apply-delta-xtdb
   [ctx {:keys [evt] :as _args}]
   (let [did (:evt/did evt)
@@ -233,17 +242,50 @@
             {:evt (xtdb.api/entity db-after (:evt/id evt))
              :discussion (by-id db-after did)})
           (assert false "Transaction would've failed")))
-      (assert false "Invaild event"))))
+      (do
+        (println (:errors (malli/explain schema/DiscussionEvt evt)))
+        (assert false "Invaild event")))))
 
 ;; Wrappers over actions
+
+(defn add-members!
+  ([ctx did members]
+   (add-members! ctx did members (Date.)))
+  ([ctx did members now]
+   {:pre [(uuid? did)
+          (set? members) (every? uuid? members)
+          (inst? now)]}
+   (let [by-uid (:auth/user-id ctx)
+         clock (crdt/new-hlc by-uid now)
+         delta {:crdt/clock clock
+                :discussion/updated_at now
+                :discussion/members (crdt/lww-set-delta clock members true)}
+         action {:discussion.crdt/action :discussion.crdt/add-members
+                 :discussion.crdt/delta delta}]
+     (apply-action! ctx did action))))
+
+(defn remove-members!
+  ([ctx did members]
+   (remove-members! ctx did members (Date.)))
+  ([ctx did members now]
+   {:pre [(uuid? did)
+          (set? members) (every? uuid? members)
+          (inst? now)]}
+   (let [by-uid (:auth/user-id ctx)
+         clock (crdt/new-hlc by-uid now)
+         delta {:crdt/clock clock
+                :discussion/updated_at now
+                :discussion/members (crdt/lww-set-delta clock members false)}
+         action {:discussion.crdt/action :discussion.crdt/remove-members
+                 :discussion.crdt/delta delta}]
+     (apply-action! ctx did action))))
 
 (defn mark-message-read!
   ([ctx uid did mid]
    (mark-message-read! ctx uid did mid (Date.)))
   ([ctx uid did mid now]
    {:pre [(uuid? mid) (uuid? uid) (uuid? did) (inst? now)]}
-   (let [now (Date.)
-         clock (crdt/new-hlc uid now)
+   (let [clock (crdt/new-hlc uid now)
          delta {:crdt/clock clock
                 :discussion/updated_at now
                 :discussion/last_message_read {uid (crdt/->LWW clock mid)}}

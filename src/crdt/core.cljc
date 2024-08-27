@@ -543,13 +543,16 @@
      (let [inner (into {} (map (fn [x] [x (->LWW clock true)]) (or xs #{})))]
        (->LWWSet inner)))))
 
-(defn lww-set-delta [clock s]
-  {:pre [(or (map? s) (set? s))]}
-  (if (set? s)
-    (into {} (map (fn [x] [x (->LWW clock true)]) s))
-    (if (map? s)
-      s ;; TODO: assert the values are LWWs with the expected shape
-      (assert false "Only sets or maps are allowed"))))
+(defn lww-set-delta
+  ([clock s]
+   (lww-set-delta clock s true))
+  ([clock s in?]
+   {:pre [(or (map? s) (set? s)) (boolean? in?)]}
+   (if (set? s)
+     (into {} (map (fn [x] [x (lww clock in?)]) s))
+     (if (map? s)
+       s ;; TODO: assert the values are LWWs with the expected shape
+       (assert false "Only sets or maps are allowed")))))
 
 (defn lww-set-schema
   ([value-schema] (lww-set-schema hlc-schema value-schema))

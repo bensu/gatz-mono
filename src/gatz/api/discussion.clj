@@ -2,7 +2,6 @@
   (:require [clojure.data.json :as json]
             [clojure.set :as set]
             [crdt.core :as crdt]
-            [gatz.auth]
             [gatz.db :as db]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.discussion :as db.discussion]
