@@ -1,6 +1,7 @@
 (ns gatz.db.discussion-test
   (:require [clojure.data]
             [clojure.test :refer [deftest is testing]]
+            [clojure.set :as set]
             [crdt.core :as crdt]
             [gatz.crdt.discussion :as crdt.discussion]
             [gatz.db :as db]
@@ -25,13 +26,16 @@
                                    :discussion/last_message_read {uid (crdt/->LWW clock mid)}}
           archive-delta  {:crdt/clock clock
                           :discussion/updated_at t0
-                          :discussion/archived_uids {uid (crdt/->LWW clock true)}}
+                          :discussion/archived_uids (crdt/lww-set-delta clock #{uid})}
           subscribe-delta {:crdt/clock clock
                            :discussion/updated_at t0
-                           :discussion/subscribers {uid (crdt/->LWW clock true)}}
+                           :discussion/subscribers (crdt/lww-set-delta clock #{uid})}
           add-member-delta {:crdt/clock clock
                             :discussion/updated_at t0
-                            :discussion/members {uid (crdt/->LWW clock true)}}
+                            :discussion/members (crdt/lww-set-delta clock #{uid})}
+          remove-member-delta {:crdt/clock clock
+                               :discussion/updated_at t0
+                               :discussion/members (crdt/lww-set-delta clock #{uid} false)}
           unsubscribe-delta {:crdt/clock clock
                              :discussion/updated_at t0
                              :discussion/subscribers {uid (crdt/->LWW clock false)}}]
@@ -43,6 +47,8 @@
           (malli/explain  schema/SubscribeDelta subscribe-delta))
       (is (malli/validate schema/AddMembersDelta add-member-delta)
           (malli/validate schema/AddMembersDelta add-member-delta))
+      (is (malli/validate schema/RemoveMembersDelta remove-member-delta)
+          (malli/validate schema/RemoveMembersDelta remove-member-delta))
       (is (malli/validate schema/SubscribeDelta unsubscribe-delta)
           (malli/explain  schema/SubscribeDelta unsubscribe-delta))
       (testing "and as actions"
@@ -50,6 +56,8 @@
                         :discussion.crdt/delta mark-message-read-delta}
                        {:discussion.crdt/action :discussion.crdt/add-members
                         :discussion.crdt/delta add-member-delta}
+                       {:discussion.crdt/action :discussion.crdt/remove-members
+                        :discussion.crdt/delta remove-member-delta}
                        {:discussion.crdt/action :discussion.crdt/archive
                         :discussion.crdt/delta archive-delta}
                        {:discussion.crdt/action :discussion.crdt/subscribe
@@ -226,9 +234,10 @@
           (is (= #{owner-id admin-id member-id second-member}
                  (:discussion/members d4))))))))
 
-(deftest deltas
+(deftest apply-deltas
   (testing "we can apply the deltas"
-    (let [[poster-uid commenter-uid did mid] (take 4 (repeatedly random-uuid))
+    (let [[poster-uid commenter-uid later-uid did mid]
+          (take 5 (repeatedly random-uuid))
           now (Date.)
           t0 (crdt/inc-time now)
           t1 (crdt/inc-time t0)
@@ -239,6 +248,7 @@
                    {:did did :mid mid :uid poster-uid
                     :originally-from nil :member-uids #{commenter-uid}}
                    {:now now})
+          initial (assoc initial :discussion/member_mode :discussion.member_mode/open)
           actions [[poster-uid
                     {:discussion.crdt/action :discussion.crdt/mark-message-read
                      :discussion.crdt/delta
@@ -250,25 +260,37 @@
                      :discussion.crdt/delta
                      {:crdt/clock c0
                       :discussion/updated_at t0
-                      :discussion/archived_uids {poster-uid (crdt/->LWW c0 true)}}}]
+                      :discussion/archived_uids (crdt/lww-set-delta c0 #{poster-uid})}}]
+                   [poster-uid
+                    {:discussion.crdt/action :discussion.crdt/add-members
+                     :discussion.crdt/delta
+                     {:crdt/clock c0
+                      :discussion/updated_at t0
+                      :discussion/members (crdt/lww-set-delta c0 #{later-uid})}}]
+                   [poster-uid
+                    {:discussion.crdt/action :discussion.crdt/remove-members
+                     :discussion.crdt/delta
+                     {:crdt/clock c1
+                      :discussion/updated_at t1
+                      :discussion/members (crdt/lww-set-delta c1 #{later-uid} false)}}]
                    [commenter-uid
                     {:discussion.crdt/action :discussion.crdt/archive
                      :discussion.crdt/delta
                      {:crdt/clock c1
                       :discussion/updated_at t1
-                      :discussion/archived_uids {commenter-uid (crdt/->LWW c1 true)}}}]
+                      :discussion/archived_uids (crdt/lww-set-delta c1 #{commenter-uid})}}]
                    [commenter-uid
                     {:discussion.crdt/action :discussion.crdt/subscribe
                      :discussion.crdt/delta
                      {:crdt/clock c2
                       :discussion/updated_at t2
-                      :discussion/subscribers {commenter-uid (crdt/->LWW c2 true)}}}]
+                      :discussion/subscribers (crdt/lww-set-delta c2 #{commenter-uid})}}]
                    [poster-uid
                     {:discussion.crdt/action :discussion.crdt/subscribe
                      :discussion.crdt/delta
                      {:crdt/clock c3
                       :discussion/updated_at t3
-                      :discussion/subscribers {poster-uid (crdt/->LWW c3 false)}}}]]
+                      :discussion/subscribers (crdt/lww-set-delta c3 #{poster-uid} false)}}]]
           deltas (map (comp :discussion.crdt/delta second) actions)
           final-expected {:xt/id did
                           :crdt/clock c3
@@ -282,7 +304,7 @@
                           :discussion/originally_from nil
                           :discussion/first_message mid
                           :discussion/open_until nil
-                          :discussion/member_mode :discussion.member_mode/closed
+                          :discussion/member_mode :discussion.member_mode/open
                           :discussion/public_mode :discussion.public_mode/hidden
 
                           :discussion/active_members #{poster-uid}
@@ -309,7 +331,7 @@
                    :discussion/originally_from nil
                    :discussion/first_message mid
                    :discussion/open_until nil
-                   :discussion/member_mode :discussion.member_mode/closed
+                   :discussion/member_mode :discussion.member_mode/open
                    :discussion/public_mode :discussion.public_mode/hidden
                    :discussion/members #{poster-uid commenter-uid}
                    :discussion/subscribers #{poster-uid}
@@ -329,7 +351,7 @@
               ctx (assoc system
                          :auth/user-id uid
                          :auth/cid uid)]
-          (xtdb/submit-tx node [[:xtdb.api/put initial]])
+          (xtdb/submit-tx node [[:xtdb.api/put (db.discussion/crdt->doc initial)]])
           (xtdb/sync node)
           (doseq [[uid action] actions]
             (db.discussion/apply-action! (assoc ctx :biff/db (xtdb/db node)
@@ -355,20 +377,25 @@
           (db.discussion/mark-message-read! (get-ctx poster-uid) poster-uid did mid)
           (db.discussion/archive! (get-ctx poster-uid) did poster-uid)
           (db.discussion/archive! (get-ctx commenter-uid) did commenter-uid)
+          (db.discussion/add-members! (get-ctx poster-uid) did #{later-uid})
+          (db.discussion/remove-members! (get-ctx poster-uid) did #{later-uid})
           (db.discussion/subscribe! (get-ctx commenter-uid) did commenter-uid)
           (db.discussion/unsubscribe! (get-ctx poster-uid) did poster-uid)
           (xtdb/sync node)
           (let [final (db.discussion/by-id (xtdb/db node) did)
                 select-fields (fn [d]
-                                (-> d
-                                    (select-keys [:xt/id
-                                                  :discussion/subscribers
-                                                  :discussion/members
-                                                  :discussion/active_members
-                                                  :discussion/archived_uids
-                                                  :discussion/last_message_read
-                                                  :discussion/created_at
-                                                  :discussion/created_by])))]
+                                (select-keys d [:xt/id
+                                                :discussion/subscribers
+                                                :discussion/members
+                                                :discussion/active_members
+                                                :discussion/archived_uids
+                                                :discussion/last_message_read
+                                                :discussion/created_at
+                                                :discussion/created_by]))]
+            (is (= (:discussion/members final-expected)
+                   (:discussion/members (crdt.discussion/->value final)))
+                (set/difference (:discussion/members final-expected)
+                                (:discussion/members (crdt.discussion/->value final))))
             (is-equal (select-fields final-expected)
                       (select-fields (crdt.discussion/->value final))))
           (.close node))))))

@@ -637,6 +637,8 @@
    [:discussion/updated_at inst?]
    [:discussion/members (crdt/lww-set-delta-schema #'UserId)]])
 
+(def RemoveMembersDelta AddMembersDelta)
+
 ;; I need a way for tagged unions to give me better error messages
 (def DiscussionAction
   (mu/closed-schema
@@ -654,6 +656,9 @@
     [:map
      [:discussion.crdt/action [:enum :discussion.crdt/add-members]]
      [:discussion.crdt/delta #'AddMembersDelta]]
+    [:map
+     [:discussion.crdt/action [:enum :discussion.crdt/remove-members]]
+     [:discussion.crdt/delta #'RemoveMembersDelta]]
 
     [:map
      [:discussion.crdt/action [:enum :discussion.crdt/mark-message-read]]
