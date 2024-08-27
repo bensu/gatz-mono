@@ -711,20 +711,24 @@
 
 (comment
 
+  (do
+    (def -did #uuid "5648acdd-e8ed-4bd6-83cb-469ddfeee572")
 
-  (def -did #uuid "5648acdd-e8ed-4bd6-83cb-469ddfeee572")
+    (def -ctx @gatz.system/system)
 
-  (def -ctx @gatz.system/system)
+    (def -node (:biff.xtdb/node -ctx))
 
-  (def -node (:biff.xtdb/node -ctx))
+    (def -db (xtdb.api/db -node))
 
-  (def -db (xtdb.api/db -node))
+    (def -sgrove (db.user/by-name -db "sgrove"))
 
-  (def -sgrove (db.user/by-name -db "sgrove"))
+    (def -arram (db.user/by-name -db "arram")))
 
-  (def -arram (db.user/by-name -db "arram"))
+  (require '[clojure.tools.logging :as log])
 
+
+  (log/info)
   (db.discussion/remove-members!
-   (assoc -ctx :auth/user-id (:xt/id -sgrove) :auth/user -sgrove)
+   (assoc -ctx :biff/db (xtdb.api/db -node) :auth/user-id (:xt/id -sgrove) :auth/user -sgrove)
    -did
    #{(:xt/id -arram)}))
