@@ -2,7 +2,6 @@
   (:gen-class)
   (:require [com.biffweb :as biff]
             [gatz.email :as email]
-            [gatz.auth :as gatz.auth]
             [gatz.api :as api]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.discussion :as db.discussion]
