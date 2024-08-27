@@ -251,7 +251,7 @@
             (is (empty? (notify/activity-notification-for-user db cid))
                 "No notifications if you opted out of them")))))))
 
-(deftest reaction-notificactions
+(deftest reaction-notifications
   (testing "Reactions triggers a notification"
     (let [ctx (->ctx)
           node (:biff.xtdb/node ctx)
@@ -484,7 +484,24 @@
                                :did did :mid (:xt/id message)}
                    :expo/title "commenter mentioned you in their comment"}]
                  (notify/all-notifications-for-message db message)))))
-             )))
+
+      (testing "a second mention doesn't trigger a notifiation"
+        (let [message (db/create-message! (get-ctx cid)
+                                          {:text "Another at-mention for @member"
+                                           :did did})
+              _ (xtdb/sync node)
+              db (xtdb/db node)
+              message (crdt.message/->value message)]
+          (is (= #{cid2} (set (keys (:message/mentions message)))))
+          (is (= [] (notify/notifications-for-at-mentions db message)))
+          (is (= [{:expo/uid uid
+                   :expo/to utoken
+                   :expo/body "Another at-mention for @member"
+                   :expo/data {:url (str "/discussion/" did)
+                               :scope :notify/message
+                               :did did :mid (:xt/id message)}
+                   :expo/title "commenter commented on your post"}]
+                 (notify/notifications-for-comment db message))))))))
 
 #_(deftest special-reaction-notificactions
     (testing "After 3 special reactions it triggers a notification"
