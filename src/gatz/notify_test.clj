@@ -98,7 +98,9 @@
           (is (= [{:expo/uid commenter-uid
                    :expo/to ctoken
                    :expo/body "First discussion!"
-                   :expo/data {:url (str "/discussion/" did)}
+                   :expo/data {:url (str "/discussion/" did)
+                               :scope :notify/message
+                               :did did :mid (:xt/id message)}
                    :expo/title "poster commented on their own post"}]
                  nts4))))
 
@@ -122,7 +124,9 @@
             (is (= [{:expo/uid poster-uid
                      :expo/to ptoken
                      :expo/body "A comment"
-                     :expo/data {:url (str "/discussion/" did)}
+                     :expo/data {:url (str "/discussion/" did)
+                                 :scope :notify/message
+                                 :did did :mid (:xt/id new-comment)}
                      :expo/title "commenter commented on your post"}]
                    nts-for-new-comment)))))
       (testing "The lurker auto subscribes and listens to new comments"
@@ -329,9 +333,10 @@
             (is (= 1 (count nts)))
             (is-equal {:expo/to utoken
                        :expo/uid uid
-                       :expo/data {:url (str "/discussion/" did)}
                        :expo/title "commenter ❓ your post"
-                       :expo/body "poster: First discussion!"}
+                       :expo/body "poster: First discussion!"
+                       :expo/data {:url (str "/discussion/" did)
+                                   :scope :notify/discussion :did did}}
                       (first nts)))
 
           (testing "doesn't trigger a notification to the poster if they unsubscribed"
@@ -361,9 +366,12 @@
               (is (= 1 (count nts)))
               (is-equal {:expo/to ctoken
                          :expo/uid cid
-                         :expo/data {:url url}
                          :expo/title "poster ❓ your comment"
-                         :expo/body "commenter: A commenter comment"}
+                         :expo/body "commenter: A commenter comment"
+                         :expo/data {:url url
+                                     :scope :notify/message
+                                     :did did
+                                     :mid (:xt/id message)}}
                         (first nts)))))
 
         (testing "The commenters' reaction on the commenter's comment doesn't trigger notifications"
@@ -379,6 +387,104 @@
                 db (xtdb/db node)
                 nts (notify/on-reaction db discussion message reaction)]
             (is (empty? nts))))))))
+
+(deftest at-mentions
+  (testing "Reactions triggers a notification"
+    (let [ctx (->ctx)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid] (with-db (->auth-ctx ctx uid)))
+          uid (random-uuid)
+          cid (random-uuid)
+          cid2 (random-uuid)
+          utoken "USER_TOKEN"
+          ctoken "COMMENTER_TOKEN"
+          mtoken "MEMBER_TOKEN"
+          lid (random-uuid)
+          lid2 (random-uuid)
+          _ (do
+              (db.user/create-user!
+               (get-ctx uid) {:id uid :username "poster" :phone "+11111111111"})
+              (db.user/create-user!
+               (get-ctx cid) {:id cid :username "commenter" :phone "+2222222222"})
+              (db.user/create-user!
+               (get-ctx cid2) {:id cid2 :username "member" :phone "+5555555555"})
+              (db.user/create-user!
+               (get-ctx lid) {:id lid :username "lurker" :phone "+3333333333"})
+              (db.user/create-user!
+               (get-ctx lid2) {:id lid2 :username "lurker2" :phone "+4444444444"}))
+
+          _ (xtdb/sync node)
+
+          _ (do
+              (db.contacts/force-contacts! ctx uid cid)
+              (db.contacts/force-contacts! ctx uid cid2)
+              (db.contacts/force-contacts! ctx cid cid2)
+              (db.contacts/force-contacts! ctx uid lid)
+              (db.user/add-push-token!
+               (get-ctx uid)
+               {:push-token {:push/expo {:push/service :push/expo
+                                         :push/token utoken
+                                         :push/created_at (java.util.Date.)}}})
+              (db.user/add-push-token!
+               (get-ctx cid)
+               {:push-token {:push/expo {:push/service :push/expo
+                                         :push/token ctoken
+                                         :push/created_at (java.util.Date.)}}})
+              (db.user/add-push-token!
+               (get-ctx cid2)
+               {:push-token {:push/expo {:push/service :push/expo
+                                         :push/token mtoken
+                                         :push/created_at (java.util.Date.)}}}))
+
+          _ (xtdb/sync node)
+
+          {:keys [discussion message]}
+          (db/create-discussion-with-message!
+           (get-ctx uid)
+           {:name ""
+            :selected_users #{uid cid cid2 lid}
+            :text "First discussion!"})
+          post-message message
+
+          _ (xtdb/sync node)
+
+          did (:xt/id discussion)
+          message (db/create-message! (get-ctx cid)
+                                      {:text "Commenter at-mentions @member in this message"
+                                       :did did})
+          mid (:xt/id message)
+          url (str "/discussion/" did "/message/" mid)]
+
+      (xtdb/sync node)
+
+      (testing "the message comes with a mention and triggers a notification"
+        (let [db (xtdb/db node)
+              message (crdt.message/->value message)]
+          (is (= #{cid2} (set (keys (:message/mentions message)))))
+          (is (= [{:expo/uid cid2
+                   :expo/to mtoken
+                   :expo/body "Commenter at-mentions @member ..."
+                   :expo/data {:url (str "/discussion/" did)
+                               :scope :notify/message
+                               :did did :mid (:xt/id message)}
+                   :expo/title "commenter mentioned you in their comment"}]
+                 (notify/notifications-for-at-mentions db  message)))
+          (is (= [{:expo/uid uid
+                   :expo/to utoken
+                   :expo/body "Commenter at-mentions @member ..."
+                   :expo/data {:url (str "/discussion/" did)
+                               :scope :notify/message
+                               :did did :mid (:xt/id message)}
+                   :expo/title "commenter commented on your post"}
+                  {:expo/uid cid2
+                   :expo/to mtoken
+                   :expo/body "Commenter at-mentions @member ..."
+                   :expo/data {:url (str "/discussion/" did)
+                               :scope :notify/message
+                               :did did :mid (:xt/id message)}
+                   :expo/title "commenter mentioned you in their comment"}]
+                 (notify/all-notifications-for-message db message)))))
+             )))
 
 #_(deftest special-reaction-notificactions
     (testing "After 3 special reactions it triggers a notification"

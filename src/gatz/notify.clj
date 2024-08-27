@@ -160,6 +160,47 @@
                           :expo/title (render-comment-header poster commenter receiver)}))))))
          vec)))
 
+(defn notifications-for-at-mentions [db message]
+  (let [mid (:xt/id message)
+        did (:message/did message)
+        by-uid (:message/user_id message)
+        by-user (crdt.user/->value (db.user/by-id db by-uid))
+        title (render-at-mention-header by-user)
+        m-preview (message-preview message)
+        data {:url (discussion-url did)
+              :scope :notify/message
+              :did did
+              :mid mid}]
+    (some->> (:message/mentions message)
+             vals
+             (keep (fn [mention]
+                     (when-let [u (crdt.user/->value (db.user/by-id db (:mention/to_uid mention)))]
+                       (when-let [token (->token u)]
+                         (let [uid (:xt/id u)
+                               settings (get-in u [:user/settings :settings/notifications])]
+                           (when (:settings.notification/overall settings)
+                             {:expo/to token
+                              :expo/uid uid
+                              :expo/body m-preview
+                              :expo/title title
+                              :expo/data data}))))))
+             vec)))
+
+(defn all-notifications-for-message [db message]
+  (let [nts-to-mentioned (->> (notifications-for-at-mentions db message)
+                              (map (fn [{:keys [expo/uid] :as n}]
+                                     [uid n]))
+                              (into {}))
+        nts-to-subscribers (->> (notifications-for-comment db message)
+                                (map (fn [{:keys [expo/uid] :as n}]
+                                       [uid n]))
+                                (into {}))
+          ;; this guarantees that each user will see at most one notification
+          ;; the precendence matters in merge
+        uid->notifications (merge nts-to-subscribers
+                                  nts-to-mentioned)]
+    (vec (vals uid->notifications))))
+
 (def comment-job-schema
   [:map
    [:notify/comment #'schema/Message]])
@@ -168,7 +209,6 @@
   (let [job {:notify/comment comment}]
     (biff/submit-job ctx :notify/comment job)))
 
-;; TODO: does this need to be running only in the singleton?
 (defn on-comment!
   [{:keys [biff.xtdb/node biff/job] :as ctx}]
   (when (heroku/singleton? ctx)
@@ -176,60 +216,10 @@
           comment (:notify/comment job)
           d (crdt.discussion/->value (db.discussion/by-id db (:message/did comment)))
           _ (assert d "No discussion for message")
-        ;; commenter (db.user/by-id db (:message/user_id comment))
-        ;; poster (db.user/by-id db (:discussion/created_by d))
-        ;; m-preview (message-preview comment)
-        ;; data {:url (message-url (:xt/id d) (:xt/id comment))
-        ;;       :scope :notify/message
-        ;;       :did (:xt/id d)
-        ;;       :mid (:xt/id comment)}
-
-
-        ;; is it a reply to a comment?
-        ;; notification-to-og-commenter
-        ;; (when-let [reply-to (some->> (:message/reply_to comment)
-        ;;                              (db/message-by-id db))]
-        ;;   (let [og-commenter (db.user/by-id db (:message/user_id reply-to))
-        ;;         settings (get-in og-commenter [:user/settings :settings/notifications])]
-        ;;     (when-let [token (->token og-commenter)]
-        ;;       (when (and (:settings.notification/overall settings)
-        ;;                  (:settings.notification/replies_to_comment settings))
-        ;;         {(:xt/id og-commenter)
-        ;;          {:to token
-        ;;           :body m-preview
-        ;;           :data data
-        ;;           :title (render-reply-header commenter)}}))))
-
-        ;; does it have an @at-mention?
-        ;; at-mentions (find-at-mentions (:message/text comment))
-        ;; notification-to-at-mentioned
-        ;; (->> at-mentions
-        ;;      (keep (partial db/user-by-name db))
-        ;;      (keep (fn [u]
-        ;;              (when-let [token (->token u)]
-        ;;                (let [uid (:xt/id u)
-        ;;                      settings (get-in u [:user/settings :settings/notifications])]
-        ;;                  (when (and (:settings.notification/overall settings)
-        ;;                             (:settings.notification/at_mentions settings))
-        ;;                    [uid
-        ;;                     {:to token
-        ;;                      :body m-preview
-        ;;                      :data data
-        ;;                      :title (render-at-mention-header commenter)}])))))
-        ;;      (into {}))
-
-          notifications-to-subscribers (->> (notifications-for-comment db comment)
-                                            (map (fn [{:keys [expo/uid] :as n}]
-                                                   [uid n]))
-                                            (into {}))
-        ;; this guarantees that each user will see at most one notification
-          uid->notifications (merge notifications-to-subscribers
-                                    #_notification-to-og-commenter
-                                    #_notification-to-at-mentioned)
-          notifications (vec (vals uid->notifications))]
-      (when-not (empty? notifications)
-        (expo/push-many! ctx notifications))
-      (doseq [uid (keys uid->notifications)]
+         nts (all-notifications-for-message db comment)]
+      (when-not (empty? nts)
+        (expo/push-many! ctx nts))
+      (doseq [uid (set (map :expo/uid nts))]
         (db.user/mark-active! (assoc ctx :auth/user-id uid))
         (posthog/capture! (assoc ctx :auth/user-id uid) "notifications.comment")))))
 
@@ -294,7 +284,6 @@
                                 (format "%s %s your post" (:user/name reacter) emoji)
                                 (format "%s %s your comment" (:user/name reacter) emoji))
                   :expo/body (format "%s: %s" (:user/name commenter) (message-preview m))}]))))))))
-
 
 (defn on-reaction!
   [{:keys [biff.xtdb/node biff/job] :as ctx}]
@@ -366,7 +355,7 @@
           (when-let [notification (activity-notification-for-user db uid)]
             (expo/push-many! ctx [notification])
             (posthog/capture! (assoc ctx :auth/user-id uid) "notifications.activity"))
-          ;; We mark-active! even if there were no notifications. 
+          ;; We mark-active! even if there were no notifications.
           ;; This makes it easier for the next query to find what's new
           (db.user/mark-active! (assoc ctx :auth/user-id uid))
           (catch Throwable e
@@ -384,4 +373,3 @@
             :schedule (fn []
                         (rest
                          (chime/periodic-seq (Instant/now) (Duration/ofDays 1))))}]})
-
