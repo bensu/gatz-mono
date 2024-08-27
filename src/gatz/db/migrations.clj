@@ -562,9 +562,7 @@
 
   (def -ctx @gatz.system/system)
 
-  (isolate-test-users! -ctx -test-usernames)
-
-  )
+  (isolate-test-users! -ctx -test-usernames))
 
 (defn isolate-test-users! [ctx usernames]
   {:pre [(every? string? usernames) (set? usernames)]}
@@ -592,9 +590,7 @@
 
   (def -ctx @gatz.system/system)
 
-  (mark-group-crew! -ctx -crew-group-ids)
-
-  )
+  (mark-group-crew! -ctx -crew-group-ids))
 
 (defn mark-group-crew! [ctx group-ids]
   {:pre [(every? crdt/ulid? group-ids) (set? group-ids)]}
@@ -636,8 +632,7 @@
   (def -groups (db.groups/by-member-uid -db (:xt/id -me)))
 
   (def -fc-group
-    (first -groups)
-    )
+    (first -groups))
 
   (def -fc-posts
     (db.discussion/posts-for-group -db (:xt/id -fc-group)
@@ -659,50 +654,77 @@
                                                  {:gid (:xt/id -fc-group)
                                                   :now (Date.)
                                                   :by-uid (:xt/id -me)
-                                                  :members members})
-          ]
+                                                  :members members})]
 
-      (biff/submit-tx -ctx txns)
-      ))
-
-
-  )
+      (biff/submit-tx -ctx txns))))
 
 (comment
 
   (def -new-usernames
     #{"dwarkesh", "davidrobertson", "sholto",
-      "nan", "moxie"})
-
-
-  )
+      "nan", "moxie"}))
 
 
 #_(defn make-contacts-with-my-friends!
-  [{:keys [biff.xtdb/node] :as ctx}
-   my-username
-   usernames]
-  (let [db (xtdb/db node)
-        now (Date.)
-        my-id (:xt/id (db.user/by-name db my-username))
-        _ (assert my-id)
-        target-uids (->> usernames
-                         (keep (partial db.user/by-name db)
-                               )
-                         (map :xt/id))
-        _ (assert (= (count usernames)
-                     (count target-uids)))
-        my-contacts (:contacts/ids (db.contacts/by-uid db my-id))
-        _ (assert (set? my-contacts))
-        uid-pairs (->> (for [aid target-uids
-                             bid my-contacts
-                             :when (not= aid bid)]
-                         #{aid bid})
-                       (set)
-                       (mapv vec))
-        txns (mapcat (fn [[a b]]
-                       (db.contacts/forced-contact-txn db a b {:now now}))
-                     uid-pairs)]
+    [{:keys [biff.xtdb/node] :as ctx}
+     my-username
+     usernames]
+    (let [db (xtdb/db node)
+          now (Date.)
+          my-id (:xt/id (db.user/by-name db my-username))
+          _ (assert my-id)
+          target-uids (->> usernames
+                           (keep (partial db.user/by-name db))
+                           (map :xt/id))
+          _ (assert (= (count usernames)
+                       (count target-uids)))
+          my-contacts (:contacts/ids (db.contacts/by-uid db my-id))
+          _ (assert (set? my-contacts))
+          uid-pairs (->> (for [aid target-uids
+                               bid my-contacts
+                               :when (not= aid bid)]
+                           #{aid bid})
+                         (set)
+                         (mapv vec))
+          txns (mapcat (fn [[a b]]
+                         (db.contacts/forced-contact-txn db a b {:now now}))
+                       uid-pairs)]
     ;; txns
-    (biff/submit-tx ctx (vec txns))
-    ))
+      (biff/submit-tx ctx (vec txns))))
+
+(comment
+
+  (def -ctx @gatz.system/system)
+
+  (def -node (:biff.xtdb/node -ctx))
+
+  (def -db (xtdb.api/db -node))
+
+  (def -sgrove (db.user/by-name -db "sgrove"))
+
+  (def -arram (db.user/by-name -db "arram"))
+
+  (let [args {:from (:xt/id -sgrove)
+              :to (:xt/id -arram)
+              :now (Date.)}]
+    (biff/submit-tx -ctx [[:xtdb.api/fn :gatz.db.contacts/remove-contacts {:args args}]])))
+
+(comment
+
+
+  (def -did #uuid "5648acdd-e8ed-4bd6-83cb-469ddfeee572")
+
+  (def -ctx @gatz.system/system)
+
+  (def -node (:biff.xtdb/node -ctx))
+
+  (def -db (xtdb.api/db -node))
+
+  (def -sgrove (db.user/by-name -db "sgrove"))
+
+  (def -arram (db.user/by-name -db "arram"))
+
+  (db.discussion/remove-members!
+   (assoc -ctx :auth/user-id (:xt/id -sgrove) :auth/user -sgrove)
+   -did
+   #{(:xt/id -arram)}))
