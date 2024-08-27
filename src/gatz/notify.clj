@@ -163,7 +163,7 @@
 (defn notifications-for-at-mentions [db message]
   (let [mid (:xt/id message)
         did (:message/did message)
-        d (crdt.discussion/->value (db.discussion/by-id db did))
+        ;; d (crdt.discussion/->value (db.discussion/by-id db did))
         by-uid (:message/user_id message)
         by-user (crdt.user/->value (db.user/by-id db by-uid))
         title (render-at-mention-header by-user)
@@ -178,10 +178,10 @@
                      (when-let [u (crdt.user/->value (db.user/by-id db (:mention/to_uid mention)))]
                        (when-let [token (->token u)]
                          (let [uid (:xt/id u)
-                               d-mentions (get (:discussion/mentions d) uid #{})
-                               first-mention? (< (count d-mentions) 2)
+                               ;; d-mentions (get (:discussion/mentions d) uid #{})
+                               ;; first-mention? (< (count d-mentions) 2)
                                settings (get-in u [:user/settings :settings/notifications])]
-                           (when (and first-mention? (:settings.notification/overall settings))
+                           (when (:settings.notification/overall settings)
                              {:expo/to token
                               :expo/uid uid
                               :expo/body m-preview

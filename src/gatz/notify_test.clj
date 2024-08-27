@@ -485,7 +485,7 @@
                    :expo/title "commenter mentioned you in their comment"}]
                  (notify/all-notifications-for-message db message)))))
 
-      (testing "a second mention doesn't trigger a notifiation"
+      (testing "a second mention also triggers a notifiation"
         (let [message (db/create-message! (get-ctx cid)
                                           {:text "Another at-mention for @member"
                                            :did did})
@@ -493,7 +493,14 @@
               db (xtdb/db node)
               message (crdt.message/->value message)]
           (is (= #{cid2} (set (keys (:message/mentions message)))))
-          (is (= [] (notify/notifications-for-at-mentions db message)))
+          (is (= [{:expo/uid cid2
+                   :expo/to mtoken
+                   :expo/body "Another at-mention for @member"
+                   :expo/data {:url (str "/discussion/" did)
+                               :scope :notify/message
+                               :did did :mid (:xt/id message)}
+                   :expo/title "commenter mentioned you in their comment"}]
+                 (notify/notifications-for-at-mentions db message)))
           (is (= [{:expo/uid uid
                    :expo/to utoken
                    :expo/body "Another at-mention for @member"
