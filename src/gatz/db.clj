@@ -142,12 +142,37 @@
 
         _ (assert (and (set? member-uids) (every? uuid? member-uids)))
 
+        possible-mentions (db.message/extract-mentions text)
+        mentions (if-not (empty? possible-mentions)
+                   (->> possible-mentions
+                        set
+                        (keep (partial db.user/by-name db))
+                        (filter (fn [{:keys [xt/id]}]
+                                  (and (not= user-id id)
+                                       (contains? member-uids id))))
+                        (mapv (fn [u]
+                                {:xt/id (crdt/rand-uuid)
+                                 :db/type :gatz/mention
+                                 :db/version 1
+                                 :mention/by_uid user-id
+                                 :mention/to_uid (:xt/id u)
+                                 :mention/did did
+                                 :mention/mid mid
+                                 :mention/ts now})))
+                   [])
+        uid->mentions (zipmap (map :mention/to_uid mentions)
+                              (map (fn [m] (crdt/gos #{m})) mentions))
+        mentions-txns (map (fn [m]
+                             [:xtdb.api/fn :gatz.db.mention/add {:mention m}])
+                           mentions)
+
         ;; TODO: get real connection id
         clock (crdt/new-hlc user-id now)
         ;; TODO: embed msg in discussion
         d (crdt.discussion/new-discussion
            {:did did :mid mid :uid user-id
             :originally-from originally-from
+            :mentions uid->mentions
             :member-uids member-uids :group-id group_id
             :archived-uids archived-uids}
            {:now now})
@@ -165,6 +190,7 @@
                            :discussion/open_until (db.discussion/open-until now)))
         msg (crdt.message/new-message
              {:uid user-id :mid mid :did did
+              :mentions mentions
               :text (or text "") :reply_to nil
               :media updated-medias}
              {:now now :cid user-id :clock clock})
@@ -196,6 +222,7 @@
                ;; TODO: update original discussion, not just message for it
                (when original-msg-evt
                  [:xtdb.api/fn :gatz.db.message/apply-delta {:evt original-msg-evt}])]
+              mentions-txns
               updated-medias)]
     (biff/submit-tx ctx (vec (remove nil? txns)))
     {:discussion d :message msg :txns txns}))

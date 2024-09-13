@@ -34,12 +34,15 @@
 (defn new-discussion
 
   [{:keys [did uid mid group-id originally-from
-           member-uids archived-uids]}
+           member-uids archived-uids mentions]}
    {:keys [now]}]
 
   {:pre [(uuid? mid) (uuid? did) (uuid? uid)
          (or (nil? group-id) (crdt/ulid? group-id))
          (set? member-uids) (every? uuid? member-uids)
+         (or (nil? mentions)
+             (and (map? mentions)
+                  (every? uuid? (keys mentions))))
          (or (nil? archived-uids)
              (and (set? archived-uids) (every? uuid? archived-uids)))]
    :post [(malli/validate schema/DiscussionCRDT %)]}
@@ -73,7 +76,7 @@
      ;; We'll let the user see their own discussion in the feed as new
      ;; :discussion/seen_at {uid now}
      :discussion/seen_at {}
-     :discussion/mentions {}
+     :discussion/mentions (or mentions {})
      ;; :discussion/mentioned (crdt/gos #{})
      :discussion/archived_uids (crdt/lww-set clock (or archived-uids #{}))}))
 

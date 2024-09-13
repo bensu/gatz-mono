@@ -17,7 +17,6 @@
   (let [db (xtdb.api/db xtdb-ctx)
         {:mention/keys [to_uid did]} mention
         existing-mention (by-uid-did db to_uid did)]
-    (println "existing mention" existing-mention)
     (when-not (some? existing-mention)
       [[:xtdb.api/put (assoc mention :db/op :create)]])))
 

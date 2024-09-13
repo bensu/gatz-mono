@@ -274,6 +274,10 @@
                                                       true)))
             {:keys [discussion message]} (db/create-discussion-with-message! ctx params)
             d (crdt.discussion/->value discussion)]
+        (try
+          (notify/submit-comment-job! ctx (crdt.message/->value message))
+          (catch Exception e
+            (println "failed submitting the job" e)))
         (posthog/capture! ctx "discussion.new" {:did (:xt/id d)})
         ;; TODO: change shape of response
         (json-response
