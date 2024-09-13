@@ -120,6 +120,10 @@
   {:post [(string? %)]}
   (format "%s mentioned you in their comment" (:user/name commenter)))
 
+(defn render-at-mention-in-post-header [commenter]
+  {:post [(string? %)]}
+  (format "%s mentioned you in their post" (:user/name commenter)))
+
 (defn find-at-mentions [text]
   {:pre [(string? text)]}
   []
@@ -163,10 +167,13 @@
 (defn notifications-for-at-mentions [db message]
   (let [mid (:xt/id message)
         did (:message/did message)
-        ;; d (crdt.discussion/->value (db.discussion/by-id db did))
+        d (crdt.discussion/->value (db.discussion/by-id db did))
+        post-message? (= (:discussion/first_message d) mid)
         by-uid (:message/user_id message)
         by-user (crdt.user/->value (db.user/by-id db by-uid))
-        title (render-at-mention-header by-user)
+        title (if post-message?
+                (render-at-mention-in-post-header by-user)
+                (render-at-mention-header by-user))
         m-preview (message-preview message)
         data {:url (discussion-url did)
               :scope :notify/message
