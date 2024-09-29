@@ -19,8 +19,8 @@
 
 (defn make-url [ctx id]
   {:pre [(crdt/ulid? id)] :post [(string? %)]}
-  (format "%s/invite-link/%s"
-          (:gatz/host ctx)
+  (format "%s/invite?id=%s"
+          (:gatz/site ctx)
           (str id)))
 
 (defn valid? [{:keys [] :as invite-link}]
@@ -46,7 +46,7 @@
                  (before? expires_at now)))))
 
 #_(def default-settings
-  {:invite_link/multi-user-mode :invite_link/crew})
+    {:invite_link/multi-user-mode :invite_link/crew})
 
 (defn make [{:keys [type uid gid now id]}]
 
@@ -60,7 +60,7 @@
   ;; we'll let people create invite_link/crew without
   ;; groups for a week while installed apps can do it
   #_(when (= :invite_link/crew type)
-    (assert (crdt/ulid? gid)))
+      (assert (crdt/ulid? gid)))
 
   (let [id (or id (crdt/random-ulid))
         now (or now (Date.))]
