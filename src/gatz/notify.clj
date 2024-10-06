@@ -107,7 +107,7 @@
     (format "%s commented on your post" (:user/name replier))
 
     (= (:xt/id poster) (:xt/id replier))
-    (format "%s commented on their own post" (:user/name replier))
+    (format "%s commented on their post" (:user/name replier))
 
     :else
     (format "%s commented on %s's post" (:user/name replier) (:user/name poster))))
@@ -145,7 +145,7 @@
         _ (assert poster)
         _ (assert commenter)
         m-preview (message-preview m)
-        data {:url (discussion-url (:xt/id d))
+        data {:url (message-url (:xt/id d) (:xt/id m))
               :scope :notify/message
               :did (:xt/id d)
               :mid (:xt/id m)}]
