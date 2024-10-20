@@ -19,17 +19,37 @@
         "+1 123 456 7897"  "+1 123 456 7898"  "+1 123 456 7899"
         "+1 000 000 0000", "+1 000 000 0001", "+1 000 000 0002"
         "+1 000 000 0003", "+1 000 000 0004", "+1 000 000 0005"
-        "+1 000 000 0006", "+1 000 000 0007", "+1 000 000 0008"
-        ]
+        "+1 000 000 0006", "+1 000 000 0007", "+1 000 000 0008"]
        (map #(str/replace % " " ""))
        set))
+
+;; TODO: this should throw a warning for certain countries
+
+(def denylist-countries {"+228" "TG"})
+
+(def denylist-country-codes (set (keys denylist-countries)))
+
+(defn phone-in-denylist? [phone]
+  {:pre [(string? phone)]
+   :post [(boolean? %)]}
+  (->> denylist-country-codes
+       (some (fn [code]
+               (str/starts-with? phone code)))
+       (boolean)))
 
 (defn start-verification!
   "Starts a verification from Twilio's service.
    Returns an id for its session or an error."
   [env {:keys [phone]}]
-  (if (contains? TEST_PHONES phone)
+  (cond
+    (contains? TEST_PHONES phone)
     {:sid "test_twilio_sid" :status "pending" :send_code_attempts []}
+
+    ;; we fail silently as to not tell teh attackers of what is going on
+    (phone-in-denylist? phone)
+    {:sid "test_twilio_sid" :status "pending" :send_code_attempts []}
+
+    :else
     (try
       (-> (format "https://verify.twilio.com/v2/Services/%s/Verifications"
                   (env :twilio/verify-service))

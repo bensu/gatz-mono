@@ -4,6 +4,7 @@
                    :paths ["tasks/src"]
                    :deps {io.github.clojure/tools.build {:mvn/version "0.9.6"}}}}
  :deps {com.taoensso/nippy {:mvn/version "3.1.1"}
+        org.clojure/data.csv {:mvn/version "1.0.1"}
         metosin/malli {:mvn/version "0.16.0"}
         camel-snake-kebab/camel-snake-kebab {:mvn/version "0.4.3"}
         dev.weavejester/medley {:mvn/version "1.7.0"}
@@ -58,5 +59,4 @@
 
 
         cider/cider-nrepl              {:mvn/version "0.45.0"}
-        refactor-nrepl/refactor-nrepl  {:mvn/version "3.10.0"}
-        }}
+        refactor-nrepl/refactor-nrepl  {:mvn/version "3.10.0"}}}
