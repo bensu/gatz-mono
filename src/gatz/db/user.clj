@@ -125,6 +125,18 @@
         (assoc :db/doc-type :gatz/contacts :db/op :create)
         (update :contacts/user_id as-unique))))
 
+(defn mask-deleted [user]
+  (cond-> user
+    (some? (:user/deleted_at (crdt.user/->value user)))
+    (assoc :user/name "[deleted]" :user/avatar nil)))
+
+(defn by-id [db user-id]
+  {:pre [(uuid? user-id)]}
+  (when-let [e (xtdb/entity db user-id)]
+    (-> (merge crdt.user/user-defaults e)
+        (db.util/->latest-version all-migrations)
+        mask-deleted)))
+
 
 (defn create-user!
   ([ctx {:keys [username phone id now]}]
@@ -147,17 +159,24 @@
      (biff/submit-tx ctx txns)
      user)))
 
-(defn mask-deleted [user]
-  (cond-> user
-    (some? (:user/deleted_at (crdt.user/->value user)))
-    (assoc :user/name "[deleted]" :user/avatar nil)))
+(defn update-username!
+  "Only used in manual fixups or migrations, not part of what users can do"
+  ([{:keys [biff.xtdb/node] :as ctx} uid new-username]
 
-(defn by-id [db user-id]
-  {:pre [(uuid? user-id)]}
-  (when-let [e (xtdb/entity db user-id)]
-    (-> (merge crdt.user/user-defaults e)
-        (db.util/->latest-version all-migrations)
-        mask-deleted)))
+   {:pre [(crdt.user/valid-username? new-username)]}
+
+   (let [now (Date.)
+         db (xtdb.api/db node)
+         user (by-id db uid)
+         _ (assert user)
+         new-user (-> user
+                      (assoc :user/name (as-unique new-username)
+                             :user/updated_at (crdt/max-wins now)
+                             :crdt/clock (crdt/new-hlc uid now)
+                             :db/doc-type :gatz.crdt/user))]
+     (biff/submit-tx ctx [new-user])
+     new-user)))
+
 
 ;; ====================================================================== 
 ;; Actions

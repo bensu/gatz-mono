@@ -733,3 +733,25 @@
    (assoc -ctx :biff/db (xtdb.api/db -node) :auth/user-id (:xt/id -sgrove) :auth/user -sgrove)
    -did
    #{(:xt/id -arram)}))
+
+
+(comment
+
+  ;; change a username
+
+  (do
+
+    ;; (def -test-uid #uuid "867884d0-986e-4e5f-816c-b12846645e6b")
+
+    (def -uid #uuid "282e63c2-ed1f-4e76-9c4f-4ae06c96342b")
+
+    (def -ctx @gatz.system/system)
+
+    (def -node (:biff.xtdb/node -ctx))
+
+    (def -db (xtdb.api/db -node))
+
+    (def -neil (gatz.db.user/by-id -db -uid)))
+
+  (do
+    (gatz.db.user/update-username! -ctx -uid "neil")))
