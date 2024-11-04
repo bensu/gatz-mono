@@ -18,7 +18,7 @@
     "ameesh" "grantslatton" "sebas" "devon" "tara" "lachy"
     "bensu"  "bensu1" "bensu_1" "bensu-1" "abc123")
   (are [s] (not (crdt.user/valid-username? s))
-    "s" "bensu " "bensu 1" "1 1" "1" "123" "1bensu1"
+    "s" "bensu " "bensu 1" "1 1" "1" "123" "1bensu1" "neil.enna"
     "_bensu_" "bensu." "bensu_" "bensu-"))
 
 
