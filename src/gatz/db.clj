@@ -142,6 +142,8 @@
 
         _ (assert (and (set? member-uids) (every? uuid? member-uids)))
 
+        dm? (= 1 (count (disj member-uids user-id)))
+
         possible-mentions (db.message/extract-mentions text)
         mentions (if-not (empty? possible-mentions)
                    (->> possible-mentions
@@ -176,11 +178,12 @@
             :member-uids member-uids :group-id group_id
             :archived-uids archived-uids}
            {:now now})
-        open? (if group
-                (and to_all_contacts
-                     (= :discussion.member_mode/open
-                        (get-in group [:group/settings :discussion/member_mode])))
-                to_all_contacts)
+        open? (and (not dm?)
+                   (if group
+                     (and to_all_contacts
+                          (= :discussion.member_mode/open
+                             (get-in group [:group/settings :discussion/member_mode])))
+                     to_all_contacts))
         public? (if group
                   (:group/is_public group)
                   false)
