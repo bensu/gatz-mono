@@ -89,13 +89,15 @@
        {:status 400 :body "Invalid user"}))))
 
 (defn propagate-message-delta!
-  [{:keys [conns-state] :as _ctx} m delta]
-  (let [did (:message/did m)
+  [{:keys [conns-state] :as _ctx} d m delta]
+  (let [did (:xt/id d)
+        mid (:xt/id m)
         evt-type (case (:message.crdt/action delta)
                    :message.crdt/delete :event/delete_message
                    :event/message_edited)
         evt {:event/type evt-type
-             :event/data {:message m :did did :mid (:xt/id m)}}]
+             :event/data {:did did :mid mid
+                          :message m :discussion d}}]
     (doseq [ws (conns/did->wss @conns-state did)]
       (jetty/send! ws (json/write-str evt)))))
 
@@ -143,10 +145,10 @@
   (let [db (xtdb/db node)
         did (:evt/did evt)
         mid (:evt/mid evt)
-        discussion (crdt.discussion/->value (db.discussion/by-id db did))
-        message (crdt.message/->value (db.message/by-id db mid))]
-    (propagate-message-delta! ctx message (:evt/data evt))
-    (api.message/handle-message-evt! ctx discussion message evt)))
+        d (crdt.discussion/->value (db.discussion/by-id db did))
+        m (crdt.message/->value (db.message/by-id db mid))]
+    (propagate-message-delta! ctx d m (:evt/data evt))
+    (api.message/handle-message-evt! ctx d m evt)))
 
 (defn propagate-new-message!
   [{:keys [conns-state biff.xtdb/node] :as _ctx} did m]
