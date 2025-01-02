@@ -755,3 +755,20 @@
 
   (do
     (gatz.db.user/update-username! -ctx -uid "neil")))
+
+
+;; ======================================================================
+;; Make invite link on behalf of a user
+
+
+(comment
+
+  (require '[gatz.db.invite-link :as db.invite-link])
+
+  (def -ctx @gatz.system/system)
+
+  (def -uid #uuid "0f13d797-c1f7-45db-9de9-9b13f2724122")
+
+  (gatz.db.invite-link/create! -ctx {:uid -uid
+                                     :type :invite_link/contact}))
+
