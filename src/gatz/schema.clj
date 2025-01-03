@@ -266,8 +266,6 @@
    [:mention/mid #'MessageId]
    [:mention/ts inst?]])
 
-
-
 ;; ======================================================================
 ;; Message & Media
 
@@ -316,6 +314,8 @@
    [:message/flagged_uids [:set #'UserId]]
    ;; LWW
    [:message/text string?]
+   ;; derived from LWW
+   [:message/search_text string?]
    ;; {user-id {emoji (->LWW ts?)}
    [:message/reactions
     [:map-of #'UserId [:map-of string? [:maybe inst?]]]]])
@@ -325,7 +325,7 @@
     ;; final
    [:xt/id #'MessageId]
    [:db/type [:enum :gatz/message]]
-   [:db/version [:enum 1]]
+   [:db/version [:enum 2]]
    [:crdt/clock crdt/hlc-schema]
    [:message/did #'DiscussionId]
    [:message/user_id #'UserId]
@@ -346,6 +346,8 @@
    [:message/flagged_uids (crdt/lww-set-schema #'UserId)]
    ;; LWW
    [:message/text (crdt/lww-schema string?)]
+   ;; derived from LWW
+   [:message/search_text string?]
    ;; {user-id {emoji (->LWW ts?)}
    [:message/reactions
     [:map-of #'UserId

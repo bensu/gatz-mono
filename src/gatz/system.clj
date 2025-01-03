@@ -184,7 +184,8 @@
 (def hikari-max-pool-size 5)
 
 (defn xtdb-system [{:keys [biff/secret] :as ctx}]
-  (let [jdbc-url (to-jdbc-uri (secret :biff.xtdb.jdbc/jdbcUrl))]
+  (let [jdbc-url (to-jdbc-uri (secret :biff.xtdb.jdbc/jdbcUrl))
+        node-id (or (System/getenv "NODE_ID") "local")]
     {:xtdb/index-store (index-store ctx)
      :xtdb/tx-log {:xtdb/module 'xtdb.jdbc/->tx-log
                    :connection-pool :xtdb.jdbc/connection-pool}
@@ -192,7 +193,9 @@
                            :connection-pool :xtdb.jdbc/connection-pool}
      :xtdb.jdbc/connection-pool {:dialect {:xtdb/module 'xtdb.jdbc.psql/->dialect}
                                  :pool-opts {:maximumPoolSize hikari-max-pool-size}
-                                 :db-spec {:jdbcUrl jdbc-url}}}))
+                                 :db-spec {:jdbcUrl jdbc-url}}
+     ;; https://v1-docs.xtdb.com/extensions/1.24.3/full-text-search/#_custom_indexer
+     :xtdb.lucene/lucene-store {:db-dir (format "storage/%s/xtdb/lucene" node-id)}}))
 
 
 ;; ====================================================================== 

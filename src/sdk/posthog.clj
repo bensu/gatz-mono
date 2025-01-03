@@ -44,6 +44,7 @@
     "group.updated_attrs" "group.remove_members" "group.add_members"
     "group.updated_avatar"
     "invite_link.new" "invite_link.viewed" "invite_link.joined"
+    "search.term"
     "notifications.activity" "notifications.comment" "notifications.reaction"
     "notifications.failed" "notifications.succeeded"})
 

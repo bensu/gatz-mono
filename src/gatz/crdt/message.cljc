@@ -1,5 +1,6 @@
 (ns gatz.crdt.message
-  (:require [clojure.test :refer [deftest testing is]]
+  (:require [clojure.string :as str]
+            [clojure.test :refer [deftest testing is]]
             [crdt.core :as crdt]
             [gatz.schema :as schema]
             [malli.core :as malli]
@@ -40,7 +41,7 @@
                              (map (partial crdt/lww clock) mentions))]
     {:xt/id mid
      :db/type :gatz/message
-     :db/version 1
+     :db/version 2
      :crdt/clock clock
      :message/did did
      :message/user_id uid
@@ -55,6 +56,7 @@
                                            :message/edited_at now}})
      :message/mentions msg-mentions
      :message/text (crdt/->LWW clock text)
+     :message/search_text (str/lower-case text)
      :message/reactions {}}))
 
 (deftest crdt-messages
@@ -193,6 +195,7 @@
 (defn apply-delta [msg delta]
   (crdt/-apply-delta msg delta))
 
+;; remove :message/search_text ?
 (defn ->value
   "To make the CRDT messages backwards compatible for older clients"
   [msg]

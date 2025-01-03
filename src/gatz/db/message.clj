@@ -66,8 +66,14 @@
                               (map-vals (fn [ts] (crdt/->LWW clock ts)) emoji->ts))
                             (or uid->emoji->ts {})))))))
 
+(defn v1->v2 [data]
+  (-> data
+      (assoc :db/version 2)
+      (assoc :message/search_text (str/lower-case (crdt/-value (:message/text data))))))
+
 (def all-migrations
-  [{:from 0 :to 1 :transform v0->v1}])
+  [{:from 0 :to 1 :transform v0->v1}
+   {:from 1 :to 2 :transform v1->v2}])
 
 (defn by-id [db mid]
   {:pre [(uuid? mid)]}
