@@ -23,6 +23,24 @@
       []))
 
 ;; ========================================================================
+;; DB & migrations
+
+(defn crdt->doc [mcrdt]
+  #_{:pre [(malli/validate schema/MessageCRDT mcrdt)]
+     :post [(malli/validate schema/MessageDoc %)]}
+  (-> mcrdt
+      crdt.message/->value
+      (select-keys schema/message-indexed-fields)
+      (assoc :db/full-doc mcrdt)))
+
+(defn doc->crdt [ddoc]
+  #_{:pre [(malli/validate schema/MessageDoc ddoc)]
+     :post [(malli/validate schema/MessageCRDT %)]}
+  (if (contains? ddoc :db/full-doc)
+    (:db/full-doc ddoc)
+    ddoc))
+
+;; ========================================================================
 ;; Versions
 
 (def message-defaults
@@ -80,9 +98,10 @@
   (when-let [raw-msg (xtdb/entity db mid)]
     ;; This could be any version of the message
     (merge crdt.message/message-defaults
-           (db.util/->latest-version raw-msg all-migrations))))
+           (db.util/->latest-version (doc->crdt raw-msg) all-migrations))))
 
 (defn by-did [db did]
+  {:pre [(uuid? did)]}
   (->> (q db '{:find m
                :in [did]
                :where [[m :message/did did]

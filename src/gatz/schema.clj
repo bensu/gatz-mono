@@ -290,6 +290,16 @@
    [:message/text string?]
    [:message/edited_at inst?]])
 
+(def message-indexed-fields
+  [:xt/id
+   :db/type
+   :db/version
+   :message/did
+   :message/user_id
+   :message/search_text
+   :message/created_at
+   :message/mentions])
+
 (def Message
   [:map
     ;; final
@@ -352,6 +362,14 @@
    [:message/reactions
     [:map-of #'UserId
      [:map-of string? (crdt/lww-schema [:maybe inst?])]]]])
+
+(def MessageDoc
+  (-> Message
+      (mu/select-keys message-indexed-fields)
+      (mu/assoc :db/full-doc MessageCRDT)))
+
+;; ======================================================================
+;; Discussions
 
 (def DiscussionCRDT
   [:map
@@ -768,6 +786,7 @@
    :gatz/media #'Media
    :gatz/message Message
    :gatz.crdt/message #'MessageCRDT
+   :gatz.doc/message #'MessageDoc
    :gatz/mention #'Mention
    :gatz/push PushToken})
 

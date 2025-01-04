@@ -220,7 +220,9 @@
               [(-> d
                    (db.discussion/crdt->doc)
                    (assoc :db/doc-type :gatz.doc/discussion :db/op :create))
-               (assoc msg :db/doc-type :gatz.crdt/message :db/op :create)
+               (-> msg
+                   (db.message/crdt->doc)
+                   (assoc :db/doc-type :gatz.doc/message :db/op :create))
                (assoc evt :db/doct-type :gatz/evt :db/op :create)
                ;; TODO: update original discussion, not just message for it
                (when original-msg-evt
@@ -391,7 +393,9 @@
                              :evt/cid cid
                              :evt/data action})
         txns (concat
-              [(assoc msg :db/doc-type :gatz.crdt/message :db/op :create)
+              [(-> msg
+                   (db.message/crdt->doc)
+                   (assoc :db/doc-type :gatz.doc/message :db/op :create))
                [:xtdb.api/fn :gatz.db.discussion/apply-delta {:evt evt}]]
               mentions-txns
               (or updated-medias []))]
