@@ -780,6 +780,18 @@
 ;; Go through all the messages and apply the v1->v2 migration that puts
 ;; the messages inside of db/full-doc
 
+;; Steps
+
+;; 1. Push new code without Lucene active. The system can start.
+;; 2. Run this migration with the REPL connected. All the messages are now v2
+;; 3. Stop all db changes. Turn on Heroku maintenance mode.
+;; 4. Download PSQL dump from Heroku.
+;; 5. Restore it locally.
+;; 6. Turn on Lucene locally
+;; 7. Checkpoint Lucene locally to the prod S3 bucket
+;; 8. Turn off maintenance mode on Heroku
+;; 9. Deploy new code with Lucene active to Heroku. It can boot from the S3 bucket
+
 (defn all-mids [db]
   (->> (q db '{:find [m]
                :where [[m :db/type :gatz/message]]})
