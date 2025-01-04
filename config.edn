@@ -69,7 +69,7 @@
 
        :expo/enabled? false
 
-       :biff.xtdb/checkpointer :biff.xtdb.checkpointer/s3
+       :biff.xtdb/checkpointer :biff.xtdb.checkpointer/file
        :posthog/enabled? false
        ;; To use S3 uncomment these two lines
 

@@ -772,3 +772,44 @@
   (gatz.db.invite-link/create! -ctx {:uid -uid
                                      :type :invite_link/contact}))
 
+
+
+;; ======================================================================
+;; Migrations
+
+;; Go through all the messages and apply the v1->v2 migration that puts
+;; the messages inside of db/full-doc
+
+(defn all-mids [db]
+  (->> (q db '{:find [m]
+               :where [[m :db/type :gatz/message]]})
+       (map first)))
+
+(defn m->full-doc-txn [m]
+  (-> m
+      (db.message/crdt->doc)
+      (assoc :db/doc-type :gatz.doc/message)))
+
+(defonce failed-mids (atom #{}))
+
+(defn migrate-messages-to-full-doc! [ctx]
+  (let [db (xtdb.api/db (:biff.xtdb/node ctx))
+        mids (all-mids db)
+        txns (keep (fn [mid]
+                     (let [raw-msg (xtdb/entity db mid)]
+                       (when (not (contains? raw-msg :db/full-doc))
+                         (let [msg (db.message/by-id db mid)]
+                           (m->full-doc-txn msg)))))
+                   mids)]
+    (println "about to migrate messages:" (count mids))
+    (doseq [txn-batch (partition 100 txns)]
+      (println "Migrating" (count txn-batch) "messages")
+      (try
+        (biff/submit-tx ctx (vec txn-batch))
+        (catch Exception e
+          (println "message failed")
+          (let [{:keys [tx-doc]} (ex-data e)
+                mid (:xt/id tx-doc)]
+            (println "mid" mid)
+            (swap! failed-mids conj mid)))))))
+
