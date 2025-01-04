@@ -36,7 +36,7 @@
        (group-by :search/did)
        (map (fn [[did results]]
               {:search/did did
-               :search/last_ts (apply max (map :search/ts results))
+               :search/last_ts (->> results (map :search/ts) sort last)
                :search/results results}))
        (sort-by (fn [{:search/keys [last_ts]}] last_ts))
        vec))
