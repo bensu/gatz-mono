@@ -8,6 +8,7 @@
         ;; Local jars will use this too
         :biff.xtdb/checkpointer :biff.xtdb.checkpointer/s3
         :biff.xtdb.checkpointer/bucket "XTDB_CHECKPOINTS_S3_BUCKET"
+        :biff.xtdb.lucene.checkpointer/bucket "XTDB_LUCENE_CHECKPOINTS_S3_BUCKET"
         ;; :biff.xtdb.jdbc/password "JDBC_PASSWORD"
 
         :twilio/verify-service "TWILIO_VERIFY_SERVICE"
@@ -68,7 +69,7 @@
 
        :expo/enabled? false
 
-       :biff.xtdb/checkpointer :biff.xtdb.checkpointer/file
+       :biff.xtdb/checkpointer :biff.xtdb.checkpointer/s3
        :posthog/enabled? false
        ;; To use S3 uncomment these two lines
 

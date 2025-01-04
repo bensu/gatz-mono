@@ -148,34 +148,41 @@
   "Used in production. 
 
    To use in local development edit :biff.xtdb/checkpointer in config.edn"
-  [{:keys [biff/secret] :as _ctx}]
-  (let [bucket (secret :biff.xtdb.checkpointer/bucket)]
-    (assert (string? bucket))
-    (log/info "checkpointing from S3" bucket)
-    {:xtdb/module 'xtdb.checkpoint/->checkpointer
-     :approx-frequency (Duration/ofHours 12)
-     :retention-policy {:retain-at-least 5 :retain-newer-than (Duration/ofDays 7)}
-     :store {:xtdb/module 'xtdb.s3.checkpoint/->cp-store :bucket bucket}}))
+  [_ctx bucket]
+  {:pre [(string? bucket)]}
+  (log/info "checkpointing from S3" bucket)
+  {:xtdb/module 'xtdb.checkpoint/->checkpointer
+   :approx-frequency (Duration/ofHours 12)
+   :retention-policy {:retain-at-least 5 :retain-newer-than (Duration/ofDays 7)}
+   :store {:xtdb/module 'xtdb.s3.checkpoint/->cp-store :bucket bucket}})
 
 ;; https://v1-docs.xtdb.com/administration/checkpointing/
 (defn file-checkpoint-store
   "Used for local development"
-  [_ctx]
-  (log/info "checkpointing from file")
+  [_ctx path]
+  {:pre [(string? path)]}
+  (log/info "checkpointing from file" path)
   {:xtdb/module 'xtdb.checkpoint/->checkpointer
    :approx-frequency (Duration/ofHours 12)
    :retention-policy {:retain-at-least 5 :retain-newer-than (Duration/ofDays 7)}
-   :store {:xtdb/module 'xtdb.checkpoint/->filesystem-checkpoint-store
-           :path "storage/xtdb/checkpoints"}})
+   :store {:path path :xtdb/module 'xtdb.checkpoint/->filesystem-checkpoint-store}})
 
-(defn index-store [ctx]
+(defn index-store [{:keys [biff/secret] :as ctx}]
   (let [node-id (or (System/getenv "NODE_ID") "local")]
     (log/info "checkpointer used" (:biff.xtdb/checkpointer ctx))
     {:kv-store {:xtdb/module 'xtdb.rocksdb/->kv-store
                 :db-dir (io/file (format "storage/%s/xtdb/index" node-id))
                 :checkpointer (case (:biff.xtdb/checkpointer ctx)
-                                :biff.xtdb.checkpointer/s3 (s3-checkpont-store ctx)
-                                :biff.xtdb.checkpointer/file (file-checkpoint-store ctx))}}))
+                                :biff.xtdb.checkpointer/s3 (s3-checkpont-store ctx (secret :biff.xtdb.checkpointer/bucket))
+                                :biff.xtdb.checkpointer/file (file-checkpoint-store ctx "storage/xtdb/checkpoints"))}}))
+
+;; https://v1-docs.xtdb.com/extensions/1.24.3/full-text-search/#_custom_indexer
+(defn lucene-store [{:keys [biff/secret] :as ctx}]
+  (let [node-id (or (System/getenv "NODE_ID") "local")]
+    {:db-dir (format "storage/%s/xtdb/lucene" node-id)
+     :checkpointer (case (:biff.xtdb/checkpointer ctx)
+                     :biff.xtdb.checkpointer/s3 (s3-checkpont-store ctx (secret :biff.xtdb.lucene.checkpointer/bucket))
+                     :biff.xtdb.checkpointer/file (file-checkpoint-store ctx "storage/xtdb/lucene-checkpoints"))}))
 
 ;; When trying to scale the dynos [here](https://dashboard.heroku.com/apps/gatz/resources), the first constraint is the maximum number of connections for the Heroku PSQL add-on [here](https://data.heroku.com/datastores/73e41c97-1f7d-4799-99bb-1c4404bdfc07#), which is 20 connections.
 ;; The default pool size for Hikari is 10 connections, which implies 10 connections per dyno.
@@ -184,19 +191,16 @@
 (def hikari-max-pool-size 5)
 
 (defn xtdb-system [{:keys [biff/secret] :as ctx}]
-  (let [jdbc-url (to-jdbc-uri (secret :biff.xtdb.jdbc/jdbcUrl))
-        node-id (or (System/getenv "NODE_ID") "local")]
+  (let [jdbc-url (to-jdbc-uri (secret :biff.xtdb.jdbc/jdbcUrl))]
     {:xtdb/index-store (index-store ctx)
+     :xtdb.lucene/lucene-store (lucene-store ctx)
      :xtdb/tx-log {:xtdb/module 'xtdb.jdbc/->tx-log
                    :connection-pool :xtdb.jdbc/connection-pool}
      :xtdb/document-store {:xtdb/module 'xtdb.jdbc/->document-store
                            :connection-pool :xtdb.jdbc/connection-pool}
      :xtdb.jdbc/connection-pool {:dialect {:xtdb/module 'xtdb.jdbc.psql/->dialect}
                                  :pool-opts {:maximumPoolSize hikari-max-pool-size}
-                                 :db-spec {:jdbcUrl jdbc-url}}
-     ;; https://v1-docs.xtdb.com/extensions/1.24.3/full-text-search/#_custom_indexer
-     :xtdb.lucene/lucene-store {:db-dir (format "storage/%s/xtdb/lucene" node-id)}}))
-
+                                 :db-spec {:jdbcUrl jdbc-url}}}))
 
 ;; ====================================================================== 
 ;; Overall system
