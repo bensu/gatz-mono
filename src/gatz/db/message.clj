@@ -84,10 +84,11 @@
                               (map-vals (fn [ts] (crdt/->LWW clock ts)) emoji->ts))
                             (or uid->emoji->ts {})))))))
 
-(defn v1->v2 [data]
+(defn v1->v2
+  "This migration will put the messages inside of db/full-doc"
+  [data]
   (-> data
-      (assoc :db/version 2)
-      (assoc :message/search_text (str/lower-case (crdt/-value (:message/text data))))))
+      (assoc :db/version 2)))
 
 (def all-migrations
   [{:from 0 :to 1 :transform v0->v1}

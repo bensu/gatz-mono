@@ -296,7 +296,7 @@
    :db/version
    :message/did
    :message/user_id
-   :message/search_text
+   :message/text
    :message/created_at
    :message/mentions])
 
@@ -324,8 +324,6 @@
    [:message/flagged_uids [:set #'UserId]]
    ;; LWW
    [:message/text string?]
-   ;; derived from LWW
-   [:message/search_text string?]
    ;; {user-id {emoji (->LWW ts?)}
    [:message/reactions
     [:map-of #'UserId [:map-of string? [:maybe inst?]]]]])
@@ -356,8 +354,6 @@
    [:message/flagged_uids (crdt/lww-set-schema #'UserId)]
    ;; LWW
    [:message/text (crdt/lww-schema string?)]
-   ;; derived from LWW
-   [:message/search_text string?]
    ;; {user-id {emoji (->LWW ts?)}
    [:message/reactions
     [:map-of #'UserId

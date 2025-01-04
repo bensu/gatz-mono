@@ -56,7 +56,6 @@
                                            :message/edited_at now}})
      :message/mentions msg-mentions
      :message/text (crdt/->LWW clock text)
-     :message/search_text (str/lower-case text)
      :message/reactions {}}))
 
 (deftest crdt-messages
@@ -195,7 +194,6 @@
 (defn apply-delta [msg delta]
   (crdt/-apply-delta msg delta))
 
-;; remove :message/search_text ?
 (defn ->value
   "To make the CRDT messages backwards compatible for older clients"
   [msg]

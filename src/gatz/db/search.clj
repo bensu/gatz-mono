@@ -20,7 +20,7 @@
   (->> (q db '{:find [did mid created-at]
                :in [text-query uid]
                :order-by [[created-at :desc]]
-               :where [[(text-search :message/search_text text-query) [[mid]]]
+               :where [[(text-search :message/text text-query) [[mid]]]
                        [mid :xt/id]
                        [mid :db/type :gatz/message]
                        [mid :message/did did]
