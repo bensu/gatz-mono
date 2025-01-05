@@ -298,6 +298,7 @@
    :message/user_id
    :message/text
    :message/created_at
+   :message/deleted_at
    :message/mentions])
 
 (def Message

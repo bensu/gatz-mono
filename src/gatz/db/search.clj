@@ -25,6 +25,7 @@
                        [mid :db/type :gatz/message]
                        [mid :message/did did]
                        [mid :message/created_at created-at]
+                       [mid :message/deleted_at nil]
                        [did :db/type :gatz/discussion]
                        [did :discussion/members uid]]}
           text-query
