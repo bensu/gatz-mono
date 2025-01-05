@@ -176,7 +176,9 @@
       (let [delta (get-in evt [:evt/data :message.crdt/delta])
             new-msg (gatz.crdt.message/apply-delta msg delta)]
         [[:xtdb.api/put evt]
-         [:xtdb.api/put new-msg]]))))
+         [:xtdb.api/put (-> new-msg
+                            (crdt->doc)
+                            (assoc :db/doc-type :gatz.doc/message))]]))))
 
 (def ^{:doc "This function will be stored in the db which is why it is an expression"}
   message-apply-delta-expr
