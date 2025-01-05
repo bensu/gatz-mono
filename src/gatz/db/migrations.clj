@@ -792,6 +792,8 @@
 ;; 8. Turn off maintenance mode on Heroku
 ;; 9. Deploy new code with Lucene active to Heroku. It can boot from the S3 bucket
 
+;; nREPL server started on port 36869 on host localhost - nrepl://localhost:36869
+
 (defn all-mids [db]
   (->> (q db '{:find [m]
                :where [[m :db/type :gatz/message]]})
@@ -804,6 +806,7 @@
 
 (defonce failed-mids (atom #{}))
 
+;; tx of the prod db backup 521003
 (defn migrate-messages-to-full-doc! [ctx]
   (let [db (xtdb.api/db (:biff.xtdb/node ctx))
         mids (all-mids db)
