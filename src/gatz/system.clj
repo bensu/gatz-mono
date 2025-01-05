@@ -152,7 +152,7 @@
   {:pre [(string? bucket)]}
   (log/info "checkpointing from S3" bucket)
   {:xtdb/module 'xtdb.checkpoint/->checkpointer
-   :approx-frequency (Duration/ofHours 12)
+   :approx-frequency (Duration/ofMinutes 5)
    :retention-policy {:retain-at-least 5 :retain-newer-than (Duration/ofDays 7)}
    :store {:xtdb/module 'xtdb.s3.checkpoint/->cp-store :bucket bucket}})
 
@@ -193,7 +193,7 @@
 (defn xtdb-system [{:keys [biff/secret] :as ctx}]
   (let [jdbc-url (to-jdbc-uri (secret :biff.xtdb.jdbc/jdbcUrl))]
     {:xtdb/index-store (index-store ctx)
-     :xtdb.lucene/lucene-store (lucene-store ctx)
+     ;; :xtdb.lucene/lucene-store (lucene-store ctx)
      :xtdb/tx-log {:xtdb/module 'xtdb.jdbc/->tx-log
                    :connection-pool :xtdb.jdbc/connection-pool}
      :xtdb/document-store {:xtdb/module 'xtdb.jdbc/->document-store

@@ -276,7 +276,7 @@
                  ["/feed/posts" {:get api.discussion/feed}]
                  ["/feed/active" {:get api.discussion/active}]
 
-                 ["/search" {:get api.search/search-term}]
+                ;;  ["/search" {:get api.search/search-term}]
 
                  ["/contact" {:get api.contacts/get-contact}]
                  ["/contacts" {:get api.contacts/get-all-contacts}]
