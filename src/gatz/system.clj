@@ -223,7 +223,7 @@
                     (some-> (secret :biff/port) mt/-string->long)
                     8080)]
        (assert (some? port))
-       (println "Binding HTTP to port:" port)
+       (log/info "Binding HTTP to port:" port)
        (biff/use-jetty (assoc ctx :biff/port port :biff/host "0.0.0.0"))))
    biff/use-chime
    biff/use-beholder])
