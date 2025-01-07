@@ -208,6 +208,16 @@
       (json-response {:user (crdt.user/->value user)}))
     (err-resp "invalid_file_url" "Invalid file url")))
 
+(defn update-urls! [{:keys [params] :as ctx}]
+  (if-let [ps (:urls params)]
+    (let [user-links (cond-> {}
+                       (string? (:twitter ps)) (assoc :settings.urls/twitter (:twitter ps))
+                       (string? (:website ps)) (assoc :settings.urls/website (:website ps)))
+          {:keys [user]} (db.user/edit-links! ctx user-links)]
+      (posthog/capture! ctx "user.update_urls")
+      (json-response {:user (crdt.user/->value user)}))
+    (err-resp "invalid_user_links" "Invalid user links")))
+
 (defn delete-account! [{:keys [auth/user-id] :as ctx}]
   (assert (uuid? user-id))
   (db.user/mark-deleted! ctx)

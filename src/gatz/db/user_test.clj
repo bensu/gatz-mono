@@ -92,6 +92,8 @@
           c3 (crdt/new-hlc cid t3)
           t4 (crdt/inc-time t3)
           c4 (crdt/new-hlc cid t4)
+          t5 (crdt/inc-time t4)
+          c5 (crdt/new-hlc cid t5)
           actions [{:gatz.crdt.user/action :gatz.crdt.user/update-avatar
                     :gatz.crdt.user/delta
                     {:crdt/clock c1
@@ -128,7 +130,14 @@
                    {:gatz.crdt.user/action :gatz.crdt.user/mark-deleted
                     :gatz.crdt.user/delta {:crdt/clock c4
                                            :user/updated_at t4
-                                           :user/deleted_at t4}}]]
+                                           :user/deleted_at t4}}
+                   {:gatz.crdt.user/action :gatz.crdt.user/update-links
+                    :gatz.crdt.user/delta
+                    {:crdt/clock c5
+                     :user/updated_at t5
+                     :user/settings {:settings/urls
+                                     (crdt/->lww-map {:settings.urls/twitter "https://twitter.com/test"}
+                                                     c5)}}}]]
       (doseq [action actions]
         (is (malli/validate schema/UserAction action)
             (malli/explain schema/UserAction action)))
@@ -171,7 +180,7 @@
             (apply-action! (get-ctx uid) action))
           (xtdb/sync node)
           (let [final-user (by-id (xtdb/db node) uid)]
-            (is-equal {:db/version 1,
+            (is-equal {:db/version 2,
                        :db/doc-type :gatz/user
                        :db/type :gatz/user,
                        :xt/id uid
@@ -182,12 +191,14 @@
                        :user/push_tokens nil,
                        :user/phone_number "4159499932",
                        :user/created_at now
-                       :crdt/clock c4
+                       :crdt/clock c5
                        :user/deleted_at t4
-                       :user/updated_at t4
+                       :user/updated_at t5
                        :user/blocked_uids #{blocked-uid}
                        :user/settings
-                       #:settings{:notifications
+                       #:settings{:urls {:settings.urls/website nil
+                                         :settings.urls/twitter "https://twitter.com/test"}
+                                  :notifications
                                   #:settings.notification{:overall false,
                                                           :activity :settings.notification/daily,
                                                           :subscribe_on_comment false,
@@ -212,7 +223,8 @@
               t5 (crdt/inc-time t4)
               t6 (crdt/inc-time t5)
               t7 (crdt/inc-time t6)
-              [_c1 _c2 _c3 _c4 _c5 _c6 c7] (mapv (partial crdt/new-hlc uid) [t1 t2 t3 t4 t5 t6 t7])]
+              t8 (crdt/inc-time t7)
+              [_c1 _c2 _c3 _c4 _c5 _c6 _c7 c8] (mapv (partial crdt/new-hlc uid) [t1 t2 t3 t4 t5 t6 t7 t8])]
           (create-user! ctx {:id uid
                              :username "test_456"
                              :phone "4159499932"
@@ -247,6 +259,7 @@
                                {:now t5})
           (block-user! (get-ctx uid) blocked-uid {:now t6})
           (mark-deleted! (get-ctx uid) {:now t7})
+          (edit-links! (get-ctx uid) {:twitter "https://twitter.com/test"} {:now t8})
           (xtdb/sync node)
 
           (let [final-user (by-id (xtdb/db node) uid)]
@@ -258,15 +271,17 @@
                        :user/avatar nil
                        :db/doc-type :gatz/user
                        :user/blocked_uids #{blocked-uid}
-                       :db/version 1,
+                       :db/version 2,
                        :user/push_tokens nil,
                        :user/phone_number "4159499932",
                        :user/created_at now
-                       :crdt/clock c7
+                       :crdt/clock c8
                        :user/deleted_at t7
-                       :user/updated_at t7
+                       :user/updated_at t8
                        :user/settings
-                       #:settings{:notifications
+                       #:settings{:urls {:settings.urls/website nil
+                                         :settings.urls/twitter "https://twitter.com/test"}
+                                  :notifications
                                   #:settings.notification{:overall false,
                                                           :activity :settings.notification/daily,
                                                           :subscribe_on_comment false,

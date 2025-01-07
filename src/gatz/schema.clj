@@ -27,17 +27,18 @@
   [:map
    [:push/expo PushToken]])
 
+(def UserSettingsLinksCRDT
+  [:map
+   [:settings.urls/twitter (crdt/lww-schema [:maybe string?])]
+   [:settings.urls/website (crdt/lww-schema [:maybe string?])]])
+
 (def NotificationPreferencesCRDT
   [:map
-   [:settings.notification/overall
-    (crdt/lww-schema boolean?)]
-   [:settings.notification/activity
-    (crdt/lww-schema
-     [:enum :settings.notification/daily :settings.notification/none])]
-   [:settings.notification/subscribe_on_comment
-    (crdt/lww-schema boolean?)]
-   [:settings.notification/suggestions_from_gatz
-    (crdt/lww-schema boolean?)]
+   [:settings.notification/overall (crdt/lww-schema boolean?)]
+   [:settings.notification/activity (crdt/lww-schema
+                                     [:enum :settings.notification/daily :settings.notification/none])]
+   [:settings.notification/subscribe_on_comment (crdt/lww-schema boolean?)]
+   [:settings.notification/suggestions_from_gatz (crdt/lww-schema boolean?)]
    ;; These below are unused:
    ;; [:settings.notification/comments_to_own_post boolean?]
    ;; [:settings.notification/reactions_to_own_post boolean?]
@@ -80,9 +81,9 @@
    ;; LWW set
    [:user/blocked_uids [:set uuid?]]
    ;; {k {k LWW}}
-   [:user/settings
-    [:map
-     [:settings/notifications NotificationPreferences]]]
+   [:user/settings [:map
+                    [:settings/notifications NotificationPreferences]
+                    [:settings/urls UserSettingsLinksCRDT]]]
    [:user/push_tokens [:maybe PushTokens]]])
 
 (def contact-ks [:xt/id :user/name :user/avatar])
@@ -95,7 +96,7 @@
   [:map
    [:xt/id #'UserId]
    [:db/type [:enum :gatz/user]]
-   [:db/version [:enum 1]]
+   [:db/version [:enum 2]]
    [:crdt/clock crdt/hlc-schema]
    [:user/created_at inst?]
    [:user/is_test [:maybe boolean?]]
@@ -111,9 +112,9 @@
    [:user/blocked_uids (crdt/lww-set-schema #'UserId)]
    ;; {k {k LWW}}
    [:user/push_tokens (crdt/lww-schema [:maybe PushTokens])]
-   [:user/settings
-    [:map
-     [:settings/notifications NotificationPreferencesCRDT]]]])
+   [:user/settings [:map
+                    [:settings/notifications NotificationPreferencesCRDT]
+                    [:settings/urls UserSettingsLinksCRDT]]]])
 
 (def UserActivity
   [:map
@@ -512,6 +513,15 @@
       ;; TODO: partial where all keys are optional
      [:settings/notifications (mu/optional-keys NotificationPreferencesCRDT)]]]])
 
+(def UserUpdateLinks
+  [:map
+   [:crdt/clock crdt/hlc-schema]
+   [:user/updated_at inst?]
+   [:user/settings
+    [:map
+      ;; TODO: partial where all keys are optional
+     [:settings/urls (mu/optional-keys UserSettingsLinksCRDT)]]]])
+
 (def UserMarkDeleted
   [:map
    [:crdt/clock crdt/hlc-schema]
@@ -544,7 +554,10 @@
      [:gatz.crdt.user/delta UserRemovePushToken]]
     [:map
      [:gatz.crdt.user/action [:enum :gatz.crdt.user/update-notifications]]
-     [:gatz.crdt.user/delta UserUpdateNotifications]]]))
+     [:gatz.crdt.user/delta UserUpdateNotifications]]
+    [:map
+     [:gatz.crdt.user/action [:enum :gatz.crdt.user/update-links]]
+     [:gatz.crdt.user/delta UserUpdateLinks]]]))
 
 (def UserEvent
   [:map

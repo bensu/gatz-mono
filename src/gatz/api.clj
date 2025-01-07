@@ -262,6 +262,7 @@
                  ["/user/settings/notifications" {:post api.user/update-notification-settings!}]
                  ["/user/delete" {:post api.user/delete-account!}]
                  ["/user/block" {:post api.user/block!}]
+                 ["/user/settings/urls" {:post api.user/update-urls!}]
 
                  ["/file/presign" {:post api.media/presigned-url!}]
                  ["/media" {:post api.media/create-media!}]
