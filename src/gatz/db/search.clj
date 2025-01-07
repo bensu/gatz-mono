@@ -24,7 +24,7 @@
    (->> (q db {:find '[did created-at mid]
                :in '[text-query uid older-than-ts]
                :order-by '[[created-at :desc]]
-               :limit 2
+               :limit 20
                :where (cond-> '[[(text-search :message/text text-query) [[mid]]]
                                 [mid :xt/id]
                                 [mid :db/type :gatz/message]
