@@ -174,8 +174,11 @@
         msg (gatz.db.message/by-id db mid)]
     (when (gatz.db.message/authorized-for-message-delta? d msg evt)
       (let [delta (get-in evt [:evt/data :message.crdt/delta])
-            new-msg (gatz.crdt.message/apply-delta msg delta)]
+            new-msg (gatz.crdt.message/apply-delta msg delta)
+            d-delta {:discussion/updated_at (:message/updated_at new-msg)
+                     :crdt/clock (:crdt/clock new-msg)}]
         [[:xtdb.api/put evt]
+         [:xtdb.api/fn :gatz.db.discussion/apply-msg-delta {:did did :delta d-delta}]
          [:xtdb.api/put (-> new-msg
                             (crdt->doc)
                             (assoc :db/doc-type :gatz.doc/message))]]))))

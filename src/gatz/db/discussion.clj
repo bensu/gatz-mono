@@ -202,6 +202,15 @@
     (or (= uid (:discussion/created_by d))
         (= #{uid} members))))
 
+(defn apply-msg-delta-xtdb
+  [ctx {:keys [did delta] :as _args}]
+  (let [db (xtdb.api/db ctx)
+        d (gatz.db.discussion/by-id db did)
+        new-d (gatz.crdt.discussion/apply-delta d delta)]
+    [[:xtdb.api/put (-> new-d
+                        (crdt->doc)
+                        (assoc :db/doc-type :gatz.doc/discussion))]]))
+
 (defn apply-delta-xtdb
   [ctx {:keys [evt] :as _args}]
   (let [did (:evt/did evt)
@@ -220,8 +229,14 @@
   '(fn discussion-apply-delta-fn [ctx args]
      (gatz.db.discussion/apply-delta-xtdb ctx args)))
 
+(def ^{:doc "This function will be stored in the db which is why it is an expression"}
+  apply-msg-delta-expr
+  '(fn discussion-apply-msg-delta-fn [ctx args]
+     (gatz.db.discussion/apply-msg-delta-xtdb ctx args)))
+
 (def tx-fns
-  {:gatz.db.discussion/apply-delta apply-delta-expr})
+  {:gatz.db.discussion/apply-delta apply-delta-expr
+   :gatz.db.discussion/apply-msg-delta apply-msg-delta-expr})
 
 (defn apply-action!
   "Applies a delta to the discussion and stores it"
