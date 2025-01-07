@@ -90,18 +90,20 @@
    [:contacts [:vec schema/ContactResponse]]
    [:group {:optional true} schema/Group]])
 
-(defn get-all-contacts [{:keys [auth/user-id biff/db] :as ctx}]
+(defn get-all-contacts [{:keys [auth/user-id auth/user biff/db] :as ctx}]
   (let [{:keys [group_id]} (parse-get-contact-params (:params ctx))]
     (if group_id
       (let [group (db.group/by-id db group_id)
             contact-ids (:group/members group)
             group-contacts (mapv (partial db.user/by-id db) contact-ids)]
-        (json-response {:contacts (mapv #(-> % crdt.user/->value db.contacts/->contact)
+        (json-response {:user (crdt.user/->value user)
+                        :contacts (mapv #(-> % crdt.user/->value db.contacts/->contact)
                                         group-contacts)
                         :group group}))
       (let [my-contact-ids (:contacts/ids (db.contacts/by-uid db user-id))
             my-contacts (mapv (partial db.user/by-id db) my-contact-ids)]
-        (json-response {:contacts (mapv #(-> % crdt.user/->value db.contacts/->contact)
+        (json-response {:user (crdt.user/->value user)
+                        :contacts (mapv #(-> % crdt.user/->value db.contacts/->contact)
                                         my-contacts)
                         :group nil})))))
 
