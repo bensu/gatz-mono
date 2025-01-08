@@ -29,8 +29,8 @@
 
 (def UserSettingsLinksCRDT
   [:map
-   [:settings.urls/twitter (crdt/lww-schema [:maybe string?])]
-   [:settings.urls/website (crdt/lww-schema [:maybe string?])]])
+   [:profile.urls/twitter (crdt/lww-schema [:maybe string?])]
+   [:profile.urls/website (crdt/lww-schema [:maybe string?])]])
 
 (def NotificationPreferencesCRDT
   [:map
@@ -82,8 +82,9 @@
    [:user/blocked_uids [:set uuid?]]
    ;; {k {k LWW}}
    [:user/settings [:map
-                    [:settings/notifications NotificationPreferences]
-                    [:settings/urls UserSettingsLinksCRDT]]]
+                    [:settings/notifications NotificationPreferences]]]
+   [:user/profile [:map
+                   [:profile/urls UserSettingsLinksCRDT]]]
    [:user/push_tokens [:maybe PushTokens]]])
 
 (def contact-ks [:xt/id :user/name :user/avatar])
@@ -113,8 +114,9 @@
    ;; {k {k LWW}}
    [:user/push_tokens (crdt/lww-schema [:maybe PushTokens])]
    [:user/settings [:map
-                    [:settings/notifications NotificationPreferencesCRDT]
-                    [:settings/urls UserSettingsLinksCRDT]]]])
+                    [:settings/notifications NotificationPreferencesCRDT]]]
+   [:user/profile [:map
+                   [:profile/urls UserSettingsLinksCRDT]]]])
 
 (def UserActivity
   [:map
@@ -517,10 +519,9 @@
   [:map
    [:crdt/clock crdt/hlc-schema]
    [:user/updated_at inst?]
-   [:user/settings
+   [:user/profile
     [:map
-      ;; TODO: partial where all keys are optional
-     [:settings/urls (mu/optional-keys UserSettingsLinksCRDT)]]]])
+     [:profile/urls (mu/optional-keys UserSettingsLinksCRDT)]]]])
 
 (def UserMarkDeleted
   [:map

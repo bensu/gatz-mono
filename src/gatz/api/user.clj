@@ -211,8 +211,8 @@
 (defn update-urls! [{:keys [params] :as ctx}]
   (if-let [ps (:urls params)]
     (let [user-links (cond-> {}
-                       (string? (:twitter ps)) (assoc :settings.urls/twitter (:twitter ps))
-                       (string? (:website ps)) (assoc :settings.urls/website (:website ps)))
+                       (string? (:twitter ps)) (assoc :profile.urls/twitter (:twitter ps))
+                       (string? (:website ps)) (assoc :profile.urls/website (:website ps)))
           {:keys [user]} (db.user/edit-links! ctx user-links)]
       (posthog/capture! ctx "user.update_urls")
       (json-response {:user (crdt.user/->value user)}))

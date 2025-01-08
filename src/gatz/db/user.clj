@@ -35,7 +35,7 @@
   (let [clock (crdt/new-hlc migration-client-id)]
     (-> data
         (assoc :db/version 2 :crdt/clock clock)
-        (update-in [:user/settings :settings/urls] #(merge (crdt.user/empty-links clock) %)))))
+        (update-in [:user/profile :profile/urls] #(merge (crdt.user/empty-links clock) %)))))
 
 (def all-migrations
   [{:from 0 :to 1 :transform v0->v1}
@@ -235,18 +235,15 @@
      (apply-action! ctx action))))
 
 (defn edit-links!
-
   ([ctx user-links]
    (edit-links! ctx user-links {:now (Date.)}))
 
   ([{:keys [auth/user-id] :as ctx} user-links {:keys [now]}]
-
    {:pre [(uuid? user-id)]}
-
    (let [clock (crdt/new-hlc user-id now)
          delta {:crdt/clock clock
                 :user/updated_at now
-                :user/settings {:settings/urls (crdt/->lww-map user-links clock)}}
+                :user/profile {:profile/urls (crdt/->lww-map user-links clock)}}
          action {:gatz.crdt.user/action :gatz.crdt.user/update-links
                  :gatz.crdt.user/delta delta}]
      (apply-action! ctx action))))

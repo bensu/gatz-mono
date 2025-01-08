@@ -56,8 +56,8 @@
    })
 
 (defn empty-links [clock]
-  {:settings.urls/website (crdt/lww clock nil)
-   :settings.urls/twitter (crdt/lww clock nil)})
+  {:profile.urls/website (crdt/lww clock nil)
+   :profile.urls/twitter (crdt/lww clock nil)})
 
 (defn notifications-on-crdt [clock]
   (crdt/->lww-map notifications-on clock))
@@ -70,13 +70,16 @@
      (nil? (:user/settings u))
      (update :user/settings
              (fn [settings]
-               (-> settings
-                   (update :settings/urls #(merge (empty-links now) %))
-                   (update :settings/notifications
-                           #(merge (if (:user/push_tokens u)
-                                     notifications-on
-                                     notifications-off)
-                                   %)))))
+               (update settings :settings/notifications
+                       #(merge (if (:user/push_tokens u)
+                                 notifications-on
+                                 notifications-off)
+                               %))))
+
+     (nil? (:user/profile u))
+     (update :user/profile
+             (fn [profile]
+               (update profile :profile/urls #(merge (empty-links now) %))))
 
      true (assoc :db/doc-type :gatz/user)
      true (assoc :user/updated_at now))))
@@ -104,9 +107,9 @@
      :user/blocked_uids (crdt/lww-set clock #{})
      :user/avatar (crdt/lww clock nil)
      :user/push_tokens (crdt/lww clock nil)
-     :user/settings {:settings/urls {:settings.urls/website (crdt/lww clock nil)
-                                     :settings.urls/twitter (crdt/lww clock nil)}
-                     :settings/notifications (notifications-off-crdt clock)}}))
+     :user/settings {:settings/notifications (notifications-off-crdt clock)}
+     :user/profile {:profile/urls {:profile.urls/website (crdt/lww clock nil)
+                                   :profile.urls/twitter (crdt/lww clock nil)}}}))
 
 
 (defn ->value [u]

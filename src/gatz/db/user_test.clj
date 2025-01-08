@@ -135,9 +135,9 @@
                     :gatz.crdt.user/delta
                     {:crdt/clock c5
                      :user/updated_at t5
-                     :user/settings {:settings/urls
-                                     (crdt/->lww-map {:settings.urls/twitter "https://twitter.com/test"}
-                                                     c5)}}}]]
+                     :user/profile {:profile/urls
+                                    (crdt/->lww-map {:profile.urls/twitter "https://twitter.com/test"}
+                                                    c5)}}}]]
       (doseq [action actions]
         (is (malli/validate schema/UserAction action)
             (malli/explain schema/UserAction action)))
@@ -195,10 +195,10 @@
                        :user/deleted_at t4
                        :user/updated_at t5
                        :user/blocked_uids #{blocked-uid}
+                       :user/profile {:profile/urls {:profile.urls/website nil
+                                                     :profile.urls/twitter "https://twitter.com/test"}}
                        :user/settings
-                       #:settings{:urls {:settings.urls/website nil
-                                         :settings.urls/twitter "https://twitter.com/test"}
-                                  :notifications
+                       #:settings{:notifications
                                   #:settings.notification{:overall false,
                                                           :activity :settings.notification/daily,
                                                           :subscribe_on_comment false,
@@ -259,7 +259,7 @@
                                {:now t5})
           (block-user! (get-ctx uid) blocked-uid {:now t6})
           (mark-deleted! (get-ctx uid) {:now t7})
-          (edit-links! (get-ctx uid) {:twitter "https://twitter.com/test"} {:now t8})
+          (edit-links! (get-ctx uid) {:profile.urls/twitter "https://twitter.com/test"} {:now t8})
           (xtdb/sync node)
 
           (let [final-user (by-id (xtdb/db node) uid)]
@@ -278,10 +278,10 @@
                        :crdt/clock c8
                        :user/deleted_at t7
                        :user/updated_at t8
+                       :user/profile {:profile/urls {:profile.urls/website nil
+                                                     :profile.urls/twitter "https://twitter.com/test"}}
                        :user/settings
-                       #:settings{:urls {:settings.urls/website nil
-                                         :settings.urls/twitter "https://twitter.com/test"}
-                                  :notifications
+                       #:settings{:notifications
                                   #:settings.notification{:overall false,
                                                           :activity :settings.notification/daily,
                                                           :subscribe_on_comment false,
