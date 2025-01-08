@@ -2,6 +2,8 @@
   (:require [clojure.set :as set]
             [clojure.string :as str]
             [clojure.pprint :as pp]
+            [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [crdt.core :as crdt]
             [gatz.db :refer :all]
             [gatz.db.contacts :as db.contacts]
@@ -828,3 +830,89 @@
             (println "mid" mid)
             (swap! failed-mids conj mid)))))))
 
+
+;; ======================================================================
+;; Profile links for existing users
+
+(defn all-users [db]
+  (->> (q db '{:find [u]
+               :where [[u :db/type :gatz/user]]})
+       (map first)
+       (map (fn [u]
+              (let [uid (:xt/id u)]
+                (db.user/by-id db uid))))))
+
+(defn extract-twitter-users [json-data]
+  (let [instructions (get-in json-data [:data :user :result :timeline :timeline :instructions])]
+    (->> instructions
+         (mapcat :entries)
+         (keep (fn [entry]
+                 (when-let [user (get-in entry [:content :itemContent :user_results :result :legacy])]
+                   [(get user :screen_name)
+                    (get user :name)])))
+         (into {}))))
+
+(defn read-json-file [file-path]
+  (try
+    (-> file-path
+        slurp
+        (json/read-str {:key-fn keyword}))
+    (catch Exception _e
+      (println "Failed to read file:" file-path)
+      nil)))
+
+(defn extract-all-twitter-users []
+  (let [dir "resources/migrations/sebas_following"
+        files (->> (range 0 21)
+                   (map #(format "%s/%d.json" dir %)))]
+    (->> files
+         (keep read-json-file)
+         (map extract-twitter-users)
+         (reduce merge {}))))
+
+(defn gatz-username->twitter-handle []
+  ;; reads csv in resources/migrations/twitter_handles.txt
+  ;; returns a map of gatz username to twitter handle
+  (->> (io/resource "migrations/twitter_handles.txt")
+       slurp
+       (str/split-lines)
+       (map #(str/split % #","))
+       (keep (fn [[username twitter-handle]]
+               (when-not  (empty? twitter-handle)
+                 [(str/trim username) (str/trim twitter-handle)])))
+       (into {})))
+
+(defn add-twitter-username-to-users! [ctx]
+  (let [db (xtdb.api/db (:biff.xtdb/node ctx))
+        username->handle (gatz-username->twitter-handle)
+        now (java.util.Date.)]
+    (doseq [[username handle] username->handle]
+      (when-let [user (db.user/by-name db username)]
+        (println "Adding twitter handle" handle "to user" username)
+        (let [authed-ctx (assoc ctx
+                                :biff/db db
+                                :auth/user-id (:xt/id user)
+                                :auth/user user)]
+          (db.user/edit-links! authed-ctx
+                               {:profile.urls/twitter handle}
+                               {:now now}))))))
+
+
+(comment
+  (def -all-twitter-users
+    (extract-all-twitter-users))
+
+  (def sebas-follows-table
+    (->> -all-twitter-users
+         (map (fn [[username full-name]]
+                [(str/lower-case (name username)) (str/lower-case full-name)]))
+         (sort-by first)
+         (into [])))
+
+  (require '[clojure.java.io :as io])
+
+  (def -f
+    (io/file "resources/migrations/sebas_following_handles.txt"))
+
+  (doseq [line sebas-follows-table]
+    (spit -f  (str (str/join " " line) "\n") :append true)))
