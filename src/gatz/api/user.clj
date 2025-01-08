@@ -226,7 +226,11 @@
 (defn update-urls! [{:keys [params] :as ctx}]
   (if-let [ps (:urls params)]
     (let [{:keys [twitter website]} ps
-          twitter (some-> twitter (str/replace-first #"^@" ""))]
+          website (some-> website (str/trim) (str/lower-case))
+          twitter (some-> twitter
+                          (str/lower-case)
+                          (str/trim)
+                          (str/replace-first #"^@" ""))]
       (cond
         (and (some? twitter) (not (valid-twitter-handle? twitter)))
         (err-resp "invalid_twitter" "Invalid Twitter username")
