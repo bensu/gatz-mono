@@ -87,7 +87,7 @@
                    [:profile/urls UserSettingsLinksCRDT]]]
    [:user/push_tokens [:maybe PushTokens]]])
 
-(def contact-ks [:xt/id :user/name :user/avatar])
+(def contact-ks [:xt/id :user/name :user/avatar :user/profile])
 
 (def Contact (mu/select-keys User contact-ks))
 

@@ -208,14 +208,39 @@
       (json-response {:user (crdt.user/->value user)}))
     (err-resp "invalid_file_url" "Invalid file url")))
 
+(defn valid-website-url? [url]
+  (boolean
+   (and (string? url)
+        (try
+          (let [uri (java.net.URI. url)]
+            (and (contains? #{"http" "https"} (.getScheme uri))
+                 (not (str/blank? (.getHost uri)))))
+          (catch Exception _
+            false)))))
+
+(defn valid-twitter-handle? [handle]
+  (boolean
+   (and (string? handle)
+        (re-matches #"^[A-Za-z0-9_]{1,15}$" handle))))
+
 (defn update-urls! [{:keys [params] :as ctx}]
   (if-let [ps (:urls params)]
-    (let [user-links (cond-> {}
-                       (string? (:twitter ps)) (assoc :profile.urls/twitter (:twitter ps))
-                       (string? (:website ps)) (assoc :profile.urls/website (:website ps)))
-          {:keys [user]} (db.user/edit-links! ctx user-links)]
-      (posthog/capture! ctx "user.update_urls")
-      (json-response {:user (crdt.user/->value user)}))
+    (let [{:keys [twitter website]} ps
+          twitter (some-> twitter (str/replace-first #"^@" ""))]
+      (cond
+        (and (some? twitter) (not (valid-twitter-handle? twitter)))
+        (err-resp "invalid_twitter" "Invalid Twitter username")
+
+        (and (some? website) (not (valid-website-url? website)))
+        (err-resp "invalid_website" "Invalid website URL")
+
+        :else
+        (let [user-links (cond-> {}
+                           (string? twitter) (assoc :profile.urls/twitter twitter)
+                           (string? website) (assoc :profile.urls/website website))
+              {:keys [user]} (db.user/edit-links! ctx user-links)]
+          (posthog/capture! ctx "user.update_urls")
+          (json-response {:user (crdt.user/->value user)}))))
     (err-resp "invalid_user_links" "Invalid user links")))
 
 (defn delete-account! [{:keys [auth/user-id] :as ctx}]
