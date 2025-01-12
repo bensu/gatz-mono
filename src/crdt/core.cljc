@@ -73,35 +73,6 @@
   [:map
    [:value value-schema]])
 
-(deftest min-wins-test
-  (testing "can check its schema"
-    (is (malli/validate (min-wins-schema string?) #crdt/min-wins "0"))
-    (is (not (true? (malli/validate (min-wins-schema integer?) #crdt/min-wins "0")))))
-  (testing "empty value is always replaced"
-    (let [initial (-init #crdt/min-wins 0)]
-      (is (= 1 (-value (-apply-delta initial #crdt/min-wins 1)))))
-    (let [initial #crdt/min-wins nil]
-      (is (= 1 (-value (-apply-delta initial #crdt/min-wins 1))))))
-  (testing "any order yields the same final value with integers"
-    (let [values (shuffle (map #(->MinWins %) (range 10)))
-          initial (->MinWins 3)
-          final (reduce -apply-delta initial values)]
-      (is (= 0 (-value final)))))
-  (testing "merge is the same as apply-delta"
-    (let [values (shuffle (map #(->MinWins %) (range 10)))
-          initial (->MinWins 3)
-          final (reduce -merge initial values)]
-      (is (= 0 (-value final)))))
-  (testing "any order yields the same final value with dates"
-    (let [instants (take 10 (repeatedly (fn [] (Date.))))
-          values  (map ->MinWins (shuffle instants))
-          initial (->MinWins (first instants))
-          final (reduce -apply-delta initial values)]
-      (is (= (-value final) (first instants)))))
-  (testing "can be serialized"
-    (is (= #crdt/min-wins 0 (nippy/thaw (nippy/freeze #crdt/min-wins 0))))
-    (is (= #crdt/min-wins 0 (read-string (pr-str #crdt/min-wins 0))))))
-
 (defrecord MaxWins [value]
   CRDTDelta
   (-init [_] (->MaxWins nil))

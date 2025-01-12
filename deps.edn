@@ -50,6 +50,7 @@
                                         :sha "8f8fc2571e721301b6d52e191129248355cb8c5a"}
         org.clojure/tools.logging      {:mvn/version "1.2.4"}
         org.clojure/tools.namespace    {:mvn/version "1.4.4"}
+        org.clojure/test.check         {:mvn/version "1.1.0"}
        ;;  org.postgresql/postgresql      {:mvn/version "42.6.0"}
        ;;
         ring/ring-defaults             {:mvn/version "0.3.4"}
