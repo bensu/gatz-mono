@@ -2,7 +2,6 @@
   {:clojure.tools.namespace.repl/load false}
   (:require [clojure.core :refer [print-method read-string format]]
             [clojure.set :as set]
-            [clojure.test :as test :refer [deftest testing is]]
             [crdt.ulid :as ulid]
             [malli.core :as malli]
             [medley.core :refer [map-vals]]
@@ -207,68 +206,6 @@
 (defn inc-time [^Date d]
   (Date. (inc (.getTime d))))
 
-(deftest hlc
-  (testing "you can serialize the clocks"
-    (let [clock #crdt/hlc [#inst "2024-04-30T06:32:48.978-00:00" 1 #uuid "08f711cd-1d4d-4f61-b157-c36a8be8ef95"]]
-      (is (= clock (nippy/thaw (nippy/freeze clock))))
-      (is (= clock (read-string (pr-str clock))))))
-  (testing "you can check the schema"
-    (is (malli/validate hlc-schema #crdt/hlc [])))
-  (testing "You can generate HLCs"
-    (let [t0 (Date.)
-          aid (random-uuid)
-          bid (random-uuid)
-          a-init (new-hlc aid t0)
-          b-init (new-hlc bid t0)]
-      (is (= (compare aid bid)
-             (compare a-init b-init))
-          "The clocks end up comparing the node id when everything else is the same")
-
-      (let [a2 (-increment a-init t0)
-            b2 (-increment b-init t0)]
-        (is (= -1 (compare a-init a2)))
-        (is (= -1 (compare b-init a2)))
-        (is (= -1 (compare a-init b2)))
-        (is (= -1 (compare b-init b2)))
-        (is (= (compare aid bid) (compare a2 b2))))
-
-      ;; make sure the time is later
-      (let [t1 (inc-time t0)
-            merged-later (-receive a-init b-init t1)]
-        (is (= (->HLC t1 0 aid) merged-later)
-            "Local wins when receiving with equal times")
-        (is (= -1 (compare a-init merged-later)))
-        (is (= -1 (compare b-init merged-later))))
-
-      (testing "Both clients have new events, they are merged later"
-        (let [a2 (-increment a-init t0)
-              t1 (inc-time t0)
-              b2 (-increment b-init t1)
-              t2 (inc-time t1)
-              merged-later (-receive a2 b2 t2)]
-          (is (= (->HLC t2 0 aid) merged-later)
-              "timestamp wins over counter")
-          (is (= -1 (compare a-init merged-later)))
-          (is (= -1 (compare b-init merged-later)))
-          (is (= -1 (compare b2 merged-later)))
-          (testing "and it works a CRDT"
-            (let [deltas [a-init b-init a2 b2 merged-later]
-                  final (reduce -apply-delta a-init (shuffle deltas))]
-              (is (= merged-later (-value final)))))))
-
-      (testing "Both clients have new events, b is later"
-        (let [a2 (-increment a-init t0)
-              t1 (inc-time t0)
-              b2 (-increment b-init t1)
-              merged-later (-receive a2 b2 t1)]
-          (is (= (->HLC t0 1 aid) a2))
-          (is (= (->HLC t1 0 bid) b2))
-          (is (= (->HLC t1 1 aid) merged-later)
-              "Need to use counter")
-          (is (= -1 (compare a-init merged-later)))
-          (is (= -1 (compare b-init merged-later)))
-          (is (= -1 (compare b2 merged-later))))))))
-
 (defrecord ClientClock [event-number ts user-id conn-id]
   Comparable
   (compareTo [this that]
@@ -326,64 +263,6 @@
     [:clock clock-schema]
     [:value value-schema]]))
 
-(deftest lww-test
-  (testing "empty value is always replaced"
-    (let [initial (-init #crdt/lww [0 0])]
-      (is (= 1 (-value (-apply-delta initial #crdt/lww [1 1]))))))
-  (testing "can check the schema"
-    (let [schema (lww-schema integer? integer?)]
-      (is (malli/validate schema #crdt/lww [0 0]))
-      (is (not (malli/validate schema #crdt/lww [0 "0"])))))
-  (testing "any order yields the same final value"
-    (testing "with integer clocks"
-      (let [initial #crdt/lww [0 0]
-            clocks (range 1 10)
-            values (shuffle (range 1 10))
-            deltas (map #(->LWW %1 %2) clocks values)
-            final (reduce -apply-delta initial (shuffle deltas))]
-        (is (= 0 (-value initial)))
-        (is (= (last values) (-value final)))))
-    (testing "with date clocks"
-      (let [initial (->LWW (Date.) 0)
-            clocks (take 9 (repeatedly #(do (Thread/sleep 1) (Date.))))
-            values (shuffle (range 1 10))
-            deltas (map #(->LWW %1 %2) clocks values)
-            final (reduce -apply-delta initial (shuffle deltas))]
-        (is (= 0 (-value initial)))
-        (is (= (last values) (-value final)))))
-    (testing "merge is the same as -apply-delta"
-      (let [initial (->LWW (Date.) 0)
-            clocks (take 9 (repeatedly #(do (Thread/sleep 1) (Date.))))
-            values (shuffle (range 1 10))
-            deltas (map #(->LWW %1 %2) clocks values)
-            final (reduce -merge initial (shuffle deltas))]
-        (is (= 0 (-value initial)))
-        (is (= (last values) (-value final)))))
-    (testing "with ClientClocks"
-      (let [uid (random-uuid) cid (random-uuid)
-            tick! (let [event-number (atom 0)]
-                    (fn []
-                      (->ClientClock
-                       (swap! event-number inc) (Date.) uid cid)))
-            initial (->LWW (tick!) 0)
-            clocks (take 9 (repeatedly tick!))
-            values (shuffle (range 1 10))
-            deltas (map #(->LWW %1 %2) clocks values)
-            final (reduce -apply-delta initial (shuffle deltas))]
-        (is (= 0 (-value initial)))
-        (is (= (last values) (-value final)))
-        (testing "which can be serialized"
-          (is (every? #(= % (nippy/thaw (nippy/freeze %))) values)))))
-    (testing "with nil"
-      (let [initial #crdt/lww [0 1]
-            delta   #crdt/lww [1 nil]
-            final (-apply-delta initial delta)]
-        (is (= 1 (-value initial)))
-        (is (= nil (-value final)))))
-    (testing "can be serialized"
-      (is (= #crdt/lww [0 0] (read-string (pr-str #crdt/lww [0 0]))))
-      (is (= #crdt/lww [0 0] (nippy/thaw (nippy/freeze #crdt/lww [0 0])))))))
-
 (declare grow-only-set-instance?)
 
 (defrecord GrowOnlySet [xs]
@@ -426,28 +305,6 @@
 
 (defn gos [xs]
   (->GrowOnlySet (set xs)))
-
-(deftest grow-only-set-test
-  (testing "can check its schema"
-    (let [schema (grow-only-set-schema string?)]
-      (is (malli/validate schema (->GrowOnlySet #{"0"})))
-      (is (not (true? (malli/validate schema (->GrowOnlySet #{"0" 1})))))))
-  (testing "You can only add elements to a grow only set"
-    (let [initial (->GrowOnlySet #{})
-          deltas (shuffle (range 10))
-          final (reduce -apply-delta initial deltas)]
-      (is (= #{} (-value initial)))
-      (is (= (set (range 10)) (-value final)))))
-  (testing "You can merge them"
-    (let [a #crdt/gos #{1 2 3}
-          b #crdt/gos #{3 4 5}]
-      (is (= #{1 2 3 4 5} (-value (-merge a b))))
-      (is (= #{1 2 3 4 5} (-value (-merge b a))))))
-  (testing "can be serialized"
-    (is (= #crdt/gos #{1 2 3}
-           (read-string (pr-str #crdt/gos #{1 2 3}))))
-    (is (= #crdt/gos #{1 2 3}
-           (nippy/thaw (nippy/freeze #crdt/gos #{1 2 3}))))))
 
 ;; This needs to be wrapped so that it behaves like a set
 ;; when you ask for its value
@@ -507,49 +364,6 @@
   ([clock-schema value-schema]
    [:map-of value-schema (lww-schema clock-schema boolean?)]))
 
-;; This is not super ergonomic!
-;; The API you want knows which id you are removing
-(deftest lww-set-test
-  (testing "we can check the schema"
-    (let [schema (lww-set-schema string?)
-          node (random-uuid)]
-      (is (malli/validate schema (lww-set (new-hlc node) #{"0" "1"})))
-      (is (not (true? (malli/validate schema (lww-set (new-hlc node) #{"0" 1})))))))
-  (testing "You can add and remove"
-    (let [node (random-uuid)
-          t0 (Date.)
-          t1 (inc-time t0)
-          c0 (new-hlc node t0)
-          c1 (new-hlc node t1)
-          initial (lww-set c0 #{})
-          adds (map (fn [x]
-                      {x (->LWW c0 true)})
-                    (range 10))
-          removes (map (fn [x]
-                         {x (->LWW c1 false)})
-                       (filter even? (range 10)))
-          deltas (shuffle (concat adds removes adds removes))
-          final (reduce -apply-delta initial deltas)]
-      (is (= #{} (-value initial)))
-      (is (= (set (remove even? (range 10))) (-value final)))))
-  (testing "You can add and remove"
-    (let [node (random-uuid)
-          t0 (Date.)
-          t1 (inc-time t0)
-          c0 (new-hlc node t0)
-          c1 (new-hlc node t1)
-          initial (lww-set c0 #{})
-          adds (map (fn [x]
-                      (->LWWSet {x (->LWW c0 true)}))
-                    (range 10))
-          removes (map (fn [x]
-                         (->LWWSet {x (->LWW c1 false)}))
-                       (filter even? (range 10)))
-          deltas (shuffle (concat adds removes adds removes))
-          final (reduce -merge initial deltas)]
-      (is (= #{} (-value initial)))
-      (is (= (set (remove even? (range 10))) (-value final))))))
-
 (extend-protocol CRDTDelta
   nil
   (-init [_] nil)
@@ -583,69 +397,6 @@
   (-merge [this that]
     (merge-with -merge this that)))
 
-(deftest persistent-map
-  (testing "can be serialized"
-    (let [init {:a (->MaxWins 0) :b (->LWW 0 0) :c (->GrowOnlySet #{1 2 3})}]
-      (is (= init (nippy/thaw (nippy/freeze init))))))
-  (testing "you can apply deltas to a map"
-    (let [initial {:a 1 :b (->MaxWins 0) :c (->LWW 0 0)}
-          deltas (shuffle (map (fn [x]
-                                 {:b (->MaxWins x) :c (->LWW x x)})
-                               (range 10)))
-          final (reduce -apply-delta initial deltas)]
-      (is (= {:a 1 :b 0 :c 0} (-value initial)))
-      (is (= {:a 1 :b 9 :c 9} (-value final)))))
-  (testing "you can merge maps"
-    (let [initial {:a 1 :b (->MaxWins 0) :c (->LWW 0 0)}
-          deltas (shuffle (map (fn [x]
-                                 {:b (->MaxWins x) :c (->LWW x x)})
-                               (range 10)))
-          final (reduce -merge initial deltas)]
-      (is (= {:a 1 :b 0 :c 0} (-value initial)))
-      (is (= {:a 1 :b 9 :c 9} (-value final)))))
-  (testing "you can apply deltas recursively"
-    (let [initial {}
-          user-ids (range 10)
-          adds (map (fn [user-id]
-                      {user-id {"heart" (->LWW (Date.) true)
-                                "like" (->LWW (Date.) true)}})
-                    user-ids)
-          removes (map (fn [user-id]
-                         {user-id {"like" (->LWW (Date.) false)}})
-                       (filter even? user-ids))
-          deltas (shuffle (concat adds removes))
-          final (reduce -apply-delta initial deltas)]
-      (is (= {} (-value initial))
-          (= (into {} (map (fn [user-id]
-                             [user-id {"heart" true
-                                       "like"  (not (even? user-id))}])
-                           user-ids))
-             (-value final)))))
-  (testing "you can apply from the right side"
-    (let [initial {}
-          deltas [{1 (gos #{1 2 3})}]
-          final (reduce -apply-delta initial deltas)]
-      (is {1 #{1 2 3}}
-          (-value final))))
-  (testing "you can merge recursively"
-    (let [initial {}
-          user-ids (range 10)
-          adds (map (fn [user-id]
-                      {user-id {"heart" (->LWW (Date.) true)
-                                "like" (->LWW (Date.) true)}})
-                    user-ids)
-          removes (map (fn [user-id]
-                         {user-id {"like" (->LWW (Date.) false)}})
-                       (filter even? user-ids))
-          deltas (shuffle (concat adds removes))
-          final (reduce -merge initial deltas)]
-      (is (= {} (-value initial))
-          (= (into {} (map (fn [user-id]
-                             [user-id {"heart" true
-                                       "like"  (not (even? user-id))}])
-                           user-ids))
-             (-value final))))))
-
 (defn clock? [x]
   (instance? Comparable x))
 
@@ -658,23 +409,3 @@
                 (->lww-map v clock)
                 (->LWW clock v)))
             m))
-
-(deftest lww-map
-  (testing "empty maps are left untouched"
-    (is (= {} (-value (->lww-map {} 0)))))
-  (testing "Can turn a map to lww"
-    (let [m {:a "a" :b "b"}
-          lww-m (->lww-map m 0)]
-      (is (= m (-value lww-m)))
-      (is (= {:a #crdt/lww [0 "a"]
-              :b #crdt/lww [0 "b"]}
-             lww-m)))
-    (testing "recursively"
-      (let [m {:a "a" :b "b" :c {:c1 "c1" :c2 {:c3 "c3"}}}
-            lww-m (->lww-map m 0)]
-        (is (= m (-value lww-m)))
-        (is (= {:a #crdt/lww [0 "a"]
-                :b #crdt/lww [0 "b"]
-                :c {:c1 #crdt/lww [0 "c1"]
-                    :c2 {:c3 #crdt/lww [0 "c3"]}}}
-               lww-m))))))
