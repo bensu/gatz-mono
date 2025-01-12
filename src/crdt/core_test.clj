@@ -363,6 +363,9 @@
      ;; If the nil value has a tie, the final value should not be nil
      (nil? (crdt/-value final)))))
 
+;; =========================================================
+;; GrowOnlySet
+
 (deftest grow-only-set-test
   (testing "can check its schema"
     (let [schema (crdt/grow-only-set-schema string?)]
@@ -433,6 +436,9 @@
      (= (crdt/-value final)
         (set values)))))
 
+;; =========================================================
+;; LWWSet
+
 (deftest lww-set-test
   (testing "we can check the schema"
     (let [schema (crdt/lww-set-schema string?)
@@ -473,6 +479,113 @@
           final (reduce crdt/-merge initial deltas)]
       (is (= #{} (crdt/-value initial)))
       (is (= (set (remove even? (range 10))) (crdt/-value final))))))
+
+(def gen-lww-set-op
+  "Generates a tuple of [timestamp element is-add?] for LWWSet operations"
+  (gen/tuple gen-date gen/int gen/boolean))
+
+(defspec lww-set-order-invariant 1000
+  (prop/for-all
+   [ops (gen/not-empty (gen/vector gen-lww-set-op))]
+   (let [node (crdt/rand-uuid)
+         initial (crdt/lww-set (crdt/new-hlc node (Date.)) #{})
+         deltas (map (fn [[ts x add?]]
+                       {x (crdt/->LWW (crdt/new-hlc node ts) add?)})
+                     ops)
+         final1 (reduce crdt/-apply-delta initial deltas)
+         final2 (reduce crdt/-apply-delta initial (shuffle deltas))]
+     (= (crdt/-value final1) (crdt/-value final2)))))
+
+(defspec lww-set-merge-commutative 1000
+  (prop/for-all
+   [ops1 (gen/not-empty (gen/vector gen-lww-set-op))
+    ops2 (gen/not-empty (gen/vector gen-lww-set-op))]
+   (let [node (crdt/rand-uuid)
+         initial (crdt/lww-set (crdt/new-hlc node (Date.)) #{})
+         deltas1 (reduce crdt/-apply-delta initial
+                         (map (fn [[ts x add?]]
+                                {x (crdt/->LWW (crdt/new-hlc node ts) add?)})
+                              ops1))
+         deltas2 (reduce crdt/-apply-delta initial
+                         (map (fn [[ts x add?]]
+                                {x (crdt/->LWW (crdt/new-hlc node ts) add?)})
+                              ops2))]
+     (= (crdt/-value (crdt/-merge deltas1 deltas2))
+        (crdt/-value (crdt/-merge deltas2 deltas1))))))
+
+(defspec lww-set-merge-associative 1000
+  (prop/for-all
+   [ops1 (gen/not-empty (gen/vector gen-lww-set-op))
+    ops2 (gen/not-empty (gen/vector gen-lww-set-op))
+    ops3 (gen/not-empty (gen/vector gen-lww-set-op))]
+   (let [node (crdt/rand-uuid)
+         initial (crdt/lww-set (crdt/new-hlc node (Date.)) #{})
+         make-deltas (fn [ops]
+                       (reduce crdt/-apply-delta initial
+                               (map (fn [[ts x add?]]
+                                      {x (crdt/->LWW (crdt/new-hlc node ts) add?)})
+                                    ops)))
+         a (make-deltas ops1)
+         b (make-deltas ops2)
+         c (make-deltas ops3)]
+     (= (crdt/-value (crdt/-merge a (crdt/-merge b c)))
+        (crdt/-value (crdt/-merge (crdt/-merge a b) c))))))
+
+(defspec lww-set-latest-wins 1000
+  (prop/for-all
+   [element gen/int
+    ops (gen/not-empty (gen/vector (gen/tuple gen-date gen/boolean)))]
+   (let [ts (map first ops)]
+     (if (= (count ts) (distinct ts))
+       (let [node (crdt/rand-uuid)
+             initial (crdt/lww-set (crdt/new-hlc node (Date.)) #{})
+             ;; The timestamps can't be equal
+             sorted-ops (sort-by first ops)
+             latest-op (last sorted-ops)
+             deltas (map (fn [[ts add?]]
+                           {element (crdt/->LWW (crdt/new-hlc node ts) add?)})
+                         ops)
+             final (reduce crdt/-apply-delta initial deltas)]
+         ;; The element should be in the set if and only if the latest operation was an add
+         (= (contains? (crdt/-value final) element)
+            (second latest-op)))
+       ;; skip the test if the timestamps are not distinct
+       true))))
+
+(defspec lww-set-concurrent-ops 1000
+  (prop/for-all
+   [ops (gen/not-empty (gen/vector gen-lww-set-op 3 50))]
+   (let [ts (map first ops)]
+     (if (= (count ts) (distinct ts))
+       (let [node1 (crdt/rand-uuid)
+             node2 (crdt/rand-uuid)
+             initial1 (crdt/lww-set (crdt/new-hlc node1 (Date.)) #{})
+             initial2 (crdt/lww-set (crdt/new-hlc node2 (Date.)) #{})
+             ;; Split operations between two replicas
+             [ops1 ops2] (split-at (quot (count ops) 2) ops)
+             deltas1 (map (fn [[ts x add?]]
+                            {x (crdt/->LWW (crdt/new-hlc node1 ts) add?)})
+                          ops1)
+             deltas2 (map (fn [[ts x add?]]
+                            {x (crdt/->LWW (crdt/new-hlc node2 ts) add?)})
+                          ops2)
+             final1 (reduce crdt/-apply-delta initial1 deltas1)
+             final2 (reduce crdt/-apply-delta initial2 deltas2)
+             merged (crdt/-merge final1 final2)]
+          ;; The merged set should contain an element if its latest operation in either replica was an add
+         (let [by-element (group-by second ops)
+               latest-by-element (into {}
+                                       (map (fn [[k v]]
+                                              [k (last (sort-by first v))])
+                                            by-element))]
+           (every? (fn [[element [ts add? :as op]]]
+                     (= (contains? (crdt/-value merged) element)
+                        add?))
+                   latest-by-element)))
+       ;; skip the test if the timestamps are not distinct
+       true))))
+
+
 
 (deftest persistent-map
   (testing "can be serialized"
