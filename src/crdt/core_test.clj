@@ -107,3 +107,76 @@
         (crdt/-value
          (reduce crdt/-apply-delta (crdt/->MinWins (first values))
                  (shuffle values)))))))
+
+;; ======================================================================
+;; MaxWins
+
+(deftest max-wins-test
+  (testing "can check its schema"
+    (is (malli/validate (crdt/max-wins-schema string?) #crdt/max-wins "0"))
+    (is (not (true? (malli/validate (crdt/max-wins-schema integer?) #crdt/max-wins "0")))))
+  (testing "empty value is always replaced"
+    (let [initial (crdt/-init #crdt/max-wins 0)]
+      (is (= 1 (crdt/-value (crdt/-apply-delta initial #crdt/max-wins 1)))))
+    (let [initial (crdt/->MaxWins nil)]
+      (is (= 1 (crdt/-value (crdt/-apply-delta initial #crdt/max-wins 1))))))
+  (testing "any order yields the same final value with integers"
+    (let [values (shuffle (map #(crdt/->MaxWins %) (range 10)))
+          initial (crdt/->MaxWins 0)
+          final (reduce crdt/-apply-delta initial values)]
+      (is (= 9 (crdt/-value final)))))
+  (testing "merge is the same as apply-delta"
+    (let [values (shuffle (map #(crdt/->MaxWins %) (range 10)))
+          initial (crdt/->MaxWins 0)
+          final (reduce crdt/-merge initial values)]
+      (is (= 9 (crdt/-value final)))))
+  (testing "any order yields the same final value with dates"
+    (let [instants (take 10 (repeatedly (fn [] (Date.))))
+          values  (map crdt/->MaxWins (shuffle instants))
+          initial (crdt/->MaxWins (first instants))
+          final (reduce crdt/-apply-delta initial values)]
+      (is (= (crdt/-value final) (last instants)))))
+  (testing "can be serialized"
+    (is (= #crdt/max-wins 0 (nippy/thaw (nippy/freeze #crdt/max-wins 0))))
+    (is (= #crdt/max-wins 0 (read-string (pr-str #crdt/max-wins 0))))))
+
+(defspec max-wins-order-invariant 1000
+  (prop/for-all
+   [values (gen/not-empty (gen/one-of
+                           [(gen/vector gen/int)
+                            (gen/vector (gen/such-that #(not (Double/isNaN %)) gen/double))
+                            (gen/vector gen/ratio)]))]
+   (= (apply max values)
+      (crdt/-value
+       (reduce crdt/-apply-delta (crdt/->MaxWins (first values)) values))
+      (crdt/-value
+       (reduce crdt/-apply-delta (crdt/->MaxWins (first values)) (shuffle values))))))
+
+(defspec max-wins-order-date-invariant 100
+  (prop/for-all
+   [values (gen/not-empty (gen/vector gen-date))]
+   (=
+    (Date. (apply max (map #(.getTime %) values)))
+    (crdt/-value
+     (reduce crdt/-apply-delta
+             (crdt/->MaxWins (first values))
+             values))
+    (crdt/-value
+     (reduce crdt/-apply-delta
+             (crdt/->MaxWins (first values))
+             (shuffle values))))))
+
+(defspec max-wins-order-uuid-invariant 100
+  (prop/for-all
+   [values (gen/not-empty (gen/vector gen/uuid))]
+   (let [max-uuid (reduce (fn [a b] (if (compare-uuid b a) a b)) values)]
+     (= max-uuid
+        (crdt/-value
+         (reduce crdt/-apply-delta (crdt/->MaxWins (first values))
+                 values))
+        (crdt/-value
+         (reduce crdt/-apply-delta (crdt/->MaxWins (first values))
+                 (shuffle values)))))))
+
+
+

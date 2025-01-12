@@ -120,35 +120,6 @@
   [:map
    [:value value-schema]])
 
-(deftest max-wins-test
-  (testing "can check its schema"
-    (is (malli/validate (max-wins-schema string?) #crdt/max-wins "0"))
-    (is (not (true? (malli/validate (max-wins-schema integer?) #crdt/max-wins "0")))))
-  (testing "empty value is always replaced"
-    (let [initial (-init #crdt/max-wins 0)]
-      (is (= 1 (-value (-apply-delta initial #crdt/max-wins 1)))))
-    (let [initial (->MaxWins nil)]
-      (is (= 1 (-value (-apply-delta initial #crdt/max-wins 1))))))
-  (testing "any order yields the same final value with integers"
-    (let [values (shuffle (map #(->MaxWins %) (range 10)))
-          initial (->MaxWins 0)
-          final (reduce -apply-delta initial values)]
-      (is (= 9 (-value final)))))
-  (testing "merge is the same as apply-delta"
-    (let [values (shuffle (map #(->MaxWins %) (range 10)))
-          initial (->MaxWins 0)
-          final (reduce -merge initial values)]
-      (is (= 9 (-value final)))))
-  (testing "any order yields the same final value with dates"
-    (let [instants (take 10 (repeatedly (fn [] (Date.))))
-          values  (map ->MaxWins (shuffle instants))
-          initial (->MaxWins (first instants))
-          final (reduce -apply-delta initial values)]
-      (is (= (-value final) (last instants)))))
-  (testing "can be serialized"
-    (is (= #crdt/max-wins 0 (nippy/thaw (nippy/freeze #crdt/max-wins 0))))
-    (is (= #crdt/max-wins 0 (read-string (pr-str #crdt/max-wins 0))))))
-
 (defmacro stagger-compare [ks a b]
   (let [k (first ks)]
     (assert k "Can't compare empty keys")
