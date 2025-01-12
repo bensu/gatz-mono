@@ -298,6 +298,70 @@
       (is (= #crdt/lww [0 0] (read-string (pr-str #crdt/lww [0 0]))))
       (is (= #crdt/lww [0 0] (nippy/thaw (nippy/freeze #crdt/lww [0 0])))))))
 
+(def gen-client-clock
+  (gen/fmap (fn [[event-number ts uid cid]]
+              (crdt/->ClientClock event-number ts uid cid))
+            (gen/tuple gen/pos-int gen-date gen/uuid gen/uuid)))
+
+(def gen-lww-vector
+  "Generates a tuple of [clock value] where clock is either an integer, date, or client clock"
+  (gen/one-of
+   [(gen/vector (gen/tuple gen/int gen/int)  2 100)
+    (gen/vector (gen/tuple gen-date gen/int) 2 100)
+    (gen/vector (gen/tuple gen-client-clock gen/int) 2 100)]))
+
+;; TODO: what happens if the clocks are equal?
+(defspec lww-order-invariant 1000
+  (prop/for-all
+   [values gen-lww-vector]
+   (let [initial (crdt/->LWW (first (first values)) (second (first values)))
+         deltas (map (fn [[clock value]] (crdt/->LWW clock value)) values)
+         final1 (reduce crdt/-apply-delta initial deltas)
+         final2 (reduce crdt/-apply-delta initial (shuffle deltas))
+         [last-clock last-values] (->> values
+                                       (group-by first)
+                                       (sort-by key)
+                                       (last))
+         largest-value (last (sort (map second last-values)))]
+     (and
+      ;; Same result regardless of operation order
+      (= (crdt/-value final1) (crdt/-value final2))
+      ;; Latest clock's value should win if there is a tie
+      (= largest-value (crdt/-value final1))))))
+
+(defspec lww-merge-same-as-apply 100
+  (prop/for-all
+   [values gen-lww-vector]
+   (let [initial (crdt/->LWW (first (first values)) (second (first values)))
+         deltas (map (fn [[clock value]] (crdt/->LWW clock value)) values)
+         final1 (reduce crdt/-apply-delta initial deltas)
+         final2 (reduce crdt/-merge initial deltas)]
+     (= (crdt/-value final1) (crdt/-value final2)))))
+
+(defspec lww-nil-value-loses 100
+  (prop/for-all
+   [values (gen/vector (gen/tuple gen/int gen/int)  2 100)]
+   (let [clocks (map first values)
+         nil-clock (apply max clocks)
+         initial (crdt/->LWW (first (first values)) (second (first values)))
+         deltas (conj (map (fn [[clock value]] (crdt/->LWW clock value)) values)
+                      (crdt/->LWW nil-clock nil))
+         final (reduce crdt/-apply-delta initial deltas)]
+     ;; If the nil value has a tie, the final value should not be nil
+     (some? (crdt/-value final)))))
+
+(defspec lww-nil-value-wins 100
+  (prop/for-all
+   [values (gen/vector (gen/tuple gen/int gen/int)  2 100)]
+   (let [clocks (map first values)
+         nil-clock (inc (apply max clocks))
+         initial (crdt/->LWW (first (first values)) (second (first values)))
+         deltas (conj (map (fn [[clock value]] (crdt/->LWW clock value)) values)
+                      (crdt/->LWW nil-clock nil))
+         final (reduce crdt/-apply-delta initial deltas)]
+     ;; If the nil value has a tie, the final value should not be nil
+     (nil? (crdt/-value final)))))
+
 (deftest grow-only-set-test
   (testing "can check its schema"
     (let [schema (crdt/grow-only-set-schema string?)]

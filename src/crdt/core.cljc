@@ -211,20 +211,46 @@
   (compareTo [this that]
     (stagger-compare [:event-number :ts :user-id :conn-id] this that)))
 
+(defn choose-incoming? ^Boolean
+  [existing incoming]
+  (cond
+    (nil? incoming) false
+    (nil? existing) true
+    (not= (type incoming) (type existing))
+    (case (compare (type incoming) (type existing))
+      -1 false
+      1 true
+      0 false)
+
+    ;; If both are comparable, get the bigger one
+    (and (instance? Comparable incoming) (instance? Comparable existing))
+    (case (compare incoming existing)
+      -1 false
+      1 true
+      0 false)
+
+    ;; we keep the incoming since it is more likely to be the one we want
+    :else true))
+
 (defrecord LWW [clock value]
   CRDTDelta
   (-init [_] (->LWW ::empty (-init value)))
   OpCRDT
   (-value [_] value)
   (-apply-delta [this delta]
-    (let [delta-clock (.clock delta)]
+    (let [delta-clock (.clock delta)
+          delta-value (.value delta)]
       (cond
         (= ::empty delta-clock) this
         (= ::empty clock)       delta
         :else (case (compare clock delta-clock)
                 -1 delta
-                0 this ;; TODO: if the clocks are equal, the values should be equal too?
-                1 this))))
+                1 this
+                ;; When clocks are equal (0), compare values to break ties
+                ;; If values are equal or incomparable, keep incoming value
+                0 (if (choose-incoming? value delta-value)
+                    delta
+                    this)))))
   StateCRDT
   (-merge [this that]
     (-apply-delta this that))
