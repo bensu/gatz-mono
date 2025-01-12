@@ -4,6 +4,7 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
+            [clojure.set :as set]
             [malli.core :as malli]
             [crdt.core :as crdt]
             [taoensso.nippy :as nippy])
@@ -383,6 +384,54 @@
            (read-string (pr-str #crdt/gos #{1 2 3}))))
     (is (= #crdt/gos #{1 2 3}
            (nippy/thaw (nippy/freeze #crdt/gos #{1 2 3}))))))
+
+;; Property-based tests for GrowOnlySet
+
+(defspec gos-order-invariant 1000
+  (prop/for-all
+   [values (gen/not-empty (gen/vector gen/int))]
+   (let [initial (crdt/->GrowOnlySet #{})
+         final1 (reduce crdt/-apply-delta initial values)
+         final2 (reduce crdt/-apply-delta initial (shuffle values))]
+     (= (crdt/-value final1) (crdt/-value final2)))))
+
+(defspec gos-merge-commutative 1000
+  (prop/for-all
+   [xs (gen/set gen/int)
+    ys (gen/set gen/int)]
+   (let [a (crdt/->GrowOnlySet xs)
+         b (crdt/->GrowOnlySet ys)]
+     (= (crdt/-value (crdt/-merge a b))
+        (crdt/-value (crdt/-merge b a))))))
+
+(defspec gos-merge-associative 1000
+  (prop/for-all
+   [xs (gen/set gen/int)
+    ys (gen/set gen/int)
+    zs (gen/set gen/int)]
+   (let [a (crdt/->GrowOnlySet xs)
+         b (crdt/->GrowOnlySet ys)
+         c (crdt/->GrowOnlySet zs)]
+     (= (crdt/-value (crdt/-merge a (crdt/-merge b c)))
+        (crdt/-value (crdt/-merge (crdt/-merge a b) c))))))
+
+(defspec gos-only-grows 1000
+  (prop/for-all
+   [values (gen/not-empty (gen/vector gen/int))]
+   (let [initial (crdt/->GrowOnlySet #{})
+         steps (reductions crdt/-apply-delta initial values)]
+     (every? (fn [[s1 s2]]
+               (set/subset? (crdt/-value s1)
+                            (crdt/-value s2)))
+             (partition 2 1 steps)))))
+
+(defspec gos-contains-all-elements 1000
+  (prop/for-all
+   [values (gen/not-empty (gen/vector gen/int))]
+   (let [initial (crdt/->GrowOnlySet #{})
+         final (reduce crdt/-apply-delta initial values)]
+     (= (crdt/-value final)
+        (set values)))))
 
 (deftest lww-set-test
   (testing "we can check the schema"
