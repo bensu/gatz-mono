@@ -882,20 +882,25 @@
                  [(str/trim username) (str/trim twitter-handle)])))
        (into {})))
 
-(defn add-twitter-username-to-users! [ctx]
-  (let [db (xtdb.api/db (:biff.xtdb/node ctx))
+(defn add-twitter-username-to-users! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb.api/db node)
         username->handle (gatz-username->twitter-handle)
         now (java.util.Date.)]
     (doseq [[username handle] username->handle]
-      (when-let [user (db.user/by-name db username)]
-        (println "Adding twitter handle" handle "to user" username)
-        (let [authed-ctx (assoc ctx
-                                :biff/db db
-                                :auth/user-id (:xt/id user)
-                                :auth/user user)]
-          (db.user/edit-links! authed-ctx
-                               {:profile.urls/twitter handle}
-                               {:now now}))))))
+      (when-let [user (crdt.user/->value (db.user/by-name db username))]
+        (when (nil? (get-in user [:user/profile :profile/urls :profile.urls/twitter]))
+          (println "Adding twitter handle" handle "to user" username)
+          (let [authed-ctx (assoc ctx
+                                  :biff/db (xtdb.api/db node)
+                                  :auth/user-id (:xt/id user)
+                                  :auth/user user)]
+            (println
+             (:user/profile
+              (crdt.user/->value
+               (:user
+                (db.user/edit-links! authed-ctx
+                                     {:profile.urls/twitter handle}
+                                     {:now now})))))))))))
 
 
 (comment
