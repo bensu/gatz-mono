@@ -585,7 +585,8 @@
        ;; skip the test if the timestamps are not distinct
        true))))
 
-
+;; =========================================================
+;; PersistentMap of CRDT leaves
 
 (deftest persistent-map
   (testing "can be serialized"
@@ -649,6 +650,83 @@
                                        "like"  (not (even? user-id))}])
                            user-ids))
              (crdt/-value final))))))
+
+;; Property-based tests for PersistentMap
+
+(def gen-nested-map
+  (gen/fmap
+   (fn [[max-wins lww gos-vec]]
+     {:max-wins max-wins
+      :lww lww
+      :gos-vec gos-vec
+      :nested {:max-wins max-wins
+               :lww lww
+               :gos-vec gos-vec}})
+   (gen/tuple
+    (gen/fmap crdt/->MaxWins gen/int)
+    (gen/fmap (fn [[clock val]] (crdt/->LWW clock val)) (gen/tuple gen/int gen/int))
+    (gen/fmap #(crdt/->GrowOnlySet (set %)) (gen/vector gen/int)))))
+
+(defspec persistent-map-order-invariant 1000
+  (prop/for-all
+   [initial gen-nested-map
+    deltas (gen/vector gen-nested-map)]
+   (let [final1 (reduce crdt/-apply-delta initial deltas)
+         final2 (reduce crdt/-apply-delta initial (shuffle deltas))]
+     (= (crdt/-value final1) (crdt/-value final2)))))
+
+(defspec persistent-map-merge-commutative 1000
+  (prop/for-all
+   [m1 gen-nested-map
+    m2 gen-nested-map]
+   (= (crdt/-value (crdt/-merge m1 m2))
+      (crdt/-value (crdt/-merge m2 m1)))))
+
+(defspec persistent-map-merge-associative 1000
+  (prop/for-all
+   [m1 gen-nested-map
+    m2 gen-nested-map
+    m3 gen-nested-map]
+   (= (crdt/-value (crdt/-merge m1 (crdt/-merge m2 m3)))
+      (crdt/-value (crdt/-merge (crdt/-merge m1 m2) m3)))))
+
+(defspec persistent-map-nested-crdt-behavior 1000
+  (prop/for-all
+   [m1 gen-nested-map
+    m2 gen-nested-map]
+   (let [merged (crdt/-merge m1 m2)]
+     (every? (fn [[k v]]
+               (cond
+                 ;; For MaxWins, merged value should be max of both maps
+                 (crdt/max-wins-instance? v)
+                 (let [v1 (get m1 k)
+                       v2 (get m2 k)]
+                   (= (crdt/-value v)
+                      (if (and v1 v2)
+                        (max (crdt/-value v1) (crdt/-value v2))
+                        (or (some-> v1 crdt/-value)
+                            (some-> v2 crdt/-value)))))
+
+                 ;; For GrowOnlySet, merged value should contain all elements
+                 (crdt/grow-only-set-instance? v)
+                 (let [v1 (get m1 k)
+                       v2 (get m2 k)]
+                   (= (crdt/-value v)
+                      (set/union (or (some-> v1 crdt/-value) #{})
+                                 (or (some-> v2 crdt/-value) #{}))))
+
+                 ;; For nested maps, recursively check
+                 (map? v)
+                 (let [v1 (get m1 k)
+                       v2 (get m2 k)]
+                   (= (crdt/-value v)
+                      (crdt/-value (crdt/-merge (or v1 {}) (or v2 {})))))
+
+                 :else true))
+             merged))))
+
+;; =========================================================
+;; LWWMap
 
 (deftest lww-map
   (testing "empty maps are left untouched"
