@@ -748,3 +748,113 @@
                     :c2 {:c3 #crdt/lww [0 "c3"]}}}
                lww-m))))))
 
+;; Property-based tests for LWWMap
+
+(def gen-nested-lww-map
+  (gen/fmap
+   (fn [[a b c]]
+     {:a a :b b :c c
+      :nested {:a a :b b :c c}})
+   (gen/tuple
+    (gen/fmap (fn [[clock value]] (crdt/->LWW clock value)) (gen/tuple gen/int gen/int))
+    (gen/fmap (fn [[clock value]] (crdt/->LWW clock value)) (gen/tuple gen/int gen/int))
+    (gen/fmap (fn [[clock value]] (crdt/->LWW clock value)) (gen/tuple gen/int gen/int)))))
+
+(def gen-nested-map-vals
+  (gen/fmap
+   (fn [[a b c]]
+     {:a a :b b :c c
+      :nested {:a a :b b :c c}})
+   (gen/tuple gen/int gen/int gen/int)))
+
+(defspec lww-map-preserves-values 1000
+  (prop/for-all
+   [m gen-nested-map-vals
+    clock gen/pos-int]
+   (= m (crdt/-value (crdt/->lww-map m clock)))))
+
+(defn lww-map? [v]
+  (or (crdt/lww-instance? v)
+      (and (map? v)
+           (every? lww-map? (vals v)))))
+
+(defspec lww-map-recursive-conversion 100
+  (prop/for-all
+   [m gen-nested-map-vals
+    clock gen/pos-int]
+   (let [lww-m (crdt/->lww-map m clock)]
+     (lww-map? lww-m))))
+
+(defspec lww-map-timestamp-order 1000
+  (prop/for-all
+   [m gen-nested-lww-map
+    clocks (gen/vector gen/pos-int 2)]
+   (let [earlier (apply min clocks)
+         later (apply max clocks)
+         earlier-map (crdt/->lww-map m earlier)
+         later-map (crdt/->lww-map m later)]
+     (every? (fn [[k v]]
+               (cond
+                 (crdt/lww-instance? v)
+                 (let [earlier-lww (get earlier-map k)
+                       later-lww (get later-map k)]
+                   (= 1 (compare later-lww earlier-lww)))
+
+                 (map? v)
+                 (every? #(or (not (crdt/lww-instance? %))
+                              (= 1 (compare (get-in later-map [k (key %)])
+                                            (get-in earlier-map [k (key %)]))))
+                         v)
+
+                 :else true))
+             later-map))))
+
+(defspec lww-map-merge-latest-wins 1000
+  (prop/for-all
+   [m gen-nested-lww-map
+    clocks (gen/vector gen/pos-int 3)]
+   (let [maps (map (partial crdt/->lww-map m) clocks)
+         merged (reduce crdt/-merge maps)]
+     ;; The values in the merged map should come from the map with the latest timestamp
+     (let [latest-ts (apply max clocks)
+           latest-map (crdt/->lww-map m latest-ts)]
+       (= (crdt/-value merged) (crdt/-value latest-map))))))
+
+(defspec lww-map-partial-updates 1000
+  (prop/for-all
+   [base-map gen-nested-map-vals
+    update-key (gen/elements #{:a :b :c})
+    update-value gen/int
+    clocks (gen/vector gen/pos-int 2)]
+   (let [[earlier later] (sort clocks)]
+     (if (= earlier later)
+       true
+       (let [base-lww (crdt/->lww-map base-map earlier)
+             update-lww (crdt/->lww-map {update-key update-value} later)
+             merged (crdt/-merge base-lww update-lww)]
+         ;; The merged map should have all values from base-map except for update-key,
+         ;; which should have the later value
+         (= (assoc base-map update-key update-value)
+            (crdt/-value merged)))))))
+
+(defspec lww-map-nested-updates 1000
+  (prop/for-all
+   [base-map gen-nested-map-vals
+    update-key (gen/elements #{:a :b :c})
+    update-value gen/int
+    clocks (gen/vector gen/pos-int 2)]
+   (let [[earlier later] (sort clocks)]
+     (if (= earlier later)
+       true
+       (let [earlier (apply min clocks)
+             later (apply max clocks)
+             update-path [:nested update-key]
+             base-lww (crdt/->lww-map base-map earlier)
+             ;; Create a nested update map following the path
+             update-map {:nested {update-key update-value}}
+             update-lww (crdt/->lww-map update-map later)
+             merged (crdt/-merge base-lww update-lww)]
+         ;; The value at the update path should be the new value with the later timestamp
+         (= (assoc-in base-map update-path update-value)
+            (crdt/-value merged)))))))
+
