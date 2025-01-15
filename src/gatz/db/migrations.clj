@@ -921,3 +921,33 @@
 
   (doseq [line sebas-follows-table]
     (spit -f  (str (str/join " " line) "\n") :append true)))
+
+;; ======================================================================
+;; Add user to open discussion
+
+(defn add-user-to-dids! [ctx dids by-uid user-id]
+  {:pre [(set? dids) (every? uuid? dids) (uuid? user-id) (uuid? by-uid)]}
+  (let [db (xtdb.api/db (:biff.xtdb/node ctx))
+        txn (db.discussion/add-member-to-dids-txn
+             ctx {:now (Date.) :by-uid user-id :members #{user-id} :dids dids})]
+    (biff/submit-tx ctx txn)))
+
+(comment
+
+  (def -new-user (db.user/by-name -db "hellen"))
+
+  (def -riley (db.user/by-name -db "riley"))
+  (def -riley-dids #{#uuid "ceae22c1-43b1-4b39-a8af-00913cb94d93"})
+  (add-user-to-dids! -ctx -riley-dids (:xt/id -riley) (:xt/id -new-user))
+
+  (def -riley (db.user/by-name -db "rinada"))
+  (def -rinad-dids #{#uuid "000bb6a5-eea4-4c3e-80a9-405ee0fe421d"
+                     #uuid "21594fe1-580f-4787-b651-299645180118"})
+
+  (def -grant (db.user/by-name -db "grantslatton"))
+  (def -grants-did #{#uuid "d09d45fd-ae76-4cfe-824c-9a91809a8846"})
+
+  (add-user-to-dids! -ctx -riley-dids (:xt/id -riley) (:xt/id -new-user))
+  (add-user-to-dids! -ctx -rinad-dids (:xt/id -rinada) (:xt/id -new-user))
+  (add-user-to-dids! -ctx -grants-did (:xt/id -grant) (:xt/id -new-user)))
+
