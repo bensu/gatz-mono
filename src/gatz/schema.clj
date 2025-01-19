@@ -789,6 +789,7 @@
    :user/id #'UserId
    :message/id #'MessageId
    :media/id #'MediaId
+   :link-preview/preview #'link-preview/LinkPreview
    :evt/id :uuid
    :gatz/evt #'Event
    :gatz/user #'User

@@ -22,6 +22,7 @@
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
             [gatz.settings :as settings]
+            [link-preview.api :as link-preview]
             [ring.adapter.jetty9 :as jetty]
             [xtdb.api :as xtdb])
   (:import [java.time Instant Duration]))
@@ -266,6 +267,8 @@
 
                  ["/file/presign" {:post api.media/presigned-url!}]
                  ["/media" {:post api.media/create-media!}]
+
+                 ["/link-preview" {:post link-preview/post-preview}]
 
                  ["/message" {:post api.discussion/create-message!}]
                  ["/message/delete" {:post api.message/delete-message!}]

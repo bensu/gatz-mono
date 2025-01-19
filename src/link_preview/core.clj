@@ -1,12 +1,18 @@
 (ns link-preview.core
   (:require [clj-http.client :as http]
-            [net.cgrand.enlive-html :as html]
+            [clojure.tools.logging :as log]
+            [com.biffweb :as biff :refer [q]]
             [clojure.string :as str]
             [clojure.java.io :as io]
             [clojure.data.json :as json]
+            [crdt.ulid :as ulid]
+            [malli.util :as mu]
+            [malli.core :as m]
+            [net.cgrand.enlive-html :as html]
             [taoensso.nippy :as nippy]
             [juxt.clojars-mirrors.nippy.v3v1v1.taoensso.nippy :as juxt-nippy]
-            [malli.core :as m])
+            [xtdb.api :as xtdb]
+            [xtdb.codec])
   (:import [java.net URI]
            [org.agrona MutableDirectBuffer]
            [java.nio.charset StandardCharsets]))
@@ -43,6 +49,12 @@
 
 (def LinkPreview
   [:map
+   [:xt/id uuid?]
+   [:db/type [:enum :link-preview/preview]]
+   [:db/version [:enum 1]]
+   [:link_preview/created_at inst?]
+   [:link_preview/url string?]
+
    [:link_preview/uri uri?]
    [:link_preview/title [:maybe string?]]
    [:link_preview/site_name [:maybe string?]]
@@ -60,6 +72,56 @@
                            [:link_preview/width {:optional true} int?]
                            [:link_preview/height {:optional true} int?]]]]
    [:link_preview/favicons [:set uri?]]])
+
+(def data-keys
+  [:link_preview/uri
+   :link_preview/title
+   :link_preview/site_name
+   :link_preview/host
+   :link_preview/description
+   :link_preview/media_type
+   :link_preview/images
+   :link_preview/videos
+   :link_preview/favicons
+   :link_preview/videos
+   :link_preview/favicons])
+
+(def LinkPreviewData
+  (mu/select-keys LinkPreview data-keys))
+
+(defn create!
+  [ctx {:keys [xt/id] :as preview}]
+
+  {:pre [(or (nil? id) (uuid? id))]}
+
+  (when preview
+    (assert (m/validate LinkPreviewData (dissoc preview :xt/id)))
+    (let [now (java.util.Date.)
+          preview-id (or id (ulid/rand-uuid))
+          preview (assoc preview
+                         :db/doc-type :link-preview/preview
+                         :db/type :link-preview/preview
+                         :db/version 1
+                         :xt/id preview-id
+                         :link_preview/url (str (:link_preview/uri preview))
+                         :link_preview/created_at now)]
+      (biff/submit-tx ctx [preview])
+      preview)))
+
+(defn by-id [db id]
+  {:pre [(uuid? id)]}
+  (xtdb/entity db id))
+
+(defn by-url [db url]
+  {:pre [(string? url)]}
+  (ffirst
+   (q db '{:find [(pull e [*])]
+           :in [url]
+           :where [[e :link_preview/url url]]}
+      url)))
+
+;; ==================================================================
+;; Extract
 
 (def url-regex #"(?i)(https?://)?([\\w.-]+)(\\.\\w{2,})+(?::(\\d+))?([/\\w.?=-]*)")
 
@@ -156,6 +218,7 @@
   (let [resource (-> html-str java.io.StringReader. html/html-resource)
         base-uri (URI/create url)]
     {:link_preview/uri base-uri
+     :link_preview/url (str base-uri)
      :link_preview/title (get-title resource)
      :link_preview/host (.getHost base-uri)
      :link_preview/site_name (or (get-meta-content resource "og:site_name") "")
@@ -174,8 +237,11 @@
 (defn create-preview
   "Create a preview from a URL. Returns a map conforming to preview-schema"
   [url]
+  (log/info "Creating preview for" url)
   (let [uri (URI/create url)
-        response (http/get url {:throw-exceptions false})]
+        response (http/get url {:timeout 3000
+                                :throw-exceptions false})]
+    (log/info "Request succeeded" url)
     (when (= (:status response) 200)
       (when-let [content-type (get-in response [:headers "content-type"])]
         (when (str/includes? content-type "text/html")

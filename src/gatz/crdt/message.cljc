@@ -63,7 +63,7 @@
    :message/mentions {}
    :message/flagged_uids (crdt/lww-set)
    :message/reactions {}
-   :message/link_previews [-npr-link-preview-mock -economist-link-preview-mock]
+   :message/link_previews [] ;; [-npr-link-preview-mock -economist-link-preview-mock]
    :message/posted_as_discussion []})
 
 (def final-keys
