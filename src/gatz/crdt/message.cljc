@@ -76,7 +76,7 @@
    :message/created_at])
 
 (defn new-message
-  [{:keys [uid mid did text media reply_to mentions]}
+  [{:keys [uid mid did text media reply_to mentions link_previews]}
    {:keys [now cid clock]}]
   {:pre [(inst? now)
          (or (uuid? cid) (some? clock))
@@ -103,7 +103,7 @@
                                            :message/edited_at now}})
      :message/mentions msg-mentions
      :message/text (crdt/->LWW clock text)
-     ;; TODO: add link previews
+     :message/link_previews (crdt/lww clock link_previews)
      :message/reactions {}}))
 
 (deftest crdt-messages

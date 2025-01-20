@@ -14,6 +14,7 @@
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
             [gatz.schema :as schema]
+            [link-preview.core :as link-preview]
             [malli.transform :as mt]
             [xtdb.api :as xtdb]
             [clojure.tools.logging :as log])
@@ -314,14 +315,15 @@
 (defn create-message!
 
   [{:keys [auth/user-id auth/cid biff/db] :as ctx} ;; TODO: get connection id
-   {:keys [text mid did media_ids reply_to now]}]
+   {:keys [text mid did media_ids reply_to link_previews now]}]
 
   {:pre [(string? text)
          (or (nil? mid) (uuid? mid))
          (or (nil? now) (inst? now))
          (uuid? did) (uuid? user-id)
          (or (nil? media_ids) (every? uuid? media_ids))
-         (or (nil? reply_to) (uuid? reply_to))]}
+         (or (nil? reply_to) (uuid? reply_to))
+         (or (nil? link_previews) (every? uuid? link_previews))]}
 
   (let [now (or now (Date.))
         mid (or mid (random-uuid))
@@ -367,12 +369,14 @@
                                          (assoc :media/message_id mid)
                                          (db.media/update-media)))
                                media_ids))
+        link-previews (mapv (fn [lid] (link-preview/by-id db lid)) (or link_previews []))
         msg (crdt.message/new-message
              {:uid user-id :mid mid :did did
               :text text
               :reply_to reply_to
               :mentions mentions
-              :media updated-medias}
+              :media updated-medias
+              :link_previews link-previews}
              ;; TODO: get real connection id
              {:clock clock :now now})
         delta {:crdt/clock clock

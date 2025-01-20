@@ -63,14 +63,14 @@
    [:link_preview/media_type [:maybe string?]]
    [:link_preview/images [:vector
                           [:map
-                           [:uri uri?]
-                           [:link_preview/width {:optional true} int?]
-                           [:link_preview/height {:optional true} int?]]]]
+                           [:link_preview/uri uri?]
+                           [:link_preview/width [:maybe int?]]
+                           [:link_preview/height [:maybe int?]]]]]
    [:link_preview/videos [:vector
                           [:map
                            [:link_preview/uri uri?]
-                           [:link_preview/width {:optional true} int?]
-                           [:link_preview/height {:optional true} int?]]]]
+                           [:link_preview/width [:maybe int?]]
+                           [:link_preview/height [:maybe int?]]]]]
    [:link_preview/favicons [:set uri?]]])
 
 (def data-keys
@@ -110,7 +110,7 @@
 
 (defn by-id [db id]
   {:pre [(uuid? id)]}
-  (xtdb/entity db id))
+  (into {} (xtdb/entity db id)))
 
 (defn by-url [db url]
   {:pre [(string? url)]}

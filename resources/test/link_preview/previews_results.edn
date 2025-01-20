@@ -19,6 +19,7 @@
                 "NPR has tracked the prices of dozens of items at the same superstore in Georgia, including eggs, T-shirts, snacks and paper towels. Here's what got cheaper over the past year, and more expensive.",
                 :site_name "NPR",
                 :videos [],
+                :url "https://npr.org",
                 :uri #java/uri "https://npr.org"},
  "economist.com.html"
  #:link_preview{:host "economist.com",
@@ -40,6 +41,7 @@
                 "As two fires continue to blaze, some pockets of the city contain both rubble and relics",
                 :site_name "The Economist",
                 :videos [],
+                :url "https://economist.com",
                 :uri #java/uri "https://economist.com"},
  "tumblr.com.html"
  #:link_preview{:host "tumblr.com",
@@ -58,6 +60,7 @@
                 :description "a community for people who play ACNH!",
                 :site_name "Tumblr",
                 :videos [],
+                :url "https://tumblr.com",
                 :uri #java/uri "https://tumblr.com"},
  "reddit.com.html"
  #:link_preview{:host "reddit.com",
@@ -72,6 +75,7 @@
                 :description "",
                 :site_name "",
                 :videos [],
+                :url "https://reddit.com",
                 :uri #java/uri "https://reddit.com"},
  "netflix.com.html"
  #:link_preview{:host "netflix.com",
@@ -89,6 +93,7 @@
                 "When his brother is wrongly convicted of murder, a structural engineer resolves to bust his sibling out of the notorious Fox River State Penitentiary. Watch trailers & learn more.",
                 :site_name "",
                 :videos [],
+                :url "https://netflix.com",
                 :uri #java/uri "https://netflix.com"},
  "nytimes.com.html"
  #:link_preview{:host "nytimes.com",
@@ -107,6 +112,7 @@
                 "Do or do not, as Yoda might say. But please shut up about it, as I definitely would say.",
                 :site_name "",
                 :videos [],
+                :url "https://nytimes.com",
                 :uri #java/uri "https://nytimes.com"},
  "bensu.notion.site.html"
  #:link_preview{:host "bensu.notion.site",
@@ -125,6 +131,7 @@
                 "A new tool that blends your everyday work apps into one. It's the all-in-one workspace for you and your team",
                 :site_name "Notion",
                 :videos [],
+                :url "https://bensu.notion.site",
                 :uri #java/uri "https://bensu.notion.site"},
  "cnn.com.html"
  #:link_preview{:host "cnn.com",
@@ -143,6 +150,7 @@
                 "The Eaton and Palisades Fires are likely the second and fourth most destructive in California history. Follow for live updates",
                 :site_name "CNN",
                 :videos [],
+                :url "https://cnn.com",
                 :uri #java/uri "https://cnn.com"},
  "theguardian.com.html"
  #:link_preview{:host "theguardian.com",
@@ -165,6 +173,7 @@
                 "Officials say assessment shows ‘we do not have information that supports designation’ placed on Cuba by Trump in 2021",
                 :site_name "the Guardian",
                 :videos [],
+                :url "https://theguardian.com",
                 :uri #java/uri "https://theguardian.com"},
  "vimeo.com.html"
  #:link_preview{:host "vimeo.com",
@@ -180,6 +189,7 @@
                 "A fun film about a topic that scares me a lot.  In 2019, I gave backflipping a shot, but it didn&#039;t go well. Fear and a broken toe killed my confidence, and&hellip;",
                 :site_name "Vimeo",
                 :videos [],
+                :url "https://vimeo.com",
                 :uri #java/uri "https://vimeo.com"},
  "ft.com.html"
  #:link_preview{:host "ft.com",
@@ -197,6 +207,7 @@
                 "Jenn Piepszak replaces Daniel Pinto as chief operating officer at US’s biggest bank but will not seek to succeed chief",
                 :site_name "",
                 :videos [],
+                :url "https://ft.com",
                 :uri #java/uri "https://ft.com"},
  "yahoo.com.html"
  #:link_preview{:host "yahoo.com",
@@ -213,6 +224,7 @@
                 "Andy Morrison is among those interviewed about his older brother, The Doors rocker Jim Morrison, in the new docuseries 'Before the End: Searching for Jim Morrison'",
                 :site_name "Yahoo Entertainment",
                 :videos [],
+                :url "https://yahoo.com",
                 :uri #java/uri "https://yahoo.com"},
  "quora.com.html"
  #:link_preview{:host "quora.com",
@@ -230,6 +242,7 @@
                 "There is tons of on-line material, tutorials and courses on ML, including Coursera lectures.  I’ll respond more specifically for deep learning. You can get a broad idea of deep what deep learning is about through tutorial lectures that are availab...",
                 :site_name "Quora",
                 :videos [],
+                :url "https://quora.com",
                 :uri #java/uri "https://quora.com"},
  "techcrunch.com.html"
  #:link_preview{:host "techcrunch.com",
@@ -249,6 +262,7 @@
                 "Paying users of OpenAI's ChatGPT can now ask the AI assistant to schedule reminders or recurring requests. The new beta feature, called tasks, will start",
                 :site_name "TechCrunch",
                 :videos [],
+                :url "https://techcrunch.com",
                 :uri #java/uri "https://techcrunch.com"},
  "telegraph.co.uk.html"
  #:link_preview{:host "telegraph.co.uk",
@@ -269,6 +283,7 @@
                 "Gaza faces a perpetual war if Israel and Hamas do not sign a hostage deal to end the conflict, the US warned last night.",
                 :site_name "The Telegraph",
                 :videos [],
+                :url "https://telegraph.co.uk",
                 :uri #java/uri "https://telegraph.co.uk"},
  "instagram.com.html"
  #:link_preview{:host "instagram.com",
@@ -292,6 +307,7 @@
                 "338K Followers, 1,368 Following, 683 Posts - Tina Friml (@tinafriml) on Instagram: \"Up Next… BOSTON | 1.30 SPRINGFIELD, MA | 1.31-2.1 SLC, UT | 2.5 LAS VEGAS | 2.6 TUCSON, AZ | 2.7-2.8 Tickets ⬇️\"",
                 :site_name "",
                 :videos [],
+                :url "https://instagram.com",
                 :uri #java/uri "https://instagram.com"},
  "awelonblue.wordpress.com.html"
  #:link_preview{:host "awelonblue.wordpress.com",
@@ -309,6 +325,7 @@
                 "I've spent a lot of time arguing against event systems. I don't argue because they're bad; compared to batch processing or shared-state imperative concurrency, event systems (actors, vats, channels, etc.) solve many problems and are relatively easy to reason about. Rather, I argue against event systems because we can do even better. But my writings…",
                 :site_name "Awelon Blue",
                 :videos [],
+                :url "https://awelonblue.wordpress.com",
                 :uri #java/uri "https://awelonblue.wordpress.com"},
  "medium.com.html"
  #:link_preview{:host "medium.com",
@@ -326,6 +343,7 @@
                 "The more I use Enterprise Software the lower my opinion gets of any software associating with the term. Big businesses all have the same technology problems. Enterprise Software solves these problems…",
                 :site_name "Medium",
                 :videos [],
+                :url "https://medium.com",
                 :uri #java/uri "https://medium.com"},
  "bbc.com.html"
  #:link_preview{:host "bbc.com",
@@ -344,6 +362,7 @@
                 "The country's data-protection regulator has serious privacy concerns over the technology.",
                 :site_name "",
                 :videos [],
+                :url "https://bbc.com",
                 :uri #java/uri "https://bbc.com"},
  "google.com.html"
  #:link_preview{:host "google.com",
@@ -355,6 +374,7 @@
                 :description "",
                 :site_name "",
                 :videos [],
+                :url "https://google.com",
                 :uri #java/uri "https://google.com"},
  "twitch.tv.html"
  #:link_preview{:host "twitch.tv",
@@ -372,6 +392,7 @@
                 "Twitch is the world's leading video platform and community for gamers.",
                 :site_name "Twitch",
                 :videos [],
+                :url "https://twitch.tv",
                 :uri #java/uri "https://twitch.tv"},
  "dropbox.com.html"
  #:link_preview{:host "dropbox.com",
@@ -383,6 +404,7 @@
                 :description "",
                 :site_name "",
                 :videos [],
+                :url "https://dropbox.com",
                 :uri #java/uri "https://dropbox.com"},
  "substack.com.html"
  #:link_preview{:host "substack.com",
@@ -408,6 +430,7 @@
                 "Ticket pricing & principles for this year’s popup village",
                 :site_name "",
                 :videos [],
+                :url "https://substack.com",
                 :uri #java/uri "https://substack.com"},
  "github.com.html"
  #:link_preview{:host "github.com",
@@ -425,6 +448,7 @@
                 "Clojurescript logging library. Contribute to rauhs/klang development by creating an account on GitHub.",
                 :site_name "GitHub",
                 :videos [],
+                :url "https://github.com",
                 :uri #java/uri "https://github.com"},
  "youtube.com.html"
  #:link_preview{:host "youtube.com",
@@ -450,6 +474,7 @@
                                 #java/uri "https://www.youtube.com/embed/l5WgAr4B8Vo",
                                 :width nil,
                                 :height nil}],
+                :url "https://youtube.com",
                 :uri #java/uri "https://youtube.com"},
  "soundcloud.com.html"
  #:link_preview{:host "soundcloud.com",
@@ -468,6 +493,7 @@
                 "Stream Eatin' Good by Woodcamp on desktop and mobile. Play over 320 million tracks for free on SoundCloud.",
                 :site_name "SoundCloud",
                 :videos [],
+                :url "https://soundcloud.com",
                 :uri #java/uri "https://soundcloud.com"},
  "stackoverflow.com.html"
  #:link_preview{:host "stackoverflow.com",
@@ -486,6 +512,7 @@
                 "I'm struggling with the existing prop of Layout Animations of react-native-reanimanted and removing an element from a list of components... The idea is easy, when you press the Remove button the el...",
                 :site_name "Stack Overflow",
                 :videos [],
+                :url "https://stackoverflow.com",
                 :uri #java/uri "https://stackoverflow.com"},
  "dev.to.html"
  #:link_preview{:host "dev.to",
@@ -508,6 +535,7 @@
                 "Postgres can scale for heavy loads and offers powerful features which are not obvious at first sight. Tagged with architecture, webdev, devops, database.",
                 :site_name "DEV Community",
                 :videos [],
+                :url "https://dev.to",
                 :uri #java/uri "https://dev.to"},
  "open.spotify.com.html"
  #:link_preview{:host "open.spotify.com",
@@ -527,6 +555,7 @@
                 "Listen to BIRDS OF A FEATHER on Spotify. Song · Billie Eilish · 2024",
                 :site_name "Spotify",
                 :videos [],
+                :url "https://open.spotify.com",
                 :uri #java/uri "https://open.spotify.com"},
  "facebook.com.html"
  #:link_preview{:host "facebook.com",
@@ -538,6 +567,7 @@
                 :description "",
                 :site_name "",
                 :videos [],
+                :url "https://facebook.com",
                 :uri #java/uri "https://facebook.com"},
  "linkedin.com.html"
  #:link_preview{:host "linkedin.com",
@@ -554,6 +584,7 @@
                 "Founder @ Sample Healthcare (YC W24)  Sample is a platform that transforms… · Experience: Sample Healthcare · Education: University of Oxford · Location: San Francisco · 500+ connections on LinkedIn. View Ankit Ranjan’s profile on LinkedIn, a professional community of 1 billion members.",
                 :site_name "",
                 :videos [],
+                :url "https://linkedin.com",
                 :uri #java/uri "https://linkedin.com"},
  "en.wikipedia.org.html"
  #:link_preview{:host "en.wikipedia.org",
@@ -574,6 +605,7 @@
                 :description "",
                 :site_name "",
                 :videos [],
+                :url "https://en.wikipedia.org",
                 :uri #java/uri "https://en.wikipedia.org"},
  "wired.com.html"
  #:link_preview{:host "wired.com",
@@ -591,6 +623,7 @@
                 "Tahnoun bin Zayed al Nahyan—the UAE’s chess-obsessed, jiujitsu-loving intelligence chief—controls vast sums of sovereign wealth. America’s AI giants are scrambling for a piece of it.",
                 :site_name "WIRED",
                 :videos [],
+                :url "https://wired.com",
                 :uri #java/uri "https://wired.com"},
  "bloomberg.com.html"
  #:link_preview{:host "bloomberg.com",
@@ -602,6 +635,7 @@
                 :description "",
                 :site_name "",
                 :videos [],
+                :url "https://bloomberg.com",
                 :uri #java/uri "https://bloomberg.com"},
  "amazon.com.html"
  #:link_preview{:host "amazon.com",
@@ -615,6 +649,7 @@
                 "Amazon.com: Love's Executioner: 9780465020119: Yalom, Irvin D.: Libros",
                 :site_name "",
                 :videos [],
+                :url "https://amazon.com",
                 :uri #java/uri "https://amazon.com"},
  "apple.com.html"
  #:link_preview{:host "apple.com",
@@ -630,6 +665,7 @@
                 "iPhone 16 and iPhone 16 Plus. Built for Apple Intelligence. Camera Control. 48MP Fusion camera. Five vibrant colors. A18 chip.",
                 :site_name "Apple",
                 :videos [],
+                :url "https://apple.com",
                 :uri #java/uri "https://apple.com"},
  "tiktok.com.html"
  #:link_preview{:host "tiktok.com",
@@ -641,6 +677,7 @@
                 :description "",
                 :site_name "",
                 :videos [],
+                :url "https://tiktok.com",
                 :uri #java/uri "https://tiktok.com"},
  "microsoft.com.html"
  #:link_preview{:host "microsoft.com",
@@ -654,6 +691,7 @@
                 "Explore Microsoft products and services and support for your home or business. Shop Microsoft 365, Copilot, Teams, Xbox, Windows, Azure, Surface and more.",
                 :site_name "",
                 :videos [],
+                :url "https://microsoft.com",
                 :uri #java/uri "https://microsoft.com"},
  "forbes.com.html"
  #:link_preview{:host "forbes.com",
@@ -671,6 +709,7 @@
                 "Discover how nations adopting Bitcoin reserves as the new digital gold could reshape global finance, trade, and geopolitics in the new economic era.",
                 :site_name "Forbes",
                 :videos [],
+                :url "https://forbes.com",
                 :uri #java/uri "https://forbes.com"},
  "pinterest.com.html"
  #:link_preview{:host "pinterest.com",
@@ -688,4 +727,5 @@
                 "Jan 19, 2025 - Bring your rooms to life with touches of maximalism, unexpected pops of color and eclectic furniture.",
                 :site_name "Pinterest",
                 :videos [],
+                :url "https://pinterest.com",
                 :uri #java/uri "https://pinterest.com"}}

@@ -6,8 +6,28 @@
             [clj-http.client :as http]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [clojure.pprint :as pprint]))
+            [clojure.pprint :as pprint]
+            [malli.core :as m]))
 
+(def -yahoo-response
+  {:link_preview/host "yahoo.com"
+   :link_preview/images [{:link_preview/uri #java/uri "https://s.yimg.com/cv/apiv2/social/images/yahoo_default_logo.png"
+                          :link_preview/width nil
+                          :link_preview/height nil}]
+   :link_preview/media_type "website"
+   :link_preview/title "Yahoo | Mail, Weather, Search, Politics, News, Finance, Sports & Videos"
+   :link_preview/favicons #{#java/uri "https://s.yimg.com/cv/apiv2/social/images/yahoo_default_logo.png"
+                            #java/uri "https://s.yimg.com/rz/l/favicon.ico"}
+   :link_preview/description "Latest news coverage, email, free stock quotes, live scores and video are just the beginning. Discover more every day at Yahoo!"
+   :link_preview/site_name ""
+   :link_preview/videos []
+   :link_preview/url "https://yahoo.com"
+   :link_preview/uri #java/uri "https://yahoo.com"})
+
+(deftest yahoo-response-schema-test
+  (testing "Yahoo response adheres to LinkPreviewData schema"
+    (is (m/validate link-preview.core/LinkPreviewData -yahoo-response)
+        "Yahoo response should match LinkPreviewData schema")))
 
 (deftest preview-generation-test
   (testing "Preview generation matches expected results"
