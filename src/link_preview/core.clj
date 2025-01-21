@@ -1,9 +1,10 @@
 (ns link-preview.core
   (:require [clj-http.client :as http]
+            [clj-http.headers :as http.headers]
+            [clj-http.links :as http.links]
             [clojure.tools.logging :as log]
             [com.biffweb :as biff :refer [q]]
             [clojure.string :as str]
-            [clojure.java.io :as io]
             [clojure.data.json :as json]
             [crdt.ulid :as ulid]
             [malli.util :as mu]
@@ -16,6 +17,37 @@
   (:import [java.net URI]
            [org.agrona MutableDirectBuffer]
            [java.nio.charset StandardCharsets]))
+
+;; Custom HTTP client to avoid cookies
+
+(def http-middleware
+  "The default list of middleware clj-http uses for wrapping requests."
+  [http/wrap-request-timing
+   http.headers/wrap-header-map
+   http/wrap-query-params
+   http/wrap-basic-auth
+   http/wrap-oauth
+   http/wrap-user-info
+   http/wrap-url
+   http/wrap-decompression
+   http/wrap-input-coercion
+   ;; put this before output-coercion, so additional charset
+   ;; headers can be used if desired
+   http/wrap-additional-header-parsing
+   http/wrap-output-coercion
+   http/wrap-exceptions
+   http/wrap-accept
+   http/wrap-accept-encoding
+   http/wrap-content-type
+   http/wrap-form-params
+   http/wrap-nested-params
+   http/wrap-flatten-nested-params
+   http/wrap-method
+   ;; Disable cookies because Twitter sends malformed cookies
+   ;; http.cookies/wrap-cookies
+   http.links/wrap-links
+   http/wrap-unknown-host])
+
 
 ;; ================================
 ;; Add EDN reader/writer support for java.net.URI
@@ -237,10 +269,15 @@
 (defn create-preview
   "Create a preview from a URL. Returns a map conforming to preview-schema"
   [url]
-  (log/info "Creating preview for" url)
-  (let [uri (URI/create url)
-        response (http/get url {:timeout 3000
-                                :throw-exceptions false})]
+  (log/info "(no cookies) Creating preview for" url)
+  (let [response (http/with-middleware http-middleware
+                   (http/get url {:timeout 3000
+                                  :throw-exceptions false
+                                  ;; Disable cookie handling completely
+                                  ;; Twitter sends malformed cookies
+                                  :cookie-policy :none
+                                  :cookies {}
+                                  :cookie-store nil}))]
     (log/info "Request succeeded" url)
     (when (= (:status response) 200)
       (when-let [content-type (get-in response [:headers "content-type"])]
