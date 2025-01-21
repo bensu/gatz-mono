@@ -1,7 +1,8 @@
 (ns gatz.schema
   (:require [malli.core :as m]
             [malli.util :as mu]
-            [crdt.core :as crdt]))
+            [crdt.core :as crdt]
+            [link-preview.core :as link-preview]))
 
 (def ulid?
   [:fn {:error/message "must crdt.ulid/ulid"} crdt/ulid?])
@@ -328,6 +329,9 @@
    [:message/flagged_uids [:set #'UserId]]
    ;; LWW
    [:message/text string?]
+   ;; LWW written at the same time as the text edits
+   [:message/link_previews {:optional true} ;; optional to avoid a migration
+    [:vector #'link-preview/LinkPreview]]
    ;; {user-id {emoji (->LWW ts?)}
    [:message/reactions
     [:map-of #'UserId [:map-of string? [:maybe inst?]]]]])
@@ -358,6 +362,9 @@
    [:message/flagged_uids (crdt/lww-set-schema #'UserId)]
    ;; LWW
    [:message/text (crdt/lww-schema string?)]
+   ;; LWW written at the same time as the text edits
+   [:message/link_previews {:optional true} ;; optional to avoid a migration
+    (crdt/lww-schema [:vector #'link-preview/LinkPreview])]
    ;; {user-id {emoji (->LWW ts?)}
    [:message/reactions
     [:map-of #'UserId
@@ -782,6 +789,7 @@
    :user/id #'UserId
    :message/id #'MessageId
    :media/id #'MediaId
+   :link-preview/preview #'link-preview/LinkPreview
    :evt/id :uuid
    :gatz/evt #'Event
    :gatz/user #'User

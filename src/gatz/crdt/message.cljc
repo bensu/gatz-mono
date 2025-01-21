@@ -9,6 +9,52 @@
             #?(:clj [juxt.clojars-mirrors.nippy.v3v1v1.taoensso.nippy :as juxt-nippy]))
   (:import [java.util Date]))
 
+
+(def -npr-link-preview-mock
+  #:link_preview{:host "npr.org",
+                 :images
+                 [#:link_preview{:uri
+                                 #java/uri "https://npr.brightspotcdn.com/dims3/default/strip/false/crop/5256x2957+0+230/resize/1400/quality/100/format/jpeg/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2F72%2Fa2%2Ff38f61084615b22753610cf023ee%2Fimg-2072-edit.jpg",
+                                 :width nil,
+                                 :height nil}],
+                 :media_type "article",
+                 :title
+                 "NPR shopped at Walmart to track how inflation is changing prices : NPR",
+                 :favicons
+                 #{#java/uri "https://media.npr.org/chrome/favicon/favicon-180x180.png"
+                   #java/uri "https://media.npr.org/chrome/favicon/favicon.ico"
+                   #java/uri "https://media.npr.org/chrome/favicon/favicon-16x16.png"
+                   #java/uri "https://media.npr.org/chrome/favicon/favicon-48x48.png"
+                   #java/uri "https://media.npr.org/chrome/favicon/favicon-32x32.png"
+                   #java/uri "https://media.npr.org/chrome/favicon/favicon-96x96.png"},
+                 :description
+                 "NPR has tracked the prices of dozens of items at the same superstore in Georgia, including eggs, T-shirts, snacks and paper towels. Here's what got cheaper over the past year, and more expensive.",
+                 :site_name "NPR",
+                 :videos [],
+                 :uri #java/uri "https://npr.org"})
+
+(def -economist-link-preview-mock
+  #:link_preview{:host "economist.com",
+                 :images
+                 [#:link_preview{:uri
+                                 #java/uri "https://www.economist.com/interactive/1843/2025/01/14/the-burned-and-the-saved-what-the-la-fires-spared/promo.jpg",
+                                 :width nil,
+                                 :height nil}],
+                 :media_type "article",
+                 :title
+                 "The burned and the saved: what the LA fires spared | The Economist",
+                 :favicons
+                 #{#java/uri "https://www.economist.com/interactive/ico/touch-icon-167x167.png"
+                   #java/uri "https://www.economist.com/interactive/ico/touch-icon-120x120.png"
+                   #java/uri "https://www.economist.com/interactive/ico/touch-icon-152x152.png"
+                   #java/uri "https://www.economist.com/interactive/ico/touch-icon-180x180.png"
+                   #java/uri "https://www.economist.com/interactive/favicon.ico"},
+                 :description
+                 "As two fires continue to blaze, some pockets of the city contain both rubble and relics",
+                 :site_name "The Economist",
+                 :videos [],
+                 :uri #java/uri "https://economist.com"})
+
 (def message-defaults
   {:message/media nil
    :message/reply_to nil
@@ -17,6 +63,7 @@
    :message/mentions {}
    :message/flagged_uids (crdt/lww-set)
    :message/reactions {}
+   :message/link_previews [] ;; [-npr-link-preview-mock -economist-link-preview-mock]
    :message/posted_as_discussion []})
 
 (def final-keys
@@ -29,7 +76,7 @@
    :message/created_at])
 
 (defn new-message
-  [{:keys [uid mid did text media reply_to mentions]}
+  [{:keys [uid mid did text media reply_to mentions link_previews]}
    {:keys [now cid clock]}]
   {:pre [(inst? now)
          (or (uuid? cid) (some? clock))
@@ -56,6 +103,7 @@
                                            :message/edited_at now}})
      :message/mentions msg-mentions
      :message/text (crdt/->LWW clock text)
+     :message/link_previews (crdt/lww clock link_previews)
      :message/reactions {}}))
 
 (deftest crdt-messages

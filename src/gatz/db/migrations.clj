@@ -950,4 +950,3 @@
   (add-user-to-dids! -ctx -riley-dids (:xt/id -riley) (:xt/id -new-user))
   (add-user-to-dids! -ctx -rinad-dids (:xt/id -rinada) (:xt/id -new-user))
   (add-user-to-dids! -ctx -grants-did (:xt/id -grant) (:xt/id -new-user)))
-

@@ -306,20 +306,22 @@
    [:discussion_id [:maybe uuid?]]
    ;; deprecated
    [:media_id [:maybe uuid?]]
-   [:media_ids [:vec uuid?]]])
+   [:media_ids [:vec uuid?]]
+   [:link_previews [:vec uuid?]]])
 
 (defn parse-create-message-params
-  [{:keys [text id discussion_id media_id media_ids reply_to]}]
+  [{:keys [text id discussion_id media_id media_ids link_previews reply_to]}]
   (cond-> {}
     (string? text)          (assoc :text text)
     (string? id)            (assoc :mid (mt/-string->uuid id))
     (string? reply_to)      (assoc :reply_to (mt/-string->uuid reply_to))
     (string? discussion_id) (assoc :did (mt/-string->uuid discussion_id))
     (string? media_id)      (assoc :media_ids [(mt/-string->uuid media_id)])
-    (coll? media_ids)       (assoc :media_ids (vec (keep mt/-string->uuid media_ids)))))
+    (coll? media_ids)       (assoc :media_ids (vec (keep mt/-string->uuid media_ids)))
+    (coll? link_previews)   (assoc :link_previews (vec (keep mt/-string->uuid link_previews)))))
 
 (defn create-message! [{:keys [params biff/db auth/user-id] :as ctx}]
-  (let [{:keys [text mid did media_ids reply_to]} (parse-create-message-params params)
+  (let [{:keys [text mid did media_ids reply_to link_previews]} (parse-create-message-params params)
         mid (or mid (random-uuid))
         d (crdt.discussion/->value (db.discussion/by-id db did))]
     (when media_ids
@@ -330,7 +332,8 @@
                                         :mid mid
                                         :text text
                                         :reply_to reply_to
-                                        :media_ids media_ids})]
+                                        :media_ids media_ids
+                                        :link_previews link_previews})]
        (try
          (notify/submit-comment-job! ctx (crdt.message/->value msg))
          (catch Exception e

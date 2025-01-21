@@ -3,4 +3,5 @@
  crdt/hlc crdt.core/read-hlc
  crdt/lww crdt.core/read-lww
  crdt/gos crdt.core/read-gos
- crdt/ulid crdt.ulid/read-ulid}
+ crdt/ulid crdt.ulid/read-ulid
+ java/uri link-preview.core/read-uri}
