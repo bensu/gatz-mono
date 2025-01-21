@@ -1,7 +1,6 @@
 (ns link-preview.core-test
   (:require [clojure.test :refer [deftest is testing]]
             [link-preview.core :refer :all]
-            [clojure.data.json :as json]
             [clojure.edn :as edn]
             [clj-http.client :as http]
             [clojure.java.io :as io]
