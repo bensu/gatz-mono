@@ -53,7 +53,8 @@
   [urls-and-files]
   (doseq [[url filename] urls-and-files]
     (try
-      (let [response (http/get url {:throw-exceptions false})
+      (let [response (http/with-middleware http-middleware
+                       (http/get url {:throw-exceptions false}))
             content-type (get-in response [:headers "content-type"])]
         (when (and (= (:status response) 200)
                    (some? content-type)
@@ -79,14 +80,18 @@
     (fetch-and-save-html
      (map (fn [url] [url (sanitize-filename url)]) urls))))
 
+(defn process-file [file]
+  (let [filename (.getName file)
+        url (str "https://" (str/replace filename #"\.html$" ""))
+        html-str (slurp file)]
+    (create-preview-from-html url html-str)))
+
 (defn process-html-files []
   (let [html-dir (io/file "resources/test/link_preview/html")
         files (filter #(.isFile %) (.listFiles html-dir))
         results (reduce (fn [acc file]
                           (let [filename (.getName file)
-                                url (str "https://" (str/replace filename #"\.html$" ""))
-                                html-str (slurp file)
-                                preview (create-preview-from-html url html-str)]
+                                preview (process-file file)]
                             (if preview
                               (assoc acc filename preview)
                               acc)))
@@ -101,6 +106,8 @@
 
   ;; fetch HTML files for testing without making HTTP requests
   (fetch-important-sites)
+
+  (fetch-and-save-html [["https://x.com/theovonscousin/status/1881714572849246258" "x.html"]])
 
   (fetch-and-save-html
    [["https://github.com/bensu" "github.html"]

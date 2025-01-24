@@ -711,6 +711,19 @@
                 :videos [],
                 :url "https://forbes.com",
                 :uri #java/uri "https://forbes.com"},
+ "x.com.html"
+ #:link_preview{:host "x",
+                :images [],
+                :media_type "website",
+                :title "x.com",
+                :favicons
+                #{#java/uri "https://abs.twimg.com/responsive-web/client-web/icon-ios.77d25eba.png"
+                  #java/uri "https://abs.twimg.com/favicons/twitter-pip.3.ico"},
+                :description "",
+                :site_name "X (formerly Twitter)",
+                :videos [],
+                :url "https://x",
+                :uri #java/uri "https://x"},
  "pinterest.com.html"
  #:link_preview{:host "pinterest.com",
                 :images

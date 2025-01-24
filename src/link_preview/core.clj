@@ -93,6 +93,7 @@
    [:link_preview/host [:maybe string?]]
    [:link_preview/description [:maybe string?]]
    [:link_preview/media_type [:maybe string?]]
+   [:link_preview/html [:maybe string?]]
    [:link_preview/images [:vector
                           [:map
                            [:link_preview/uri uri?]
@@ -140,9 +141,13 @@
       (biff/submit-tx ctx [preview])
       preview)))
 
+;; Shouldn't be necessary in prod
+(def link-preview-defaults
+  {:link_preview/html nil})
+
 (defn by-id [db id]
   {:pre [(uuid? id)]}
-  (into {} (xtdb/entity db id)))
+  (merge link-preview-defaults (xtdb/entity db id)))
 
 (defn by-url [db url]
   {:pre [(string? url)]}
@@ -262,27 +267,89 @@
                                (or (get-meta-content resource "medium")
                                    (get-meta-content resource "og:type")
                                    "website"))
+     :link_preview/html nil
      :link_preview/images (get-images resource base-uri)
      :link_preview/videos (get-videos resource)
      :link_preview/favicons (get-favicons resource base-uri)}))
 
+;; ==================================================================
+;; Oembed
+
+;; If x.com or twitter.com, use the oembed API
+
+;; https://developer.x.com/en/docs/x-for-websites/embedded-tweets/guides/embedded-tweet-parameter-reference
+
+(comment
+  ;; Response from oembed API
+  {:author_url "https://twitter.com/TheBabylonBee",
+   :width 550,
+   :type "rich",
+   :provider_name "Twitter",
+   :cache_age "3153600000",
+   :url "https://twitter.com/TheBabylonBee/status/1861454974426722737",
+   :author_name "The Babylon Bee",
+   :version "1.0",
+   :provider_url "https://twitter.com", :height nil,
+   :html "<blockquote class=\"twitter-tweet\"><p lang=\"en\" dir=\"ltr\">Trump Proposes 25 Percent Tariff On Imports From California <a href=\"https://t.co/dfF52auITC\">https://t.co/dfF52auITC</a> <a href=\"https://t.co/rLytnSDy3i\">pic.twitter.com/rLytnSDy3i</a></p>&mdash; The Babylon Bee (@TheBabylonBee) <a href=\"https://twitter.com/TheBabylonBee/status/1861454974426722737?ref_src=twsrc%5Etfw\">November 26, 2024</a></blockquote>\n<script async src=\"https://platform.twitter.com/widgets.js\" charset=\"utf-8\"></script>\n\n"})
+
+(defn create-preview-from-oembed
+  "Create a preview from a URL using the oembed API"
+  [url]
+  (log/info "(oembed) Creating preview for" url)
+  (let [response (http/get (str "https://publish.twitter.com/oembed?url=" url)
+                           {:timeout 3000
+                            :throw-exceptions false
+                            :cookie-policy :none
+                            :cookies {}
+                            :cookie-store nil})]
+    (log/info "(oembed) Request succeeded" url)
+    (when (= (:status response) 200)
+      (try
+        (let [embed (json/read-str (:body response) :key-fn keyword)
+              uri (URI/create url)]
+          {:link_preview/uri uri
+           :link_preview/url (str uri)
+           :link_preview/title nil
+           :link_preview/host (.getHost uri)
+           :link_preview/site_name (:provider_name embed)
+           :link_preview/description nil
+           :link_preview/media_type "tweet"
+           :link_preview/images []
+           :link_preview/videos []
+           :link_preview/favicons #{}
+           :link_preview/html (:html embed)})
+        (catch Exception e
+          (throw e))))))
+
+
+;; "https://publish.twitter.com/oembed?url="
+;; "https://x.com/TheBabylonBee/status/1861454974426722737"
+
+(defn twitter? [url]
+  (and (or (str/starts-with? url "https://x.com/")
+           (str/starts-with? url "https://twitter.com/"))
+       (str/includes? url "/status/")))
+
 (defn create-preview
   "Create a preview from a URL. Returns a map conforming to preview-schema"
   [url]
-  (log/info "(no cookies) Creating preview for" url)
-  (let [response (http/with-middleware http-middleware
-                   (http/get url {:timeout 3000
-                                  :throw-exceptions false
+  (if (twitter? url)
+    (create-preview-from-oembed url)
+    (do
+      (log/info "(no cookies) Creating preview for" url)
+      (let [response (http/with-middleware http-middleware
+                       (http/get url {:timeout 3000
+                                      :throw-exceptions false
                                   ;; Disable cookie handling completely
                                   ;; Twitter sends malformed cookies
-                                  :cookie-policy :none
-                                  :cookies {}
-                                  :cookie-store nil}))]
-    (log/info "Request succeeded" url)
-    (when (= (:status response) 200)
-      (when-let [content-type (get-in response [:headers "content-type"])]
-        (when (str/includes? content-type "text/html")
-          (create-preview-from-html url (:body response)))))))
+                                      :cookie-policy :none
+                                      :cookies {}
+                                      :cookie-store nil}))]
+        (log/info "Request succeeded" url)
+        (when (= (:status response) 200)
+          (when-let [content-type (get-in response [:headers "content-type"])]
+            (when (str/includes? content-type "text/html")
+              (create-preview-from-html url (:body response)))))))))
 
 (defn create-previews
   "Create previews from text containing URLs"
