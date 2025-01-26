@@ -330,6 +330,18 @@
            (str/starts-with? url "https://twitter.com/"))
        (str/includes? url "/status/")))
 
+(defn fetch-url! [url]
+  (http/with-middleware http-middleware
+    (http/get url {:timeout 3000
+                   :save-request? true
+                   :throw-exceptions false
+                                      ;; Disable cookie handling completely
+                                      ;; Twitter sends malformed cookies
+                   :cookie-policy :none
+                   :cookies {}
+                   :cookie-store nil
+                   :headers {"User-Agent" "WhatsApp/2"}})))
+
 (defn create-preview
   "Create a preview from a URL. Returns a map conforming to preview-schema"
   [url]
@@ -337,14 +349,7 @@
     (create-preview-from-oembed url)
     (do
       (log/info "(no cookies) Creating preview for" url)
-      (let [response (http/with-middleware http-middleware
-                       (http/get url {:timeout 3000
-                                      :throw-exceptions false
-                                  ;; Disable cookie handling completely
-                                  ;; Twitter sends malformed cookies
-                                      :cookie-policy :none
-                                      :cookies {}
-                                      :cookie-store nil}))]
+      (let [response (fetch-url! url)]
         (log/info "Request succeeded" url)
         (when (= (:status response) 200)
           (when-let [content-type (get-in response [:headers "content-type"])]

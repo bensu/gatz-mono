@@ -42,3 +42,4 @@ https://substack.com/home/post/p-153397962?utm_campaign=post&utm_medium=web
 https://dev.to/heroku/postgres-is-underrated-it-handles-more-than-you-think-4ff3
 https://stackoverflow.com/questions/76317239/rn-reanimated-exisiting-animation-on-element-removed-from-list
 https://www.etsy.com/listing/1824865985/lumon-macrodata-refinement-severance-tee?click_key=3102f74b6419ca085f961037146c6b4d75ad3815%3A1824865985&click_sum=48a6e1b2&ref=hp_rv-1&pro=1
+https://bensu.notion.site/friction-logs-d6e0cf603a59493681ed6c1365ede16f?pvs=4

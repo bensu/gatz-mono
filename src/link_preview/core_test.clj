@@ -53,8 +53,7 @@
   [urls-and-files]
   (doseq [[url filename] urls-and-files]
     (try
-      (let [response (http/with-middleware http-middleware
-                       (http/get url {:throw-exceptions false}))
+      (let [response (fetch-url! url)
             content-type (get-in response [:headers "content-type"])]
         (when (and (= (:status response) 200)
                    (some? content-type)
@@ -108,6 +107,10 @@
   (fetch-important-sites)
 
   (fetch-and-save-html [["https://x.com/theovonscousin/status/1881714572849246258" "x.html"]])
+
+  (fetch-and-save-html [["https://bensu.notion.site/friction-logs-d6e0cf603a59493681ed6c1365ede16f?pvs=4" "notion.html"]])
+
+  (process-file (io/file "resources/test/link_preview/html/notion.html"))
 
   (fetch-and-save-html
    [["https://github.com/bensu" "github.html"]
