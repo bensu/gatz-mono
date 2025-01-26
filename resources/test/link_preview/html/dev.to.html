@@ -3,20 +3,20 @@
   <head>
     <meta charset="utf-8">
     <title>Postgres Is Underrated—It Handles More than You Think - DEV Community</title>
-      <meta name="last-updated" content="2025-01-14 07:17:15 UTC">
+      <meta name="last-updated" content="2025-01-26 01:43:22 UTC">
       <meta name="user-signed-in" content="false">
-      <meta name="head-cached-at" content="1736839035">
+      <meta name="head-cached-at" content="1737855802">
       <meta name="environment" content="production">
       <link rel="stylesheet" href="https://assets.dev.to/assets/minimal-1be4230b8ec9f13239b8d6cfe8d9065ceefcbb79eac80b47e4779f5ba094b63a.css" media="all" id="main-minimal-stylesheet" />
 <link rel="stylesheet" href="https://assets.dev.to/assets/views-252792a124dd89807543985e593596806e3983f484a61770ac9da06c26e5aa9e.css" media="all" id="main-views-stylesheet" />
-<link rel="stylesheet" href="https://assets.dev.to/assets/crayons-c04ad8a7afa1453c505f39a8d02e5df1ecce688d9144c4a2f6b9aa8776ed9a09.css" media="all" id="main-crayons-stylesheet" />
+<link rel="stylesheet" href="https://assets.dev.to/assets/crayons-362b06ca4dd03247f570177e0db702fa0957f503f5993b1e7698027c2ab1279a.css" media="all" id="main-crayons-stylesheet" />
 
       <script src="https://assets.dev.to/assets/base-8d57db507bffc688fa244ced45c1d9ba0a58cb2a90ba086710158fbbe3e27fb8.js" defer="defer"></script>
-<script src="https://assets.dev.to/assets/application-147cebefc5c4cddde055e8f5eb0055e811469b08405170e2411fbd7944b5ac04.js" defer="defer"></script>
+<script src="https://assets.dev.to/assets/application-7258612fccf5d56314a6e4ad1898b4f818f474c4bb3485e302428d489a769a17.js" defer="defer"></script>
 <script src="https://assets.dev.to/assets/baseInitializers-bc498cfd7bb7d2a2da59d68d0b2055cc2dd26fee3669ab88edbb396d37bc3369.js" defer="defer"></script>
 <script src="https://assets.dev.to/assets/baseTracking-b6bf73e5ee66633e151e7d5b7c6bbccedfa4c59e3615be97b98c4c0f543ddae7.js" defer="defer"></script>
 
-        <meta name="search-script" content="https://assets.dev.to/assets/Search-cc5e8a352578866203771def747f37c3ec6a0869de0458328e0fcba3d5d2fceb.js">
+        <meta name="search-script" content="https://assets.dev.to/assets/Search-1667defd820799649d6c3b2864f13786058190df703dd50ab75dce1ccb834c4b.js">
       
     <link rel="canonical" href="https://dev.to/heroku/postgres-is-underrated-it-handles-more-than-you-think-4ff3" />
     <meta name="description" content="Postgres can scale for heavy loads and offers powerful features which are not obvious at first sight. Tagged with architecture, webdev, devops, database.">
@@ -63,8 +63,8 @@
         data-subscription-icon="https://assets.dev.to/assets/subscription-icon-805dfa7ac7dd660f07ed8d654877270825b07a92a03841aa99a1093bd00431b2.png"
         data-locale="en"
         data-honeybadger-key="hbp_nqu4Y66HuEKlD6YRGssZuRQnPOjDm50J8Zkr"
-        data-deployed-at="2025-01-13T20:24:31Z"
-        data-latest-commit-id="361ac5ea39011a13ead3c256b3d2204223088191"
+        data-deployed-at="2025-01-24T18:15:02Z"
+        data-latest-commit-id="30d5a6f417205383a43bdb93935dc53b8933cc4c"
         data-ga-tracking="UA-71991109-1"
         data-cookie-banner-user-context="logged_out_only"
         data-cookie-banner-platform-context="off"
@@ -74,7 +74,7 @@
         data-ga4-tracking-id="G-TYEM8Y3JN3">
         <link rel="stylesheet" href="https://assets.dev.to/assets/minimal-1be4230b8ec9f13239b8d6cfe8d9065ceefcbb79eac80b47e4779f5ba094b63a.css" media="all" id="secondary-minimal-stylesheet" />
 <link rel="stylesheet" href="https://assets.dev.to/assets/views-252792a124dd89807543985e593596806e3983f484a61770ac9da06c26e5aa9e.css" media="all" id="secondary-views-stylesheet" />
-<link rel="stylesheet" href="https://assets.dev.to/assets/crayons-c04ad8a7afa1453c505f39a8d02e5df1ecce688d9144c4a2f6b9aa8776ed9a09.css" media="all" id="secondary-crayons-stylesheet" />
+<link rel="stylesheet" href="https://assets.dev.to/assets/crayons-362b06ca4dd03247f570177e0db702fa0957f503f5993b1e7698027c2ab1279a.css" media="all" id="secondary-crayons-stylesheet" />
 
         <div id="body-styles">
           <style>
@@ -95,7 +95,7 @@
   <div class="crayons-header__container">
     <span class="inline-block m:hidden ">
       <button class="c-btn c-btn--icon-alone js-hamburger-trigger mx-2">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aduii3l65w3uo1sx4zu4bekkq0saddp1" class="crayons-icon"><title id="aduii3l65w3uo1sx4zu4bekkq0saddp1">Navigation menu</title>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a4qqm991g977k91zi6q39puiwm559vje" class="crayons-icon"><title id="a4qqm991g977k91zi6q39puiwm559vje">Navigation menu</title>
     <path d="M3 4h18v2H3V4zm0 7h18v2H3v-2zm0 7h18v2H3v-2z"></path>
 </svg>
 
@@ -115,7 +115,7 @@
           <div class="crayons-field flex-1 relative">
             <input id="search-input" class="crayons-header--search-input crayons-textfield js-search-input" type="text" id="nav-search" name="q" placeholder="Find related posts..." autocomplete="off" />
             <button type="submit" aria-label="Search" class="c-btn c-btn--icon-alone absolute inset-px right-auto mt-0 py-0">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aa3gqxj3i1atjg1a21sjmlkdafhmu00d" aria-hidden="true" class="crayons-icon"><title id="aa3gqxj3i1atjg1a21sjmlkdafhmu00d">Search</title>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="amhhy2a21emdttqt3z0wnu0h70hgg7ro" aria-hidden="true" class="crayons-icon"><title id="amhhy2a21emdttqt3z0wnu0h70hgg7ro">Search</title>
     <path d="M18.031 16.617l4.283 4.282-1.415 1.415-4.282-4.283A8.96 8.96 0 0111 20c-4.968 0-9-4.032-9-9s4.032-9 9-9 9 4.032 9 9a8.96 8.96 0 01-1.969 5.617zm-2.006-.742A6.977 6.977 0 0018 11c0-3.868-3.133-7-7-7-3.868 0-7 3.132-7 7 0 3.867 3.132 7 7 7a6.977 6.977 0 004.875-1.975l.15-.15z"></path>
 </svg>
 
@@ -123,7 +123,7 @@
 
             <a class="crayons-header--search-brand-indicator" href="https://www.algolia.com/developers/?utm_source=devto&utm_medium=referral" target="_blank" rel="noopener noreferrer">
                 Powered by
-                <svg xmlns="http://www.w3.org/2000/svg" id="Layer_1" width="24" height="24" viewBox="0 0 500 500.34" role="img" aria-labelledby="agrygljaou52leg4cbj9jgqswq9j6vne" aria-hidden="true" class="crayons-icon"><title id="agrygljaou52leg4cbj9jgqswq9j6vne">Search</title>
+                <svg xmlns="http://www.w3.org/2000/svg" id="Layer_1" width="24" height="24" viewBox="0 0 500 500.34" role="img" aria-labelledby="alqyb3p5y9641d71s5v7l1y0yod9uz34" aria-hidden="true" class="crayons-icon"><title id="alqyb3p5y9641d71s5v7l1y0yod9uz34">Search</title>
   <defs></defs><path class="cls-1" d="M250,0C113.38,0,2,110.16,.03,246.32c-2,138.29,110.19,252.87,248.49,253.67,42.71,.25,83.85-10.2,120.38-30.05,3.56-1.93,4.11-6.83,1.08-9.52l-23.39-20.74c-4.75-4.22-11.52-5.41-17.37-2.92-25.5,10.85-53.21,16.39-81.76,16.04-111.75-1.37-202.04-94.35-200.26-206.1,1.76-110.33,92.06-199.55,202.8-199.55h202.83V407.68l-115.08-102.25c-3.72-3.31-9.43-2.66-12.43,1.31-18.47,24.46-48.56,39.67-81.98,37.36-46.36-3.2-83.92-40.52-87.4-86.86-4.15-55.28,39.65-101.58,94.07-101.58,49.21,0,89.74,37.88,93.97,86.01,.38,4.28,2.31,8.28,5.53,11.13l29.97,26.57c3.4,3.01,8.8,1.17,9.63-3.3,2.16-11.55,2.92-23.6,2.07-35.95-4.83-70.39-61.84-127.01-132.26-131.35-80.73-4.98-148.23,58.18-150.37,137.35-2.09,77.15,61.12,143.66,138.28,145.36,32.21,.71,62.07-9.42,86.2-26.97l150.36,133.29c6.45,5.71,16.62,1.14,16.62-7.48V9.49C500,4.25,495.75,0,490.51,0H250Z"></path>
 </svg>
 
@@ -135,20 +135,14 @@
     </div>
 
     <div class="flex items-center h-100 ml-auto">
-      <a class="c-link c-link--icon-alone c-link--block m:hidden mx-1" id="search-link" aria-label="Search" href="/search">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a11ypvagfcnsqqk1o8jbqt2btuh6kefv" class="crayons-icon"><title id="a11ypvagfcnsqqk1o8jbqt2btuh6kefv">Search</title>
-    <path d="M18.031 16.617l4.283 4.282-1.415 1.415-4.282-4.283A8.96 8.96 0 0111 20c-4.968 0-9-4.032-9-9s4.032-9 9-9 9 4.032 9 9a8.96 8.96 0 01-1.969 5.617zm-2.006-.742A6.977 6.977 0 0018 11c0-3.868-3.133-7-7-7-3.868 0-7 3.132-7 7 0 3.867 3.132 7 7 7a6.977 6.977 0 004.875-1.975l.15-.15z"></path>
-</svg>
-
-      </a>
         <div class="flex" id="authentication-top-nav-actions">
           <span class="hidden m:block">
-            <a href="/enter" class="c-link c-link--block mr-2 whitespace-nowrap ml-auto" data-no-instant>
+            <a href="https://dev.to/enter" class="c-link c-link--block mr-2 whitespace-nowrap ml-auto" data-no-instant>
               Log in
             </a>
           </span>
 
-          <a href="/enter?state=new-user" data-tracking-id="ca_top_nav" data-tracking-source="top_navbar" class="c-cta c-cta--branded whitespace-nowrap mr-2" data-no-instant>
+          <a href="https://dev.to/enter?state=new-user" data-tracking-id="ca_top_nav" data-tracking-source="top_navbar" class="c-cta c-cta--branded whitespace-nowrap mr-2" data-no-instant>
             Create account
           </a>
         </div>
@@ -162,7 +156,7 @@
       <h2 class="fs-l fw-bold flex-1 break-word lh-tight">DEV Community</h2>
 
       <button class="c-btn c-btn--icon-alone js-hamburger-trigger shrink-0" aria-label="Close">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="ab8mo22brzb91l8q294w2ml625a23dhv" aria-hidden="true" class="crayons-icon c-btn__icon"><title id="ab8mo22brzb91l8q294w2ml625a23dhv">Close</title><path d="M12 10.586l4.95-4.95 1.414 1.414-4.95 4.95 4.95 4.95-1.414 1.414-4.95-4.95-4.95 4.95-1.414-1.414 4.95-4.95-4.95-4.95L7.05 5.636l4.95 4.95z"></path></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a6qpj6r8ixhamn9i9tu9lv357yncgg5a" aria-hidden="true" class="crayons-icon c-btn__icon"><title id="a6qpj6r8ixhamn9i9tu9lv357yncgg5a">Close</title><path d="M12 10.586l4.95-4.95 1.414 1.414-4.95 4.95 4.95 4.95-1.414 1.414-4.95-4.95-4.95 4.95-1.414-1.414 4.95-4.95-4.95-4.95L7.05 5.636l4.95 4.95z"></path></svg>
 
       </button>
     </header>
@@ -387,7 +381,7 @@
     </div>
     <div class="align-center m:relative">
       <button id="article-show-more-button" aria-controls="article-show-more-dropdown" aria-expanded="false" aria-haspopup="true" class="dropbtn crayons-btn crayons-btn--ghost-dimmed crayons-btn--icon-rounded" aria-label="Share post options">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="ajglxfyn3g5fm47r5t5um2kbvbqwxjb1" aria-hidden="true" class="crayons-icon dropdown-icon"><title id="ajglxfyn3g5fm47r5t5um2kbvbqwxjb1">More...</title><path fill-rule="evenodd" clip-rule="evenodd" d="M7 12a2 2 0 11-4 0 2 2 0 014 0zm7 0a2 2 0 11-4 0 2 2 0 014 0zm5 2a2 2 0 100-4 2 2 0 000 4z"></path></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="as6v2nvqifleb7xvlbzzibn8i9bj0y2s" aria-hidden="true" class="crayons-icon dropdown-icon"><title id="as6v2nvqifleb7xvlbzzibn8i9bj0y2s">More...</title><path fill-rule="evenodd" clip-rule="evenodd" d="M7 12a2 2 0 11-4 0 2 2 0 014 0zm7 0a2 2 0 11-4 0 2 2 0 014 0zm5 2a2 2 0 100-4 2 2 0 000 4z"></path></svg>
 
       </button>
 
@@ -398,7 +392,7 @@
             class="flex justify-between crayons-link crayons-link--block w-100 bg-transparent border-0"
             data-postUrl="https://dev.to/heroku/postgres-is-underrated-it-handles-more-than-you-think-4ff3">
             <span class="fw-bold">Copy link</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" id="article-copy-icon" role="img" aria-labelledby="ah0c4vrdquml9rku37ljqxg1ri7ve3xa" aria-hidden="true" class="crayons-icon mx-2 shrink-0"><title id="ah0c4vrdquml9rku37ljqxg1ri7ve3xa">Copy link</title>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" id="article-copy-icon" role="img" aria-labelledby="a3zqc1ig2gbir0tqpf247n3imtkffv4p" aria-hidden="true" class="crayons-icon mx-2 shrink-0"><title id="a3zqc1ig2gbir0tqpf247n3imtkffv4p">Copy link</title>
     <path d="M7 6V3a1 1 0 011-1h12a1 1 0 011 1v14a1 1 0 01-1 1h-3v3c0 .552-.45 1-1.007 1H4.007A1 1 0 013 21l.003-14c0-.552.45-1 1.007-1H7zm2 0h8v10h2V4H9v2zm-2 5v2h6v-2H7zm0 4v2h6v-2H7z"></path>
 </svg>
 
@@ -1001,9 +995,9 @@ Use a GIN or GiST index for efficient indexes based on composite values like tex
 
           </div>
 
-            <div class="js-billboard-container body-billboard-container" data-async-url="/heroku/postgres-is-underrated-it-handles-more-than-you-think-4ff3/billboards/post_body_bottom"></div>
+            <div class="js-billboard-container body-billboard-container" data-async-url="/heroku/postgres-is-underrated-it-handles-more-than-you-think-4ff3/bb/post_body_bottom"></div>
         </div>
-          <section id="comments" data-follow-button-container="true" data-updated-at="2025-01-14 06:52:38 UTC" class="text-padding mb-4 border-t-1 border-0 border-solid border-base-10">
+          <section id="comments" data-follow-button-container="true" data-updated-at="2025-01-26 01:43:22 UTC" class="text-padding mb-4 border-t-1 border-0 border-solid border-base-10">
       <header class="relative flex justify-between items-center mb-6">
         <div class="flex items-center">
           <h2 class="crayons-subtitle-1">
@@ -1083,11 +1077,11 @@ Use a GIN or GiST index for efficient indexes based on composite values like tex
                     " open>
       <summary aria-label="Toggle this comment (and replies)" data-tracking-name="expand_comment_toggle">
         <span class="m:mx-1 inline-block align-middle">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a9yx866tcqrrfig4tuen1u799ytifr1d" class="crayons-icon expanded"><title id="a9yx866tcqrrfig4tuen1u799ytifr1d">Collapse</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aewh78jad122w43fyg5xyxztubcob2u2" class="crayons-icon expanded"><title id="aewh78jad122w43fyg5xyxztubcob2u2">Collapse</title>
     <path d="M12 10.677L8 6.935 9 6l3 2.807L15 6l1 .935-4 3.742zm0 4.517L9 18l-1-.935 4-3.742 4 3.742-1 .934-3-2.805z"></path>
 </svg>
 
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="ahgq550odn6zknmshvvb2t54dbzftkk7" class="crayons-icon collapsed"><title id="ahgq550odn6zknmshvvb2t54dbzftkk7">Expand</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="ak9uhadcs2ptwtja8frdwiv0or6tb7si" class="crayons-icon collapsed"><title id="ak9uhadcs2ptwtja8frdwiv0or6tb7si">Expand</title>
     <path d="M12 18l-4-3.771 1-.943 3 2.829 3-2.829 1 .943L12 18zm0-10.115l-3 2.829-1-.943L12 6l4 3.771-1 .942-3-2.828z"></path>
 </svg>
 
@@ -1214,7 +1208,7 @@ Use a GIN or GiST index for efficient indexes based on composite values like tex
     <button id="comment-dropdown-trigger-288925" aria-controls="comment-dropdown-288925" aria-expanded="false"
       class="dropbtn comment__dropdown-trigger crayons-btn crayons-btn--s crayons-btn--ghost crayons-btn--icon "
       aria-label="Toggle dropdown menu" aria-haspopup="true">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a2e46ypaygvy38108spe7gq8q1syqjdc" class="crayons-icon pointer-events-none"><title id="a2e46ypaygvy38108spe7gq8q1syqjdc">Dropdown menu</title>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a8ojflbu6el2kzjdbgdpq7750mpom3uq" class="crayons-icon pointer-events-none"><title id="a8ojflbu6el2kzjdbgdpq7750mpom3uq">Dropdown menu</title>
     <path fill-rule="evenodd" clip-rule="evenodd" d="M8.25 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm5.25 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm3.75 1.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"></path>
 </svg>
 
@@ -1270,9 +1264,9 @@ Use a GIN or GiST index for efficient indexes based on composite values like tex
     data-comment-id="288925"
     aria-label="like"
     data-tracking-name="comment_heart_button">
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="akkt4ejtkysr6blgr8kq122au4y3r1zi" class="crayons-icon reaction-icon not-reacted"><title id="akkt4ejtkysr6blgr8kq122au4y3r1zi">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="ai2z2p8sv6y1r37uy8k3s5ky81gdj2f3" class="crayons-icon reaction-icon not-reacted"><title id="ai2z2p8sv6y1r37uy8k3s5ky81gdj2f3">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
 
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a3v1nyf73lbtpimenjsw2r19ecfjp9t7" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="a3v1nyf73lbtpimenjsw2r19ecfjp9t7">Like comment: </title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="at0ky18u8oy66i00ge309qki7ia37p7m" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="at0ky18u8oy66i00ge309qki7ia37p7m">Like comment: </title>
     <path d="M5.116 12.595a4.875 4.875 0 015.56-7.68h-.002L7.493 8.098l1.06 1.061 3.181-3.182a4.875 4.875 0 016.895 6.894L12 19.5l-6.894-6.894.01-.01z"></path>
 </svg>
 
@@ -1290,7 +1284,7 @@ Use a GIN or GiST index for efficient indexes based on composite values like tex
         data-tracking-name="comment_reply_button"
         data-testid="reply-button-288925"
         rel="nofollow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="a14d8kfirhljnpy96qlowrcn0azseapr" class="crayons-icon reaction-icon not-reacted"><title id="a14d8kfirhljnpy96qlowrcn0azseapr">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="apol203nlykstnu8pbhqswnzf3m3fesb" class="crayons-icon reaction-icon not-reacted"><title id="apol203nlykstnu8pbhqswnzf3m3fesb">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
 
         <span class="hidden m:inline-block">Reply</span>
       </a>
@@ -1304,11 +1298,11 @@ Use a GIN or GiST index for efficient indexes based on composite values like tex
                     " open>
       <summary aria-label="Toggle this comment (and replies)" data-tracking-name="expand_comment_toggle">
         <span class="mx-0 inline-block align-middle">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="akd7e9pmnkqqtq0ix8h98kjj7pm0vuoh" class="crayons-icon expanded"><title id="akd7e9pmnkqqtq0ix8h98kjj7pm0vuoh">Collapse</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="an6lco5johdbfdapmnij6588d9cr2a9c" class="crayons-icon expanded"><title id="an6lco5johdbfdapmnij6588d9cr2a9c">Collapse</title>
     <path d="M12 10.677L8 6.935 9 6l3 2.807L15 6l1 .935-4 3.742zm0 4.517L9 18l-1-.935 4-3.742 4 3.742-1 .934-3-2.805z"></path>
 </svg>
 
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a31410z29wtm08w76ldsq151sjynd8j8" class="crayons-icon collapsed"><title id="a31410z29wtm08w76ldsq151sjynd8j8">Expand</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="ams2p8jg8u3f8dq1y3wxjby66k4rx0aq" class="crayons-icon collapsed"><title id="ams2p8jg8u3f8dq1y3wxjby66k4rx0aq">Expand</title>
     <path d="M12 18l-4-3.771 1-.943 3 2.829 3-2.829 1 .943L12 18zm0-10.115l-3 2.829-1-.943L12 6l4 3.771-1 .942-3-2.828z"></path>
 </svg>
 
@@ -1419,7 +1413,7 @@ Use a GIN or GiST index for efficient indexes based on composite values like tex
     <button id="comment-dropdown-trigger-288983" aria-controls="comment-dropdown-288983" aria-expanded="false"
       class="dropbtn comment__dropdown-trigger crayons-btn crayons-btn--s crayons-btn--ghost crayons-btn--icon "
       aria-label="Toggle dropdown menu" aria-haspopup="true">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="agt96ac81ikzk79cp9xx03zh5hs6088w" class="crayons-icon pointer-events-none"><title id="agt96ac81ikzk79cp9xx03zh5hs6088w">Dropdown menu</title>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="apkxix1f7uxsdrmmoqk0ivu6xhvli675" class="crayons-icon pointer-events-none"><title id="apkxix1f7uxsdrmmoqk0ivu6xhvli675">Dropdown menu</title>
     <path fill-rule="evenodd" clip-rule="evenodd" d="M8.25 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm5.25 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm3.75 1.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"></path>
 </svg>
 
@@ -1476,9 +1470,9 @@ Use a GIN or GiST index for efficient indexes based on composite values like tex
     data-comment-id="288983"
     aria-label="like"
     data-tracking-name="comment_heart_button">
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="akoslpse3ntpc9yq9j1ubghyitnclil5" class="crayons-icon reaction-icon not-reacted"><title id="akoslpse3ntpc9yq9j1ubghyitnclil5">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="aboy1iuch9a2wy3w4y33p0non71h3w65" class="crayons-icon reaction-icon not-reacted"><title id="aboy1iuch9a2wy3w4y33p0non71h3w65">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
 
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="ai9mx88j3xy0a3uysamcbk3wvo3jqrde" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="ai9mx88j3xy0a3uysamcbk3wvo3jqrde">Like comment: </title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a9k9etc8nxbol8au2ze9vci7niyweyro" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="a9k9etc8nxbol8au2ze9vci7niyweyro">Like comment: </title>
     <path d="M5.116 12.595a4.875 4.875 0 015.56-7.68h-.002L7.493 8.098l1.06 1.061 3.181-3.182a4.875 4.875 0 016.895 6.894L12 19.5l-6.894-6.894.01-.01z"></path>
 </svg>
 
@@ -1496,7 +1490,7 @@ Use a GIN or GiST index for efficient indexes based on composite values like tex
         data-tracking-name="comment_reply_button"
         data-testid="reply-button-288983"
         rel="nofollow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="a5ysue0cac7bkx4o0epunwuh92naxfar" class="crayons-icon reaction-icon not-reacted"><title id="a5ysue0cac7bkx4o0epunwuh92naxfar">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="aifzudtew0breyia3ieg2pz9hzo637qw" class="crayons-icon reaction-icon not-reacted"><title id="aifzudtew0breyia3ieg2pz9hzo637qw">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
 
         <span class="hidden m:inline-block">Reply</span>
       </a>
@@ -1510,11 +1504,11 @@ Use a GIN or GiST index for efficient indexes based on composite values like tex
                     " open>
       <summary aria-label="Toggle this comment (and replies)" data-tracking-name="expand_comment_toggle">
         <span class="mx-0 inline-block align-middle">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aifsqkf0brs5e0wpba2j8kaj9w6emhuw" class="crayons-icon expanded"><title id="aifsqkf0brs5e0wpba2j8kaj9w6emhuw">Collapse</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="am4o5ayl3z2m3d1gh54v7bm3szk7uard" class="crayons-icon expanded"><title id="am4o5ayl3z2m3d1gh54v7bm3szk7uard">Collapse</title>
     <path d="M12 10.677L8 6.935 9 6l3 2.807L15 6l1 .935-4 3.742zm0 4.517L9 18l-1-.935 4-3.742 4 3.742-1 .934-3-2.805z"></path>
 </svg>
 
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aa1qizicsnn1taze02jwg8j6ke4ktobn" class="crayons-icon collapsed"><title id="aa1qizicsnn1taze02jwg8j6ke4ktobn">Expand</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a9xexl431990rppbddgmsn5jrudmx2gf" class="crayons-icon collapsed"><title id="a9xexl431990rppbddgmsn5jrudmx2gf">Expand</title>
     <path d="M12 18l-4-3.771 1-.943 3 2.829 3-2.829 1 .943L12 18zm0-10.115l-3 2.829-1-.943L12 6l4 3.771-1 .942-3-2.828z"></path>
 </svg>
 
@@ -1641,7 +1635,7 @@ Use a GIN or GiST index for efficient indexes based on composite values like tex
     <button id="comment-dropdown-trigger-289194" aria-controls="comment-dropdown-289194" aria-expanded="false"
       class="dropbtn comment__dropdown-trigger crayons-btn crayons-btn--s crayons-btn--ghost crayons-btn--icon "
       aria-label="Toggle dropdown menu" aria-haspopup="true">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="alwvmv28fbpukd4hf2pq69q83z7z9h7g" class="crayons-icon pointer-events-none"><title id="alwvmv28fbpukd4hf2pq69q83z7z9h7g">Dropdown menu</title>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="ahnhpybjqd56z7gmjbdi0y82a5oxs1d9" class="crayons-icon pointer-events-none"><title id="ahnhpybjqd56z7gmjbdi0y82a5oxs1d9">Dropdown menu</title>
     <path fill-rule="evenodd" clip-rule="evenodd" d="M8.25 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm5.25 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm3.75 1.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"></path>
 </svg>
 
@@ -1698,9 +1692,9 @@ Use a GIN or GiST index for efficient indexes based on composite values like tex
     data-comment-id="289194"
     aria-label="like"
     data-tracking-name="comment_heart_button">
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="aox4x8siavjo31c30comop4c6t2x42a5" class="crayons-icon reaction-icon not-reacted"><title id="aox4x8siavjo31c30comop4c6t2x42a5">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="ak84fuo5cjgkb1rq6dvpf7lgtag3ic5e" class="crayons-icon reaction-icon not-reacted"><title id="ak84fuo5cjgkb1rq6dvpf7lgtag3ic5e">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
 
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a7q4o2d1rtf68u7ac311luk2179xhydx" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="a7q4o2d1rtf68u7ac311luk2179xhydx">Like comment: </title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a1ajcpespui9afyj8yyahx2dfzl8vedq" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="a1ajcpespui9afyj8yyahx2dfzl8vedq">Like comment: </title>
     <path d="M5.116 12.595a4.875 4.875 0 015.56-7.68h-.002L7.493 8.098l1.06 1.061 3.181-3.182a4.875 4.875 0 016.895 6.894L12 19.5l-6.894-6.894.01-.01z"></path>
 </svg>
 
@@ -1718,7 +1712,7 @@ Use a GIN or GiST index for efficient indexes based on composite values like tex
         data-tracking-name="comment_reply_button"
         data-testid="reply-button-289194"
         rel="nofollow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="ay6xzykqwek768h1bg9flww41dmqej6" class="crayons-icon reaction-icon not-reacted"><title id="ay6xzykqwek768h1bg9flww41dmqej6">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="aluq7d7s3e255jh9fssmkzxxhsermf5o" class="crayons-icon reaction-icon not-reacted"><title id="aluq7d7s3e255jh9fssmkzxxhsermf5o">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
 
         <span class="hidden m:inline-block">Reply</span>
       </a>
@@ -1740,11 +1734,11 @@ Use a GIN or GiST index for efficient indexes based on composite values like tex
                     " open>
       <summary aria-label="Toggle this comment (and replies)" data-tracking-name="expand_comment_toggle">
         <span class="mx-0 inline-block align-middle">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="atnh5q84bke6esrozgurkpq0i91gmcyl" class="crayons-icon expanded"><title id="atnh5q84bke6esrozgurkpq0i91gmcyl">Collapse</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a3u1fjdurye64hy0o9r62dhuxufwig4f" class="crayons-icon expanded"><title id="a3u1fjdurye64hy0o9r62dhuxufwig4f">Collapse</title>
     <path d="M12 10.677L8 6.935 9 6l3 2.807L15 6l1 .935-4 3.742zm0 4.517L9 18l-1-.935 4-3.742 4 3.742-1 .934-3-2.805z"></path>
 </svg>
 
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aogjqu7jl9tgf4wjg6wcvyqer5gwb4of" class="crayons-icon collapsed"><title id="aogjqu7jl9tgf4wjg6wcvyqer5gwb4of">Expand</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aoh06ie4nhpv690vycyirkyjeleufyb5" class="crayons-icon collapsed"><title id="aoh06ie4nhpv690vycyirkyjeleufyb5">Expand</title>
     <path d="M12 18l-4-3.771 1-.943 3 2.829 3-2.829 1 .943L12 18zm0-10.115l-3 2.829-1-.943L12 6l4 3.771-1 .942-3-2.828z"></path>
 </svg>
 
@@ -1836,7 +1830,7 @@ Use a GIN or GiST index for efficient indexes based on composite values like tex
     <button id="comment-dropdown-trigger-710237" aria-controls="comment-dropdown-710237" aria-expanded="false"
       class="dropbtn comment__dropdown-trigger crayons-btn crayons-btn--s crayons-btn--ghost crayons-btn--icon "
       aria-label="Toggle dropdown menu" aria-haspopup="true">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aa08vecp8kd98vdtt5cyvtjs4y4syl1j" class="crayons-icon pointer-events-none"><title id="aa08vecp8kd98vdtt5cyvtjs4y4syl1j">Dropdown menu</title>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aiihz82w29h2s6xqsv7eidder9q5jz3w" class="crayons-icon pointer-events-none"><title id="aiihz82w29h2s6xqsv7eidder9q5jz3w">Dropdown menu</title>
     <path fill-rule="evenodd" clip-rule="evenodd" d="M8.25 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm5.25 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm3.75 1.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"></path>
 </svg>
 
@@ -1890,9 +1884,9 @@ Use a GIN or GiST index for efficient indexes based on composite values like tex
     data-comment-id="710237"
     aria-label="like"
     data-tracking-name="comment_heart_button">
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="a6kxclrco695uren2ukrzzyhavty8plh" class="crayons-icon reaction-icon not-reacted"><title id="a6kxclrco695uren2ukrzzyhavty8plh">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="aex7ct6bmebwt3lie6my5s1fbpf9m5g7" class="crayons-icon reaction-icon not-reacted"><title id="aex7ct6bmebwt3lie6my5s1fbpf9m5g7">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
 
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aa0g3038x3uw8fhxzmx8wp492xpogbk1" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="aa0g3038x3uw8fhxzmx8wp492xpogbk1">Like comment: </title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="akdc6i653zglw6bnnu4t8k5df85f1pe5" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="akdc6i653zglw6bnnu4t8k5df85f1pe5">Like comment: </title>
     <path d="M5.116 12.595a4.875 4.875 0 015.56-7.68h-.002L7.493 8.098l1.06 1.061 3.181-3.182a4.875 4.875 0 016.895 6.894L12 19.5l-6.894-6.894.01-.01z"></path>
 </svg>
 
@@ -1910,7 +1904,7 @@ Use a GIN or GiST index for efficient indexes based on composite values like tex
         data-tracking-name="comment_reply_button"
         data-testid="reply-button-710237"
         rel="nofollow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="at5jybb8ys613hguk4b6yfgwpglvpacc" class="crayons-icon reaction-icon not-reacted"><title id="at5jybb8ys613hguk4b6yfgwpglvpacc">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="a9zaxvmndfe6hgunxs4fknt5d7hbwv6a" class="crayons-icon reaction-icon not-reacted"><title id="a9zaxvmndfe6hgunxs4fknt5d7hbwv6a">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
 
         <span class="hidden m:inline-block">Reply</span>
       </a>
@@ -1933,11 +1927,11 @@ Use a GIN or GiST index for efficient indexes based on composite values like tex
                     " open>
       <summary aria-label="Toggle this comment (and replies)" data-tracking-name="expand_comment_toggle">
         <span class="m:mx-1 inline-block align-middle">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="and5msdstxi5tccpvdkdwsgbpk4e22vs" class="crayons-icon expanded"><title id="and5msdstxi5tccpvdkdwsgbpk4e22vs">Collapse</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a4pmxn4wc56ivig8osx8tbccyscueu6w" class="crayons-icon expanded"><title id="a4pmxn4wc56ivig8osx8tbccyscueu6w">Collapse</title>
     <path d="M12 10.677L8 6.935 9 6l3 2.807L15 6l1 .935-4 3.742zm0 4.517L9 18l-1-.935 4-3.742 4 3.742-1 .934-3-2.805z"></path>
 </svg>
 
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aew2gz9sf0z4793zyzkr3jrzxhkjo6i4" class="crayons-icon collapsed"><title id="aew2gz9sf0z4793zyzkr3jrzxhkjo6i4">Expand</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="ak2g6l3hejl8gy33lmku2u4k1wk1tks0" class="crayons-icon collapsed"><title id="ak2g6l3hejl8gy33lmku2u4k1wk1tks0">Expand</title>
     <path d="M12 18l-4-3.771 1-.943 3 2.829 3-2.829 1 .943L12 18zm0-10.115l-3 2.829-1-.943L12 6l4 3.771-1 .942-3-2.828z"></path>
 </svg>
 
@@ -2049,7 +2043,7 @@ Use a GIN or GiST index for efficient indexes based on composite values like tex
     <button id="comment-dropdown-trigger-288981" aria-controls="comment-dropdown-288981" aria-expanded="false"
       class="dropbtn comment__dropdown-trigger crayons-btn crayons-btn--s crayons-btn--ghost crayons-btn--icon "
       aria-label="Toggle dropdown menu" aria-haspopup="true">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a1sx7myl44r5442rx5ubbl6b2iyd29rg" class="crayons-icon pointer-events-none"><title id="a1sx7myl44r5442rx5ubbl6b2iyd29rg">Dropdown menu</title>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a3z6w8k3bjsfdlygc2mk0gywd978dgiv" class="crayons-icon pointer-events-none"><title id="a3z6w8k3bjsfdlygc2mk0gywd978dgiv">Dropdown menu</title>
     <path fill-rule="evenodd" clip-rule="evenodd" d="M8.25 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm5.25 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm3.75 1.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"></path>
 </svg>
 
@@ -2107,9 +2101,9 @@ It's hard to find in-depth and super high-quality articles like these in this da
     data-comment-id="288981"
     aria-label="like"
     data-tracking-name="comment_heart_button">
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="ap00pak27py5cbi1o5f8phq1ejtcmfq8" class="crayons-icon reaction-icon not-reacted"><title id="ap00pak27py5cbi1o5f8phq1ejtcmfq8">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="apeak7xg1nz5w2qnuobcqdorjwe8m3h9" class="crayons-icon reaction-icon not-reacted"><title id="apeak7xg1nz5w2qnuobcqdorjwe8m3h9">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
 
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aojki6oodgyxevi22411zqgg3iey7xq7" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="aojki6oodgyxevi22411zqgg3iey7xq7">Like comment: </title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a5rhanzq5sqitrhi4gb4aghdgshufvl3" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="a5rhanzq5sqitrhi4gb4aghdgshufvl3">Like comment: </title>
     <path d="M5.116 12.595a4.875 4.875 0 015.56-7.68h-.002L7.493 8.098l1.06 1.061 3.181-3.182a4.875 4.875 0 016.895 6.894L12 19.5l-6.894-6.894.01-.01z"></path>
 </svg>
 
@@ -2127,7 +2121,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
         data-tracking-name="comment_reply_button"
         data-testid="reply-button-288981"
         rel="nofollow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="ak4lo6vhurla2qb8uab6ynnj8a12gh1j" class="crayons-icon reaction-icon not-reacted"><title id="ak4lo6vhurla2qb8uab6ynnj8a12gh1j">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="a75ts6vv851xwt36ux24u4x9pxbavcqt" class="crayons-icon reaction-icon not-reacted"><title id="a75ts6vv851xwt36ux24u4x9pxbavcqt">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
 
         <span class="hidden m:inline-block">Reply</span>
       </a>
@@ -2141,11 +2135,11 @@ It's hard to find in-depth and super high-quality articles like these in this da
                     " open>
       <summary aria-label="Toggle this comment (and replies)" data-tracking-name="expand_comment_toggle">
         <span class="mx-0 inline-block align-middle">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="arkpwthvnpha369gpd5ztllazxmzgxgg" class="crayons-icon expanded"><title id="arkpwthvnpha369gpd5ztllazxmzgxgg">Collapse</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="ajv5eisvbmcpxi9fglfz4j9as37s4jax" class="crayons-icon expanded"><title id="ajv5eisvbmcpxi9fglfz4j9as37s4jax">Collapse</title>
     <path d="M12 10.677L8 6.935 9 6l3 2.807L15 6l1 .935-4 3.742zm0 4.517L9 18l-1-.935 4-3.742 4 3.742-1 .934-3-2.805z"></path>
 </svg>
 
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a9bap0hidmrgwd4psc4hiqf2d8tiyo4g" class="crayons-icon collapsed"><title id="a9bap0hidmrgwd4psc4hiqf2d8tiyo4g">Expand</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="as33ayotm8y3okxav8zk6yqi96nmiz2p" class="crayons-icon collapsed"><title id="as33ayotm8y3okxav8zk6yqi96nmiz2p">Expand</title>
     <path d="M12 18l-4-3.771 1-.943 3 2.829 3-2.829 1 .943L12 18zm0-10.115l-3 2.829-1-.943L12 6l4 3.771-1 .942-3-2.828z"></path>
 </svg>
 
@@ -2260,7 +2254,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
     <button id="comment-dropdown-trigger-289959" aria-controls="comment-dropdown-289959" aria-expanded="false"
       class="dropbtn comment__dropdown-trigger crayons-btn crayons-btn--s crayons-btn--ghost crayons-btn--icon "
       aria-label="Toggle dropdown menu" aria-haspopup="true">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="ae3hrrtzsjhhdqblnc152ypu4n6atnsq" class="crayons-icon pointer-events-none"><title id="ae3hrrtzsjhhdqblnc152ypu4n6atnsq">Dropdown menu</title>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="antd0e219qpabvg5e20b2hpp72337dmf" class="crayons-icon pointer-events-none"><title id="antd0e219qpabvg5e20b2hpp72337dmf">Dropdown menu</title>
     <path fill-rule="evenodd" clip-rule="evenodd" d="M8.25 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm5.25 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm3.75 1.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"></path>
 </svg>
 
@@ -2317,9 +2311,9 @@ It's hard to find in-depth and super high-quality articles like these in this da
     data-comment-id="289959"
     aria-label="like"
     data-tracking-name="comment_heart_button">
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="agzwr78l78bt5iih784bt3jqy5owerkj" class="crayons-icon reaction-icon not-reacted"><title id="agzwr78l78bt5iih784bt3jqy5owerkj">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="apkiwmjqnzulj3sswcpj0ntdrk227oza" class="crayons-icon reaction-icon not-reacted"><title id="apkiwmjqnzulj3sswcpj0ntdrk227oza">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
 
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="abf9qohtu7ttjstq9xm5x14pc8vlida2" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="abf9qohtu7ttjstq9xm5x14pc8vlida2">Like comment: </title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="anagfd2xa147phzf5ii07y7wzr7pcymm" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="anagfd2xa147phzf5ii07y7wzr7pcymm">Like comment: </title>
     <path d="M5.116 12.595a4.875 4.875 0 015.56-7.68h-.002L7.493 8.098l1.06 1.061 3.181-3.182a4.875 4.875 0 016.895 6.894L12 19.5l-6.894-6.894.01-.01z"></path>
 </svg>
 
@@ -2337,7 +2331,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
         data-tracking-name="comment_reply_button"
         data-testid="reply-button-289959"
         rel="nofollow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="a64fbycjxco97vjycddp2zxigub7jcgy" class="crayons-icon reaction-icon not-reacted"><title id="a64fbycjxco97vjycddp2zxigub7jcgy">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="akrn2tyf9dx9e4i6ct29jlw3g4cgd7b8" class="crayons-icon reaction-icon not-reacted"><title id="akrn2tyf9dx9e4i6ct29jlw3g4cgd7b8">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
 
         <span class="hidden m:inline-block">Reply</span>
       </a>
@@ -2351,11 +2345,11 @@ It's hard to find in-depth and super high-quality articles like these in this da
                     " open>
       <summary aria-label="Toggle this comment (and replies)" data-tracking-name="expand_comment_toggle">
         <span class="mx-0 inline-block align-middle">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aa8lkiylpah9c03shwcx352h1tcm8jys" class="crayons-icon expanded"><title id="aa8lkiylpah9c03shwcx352h1tcm8jys">Collapse</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="arufkyqv0wj3th2udfhklar0icngq3ez" class="crayons-icon expanded"><title id="arufkyqv0wj3th2udfhklar0icngq3ez">Collapse</title>
     <path d="M12 10.677L8 6.935 9 6l3 2.807L15 6l1 .935-4 3.742zm0 4.517L9 18l-1-.935 4-3.742 4 3.742-1 .934-3-2.805z"></path>
 </svg>
 
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aaa1qs1f05s20uayc0yr797kq7i07k2q" class="crayons-icon collapsed"><title id="aaa1qs1f05s20uayc0yr797kq7i07k2q">Expand</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="as4oij6m9zy47kn2fc7lptv6ew8ekm2f" class="crayons-icon collapsed"><title id="as4oij6m9zy47kn2fc7lptv6ew8ekm2f">Expand</title>
     <path d="M12 18l-4-3.771 1-.943 3 2.829 3-2.829 1 .943L12 18zm0-10.115l-3 2.829-1-.943L12 6l4 3.771-1 .942-3-2.828z"></path>
 </svg>
 
@@ -2467,7 +2461,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
     <button id="comment-dropdown-trigger-289987" aria-controls="comment-dropdown-289987" aria-expanded="false"
       class="dropbtn comment__dropdown-trigger crayons-btn crayons-btn--s crayons-btn--ghost crayons-btn--icon "
       aria-label="Toggle dropdown menu" aria-haspopup="true">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="am1xmg3udhgup6jeparttol18wl2ky1a" class="crayons-icon pointer-events-none"><title id="am1xmg3udhgup6jeparttol18wl2ky1a">Dropdown menu</title>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="adyd07emwavjklbx0mwjp7de4cjafn1n" class="crayons-icon pointer-events-none"><title id="adyd07emwavjklbx0mwjp7de4cjafn1n">Dropdown menu</title>
     <path fill-rule="evenodd" clip-rule="evenodd" d="M8.25 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm5.25 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm3.75 1.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"></path>
 </svg>
 
@@ -2526,9 +2520,9 @@ It's hard to find in-depth and super high-quality articles like these in this da
     data-comment-id="289987"
     aria-label="like"
     data-tracking-name="comment_heart_button">
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="a4b0n3eqe2rndpmabzq3tkptx2ksoia8" class="crayons-icon reaction-icon not-reacted"><title id="a4b0n3eqe2rndpmabzq3tkptx2ksoia8">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="acwdborur3zeblqsp8lx5tkyh6edlhmi" class="crayons-icon reaction-icon not-reacted"><title id="acwdborur3zeblqsp8lx5tkyh6edlhmi">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
 
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="adh8audw8syjg4ctlyqcnbw9gtz406he" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="adh8audw8syjg4ctlyqcnbw9gtz406he">Like comment: </title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a6mnzlz650u5ksq63nb13h47bqmnp0je" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="a6mnzlz650u5ksq63nb13h47bqmnp0je">Like comment: </title>
     <path d="M5.116 12.595a4.875 4.875 0 015.56-7.68h-.002L7.493 8.098l1.06 1.061 3.181-3.182a4.875 4.875 0 016.895 6.894L12 19.5l-6.894-6.894.01-.01z"></path>
 </svg>
 
@@ -2546,7 +2540,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
         data-tracking-name="comment_reply_button"
         data-testid="reply-button-289987"
         rel="nofollow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="agbyzgfi0rlc1ek5vxilni7nwhkbt266" class="crayons-icon reaction-icon not-reacted"><title id="agbyzgfi0rlc1ek5vxilni7nwhkbt266">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="aox9afo2d6bkwj9ezs6ejdf3xt6otsec" class="crayons-icon reaction-icon not-reacted"><title id="aox9afo2d6bkwj9ezs6ejdf3xt6otsec">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
 
         <span class="hidden m:inline-block">Reply</span>
       </a>
@@ -2568,17 +2562,17 @@ It's hard to find in-depth and super high-quality articles like these in this da
   </div>
     </details>
 
-    <div class="js-billboard-container mid-comments-billboard-container pb-6" data-async-url="/heroku/postgres-is-underrated-it-handles-more-than-you-think-4ff3/billboards/post_comments_mid"></div>
+    <div class="js-billboard-container mid-comments-billboard-container pb-6" data-async-url="/heroku/postgres-is-underrated-it-handles-more-than-you-think-4ff3/bb/post_comments_mid"></div>
     <details class="comment-wrapper js-comment-wrapper comment-wrapper--deep-0
                     root
                     " open>
       <summary aria-label="Toggle this comment (and replies)" data-tracking-name="expand_comment_toggle">
         <span class="m:mx-1 inline-block align-middle">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a7oplkt7vhhdtlkexa9ruvp3tp1a5xiv" class="crayons-icon expanded"><title id="a7oplkt7vhhdtlkexa9ruvp3tp1a5xiv">Collapse</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aqkn3u2p6yt9af6b6933gj41iw057dgr" class="crayons-icon expanded"><title id="aqkn3u2p6yt9af6b6933gj41iw057dgr">Collapse</title>
     <path d="M12 10.677L8 6.935 9 6l3 2.807L15 6l1 .935-4 3.742zm0 4.517L9 18l-1-.935 4-3.742 4 3.742-1 .934-3-2.805z"></path>
 </svg>
 
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="ahhv8l59cth9n3yjp9chayspp35finbr" class="crayons-icon collapsed"><title id="ahhv8l59cth9n3yjp9chayspp35finbr">Expand</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="atgsycb0tb5klr84qjvpq3hdegwutfa3" class="crayons-icon collapsed"><title id="atgsycb0tb5klr84qjvpq3hdegwutfa3">Expand</title>
     <path d="M12 18l-4-3.771 1-.943 3 2.829 3-2.829 1 .943L12 18zm0-10.115l-3 2.829-1-.943L12 6l4 3.771-1 .942-3-2.828z"></path>
 </svg>
 
@@ -2670,7 +2664,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
     <button id="comment-dropdown-trigger-290598" aria-controls="comment-dropdown-290598" aria-expanded="false"
       class="dropbtn comment__dropdown-trigger crayons-btn crayons-btn--s crayons-btn--ghost crayons-btn--icon "
       aria-label="Toggle dropdown menu" aria-haspopup="true">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="ars9xsf66h717nc9ggqdbjakeclmetmo" class="crayons-icon pointer-events-none"><title id="ars9xsf66h717nc9ggqdbjakeclmetmo">Dropdown menu</title>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="atgm7lkvrnf3jj0hhagp01rttjfygn0f" class="crayons-icon pointer-events-none"><title id="atgm7lkvrnf3jj0hhagp01rttjfygn0f">Dropdown menu</title>
     <path fill-rule="evenodd" clip-rule="evenodd" d="M8.25 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm5.25 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm3.75 1.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"></path>
 </svg>
 
@@ -2724,9 +2718,9 @@ It's hard to find in-depth and super high-quality articles like these in this da
     data-comment-id="290598"
     aria-label="like"
     data-tracking-name="comment_heart_button">
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="a34uzbicstcjmgbmgiend4uz57et41ob" class="crayons-icon reaction-icon not-reacted"><title id="a34uzbicstcjmgbmgiend4uz57et41ob">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="alus0aalogt4b1lvr3zevahaoq1lbigp" class="crayons-icon reaction-icon not-reacted"><title id="alus0aalogt4b1lvr3zevahaoq1lbigp">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
 
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aqp15bs0bkkvs8u9haz854oagcgnhltf" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="aqp15bs0bkkvs8u9haz854oagcgnhltf">Like comment: </title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="anx7g8zhlijtqkdwnvm1tv8ge2n1oavj" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="anx7g8zhlijtqkdwnvm1tv8ge2n1oavj">Like comment: </title>
     <path d="M5.116 12.595a4.875 4.875 0 015.56-7.68h-.002L7.493 8.098l1.06 1.061 3.181-3.182a4.875 4.875 0 016.895 6.894L12 19.5l-6.894-6.894.01-.01z"></path>
 </svg>
 
@@ -2744,7 +2738,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
         data-tracking-name="comment_reply_button"
         data-testid="reply-button-290598"
         rel="nofollow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="aiux1udnju58myeft74yhyknwvjv9255" class="crayons-icon reaction-icon not-reacted"><title id="aiux1udnju58myeft74yhyknwvjv9255">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="aapskpbxlnhxxeh4pgplzaijkz3e7khu" class="crayons-icon reaction-icon not-reacted"><title id="aapskpbxlnhxxeh4pgplzaijkz3e7khu">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
 
         <span class="hidden m:inline-block">Reply</span>
       </a>
@@ -2763,11 +2757,11 @@ It's hard to find in-depth and super high-quality articles like these in this da
                     " open>
       <summary aria-label="Toggle this comment (and replies)" data-tracking-name="expand_comment_toggle">
         <span class="m:mx-1 inline-block align-middle">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="atfzs5x79xdtd4gu6cckfz2deirm4i0i" class="crayons-icon expanded"><title id="atfzs5x79xdtd4gu6cckfz2deirm4i0i">Collapse</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="ap7fr3bhtf13w6smy2s8x82et9iaezq6" class="crayons-icon expanded"><title id="ap7fr3bhtf13w6smy2s8x82et9iaezq6">Collapse</title>
     <path d="M12 10.677L8 6.935 9 6l3 2.807L15 6l1 .935-4 3.742zm0 4.517L9 18l-1-.935 4-3.742 4 3.742-1 .934-3-2.805z"></path>
 </svg>
 
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a8ygolemzg8vdoe2tszlctguskft0gc4" class="crayons-icon collapsed"><title id="a8ygolemzg8vdoe2tszlctguskft0gc4">Expand</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a74miup5wjlsszx7jukq8ua14crayue7" class="crayons-icon collapsed"><title id="a74miup5wjlsszx7jukq8ua14crayue7">Expand</title>
     <path d="M12 18l-4-3.771 1-.943 3 2.829 3-2.829 1 .943L12 18zm0-10.115l-3 2.829-1-.943L12 6l4 3.771-1 .942-3-2.828z"></path>
 </svg>
 
@@ -2861,7 +2855,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
     <button id="comment-dropdown-trigger-293198" aria-controls="comment-dropdown-293198" aria-expanded="false"
       class="dropbtn comment__dropdown-trigger crayons-btn crayons-btn--s crayons-btn--ghost crayons-btn--icon "
       aria-label="Toggle dropdown menu" aria-haspopup="true">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="apx2mgenpsdd2tdg391ir8un2y5yrr59" class="crayons-icon pointer-events-none"><title id="apx2mgenpsdd2tdg391ir8un2y5yrr59">Dropdown menu</title>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a1o4dll8u7bat624bjp3k8xfczc86ar7" class="crayons-icon pointer-events-none"><title id="a1o4dll8u7bat624bjp3k8xfczc86ar7">Dropdown menu</title>
     <path fill-rule="evenodd" clip-rule="evenodd" d="M8.25 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm5.25 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm3.75 1.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"></path>
 </svg>
 
@@ -2922,9 +2916,9 @@ It's hard to find in-depth and super high-quality articles like these in this da
     data-comment-id="293198"
     aria-label="like"
     data-tracking-name="comment_heart_button">
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="an6ksry3d8kmrm2llj2av56gu73vpx7w" class="crayons-icon reaction-icon not-reacted"><title id="an6ksry3d8kmrm2llj2av56gu73vpx7w">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="aa5s8arcv6uytqfs8q2yqbzxrvwf2f7n" class="crayons-icon reaction-icon not-reacted"><title id="aa5s8arcv6uytqfs8q2yqbzxrvwf2f7n">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
 
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="askacnpizrjd8duquk78qyfb3a70pk75" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="askacnpizrjd8duquk78qyfb3a70pk75">Like comment: </title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a575vw00i9xhyvuornpc6dsy5qhyxg53" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="a575vw00i9xhyvuornpc6dsy5qhyxg53">Like comment: </title>
     <path d="M5.116 12.595a4.875 4.875 0 015.56-7.68h-.002L7.493 8.098l1.06 1.061 3.181-3.182a4.875 4.875 0 016.895 6.894L12 19.5l-6.894-6.894.01-.01z"></path>
 </svg>
 
@@ -2942,7 +2936,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
         data-tracking-name="comment_reply_button"
         data-testid="reply-button-293198"
         rel="nofollow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="a8ar28pfby1jcp6bv887q421af4kfknh" class="crayons-icon reaction-icon not-reacted"><title id="a8ar28pfby1jcp6bv887q421af4kfknh">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="akauoc42m89nrwx136awh63daso34u4y" class="crayons-icon reaction-icon not-reacted"><title id="akauoc42m89nrwx136awh63daso34u4y">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
 
         <span class="hidden m:inline-block">Reply</span>
       </a>
@@ -2961,11 +2955,11 @@ It's hard to find in-depth and super high-quality articles like these in this da
                     " open>
       <summary aria-label="Toggle this comment (and replies)" data-tracking-name="expand_comment_toggle">
         <span class="m:mx-1 inline-block align-middle">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="alfxxl540o9gd71377xfgf67uwqwishj" class="crayons-icon expanded"><title id="alfxxl540o9gd71377xfgf67uwqwishj">Collapse</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="ad6vfa42hotmzz3bp9m475iafm6pn1oj" class="crayons-icon expanded"><title id="ad6vfa42hotmzz3bp9m475iafm6pn1oj">Collapse</title>
     <path d="M12 10.677L8 6.935 9 6l3 2.807L15 6l1 .935-4 3.742zm0 4.517L9 18l-1-.935 4-3.742 4 3.742-1 .934-3-2.805z"></path>
 </svg>
 
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="anxin7iquzc7ns8pefl7e0w7fz1rl263" class="crayons-icon collapsed"><title id="anxin7iquzc7ns8pefl7e0w7fz1rl263">Expand</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="atu5jldhl21qhm71i4nurz9p4a1yzci4" class="crayons-icon collapsed"><title id="atu5jldhl21qhm71i4nurz9p4a1yzci4">Expand</title>
     <path d="M12 18l-4-3.771 1-.943 3 2.829 3-2.829 1 .943L12 18zm0-10.115l-3 2.829-1-.943L12 6l4 3.771-1 .942-3-2.828z"></path>
 </svg>
 
@@ -3087,7 +3081,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
     <button id="comment-dropdown-trigger-289793" aria-controls="comment-dropdown-289793" aria-expanded="false"
       class="dropbtn comment__dropdown-trigger crayons-btn crayons-btn--s crayons-btn--ghost crayons-btn--icon "
       aria-label="Toggle dropdown menu" aria-haspopup="true">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="ak0e7oxdp4ux4o0aae4faj7zr5skpx42" class="crayons-icon pointer-events-none"><title id="ak0e7oxdp4ux4o0aae4faj7zr5skpx42">Dropdown menu</title>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aq9lex62ks9da3jimftb7ygm6tu83jwt" class="crayons-icon pointer-events-none"><title id="aq9lex62ks9da3jimftb7ygm6tu83jwt">Dropdown menu</title>
     <path fill-rule="evenodd" clip-rule="evenodd" d="M8.25 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm5.25 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm3.75 1.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"></path>
 </svg>
 
@@ -3144,9 +3138,9 @@ It's hard to find in-depth and super high-quality articles like these in this da
     data-comment-id="289793"
     aria-label="like"
     data-tracking-name="comment_heart_button">
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="ajqb3g91mrrsd1xpxavay9jeu071fyh7" class="crayons-icon reaction-icon not-reacted"><title id="ajqb3g91mrrsd1xpxavay9jeu071fyh7">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="aswuk7mpnaqban1ktshqajiak7qtq817" class="crayons-icon reaction-icon not-reacted"><title id="aswuk7mpnaqban1ktshqajiak7qtq817">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
 
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="agfc3r9bjykwlbu5zwwyxq9mbhpiljc5" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="agfc3r9bjykwlbu5zwwyxq9mbhpiljc5">Like comment: </title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="as3ngi1q4senpjq9buuszrnduyz1imvg" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="as3ngi1q4senpjq9buuszrnduyz1imvg">Like comment: </title>
     <path d="M5.116 12.595a4.875 4.875 0 015.56-7.68h-.002L7.493 8.098l1.06 1.061 3.181-3.182a4.875 4.875 0 016.895 6.894L12 19.5l-6.894-6.894.01-.01z"></path>
 </svg>
 
@@ -3164,7 +3158,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
         data-tracking-name="comment_reply_button"
         data-testid="reply-button-289793"
         rel="nofollow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="apmah8erkbidbkgh947e5niej626bx8" class="crayons-icon reaction-icon not-reacted"><title id="apmah8erkbidbkgh947e5niej626bx8">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="a68r0f2xbaatwvtmj5eezkatpknqewja" class="crayons-icon reaction-icon not-reacted"><title id="a68r0f2xbaatwvtmj5eezkatpknqewja">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
 
         <span class="hidden m:inline-block">Reply</span>
       </a>
@@ -3183,11 +3177,11 @@ It's hard to find in-depth and super high-quality articles like these in this da
                     " open>
       <summary aria-label="Toggle this comment (and replies)" data-tracking-name="expand_comment_toggle">
         <span class="m:mx-1 inline-block align-middle">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="adzv6ilj7e1ccg4k4hxd3s6x585qceif" class="crayons-icon expanded"><title id="adzv6ilj7e1ccg4k4hxd3s6x585qceif">Collapse</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a9f5rndwrdqitlajpbl55ibvjb8oatmc" class="crayons-icon expanded"><title id="a9f5rndwrdqitlajpbl55ibvjb8oatmc">Collapse</title>
     <path d="M12 10.677L8 6.935 9 6l3 2.807L15 6l1 .935-4 3.742zm0 4.517L9 18l-1-.935 4-3.742 4 3.742-1 .934-3-2.805z"></path>
 </svg>
 
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="abq0w54we6t6j8fu82lc5dwl1v5s0an3" class="crayons-icon collapsed"><title id="abq0w54we6t6j8fu82lc5dwl1v5s0an3">Expand</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a9uyeqaxqjohgsa4kddv56jgetanz3u6" class="crayons-icon collapsed"><title id="a9uyeqaxqjohgsa4kddv56jgetanz3u6">Expand</title>
     <path d="M12 18l-4-3.771 1-.943 3 2.829 3-2.829 1 .943L12 18zm0-10.115l-3 2.829-1-.943L12 6l4 3.771-1 .942-3-2.828z"></path>
 </svg>
 
@@ -3306,7 +3300,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
     <button id="comment-dropdown-trigger-292381" aria-controls="comment-dropdown-292381" aria-expanded="false"
       class="dropbtn comment__dropdown-trigger crayons-btn crayons-btn--s crayons-btn--ghost crayons-btn--icon "
       aria-label="Toggle dropdown menu" aria-haspopup="true">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aixmfu2yo6rgop3ttckotg6b3lsq45pe" class="crayons-icon pointer-events-none"><title id="aixmfu2yo6rgop3ttckotg6b3lsq45pe">Dropdown menu</title>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a65kajlyd7063qffa62zxznxa5kp26ps" class="crayons-icon pointer-events-none"><title id="a65kajlyd7063qffa62zxznxa5kp26ps">Dropdown menu</title>
     <path fill-rule="evenodd" clip-rule="evenodd" d="M8.25 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm5.25 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm3.75 1.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"></path>
 </svg>
 
@@ -3365,9 +3359,9 @@ It's hard to find in-depth and super high-quality articles like these in this da
     data-comment-id="292381"
     aria-label="like"
     data-tracking-name="comment_heart_button">
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="axra1tgsz352bi3ldz2wuq7kuhq2aa0" class="crayons-icon reaction-icon not-reacted"><title id="axra1tgsz352bi3ldz2wuq7kuhq2aa0">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="arx4dzfb9jxdf21vovzte8vdozabbzse" class="crayons-icon reaction-icon not-reacted"><title id="arx4dzfb9jxdf21vovzte8vdozabbzse">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
 
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="akvktxj9s5afjv2f39nqj0sod94uhbu2" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="akvktxj9s5afjv2f39nqj0sod94uhbu2">Like comment: </title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aa2bitmfbv3issz8qoi5klnwuicuc58r" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="aa2bitmfbv3issz8qoi5klnwuicuc58r">Like comment: </title>
     <path d="M5.116 12.595a4.875 4.875 0 015.56-7.68h-.002L7.493 8.098l1.06 1.061 3.181-3.182a4.875 4.875 0 016.895 6.894L12 19.5l-6.894-6.894.01-.01z"></path>
 </svg>
 
@@ -3385,7 +3379,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
         data-tracking-name="comment_reply_button"
         data-testid="reply-button-292381"
         rel="nofollow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="a485cewhu0igxqnce1886d7a7ssxfh0" class="crayons-icon reaction-icon not-reacted"><title id="a485cewhu0igxqnce1886d7a7ssxfh0">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="an251el2j3488ja3qddrnldx9zvv8lmn" class="crayons-icon reaction-icon not-reacted"><title id="an251el2j3488ja3qddrnldx9zvv8lmn">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
 
         <span class="hidden m:inline-block">Reply</span>
       </a>
@@ -3404,11 +3398,11 @@ It's hard to find in-depth and super high-quality articles like these in this da
                     " open>
       <summary aria-label="Toggle this comment (and replies)" data-tracking-name="expand_comment_toggle">
         <span class="m:mx-1 inline-block align-middle">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a3ptw5dv25ky5zakoiim98sgcpzglnxz" class="crayons-icon expanded"><title id="a3ptw5dv25ky5zakoiim98sgcpzglnxz">Collapse</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a9z5qpype03j879admb96fqcm8arw5oq" class="crayons-icon expanded"><title id="a9z5qpype03j879admb96fqcm8arw5oq">Collapse</title>
     <path d="M12 10.677L8 6.935 9 6l3 2.807L15 6l1 .935-4 3.742zm0 4.517L9 18l-1-.935 4-3.742 4 3.742-1 .934-3-2.805z"></path>
 </svg>
 
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="atk5hpz2j5xsgl8rkexh60845g2rpo18" class="crayons-icon collapsed"><title id="atk5hpz2j5xsgl8rkexh60845g2rpo18">Expand</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="amjvfvr8nqn5i63nqpdbyxigpazq4dy2" class="crayons-icon collapsed"><title id="amjvfvr8nqn5i63nqpdbyxigpazq4dy2">Expand</title>
     <path d="M12 18l-4-3.771 1-.943 3 2.829 3-2.829 1 .943L12 18zm0-10.115l-3 2.829-1-.943L12 6l4 3.771-1 .942-3-2.828z"></path>
 </svg>
 
@@ -3511,7 +3505,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
     <button id="comment-dropdown-trigger-293851" aria-controls="comment-dropdown-293851" aria-expanded="false"
       class="dropbtn comment__dropdown-trigger crayons-btn crayons-btn--s crayons-btn--ghost crayons-btn--icon "
       aria-label="Toggle dropdown menu" aria-haspopup="true">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="akkf7vjto05kitszw3oweiadlube0857" class="crayons-icon pointer-events-none"><title id="akkf7vjto05kitszw3oweiadlube0857">Dropdown menu</title>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a1r8xugp8pcoc1rp5peujp0zrdh8ghoy" class="crayons-icon pointer-events-none"><title id="a1r8xugp8pcoc1rp5peujp0zrdh8ghoy">Dropdown menu</title>
     <path fill-rule="evenodd" clip-rule="evenodd" d="M8.25 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm5.25 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm3.75 1.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"></path>
 </svg>
 
@@ -3568,9 +3562,9 @@ It's hard to find in-depth and super high-quality articles like these in this da
     data-comment-id="293851"
     aria-label="like"
     data-tracking-name="comment_heart_button">
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="arnbvntczuos69c3j9jxpgbhdw0npkn8" class="crayons-icon reaction-icon not-reacted"><title id="arnbvntczuos69c3j9jxpgbhdw0npkn8">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="afd6hcfmbiv6fzo17i70e4xg3c8v8zdd" class="crayons-icon reaction-icon not-reacted"><title id="afd6hcfmbiv6fzo17i70e4xg3c8v8zdd">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
 
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="an4vjs52fbipfv7ygyzqguq86m1pjgas" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="an4vjs52fbipfv7ygyzqguq86m1pjgas">Like comment: </title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="alo6z2is8fhf5omso70fra73bhz8bl62" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="alo6z2is8fhf5omso70fra73bhz8bl62">Like comment: </title>
     <path d="M5.116 12.595a4.875 4.875 0 015.56-7.68h-.002L7.493 8.098l1.06 1.061 3.181-3.182a4.875 4.875 0 016.895 6.894L12 19.5l-6.894-6.894.01-.01z"></path>
 </svg>
 
@@ -3588,7 +3582,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
         data-tracking-name="comment_reply_button"
         data-testid="reply-button-293851"
         rel="nofollow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="aloi4mbdclz1y755cpeo2kdn7nem327c" class="crayons-icon reaction-icon not-reacted"><title id="aloi4mbdclz1y755cpeo2kdn7nem327c">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="aay8xha78pcadvkeebtxhjrjh40653bj" class="crayons-icon reaction-icon not-reacted"><title id="aay8xha78pcadvkeebtxhjrjh40653bj">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
 
         <span class="hidden m:inline-block">Reply</span>
       </a>
@@ -3607,11 +3601,11 @@ It's hard to find in-depth and super high-quality articles like these in this da
                     " open>
       <summary aria-label="Toggle this comment (and replies)" data-tracking-name="expand_comment_toggle">
         <span class="m:mx-1 inline-block align-middle">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a6zwdw7rm934t0tl5pqg9k5ypyhtold4" class="crayons-icon expanded"><title id="a6zwdw7rm934t0tl5pqg9k5ypyhtold4">Collapse</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="abw7gwtmjaepcy9bp8vl4ffrdrh69n2d" class="crayons-icon expanded"><title id="abw7gwtmjaepcy9bp8vl4ffrdrh69n2d">Collapse</title>
     <path d="M12 10.677L8 6.935 9 6l3 2.807L15 6l1 .935-4 3.742zm0 4.517L9 18l-1-.935 4-3.742 4 3.742-1 .934-3-2.805z"></path>
 </svg>
 
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="alpi4p6v7bysdzu3ctue8h6mfnd1ko0t" class="crayons-icon collapsed"><title id="alpi4p6v7bysdzu3ctue8h6mfnd1ko0t">Expand</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aftuvk5egyaf0sai4kxdjbrmlnybi2p2" class="crayons-icon collapsed"><title id="aftuvk5egyaf0sai4kxdjbrmlnybi2p2">Expand</title>
     <path d="M12 18l-4-3.771 1-.943 3 2.829 3-2.829 1 .943L12 18zm0-10.115l-3 2.829-1-.943L12 6l4 3.771-1 .942-3-2.828z"></path>
 </svg>
 
@@ -3708,7 +3702,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
     <button id="comment-dropdown-trigger-289219" aria-controls="comment-dropdown-289219" aria-expanded="false"
       class="dropbtn comment__dropdown-trigger crayons-btn crayons-btn--s crayons-btn--ghost crayons-btn--icon "
       aria-label="Toggle dropdown menu" aria-haspopup="true">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="ak0whpqmtjoekmai1mdbh11j5a32snms" class="crayons-icon pointer-events-none"><title id="ak0whpqmtjoekmai1mdbh11j5a32snms">Dropdown menu</title>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a8own9my1yktyliv7oxkk5kjj31exjp6" class="crayons-icon pointer-events-none"><title id="a8own9my1yktyliv7oxkk5kjj31exjp6">Dropdown menu</title>
     <path fill-rule="evenodd" clip-rule="evenodd" d="M8.25 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm5.25 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm3.75 1.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"></path>
 </svg>
 
@@ -3765,9 +3759,9 @@ It's hard to find in-depth and super high-quality articles like these in this da
     data-comment-id="289219"
     aria-label="like"
     data-tracking-name="comment_heart_button">
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="aoyzke7dtu4dcxsgr9z537q1a165qd" class="crayons-icon reaction-icon not-reacted"><title id="aoyzke7dtu4dcxsgr9z537q1a165qd">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="ao888n5oczyn990m20h5cegnsx00oprb" class="crayons-icon reaction-icon not-reacted"><title id="ao888n5oczyn990m20h5cegnsx00oprb">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
 
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aicmbqx6wb15d8egm5qzazylxt29qdbz" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="aicmbqx6wb15d8egm5qzazylxt29qdbz">Like comment: </title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a4dd8ukjmuerhwm4dwp6k2mo9derwi65" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="a4dd8ukjmuerhwm4dwp6k2mo9derwi65">Like comment: </title>
     <path d="M5.116 12.595a4.875 4.875 0 015.56-7.68h-.002L7.493 8.098l1.06 1.061 3.181-3.182a4.875 4.875 0 016.895 6.894L12 19.5l-6.894-6.894.01-.01z"></path>
 </svg>
 
@@ -3785,7 +3779,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
         data-tracking-name="comment_reply_button"
         data-testid="reply-button-289219"
         rel="nofollow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="as619f35ovtjae6p6u47n8xwah120nxd" class="crayons-icon reaction-icon not-reacted"><title id="as619f35ovtjae6p6u47n8xwah120nxd">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="aazczz7gpnpogge05t698hyf568kmcwu" class="crayons-icon reaction-icon not-reacted"><title id="aazczz7gpnpogge05t698hyf568kmcwu">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
 
         <span class="hidden m:inline-block">Reply</span>
       </a>
@@ -3804,11 +3798,11 @@ It's hard to find in-depth and super high-quality articles like these in this da
                     " open>
       <summary aria-label="Toggle this comment (and replies)" data-tracking-name="expand_comment_toggle">
         <span class="m:mx-1 inline-block align-middle">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="afbian8303f0kk1zewqgojou08h842ow" class="crayons-icon expanded"><title id="afbian8303f0kk1zewqgojou08h842ow">Collapse</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="adparbuniosr3hq8fwyyn49hdwnhtsqm" class="crayons-icon expanded"><title id="adparbuniosr3hq8fwyyn49hdwnhtsqm">Collapse</title>
     <path d="M12 10.677L8 6.935 9 6l3 2.807L15 6l1 .935-4 3.742zm0 4.517L9 18l-1-.935 4-3.742 4 3.742-1 .934-3-2.805z"></path>
 </svg>
 
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="ad0j7yz9rxct8aq88mxa8njg8ib75sq4" class="crayons-icon collapsed"><title id="ad0j7yz9rxct8aq88mxa8njg8ib75sq4">Expand</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="advdv4sgq9kg1q4o413jqcaodyg67182" class="crayons-icon collapsed"><title id="advdv4sgq9kg1q4o413jqcaodyg67182">Expand</title>
     <path d="M12 18l-4-3.771 1-.943 3 2.829 3-2.829 1 .943L12 18zm0-10.115l-3 2.829-1-.943L12 6l4 3.771-1 .942-3-2.828z"></path>
 </svg>
 
@@ -3927,7 +3921,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
     <button id="comment-dropdown-trigger-288932" aria-controls="comment-dropdown-288932" aria-expanded="false"
       class="dropbtn comment__dropdown-trigger crayons-btn crayons-btn--s crayons-btn--ghost crayons-btn--icon "
       aria-label="Toggle dropdown menu" aria-haspopup="true">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a9hfns580n05fuoxaodgyeemgwfkaoul" class="crayons-icon pointer-events-none"><title id="a9hfns580n05fuoxaodgyeemgwfkaoul">Dropdown menu</title>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="ai5ebijicm9332gncr9vdamu9q9eg9m6" class="crayons-icon pointer-events-none"><title id="ai5ebijicm9332gncr9vdamu9q9eg9m6">Dropdown menu</title>
     <path fill-rule="evenodd" clip-rule="evenodd" d="M8.25 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm5.25 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm3.75 1.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"></path>
 </svg>
 
@@ -3984,9 +3978,9 @@ It's hard to find in-depth and super high-quality articles like these in this da
     data-comment-id="288932"
     aria-label="like"
     data-tracking-name="comment_heart_button">
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="aq3v5c76er22n1z4uy6fethwbyun92um" class="crayons-icon reaction-icon not-reacted"><title id="aq3v5c76er22n1z4uy6fethwbyun92um">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="ahpjjt5jt3q00cyjpuj5xbf416360iua" class="crayons-icon reaction-icon not-reacted"><title id="ahpjjt5jt3q00cyjpuj5xbf416360iua">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
 
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aigy7mdk9ug9xij9xcu48av1ixyhv359" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="aigy7mdk9ug9xij9xcu48av1ixyhv359">Like comment: </title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="apuh2z9972nnaa0l5xaix9kh71nchc8j" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="apuh2z9972nnaa0l5xaix9kh71nchc8j">Like comment: </title>
     <path d="M5.116 12.595a4.875 4.875 0 015.56-7.68h-.002L7.493 8.098l1.06 1.061 3.181-3.182a4.875 4.875 0 016.895 6.894L12 19.5l-6.894-6.894.01-.01z"></path>
 </svg>
 
@@ -4004,7 +3998,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
         data-tracking-name="comment_reply_button"
         data-testid="reply-button-288932"
         rel="nofollow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="aihm4vhvz0owk8r3xc40euk6a0crwcl0" class="crayons-icon reaction-icon not-reacted"><title id="aihm4vhvz0owk8r3xc40euk6a0crwcl0">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="aepos3oegsy1pq84s0xr9r1v5bxr9ugb" class="crayons-icon reaction-icon not-reacted"><title id="aepos3oegsy1pq84s0xr9r1v5bxr9ugb">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
 
         <span class="hidden m:inline-block">Reply</span>
       </a>
@@ -4023,11 +4017,11 @@ It's hard to find in-depth and super high-quality articles like these in this da
                     " open>
       <summary aria-label="Toggle this comment (and replies)" data-tracking-name="expand_comment_toggle">
         <span class="m:mx-1 inline-block align-middle">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a9whyo90ofck87w4xkpbhjkzftmy6os" class="crayons-icon expanded"><title id="a9whyo90ofck87w4xkpbhjkzftmy6os">Collapse</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a8gmufiqzbvvjns6lrnpojodf150ust5" class="crayons-icon expanded"><title id="a8gmufiqzbvvjns6lrnpojodf150ust5">Collapse</title>
     <path d="M12 10.677L8 6.935 9 6l3 2.807L15 6l1 .935-4 3.742zm0 4.517L9 18l-1-.935 4-3.742 4 3.742-1 .934-3-2.805z"></path>
 </svg>
 
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a9uch82bsqx89ql07rml3c2p553a3bsa" class="crayons-icon collapsed"><title id="a9uch82bsqx89ql07rml3c2p553a3bsa">Expand</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a5sitxk1oaw0vd85w5ojq89ym7izwbq" class="crayons-icon collapsed"><title id="a5sitxk1oaw0vd85w5ojq89ym7izwbq">Expand</title>
     <path d="M12 18l-4-3.771 1-.943 3 2.829 3-2.829 1 .943L12 18zm0-10.115l-3 2.829-1-.943L12 6l4 3.771-1 .942-3-2.828z"></path>
 </svg>
 
@@ -4132,7 +4126,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
     <button id="comment-dropdown-trigger-319410" aria-controls="comment-dropdown-319410" aria-expanded="false"
       class="dropbtn comment__dropdown-trigger crayons-btn crayons-btn--s crayons-btn--ghost crayons-btn--icon "
       aria-label="Toggle dropdown menu" aria-haspopup="true">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="alwx11i1628xgd4zrwl272h7j4s2zhi5" class="crayons-icon pointer-events-none"><title id="alwx11i1628xgd4zrwl272h7j4s2zhi5">Dropdown menu</title>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a9xf4j1j0u0ipagwebftazfmzle3i030" class="crayons-icon pointer-events-none"><title id="a9xf4j1j0u0ipagwebftazfmzle3i030">Dropdown menu</title>
     <path fill-rule="evenodd" clip-rule="evenodd" d="M8.25 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm5.25 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm3.75 1.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"></path>
 </svg>
 
@@ -4191,9 +4185,9 @@ It's hard to find in-depth and super high-quality articles like these in this da
     data-comment-id="319410"
     aria-label="like"
     data-tracking-name="comment_heart_button">
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="aqecfzzj7frn9j8orpilatwlc60ruu4b" class="crayons-icon reaction-icon not-reacted"><title id="aqecfzzj7frn9j8orpilatwlc60ruu4b">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="ae49oidugxeg0thqbsc3qz7ozovfw1ek" class="crayons-icon reaction-icon not-reacted"><title id="ae49oidugxeg0thqbsc3qz7ozovfw1ek">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
 
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="apj7pafgi89pyr0hwyync44azya36lsh" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="apj7pafgi89pyr0hwyync44azya36lsh">Like comment: </title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="atgy4zzquz1eo1nx0uxqprta6pkuai3z" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="atgy4zzquz1eo1nx0uxqprta6pkuai3z">Like comment: </title>
     <path d="M5.116 12.595a4.875 4.875 0 015.56-7.68h-.002L7.493 8.098l1.06 1.061 3.181-3.182a4.875 4.875 0 016.895 6.894L12 19.5l-6.894-6.894.01-.01z"></path>
 </svg>
 
@@ -4211,7 +4205,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
         data-tracking-name="comment_reply_button"
         data-testid="reply-button-319410"
         rel="nofollow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="a4q06jj8xc0bi49wm8owty21nj8k8ylx" class="crayons-icon reaction-icon not-reacted"><title id="a4q06jj8xc0bi49wm8owty21nj8k8ylx">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="arpv0pby2optvgmpinf8hv5blm13ezat" class="crayons-icon reaction-icon not-reacted"><title id="arpv0pby2optvgmpinf8hv5blm13ezat">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
 
         <span class="hidden m:inline-block">Reply</span>
       </a>
@@ -4225,11 +4219,11 @@ It's hard to find in-depth and super high-quality articles like these in this da
                     " open>
       <summary aria-label="Toggle this comment (and replies)" data-tracking-name="expand_comment_toggle">
         <span class="mx-0 inline-block align-middle">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="akzn31xd0o83em3xj8yg61bjeyb4mc66" class="crayons-icon expanded"><title id="akzn31xd0o83em3xj8yg61bjeyb4mc66">Collapse</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="ac2g95xm0oxys4p6i63lzvdv6edampvb" class="crayons-icon expanded"><title id="ac2g95xm0oxys4p6i63lzvdv6edampvb">Collapse</title>
     <path d="M12 10.677L8 6.935 9 6l3 2.807L15 6l1 .935-4 3.742zm0 4.517L9 18l-1-.935 4-3.742 4 3.742-1 .934-3-2.805z"></path>
 </svg>
 
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a5l02ejlz8q4apvcypa6mrcn4zkc2h93" class="crayons-icon collapsed"><title id="a5l02ejlz8q4apvcypa6mrcn4zkc2h93">Expand</title>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="al9r5gvhbu4midxjibhq7rc783mydufn" class="crayons-icon collapsed"><title id="al9r5gvhbu4midxjibhq7rc783mydufn">Expand</title>
     <path d="M12 18l-4-3.771 1-.943 3 2.829 3-2.829 1 .943L12 18zm0-10.115l-3 2.829-1-.943L12 6l4 3.771-1 .942-3-2.828z"></path>
 </svg>
 
@@ -4344,7 +4338,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
     <button id="comment-dropdown-trigger-319835" aria-controls="comment-dropdown-319835" aria-expanded="false"
       class="dropbtn comment__dropdown-trigger crayons-btn crayons-btn--s crayons-btn--ghost crayons-btn--icon "
       aria-label="Toggle dropdown menu" aria-haspopup="true">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="asgh8vpcyu0emyt99v9uscsuppujje9x" class="crayons-icon pointer-events-none"><title id="asgh8vpcyu0emyt99v9uscsuppujje9x">Dropdown menu</title>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aep4fyzbmcc1w076gephu6926he62mhv" class="crayons-icon pointer-events-none"><title id="aep4fyzbmcc1w076gephu6926he62mhv">Dropdown menu</title>
     <path fill-rule="evenodd" clip-rule="evenodd" d="M8.25 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm5.25 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zm3.75 1.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"></path>
 </svg>
 
@@ -4401,9 +4395,9 @@ It's hard to find in-depth and super high-quality articles like these in this da
     data-comment-id="319835"
     aria-label="like"
     data-tracking-name="comment_heart_button">
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="a4dp1hqnbc699upwp2sjhhc0ov3h2scr" class="crayons-icon reaction-icon not-reacted"><title id="a4dp1hqnbc699upwp2sjhhc0ov3h2scr">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="ajck7fm0l6cgtzpb8lu5pwy5d7u6q0kz" class="crayons-icon reaction-icon not-reacted"><title id="ajck7fm0l6cgtzpb8lu5pwy5d7u6q0kz">Like comment: </title><path d="M18.884 12.595l.01.011L12 19.5l-6.894-6.894.01-.01A4.875 4.875 0 0112 5.73a4.875 4.875 0 016.884 6.865zM6.431 7.037a3.375 3.375 0 000 4.773L12 17.38l5.569-5.569a3.375 3.375 0 10-4.773-4.773L9.613 10.22l-1.06-1.062 2.371-2.372a3.375 3.375 0 00-4.492.25v.001z"></path></svg>
 
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="a2aoke60w82zz89pc4amrkublpot8ak8" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="a2aoke60w82zz89pc4amrkublpot8ak8">Like comment: </title>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="aso7spra3ghjslqegbpatlu0x316x29i" class="crayons-icon crayons-icon reaction-icon--like reaction-icon reacted"><title id="aso7spra3ghjslqegbpatlu0x316x29i">Like comment: </title>
     <path d="M5.116 12.595a4.875 4.875 0 015.56-7.68h-.002L7.493 8.098l1.06 1.061 3.181-3.182a4.875 4.875 0 016.895 6.894L12 19.5l-6.894-6.894.01-.01z"></path>
 </svg>
 
@@ -4421,7 +4415,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
         data-tracking-name="comment_reply_button"
         data-testid="reply-button-319835"
         rel="nofollow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="agwe60u3eq5wbguxyakftrhywqpr4wjv" class="crayons-icon reaction-icon not-reacted"><title id="agwe60u3eq5wbguxyakftrhywqpr4wjv">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-labelledby="a937o1uirgpqpo75a285uvqmf4l7i5ol" class="crayons-icon reaction-icon not-reacted"><title id="a937o1uirgpqpo75a285uvqmf4l7i5ol">Comment button</title><path d="M10.5 5h3a6 6 0 110 12v2.625c-3.75-1.5-9-3.75-9-8.625a6 6 0 016-6zM12 15.5h1.5a4.501 4.501 0 001.722-8.657A4.5 4.5 0 0013.5 6.5h-3A4.5 4.5 0 006 11c0 2.707 1.846 4.475 6 6.36V15.5z"></path></svg>
 
         <span class="hidden m:inline-block">Reply</span>
       </a>
@@ -4461,7 +4455,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
 
   </section>
   <div id="hide-comments-modal" class="hidden">
-  <form id="hide-comments-modal__form" class="hide-comments-modal__form" data-type="json" action="/comments/hide" accept-charset="UTF-8" data-remote="true" method="post"><input name="utf8" type="hidden" value="&#x2713;" autocomplete="off" /><input type="hidden" name="_method" value="patch" autocomplete="off" /><input type="hidden" name="authenticity_token" value="W1h65AuWDKETAyywQS3fbCcKM_9DgtXGkX2NGVWSODuy0mKjdSIMoeCBuNk280gjxUuFuCp6pVoRd0bTtw_4-w" autocomplete="off" />
+  <form id="hide-comments-modal__form" class="hide-comments-modal__form" data-type="json" action="/comments/hide" accept-charset="UTF-8" data-remote="true" method="post"><input name="utf8" type="hidden" value="&#x2713;" autocomplete="off" /><input type="hidden" name="_method" value="patch" autocomplete="off" /><input type="hidden" name="authenticity_token" value="HSjThMlRqqTthSW0le21gYO-lfJ177uxVNo-vocaUactCXs5A3pHXh2dZvRDCgsgCVFeSsGWencLlIlQZBxOYg" autocomplete="off" />
     <div class="hide-comments-modal__content">
       <p class="pb-2">
         Are you sure you want to hide this comment? It will become hidden in your post, but will still be visible via the comment's <a id="hide-comments-modal__comment-permalink" href="#">permalink</a>.
@@ -4484,59 +4478,59 @@ It's hard to find in-depth and super high-quality articles like these in this da
       </article>
 
       <div class="pb-4 crayons-layout__comments-billboard">
-        <div class="js-billboard-container pb-4 crayons-layout__comments-billboard" data-async-url="/heroku/postgres-is-underrated-it-handles-more-than-you-think-4ff3/billboards/post_comments"></div>
+        <div class="js-billboard-container pb-4 crayons-layout__comments-billboard" data-async-url="/heroku/postgres-is-underrated-it-handles-more-than-you-think-4ff3/bb/post_comments"></div>
       </div>
 
           <section class="crayons-card crayons-card--secondary text-padding mb-4 print-hidden" id="bottom-content-read-next">
     <h2 class="crayons-subtitle-1">Read next</h2>
-      <a href="/ofonime1/2024-recap-4odi" data-preload-image="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fmxamneyp0nzz4m3rxe0u.jpg" class="crayons-link mt-6 block">
+      <a href="/vectordxy/apply-css-with-stayedcss-in-nextjs-3581" data-preload-image="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fhxypf1fd2prdmjj5vb2j.png" class="crayons-link mt-6 block">
         <div class="flex items-center">
           <span class="crayons-avatar crayons-avatar--xl m:crayons-avatar--2xl mr-4 shrink-0">
-              <img loading="lazy" alt="ofonime1 profile image" class="crayons-avatar__image" width="100" height="100" src="https://media2.dev.to/dynamic/image/width=100,height=100,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Fuser%2Fprofile_image%2F1114663%2F0c70aca6-31ca-4b66-8ae2-6b19bdc1db01.png" />
+              <img loading="lazy" alt="vectordxy profile image" class="crayons-avatar__image" width="100" height="100" src="https://media2.dev.to/dynamic/image/width=100,height=100,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Fuser%2Fprofile_image%2F2344576%2F600a28f7-71be-406a-8618-302f3f59980e.png" />
           </span>
           <div>
-            <h3 class="fs-xl mb-0 lh-tight">2024 Recap...</h3>
+            <h3 class="fs-xl mb-0 lh-tight">Apply CSS in Next.js with StayedCSS</h3>
             <p class="opacity-75 pt-1">
-              Ofonime1 - <time datetime="2024-12-31T09:08:58Z">Dec 31 &#39;24</time>
+              jin - <time datetime="2024-12-18T14:00:00Z">Dec 18 &#39;24</time>
             </p>
           </div>
         </div>
       </a>
-      <a href="/jenchen/build-and-deploy-a-monorepo-websocket-web-application-with-turbo-express-and-vite-on-render-using-4ido" data-preload-image="" class="crayons-link mt-6 block">
+      <a href="/mayankchawdhari/cid-funny-login-4455" data-preload-image="" class="crayons-link mt-6 block">
         <div class="flex items-center">
           <span class="crayons-avatar crayons-avatar--xl m:crayons-avatar--2xl mr-4 shrink-0">
-              <img loading="lazy" alt="jenchen profile image" class="crayons-avatar__image" width="100" height="100" src="https://media2.dev.to/dynamic/image/width=100,height=100,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Fuser%2Fprofile_image%2F1095199%2Ff14eb943-e036-49ea-b10c-87b5a191351b.JPG" />
+              <img loading="lazy" alt="mayankchawdhari profile image" class="crayons-avatar__image" width="100" height="100" src="https://media2.dev.to/dynamic/image/width=100,height=100,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Fuser%2Fprofile_image%2F1121512%2Fb2a91e4d-259c-4700-96d8-b0114899dcac.jpeg" />
           </span>
           <div>
-            <h3 class="fs-xl mb-0 lh-tight">Build and Deploy a Monorepo WebSocket web application with Turbo, Express, and Vite on Render Using Docker</h3>
+            <h3 class="fs-xl mb-0 lh-tight">CID-FUNNY-LOGIN</h3>
             <p class="opacity-75 pt-1">
-              Jen C. - <time datetime="2024-12-31T08:48:27Z">Dec 31 &#39;24</time>
+              Mayank Chawdhari - <time datetime="2024-12-18T12:16:48Z">Dec 18 &#39;24</time>
             </p>
           </div>
         </div>
       </a>
-      <a href="/istealersn_dev/whats-new-in-react-19-a-deep-dive-into-exciting-features-2gb7" data-preload-image="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fxjc0dicg9o8yzohgtkg6.jpg" class="crayons-link mt-6 block">
+      <a href="/mayankchawdhari/funny-captcha-web-2jod" data-preload-image="" class="crayons-link mt-6 block">
         <div class="flex items-center">
           <span class="crayons-avatar crayons-avatar--xl m:crayons-avatar--2xl mr-4 shrink-0">
-              <img loading="lazy" alt="istealersn_dev profile image" class="crayons-avatar__image" width="100" height="100" src="https://media2.dev.to/dynamic/image/width=100,height=100,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Fuser%2Fprofile_image%2F891849%2Fae0669b3-2be7-4a8e-bcc3-35ac3f74dc7d.png" />
+              <img loading="lazy" alt="mayankchawdhari profile image" class="crayons-avatar__image" width="100" height="100" src="https://media2.dev.to/dynamic/image/width=100,height=100,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Fuser%2Fprofile_image%2F1121512%2Fb2a91e4d-259c-4700-96d8-b0114899dcac.jpeg" />
           </span>
           <div>
-            <h3 class="fs-xl mb-0 lh-tight">What&#39;s New in React 19? A Deep Dive into Exciting Features</h3>
+            <h3 class="fs-xl mb-0 lh-tight">Funny-Captcha Web</h3>
             <p class="opacity-75 pt-1">
-              Stanley J - <time datetime="2024-12-31T07:41:40Z">Dec 31 &#39;24</time>
+              Mayank Chawdhari - <time datetime="2024-12-18T12:17:31Z">Dec 18 &#39;24</time>
             </p>
           </div>
         </div>
       </a>
-      <a href="/sremastery/python-for-sre-and-devops-engg-1mpb" data-preload-image="" class="crayons-link mt-6 block">
+      <a href="/marufpfc/what-can-in-browser-javascript-do-and-what-are-its-limitations-106l" data-preload-image="" class="crayons-link mt-6 block">
         <div class="flex items-center">
           <span class="crayons-avatar crayons-avatar--xl m:crayons-avatar--2xl mr-4 shrink-0">
-              <img loading="lazy" alt="sremastery profile image" class="crayons-avatar__image" width="100" height="100" src="https://media2.dev.to/dynamic/image/width=100,height=100,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Fuser%2Fprofile_image%2F2633061%2F447ab1f1-b3c2-4edb-a2e4-110c188c0c36.png" />
+              <img loading="lazy" alt="marufpfc profile image" class="crayons-avatar__image" width="100" height="100" src="https://media2.dev.to/dynamic/image/width=100,height=100,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Fuser%2Fprofile_image%2F2585327%2Fa5223ae4-da4f-4267-b85a-e56a70de5d61.png" />
           </span>
           <div>
-            <h3 class="fs-xl mb-0 lh-tight">Python for SRE and DevOps Engineers</h3>
+            <h3 class="fs-xl mb-0 lh-tight">What Can In-Browser JavaScript Do and What Are Its Limitations?</h3>
             <p class="opacity-75 pt-1">
-              SRE Mastery - <time datetime="2024-12-31T11:51:51Z">Dec 31 &#39;24</time>
+              Md. Maruf Sarker - <time datetime="2024-12-18T12:25:12Z">Dec 18 &#39;24</time>
             </p>
           </div>
         </div>
@@ -4615,7 +4609,7 @@ It's hard to find in-depth and super high-quality articles like these in this da
       </div>
 </div>
 
-<div class="crayons-article-sticky grid gap-4 break-word js-billboard-container" data-async-url="/heroku/postgres-is-underrated-it-handles-more-than-you-think-4ff3/billboards/post_sidebar"></div>
+<div class="crayons-article-sticky grid gap-4 break-word js-billboard-container" data-async-url="/heroku/postgres-is-underrated-it-handles-more-than-you-think-4ff3/bb/post_sidebar"></div>
 
   </aside>
 </div>
@@ -4695,7 +4689,7 @@ function dynamicallyLoadRunkitLibrary() {
 activateRunkitTags();
 
 </script>
-<div class="js-billboard-container pb-4 crayons-layout__comments-billboard" data-async-url="/heroku/postgres-is-underrated-it-handles-more-than-you-think-4ff3/billboards/post_fixed_bottom"></div>
+<div class="js-billboard-container pb-4 crayons-layout__comments-billboard" data-async-url="/heroku/postgres-is-underrated-it-handles-more-than-you-think-4ff3/bb/post_fixed_bottom"></div>
 
 
     <div id="runtime-banner-container"></div>
@@ -4714,7 +4708,7 @@ activateRunkitTags();
     data-category-impression="impression"
     data-context-type="home"
     data-special="nothing"
-    data-article-id=""
+    data-article-id="2226480"
     data-type-of="in_house">
       <p style="font-weight: bold;margin-bottom: 10px">
 Thank you to our Diamond Sponsor <a href="https://neon.tech/">Neon</a> for supporting our community.
@@ -4800,8 +4794,14 @@ Thank you to our Diamond Sponsor <a href="https://neon.tech/">Neon</a> for suppo
     <span class="dot ml-2"></span>
   </li>
   <li class="footer__nav-link flex items-center">
-    <a href="/guides">
-      Guides
+    <a href="/free-postgres-database-tier">
+      Free Postgres Database
+    </a>
+    <span class="dot ml-2"></span>
+  </li>
+  <li class="footer__nav-link flex items-center">
+    <a href="/software-comparisons">
+      Software comparisons
     </a>
     <span class="dot ml-2"></span>
   </li>
