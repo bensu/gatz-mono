@@ -42,6 +42,7 @@
         :gatz.db.user/make-friends-with-everybody? true
 
         :sentry/dsn "SENTRY_DSN"
+        :sentry/environment "production"
 
         :biff/base-url "http://gatz.chat"
         ;; Postmark is used to send email sign-in links. Create an account at
@@ -72,6 +73,8 @@
        :gatz.db.user/make-friends-with-everybody? false
 
        :expo/enabled? false
+
+       :sentry/environment "development"
 
        :biff.xtdb/checkpointer :biff.xtdb.checkpointer/file
        :posthog/enabled? false
