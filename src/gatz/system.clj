@@ -28,6 +28,7 @@
             [to-jdbc-uri.core :refer [to-jdbc-uri]]
             [sdk.heroku :as heroku]
             [sdk.posthog :as posthog]
+            [sdk.sentry :as sentry]
             [xtdb.jdbc.psql])
   (:import [java.time Duration]
            [org.postgresql Driver]))
@@ -48,7 +49,7 @@
 (def routes [["" {:middleware [biff/wrap-site-defaults]}
               (keep :routes plugins)]
              ["" {:middleware [biff/wrap-api-defaults
-                               ;; TODO: be more restrictive
+                               sentry/wrap-sentry
                                wrap-cors
                                wrap-gzip]}
               (keep :api-routes plugins)]])
@@ -210,6 +211,7 @@
    biff/use-secrets
    posthog/use-posthog
    heroku/use-heroku-config
+   sentry/use-sentry
    (fn start-conns-state [ctx]
      (use-atom ctx :conns-state conns/init-state))
    (fn start-xtdb [ctx]
