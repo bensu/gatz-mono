@@ -24,6 +24,7 @@
             [gatz.settings :as settings]
             [link-preview.api :as link-preview]
             [ring.adapter.jetty9 :as jetty]
+            [sdk.sentry :as sentry]
             [xtdb.api :as xtdb])
   (:import [java.time Instant Duration]))
 
@@ -56,12 +57,12 @@
   (assert conns-state)
   (when (jetty/ws-upgrade-request? ctx)
     ;; TODO: asert this user is actually in the database
-    (try-print
-     (if-let [user (some->> user-id (db.user/by-id db))]
-       (let [user-id (:xt/id user)
-             conn-id (random-uuid)]
-         (jetty/ws-upgrade-response
-          {:on-connect (fn [ws]
+    (if-let [user (some->> user-id (db.user/by-id db))]
+      (let [user-id (:xt/id user)
+            conn-id (random-uuid)]
+        (jetty/ws-upgrade-response
+         {:on-connect (fn [ws]
+                        (sentry/try-and-send!
                          (let [db (xtdb/db node)
                                ds (or (db/discussions-by-user-id db user-id) #{})]
                            (swap! conns-state conns/add-conn {:ws ws
@@ -70,8 +71,9 @@
                                                               :user-discussions ds}))
                          (jetty/send! ws (json/write-str
                                           (connection-response user-id conn-id)))
-                         (db.user/mark-active! (assoc ctx :auth/user-id user-id)))
-           :on-close (fn [ws status-code reason]
+                         (db.user/mark-active! (assoc ctx :auth/user-id user-id))))
+          :on-close (fn [ws status-code reason]
+                      (sentry/try-and-send!
                        (let [db (xtdb/db node)
                              ds (or (db/discussions-by-user-id db user-id) #{})]
                          (swap! conns-state conns/remove-conn {:user-id user-id
@@ -82,13 +84,13 @@
                                          :status status-code
                                          :conn-id conn-id
                                          :user-id user-id}))
-                       (db.user/mark-active! (assoc ctx :auth/user-id user-id)))
-           :on-text (fn [ws text]
-                      (jetty/send! ws (json/write-str {:conn-id conn-id :user-id user-id :echo text :state @conns-state}))
+                       (db.user/mark-active! (assoc ctx :auth/user-id user-id))))
+          :on-text (fn [ws text]
                       ;; TODO: create discussion or add member
                       ;; are special because they change the conns-state
-                      )}))
-       {:status 400 :body "Invalid user"}))))
+                     (sentry/try-and-send!
+                      (jetty/send! ws (json/write-str {:conn-id conn-id :user-id user-id :echo text :state @conns-state}))))}))
+      {:status 400 :body "Invalid user"})))
 
 (defn propagate-message-delta!
   [{:keys [conns-state] :as _ctx} d m delta]
@@ -213,8 +215,8 @@
         (when (= :gatz/evt (:db/type evt))
           (try
             (handle-evt! ctx evt)
-            (catch Exception e
-              (println "Exception handler threw an error" e))))))))
+            (catch Throwable t
+              (sentry/send-event-error! t evt))))))))
 
 ;; TODO: if one of these throws an exception, the rest of the on-tx should still run
 (defn on-tx [ctx tx]

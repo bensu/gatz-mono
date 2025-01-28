@@ -4,6 +4,16 @@
 
 (defonce ^:private enabled? (atom false))
 
+(defn send-error! [^Throwable e]
+  (if @enabled?
+    (do
+      (log/info "Logging error to Sentry:" (.getMessage e))
+      (sentry/send-event {:message (.getMessage e)
+                          :throwable e}))
+    (do
+      (log/info "Sentry is not enabled")
+      (log/error e))))
+
 (defn send-event-error! [^Throwable e event]
   (if @enabled?
     (let [{:evt/keys [type did mid]} event]
@@ -46,3 +56,10 @@
       (sentry/init! dsn {:environment sentry-env})
       (reset! enabled? true))
     ctx))
+
+(defmacro try-and-send! [& body]
+  `(try
+     (do
+       ~@body)
+     (catch Throwable e#
+       (send-error! e#))))
