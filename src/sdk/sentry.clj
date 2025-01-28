@@ -59,7 +59,6 @@
 
 (defmacro try-and-send! [& body]
   `(try
-     (do
-       ~@body)
+     ~@body
      (catch Throwable e#
        (send-error! e#))))

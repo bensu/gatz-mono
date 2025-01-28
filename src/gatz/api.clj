@@ -1,6 +1,7 @@
 (ns gatz.api
   "All the operations but in an API"
   (:require [chime.core :as chime]
+            [clojure.tools.logging :as log]
             [clojure.data.json :as json]
             [crdt.core :as crdt]
             [ddl.api :as ddl.api]
@@ -63,6 +64,7 @@
         (jetty/ws-upgrade-response
          {:on-connect (fn [ws]
                         (sentry/try-and-send!
+                         (log/info "connecting websocket for user" user-id)
                          (let [db (xtdb/db node)
                                ds (or (db/discussions-by-user-id db user-id) #{})]
                            (swap! conns-state conns/add-conn {:ws ws
@@ -74,6 +76,7 @@
                          (db.user/mark-active! (assoc ctx :auth/user-id user-id))))
           :on-close (fn [ws status-code reason]
                       (sentry/try-and-send!
+                       (log/info "closing websocket for user" user-id)
                        (let [db (xtdb/db node)
                              ds (or (db/discussions-by-user-id db user-id) #{})]
                          (swap! conns-state conns/remove-conn {:user-id user-id
