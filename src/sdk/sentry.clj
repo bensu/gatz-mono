@@ -47,13 +47,12 @@
         (send-request-error! e request)
         (throw e)))))
 
-(defn use-sentry [{:keys [biff/secret] :as ctx}]
-  (let [dsn (secret :sentry/dsn)
-        sentry-env (secret :sentry/environment)]
+(defn use-sentry [{:keys [biff/secret sentry/environment] :as ctx}]
+  (let [dsn (secret :sentry/dsn)]
     (assert dsn "Sentry DSN is not set")
-    (log/info "Initializing Sentry with environment:" sentry-env)
-    (when (= sentry-env "production")
-      (sentry/init! dsn {:environment sentry-env})
+    (log/info "Initializing Sentry with environment:" environment)
+    (when (= environment "production")
+      (sentry/init! dsn {:environment environment})
       (reset! enabled? true))
     ctx))
 
