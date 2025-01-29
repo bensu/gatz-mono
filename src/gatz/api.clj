@@ -74,19 +74,14 @@
                          (jetty/send! ws (json/write-str
                                           (connection-response user-id conn-id)))
                          (db.user/mark-active! (assoc ctx :auth/user-id user-id))))
-          :on-close (fn [ws status-code reason]
+          :on-close (fn [_ws status-code reason]
                       (sentry/try-and-send!
-                       (log/info "closing websocket for user" user-id)
+                       (log/info "closing websocket for user" user-id status-code reason)
                        (let [db (xtdb/db node)
                              ds (or (db/discussions-by-user-id db user-id) #{})]
                          (swap! conns-state conns/remove-conn {:user-id user-id
                                                                :conn-id conn-id
                                                                :user-discussions ds}))
-                       (jetty/send! ws (json/write-str
-                                        {:reason reason
-                                         :status status-code
-                                         :conn-id conn-id
-                                         :user-id user-id}))
                        (db.user/mark-active! (assoc ctx :auth/user-id user-id))))
           :on-text (fn [ws text]
                       ;; TODO: create discussion or add member
