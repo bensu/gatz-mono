@@ -1433,7 +1433,91 @@
           (is (= [did5 did4 did3] (db.discussion/posts-for-user db uid {:limit 3}))
               "can request 3 posts")
           (let [d3 (db.discussion/by-id db did3)]
-            (is (= [did2 did1] (db.discussion/posts-for-user db uid {:limit 3 :older-than-ts (:discussion/created_at d3)}))
+            (is (= [did2 did1] (db.discussion/posts-for-user db uid {:limit 3 :older-than-ts (:discussion/created_at (db.discussion/by-id db did3))}))
                 "next page has remaining 2 posts"))))
+
+      (.close node))))
+
+(deftest pagination-for-active
+  (testing "active-for-user supports pagination with configurable page size"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (assoc ctx :biff/db (xtdb/db node)
+                           :auth/user-id uid :auth/cid uid))
+          now (Date.)
+          t1 (crdt/inc-time now)
+          t2 (crdt/inc-time t1)
+          t3 (crdt/inc-time t2)
+          t4 (crdt/inc-time t3)
+          t5 (crdt/inc-time t4)
+          t6 (crdt/inc-time t5)
+          t7 (crdt/inc-time t6)
+          t8 (crdt/inc-time t7)
+          t9 (crdt/inc-time t8)
+          t10 (crdt/inc-time t9)
+          [uid did1 did2 did3 did4 did5] (take 6 (repeatedly random-uuid))]
+
+      (db.user/create-user!
+       ctx {:id uid :username "poster_000" :phone "+14159499000" :now now})
+      (xtdb/sync node)
+
+      ;; Create 5 discussions in sequence
+      (db/create-discussion-with-message!
+       (get-ctx uid) {:did did1 :selected_users #{} :text "1" :now t1})
+      (db/create-discussion-with-message!
+       (get-ctx uid) {:did did2 :selected_users #{} :text "2" :now t2})
+      (db/create-discussion-with-message!
+       (get-ctx uid) {:did did3 :selected_users #{} :text "3" :now t3})
+      (db/create-discussion-with-message!
+       (get-ctx uid) {:did did4 :selected_users #{} :text "4" :now t4})
+      (db/create-discussion-with-message!
+       (get-ctx uid) {:did did5 :selected_users #{} :text "5" :now t5})
+
+      ;; Add comments to make discussions active in reverse order
+      (db/create-message!
+       (get-ctx uid) {:did did1 :text "Comment on 1" :now t10})
+      (db/create-message!
+       (get-ctx uid) {:did did2 :text "Comment on 2" :now t9})
+      (db/create-message!
+       (get-ctx uid) {:did did3 :text "Comment on 3" :now t8})
+      (db/create-message!
+       (get-ctx uid) {:did did4 :text "Comment on 4" :now t7})
+      ;; did5 has no comments
+      (xtdb/sync node)
+
+      (let [db (xtdb/db node)
+            ;; Get first page with 2 posts
+            first-page (db.discussion/active-for-user db uid {:limit 2})
+            last-from-first-page (last first-page)
+            first-last-ts (:discussion/latest_activity_ts (db.discussion/by-id db last-from-first-page))
+            ;; Get second page with 2 posts
+            second-page (db.discussion/active-for-user db uid {:limit 2 :older-than-ts (crdt/-value first-last-ts)})
+            last-from-second-page (last second-page)
+            second-last-ts (:discussion/latest_activity_ts (db.discussion/by-id db last-from-second-page))
+            ;; Get third page with 2 posts
+            third-page (db.discussion/active-for-user db uid {:limit 2 :older-than-ts (crdt/-value second-last-ts)})
+            ;; Get all active posts without pagination for comparison
+            all-active (db.discussion/active-for-user db uid)]
+
+        (testing "active discussions are returned in order of latest activity"
+          (is (= [did1 did2 did3 did4] all-active)
+              "did5 is not active since it has no comments"))
+
+        (testing "each page contains the correct number of posts"
+          (is (= [did1 did2] first-page) "first page has 2 posts")
+          (is (= [did3 did4] second-page) "second page has 2 posts")
+          (is (empty? third-page) "third page is empty"))
+
+        (testing "concatenating paginated results gives all active posts"
+          (is (= all-active
+                 (concat first-page second-page third-page))))
+
+        (testing "can request different page sizes"
+          (is (= [did1 did2 did3] (db.discussion/active-for-user db uid {:limit 3}))
+              "can request 3 posts")
+          (let [d3 (db.discussion/by-id db did3)]
+            (is (= [did4] (db.discussion/active-for-user db uid {:limit 3 :older-than-ts (crdt/-value (:discussion/latest_activity_ts d3))}))
+                "next page has remaining 1 post"))))
 
       (.close node))))

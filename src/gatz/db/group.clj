@@ -33,11 +33,8 @@
          (or (nil? is_public) (boolean? is_public))]}
 
   (when is_public
-    (assert
-     (= :discussion.member_mode/open
-        (get settings :discussion/member_mode)))
-    (assert
-     (nil? (get settings :invites/mode))))
+    (assert (= :discussion.member_mode/open (get settings :discussion/member_mode)))
+    (assert (nil? (get settings :invites/mode))))
 
   (let [id (or id (crdt/random-ulid))
         now (or now (Date.))]

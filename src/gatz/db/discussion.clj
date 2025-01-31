@@ -522,26 +522,29 @@
 (defn active-for-user
   ([db uid]
    (active-for-user db uid {}))
-  ([db uid {:keys [older-than-ts contact_id group_id]}]
+  ([db uid {:keys [older-than-ts contact_id group_id limit]}]
    {:pre [(uuid? uid)
           (or (nil? older-than-ts) (inst? older-than-ts))
           (or (nil? contact_id) (uuid? contact_id))
-          (or (nil? group_id) (crdt/ulid? group_id))]}
-   (let [exclude-archive? (and (not group_id) (not contact_id))]
+          (or (nil? group_id) (crdt/ulid? group_id))
+          (or (nil? limit) (pos-int? limit))]}
+   (let [exclude-archive? (and (not group_id) (not contact_id))
+         limit (or limit 20)
+         query (cond-> '[[did :db/type :gatz/discussion]
+                         [did :discussion/active_members user-id]
+                         [did :discussion/first_message first-mid]
+                         [did :discussion/latest_message latest-mid]
+                         [(not= first-mid latest-mid)]
+                         [did :discussion/latest_activity_ts latest-activity-ts]]
+                 group_id         (conj '[did :discussion/group_id gid])
+                 contact_id       (conj '[did :discussion/created_by cid])
+                 exclude-archive? (conj '(not [did :discussion/archived_uids user-id]))
+                 older-than-ts    (conj '[(< latest-activity-ts older-than-ts)]))]
      (->> (q db {:find '[did latest-activity-ts]
                  :in '[user-id older-than-ts cid gid]
-                 :limit 20
+                 :limit limit
                  :order-by '[[latest-activity-ts :desc]]
-                 :where (cond-> '[[did :db/type :gatz/discussion]
-                                  [did :discussion/active_members user-id]
-                                  [did :discussion/first_message first-mid]
-                                  [did :discussion/latest_message latest-mid]
-                                  [(not= first-mid latest-mid)]
-                                  [did :discussion/latest_activity_ts latest-activity-ts]]
-                          group_id         (conj '[did :discussion/group_id gid])
-                          contact_id       (conj '[did :discussion/created_by cid])
-                          exclude-archive? (conj '(not [did :discussion/archived_uids user-id]))
-                          older-than-ts    (conj '[(< latest-activity-ts older-than-ts)]))}
+                 :where query}
              uid older-than-ts contact_id group_id)
           (map first)))))
 

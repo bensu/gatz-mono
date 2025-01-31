@@ -474,11 +474,11 @@
    :discussion/open_until
    :discussion/latest_activity_ts
    :discussion/created_by
-   :discussion/first_message
    :discussion/group_id
+   :discussion/first_message
    :discussion/latest_message
-   :discussion/active_members
    :discussion/archived_uids
+   :discussion/active_members
    :discussion/members])
 
 (def DiscussionDoc
