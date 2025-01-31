@@ -449,15 +449,16 @@
   ([db uid]
    (mentions-for-user-with-ts db uid {}))
 
-  ([db uid {:keys [older-than-ts contact_id group_id]}]
+  ([db uid {:keys [older-than-ts contact_id group_id limit]}]
 
    {:pre [(or (nil? older-than-ts) (inst? older-than-ts))
           (or (nil? contact_id) (uuid? contact_id))
-          (or (nil? group_id) (crdt/ulid? group_id))]}
+          (or (nil? group_id) (crdt/ulid? group_id))
+          (or (nil? limit) (pos-int? limit))]}
 
    (q db {:find '[did mentioned-at]
           :in '[user-id older-than-ts cid gid]
-          :limit 20
+          :limit (or limit 20)
           :order-by '[[mentioned-at :desc]]
           :where  (cond-> '[[mention :db/type :gatz/mention]
                             [mention :mention/to_uid user-id]
@@ -477,15 +478,16 @@
 (defn posts-for-user-with-ts
   ([db uid]
    (posts-for-user-with-ts db uid {}))
-  ([db uid {:keys [older-than-ts contact_id group_id]}]
-   {:pre [(uuid? uid)
+  ([db uid {:keys [older-than-ts contact_id group_id limit]}]
+   {:pre [(uuid? uid) (or (nil? limit) (pos-int? limit))
           (or (nil? older-than-ts) (inst? older-than-ts))
           (or (nil? contact_id) (uuid? contact_id))
           (or (nil? group_id) (crdt/ulid? group_id))]}
-   (let [exclude-archive? (and (not group_id) (not contact_id))]
+   (let [limit (or limit 20)
+         exclude-archive? (and (not group_id) (not contact_id))]
      (q db {:find '[did created-at]
             :in '[user-id older-than-ts cid gid]
-            :limit 20
+            :limit limit
             :order-by '[[created-at :desc]]
             :where (cond-> '[[did :db/type :gatz/discussion]
                              [did :discussion/members user-id]

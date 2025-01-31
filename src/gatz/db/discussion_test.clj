@@ -146,45 +146,28 @@
                     (assoc ctx
                            :biff/db (xtdb/db node)
                            :auth/user-id uid :auth/cid uid))]
-      (db.user/create-user! ctx {:id owner-id
-                                 :username "owner"
-                                 :phone "+14159499000"
-                                 :now t0})
-      (db.user/create-user! ctx {:id admin-id
-                                 :username "admin"
-                                 :phone "+14159499001"
-                                 :now t0})
-      (db.user/create-user! ctx {:id member-id
-                                 :username "member"
-                                 :phone "+14159499002"
-                                 :now t0})
-      (db.user/create-user! ctx {:id second-member
-                                 :username "second"
-                                 :phone "+14159499003"
-                                 :now t0})
-
+      (db.user/create-user! ctx {:id owner-id :username "owner" :phone "+14159499000" :now t0})
+      (db.user/create-user! ctx {:id admin-id :username "admin" :phone "+14159499001" :now t0})
+      (db.user/create-user! ctx {:id member-id :username "member" :phone "+14159499002" :now t0})
+      (db.user/create-user! ctx {:id second-member :username "second" :phone "+14159499003" :now t0})
       (xtdb/sync node)
       (db.group/create! ctx
                         {:id gid :owner owner-id :now t0
                          :name "test" :members #{admin-id}
                          :settings {:discussion/member_mode :discussion.member_mode/open}})
-
       (xtdb/sync node)
+
+      (let [db (xtdb/db node)
+            g (db.group/by-id db gid)]
+        (is (= :discussion.member_mode/open (get-in g [:group/settings :discussion/member_mode]))))
 
       (binding [db.discussion/*open-until-testing-date* t2]
         (db/create-discussion-with-message!
-         (get-ctx owner-id)
-         {:did did1 :group_id gid
-          :to_all_contacts true
-          :text "Hello only to owner & admin" :now t1}))
-
+         (get-ctx owner-id) {:did did1 :group_id gid :to_all_contacts true
+                             :text "Hello only to owner & admin" :now t1}))
       (db/create-discussion-with-message!
-       (get-ctx owner-id)
-       {:did did2
-        :group_id gid
-        :to_all_contacts true
-        :text "Hello to owner, admin, and in the future, member"
-        :now t2})
+       (get-ctx owner-id) {:did did2 :group_id gid :to_all_contacts true :now t2
+                           :text "Hello to owner, admin, and in the future, member"})
       (xtdb/sync node)
 
       (let [db (xtdb/db node)
@@ -1387,3 +1370,70 @@
           (is (= []          (db.discussion/active-for-user db mid))))
 
         (.close node)))))
+
+(deftest pagination-for-posts
+  (testing "posts-for-user supports pagination with configurable page size"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (assoc ctx :biff/db (xtdb/db node)
+                           :auth/user-id uid :auth/cid uid))
+          now (Date.)
+          t1 (crdt/inc-time now)
+          t2 (crdt/inc-time t1)
+          t3 (crdt/inc-time t2)
+          t4 (crdt/inc-time t3)
+          t5 (crdt/inc-time t4)
+          [uid did1 did2 did3 did4 did5] (take 6 (repeatedly random-uuid))]
+
+      (db.user/create-user!
+       ctx {:id uid :username "poster_000" :phone "+14159499000" :now now})
+      (xtdb/sync node)
+
+      ;; Create 5 discussions in sequence
+      (db/create-discussion-with-message!
+       (get-ctx uid) {:did did1 :selected_users #{} :text "1" :now t1})
+      (db/create-discussion-with-message!
+       (get-ctx uid) {:did did2 :selected_users #{} :text "2" :now t2})
+      (db/create-discussion-with-message!
+       (get-ctx uid) {:did did3 :selected_users #{} :text "3" :now t3})
+      (db/create-discussion-with-message!
+       (get-ctx uid) {:did did4 :selected_users #{} :text "4" :now t4})
+      (db/create-discussion-with-message!
+       (get-ctx uid) {:did did5 :selected_users #{} :text "5" :now t5})
+      (xtdb/sync node)
+
+      (let [db (xtdb/db node)
+            ;; Get first page with 2 posts
+            first-page (db.discussion/posts-for-user db uid {:limit 2})
+            last-from-first-page (last first-page)
+            first-last-ts (:discussion/created_at (db.discussion/by-id db last-from-first-page))
+            ;; Get second page with 2 posts
+            second-page (db.discussion/posts-for-user db uid {:limit 2 :older-than-ts first-last-ts})
+            last-from-second-page (last second-page)
+            second-last-ts (:discussion/created_at (db.discussion/by-id db last-from-second-page))
+            ;; Get third page with 2 posts
+            third-page (db.discussion/posts-for-user db uid {:limit 2 :older-than-ts second-last-ts})
+            ;; Get all posts without pagination for comparison
+            all-posts (db.discussion/posts-for-user db uid)]
+
+        (testing "posts are returned in reverse chronological order"
+          (is (= [did5 did4 did3 did2 did1] all-posts)))
+
+        (testing "each page contains the correct number of posts"
+          (is (= [did5 did4] first-page) "first page has 2 posts")
+          (is (= [did3 did2] second-page) "second page has 2 posts")
+          (is (= [did1] third-page) "third page has 1 post"))
+
+        (testing "concatenating paginated results gives all posts"
+          (is (= all-posts
+                 (concat first-page second-page third-page))))
+
+        (testing "can request different page sizes"
+          (is (= [did5 did4 did3] (db.discussion/posts-for-user db uid {:limit 3}))
+              "can request 3 posts")
+          (let [d3 (db.discussion/by-id db did3)]
+            (is (= [did2 did1] (db.discussion/posts-for-user db uid {:limit 3 :older-than-ts (:discussion/created_at d3)}))
+                "next page has remaining 2 posts"))))
+
+      (.close node))))
