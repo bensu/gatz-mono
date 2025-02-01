@@ -452,7 +452,9 @@
         users (or (db.user/all-users db)
                   (mapv (partial db.user/by-id db)
                         (set/union d-user-ids c-user-ids)))]
-    (json-response {:discussions (mapv crdt.discussion/->value ds)
+    (json-response {:discussions (->> ds
+                                      (sort-by (comp :discussion/created_at :discussion))
+                                      (vec))
                     :users (mapv crdt.user/->value users)
                     :groups groups
                     :contact_requests crs
