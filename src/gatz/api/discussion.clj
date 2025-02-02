@@ -76,27 +76,30 @@
       (json-response {:current true
                       :latest_tx {:id (::xt/tx-id latest-tx)
                                   :ts (::xt/tx-time latest-tx)}})
-      (let [did (mt/-string->uuid (:id params))
-            {:keys [discussion messages user_ids]} (db/discussion-by-id db did)
-            poster (db.user/by-id db (:discussion/created_by discussion))
-            _ (assert poster)
-            _ (assert (not (db.user/mutually-blocked? user poster)))
-            group (when-let [gid (:discussion/group_id discussion)]
-                    (db.group/by-id db gid))
-            all-user-ids (if group
-                           (set/union (:group/members group) (set user_ids))
-                           (set user_ids))]
-        (if-authorized-for-discussion
-         [user-id discussion]
-         (json-response {:current false
-                         :latest_tx {:id (::xt/tx-id latest-tx)
-                                     :ts (::xt/tx-time latest-tx)}
-                         :discussion discussion
-                         :group group
-                         :users (map (comp crdt.user/->value
-                                           (partial db.user/by-id db))
-                                     all-user-ids)
-                         :messages (mapv crdt.message/->value messages)}))))))
+      (if-let [did (mt/-string->uuid (:id params))]
+        (if-let [r (db/discussion-by-id db did)]
+          (let [{:keys [discussion messages user_ids]} r
+                poster (db.user/by-id db (:discussion/created_by discussion))
+                _ (assert poster)
+                _ (assert (not (db.user/mutually-blocked? user poster)))
+                group (when-let [gid (:discussion/group_id discussion)]
+                        (db.group/by-id db gid))
+                all-user-ids (if group
+                               (set/union (:group/members group) (set user_ids))
+                               (set user_ids))]
+            (if-authorized-for-discussion
+             [user-id discussion]
+             (json-response {:current false
+                             :latest_tx {:id (::xt/tx-id latest-tx)
+                                         :ts (::xt/tx-time latest-tx)}
+                             :discussion discussion
+                             :group group
+                             :users (map (comp crdt.user/->value
+                                               (partial db.user/by-id db))
+                                         all-user-ids)
+                             :messages (mapv crdt.message/->value messages)})))
+          (err-resp "discussion_not_found" "Discussion not found"))
+        (err-resp "invalid_params" "Invalid params: missing id")))))
 
 (defn ^:deprecated
 
