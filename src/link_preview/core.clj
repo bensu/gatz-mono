@@ -12,6 +12,7 @@
             [net.cgrand.enlive-html :as html]
             [taoensso.nippy :as nippy]
             [juxt.clojars-mirrors.nippy.v3v1v1.taoensso.nippy :as juxt-nippy]
+            [sdk.sentry :as sentry]
             [xtdb.api :as xtdb]
             [xtdb.codec])
   (:import [java.net URI]
@@ -331,8 +332,9 @@
            :link_preview/favicons #{}
            :link_preview/html (:html embed)})
         (catch Exception e
-          ;; TODO: report to Sentry
-          (throw e))))))
+          (log/error "Failed to get Twitter oembed" e)
+          (sentry/send-error! e)
+          nil)))))
 
 
 ;; "https://publish.twitter.com/oembed?url="
@@ -376,10 +378,8 @@
                             :cookie-policy :none
                             :cookies {}
                             :cookie-store nil})]
-    (log/info "status" (:status response))
     (when (= (:status response) 200)
       (log/info "(oembed) Request succeeded" url)
-      (log/info "yt response" (:body response))
       (try
         (let [embed (json/read-str (:body response) :key-fn keyword)
               uri (URI/create url)
@@ -400,7 +400,8 @@
         (catch Exception e
           ;; TODO: report to Sentry
           (log/error "Failed to get Youtube oembed" e)
-          (throw e))))))
+          (sentry/send-error! e)
+          nil)))))
 
 (defn youtube? [url]
   (or (str/starts-with? url "https://www.youtube.com/")
