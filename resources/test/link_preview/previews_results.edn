@@ -27,8 +27,8 @@
                 :images
                 [#:link_preview{:uri
                                 #java/uri "https://www.economist.com/interactive/1843/2025/01/14/the-burned-and-the-saved-what-the-la-fires-spared/promo.jpg",
-                                :width nil,
-                                :height nil}],
+                                :width 1920,
+                                :height 1080}],
                 :media_type "article",
                 :title
                 "The burned and the saved: what the LA fires spared | The Economist",
@@ -50,8 +50,8 @@
                 :images
                 [#:link_preview{:uri
                                 #java/uri "https://64.media.tumblr.com/ec3a21b59c9968c322019b62a2519c37/f453865de74609fc-f8/s1280x1920/b5c92135027f34d6778f4edc4096f36bd98140b0.jpg",
-                                :width nil,
-                                :height nil}],
+                                :width 1200,
+                                :height 350}],
                 :media_type "website",
                 :title
                 "Animal Crossing: New Horizons | Tumblr Communities",
@@ -70,8 +70,8 @@
                 :images
                 [#:link_preview{:uri
                                 #java/uri "https://share.redd.it/preview/post/f32vci",
-                                :width nil,
-                                :height nil}],
+                                :width 256,
+                                :height 256}],
                 :media_type "website",
                 :title "Architect or Gardener? : r/Fantasy",
                 :favicons
@@ -167,8 +167,8 @@
                 :images
                 [#:link_preview{:uri
                                 #java/uri "https://i.guim.co.uk/img/media/5e29ad42e24e4ff633848c8482e2e778da34bdbf/0_307_8323_4994/master/8323.jpg?width=1200&height=630&quality=85&auto=format&fit=crop&overlay-align=bottom%2Cleft&overlay-width=100p&overlay-base64=L2ltZy9zdGF0aWMvb3ZlcmxheXMvdGctZGVmYXVsdC5wbmc&enable=upscale&s=f8da7a1cc04c04e5f7b6b8c304dc3d0f",
-                                :width nil,
-                                :height nil}],
+                                :width 1200,
+                                :height 720}],
                 :media_type "article",
                 :title
                 "Biden to remove Cuba from list of state sponsors of terrorism | US foreign policy | The Guardian",
@@ -191,8 +191,8 @@
                 :images
                 [#:link_preview{:uri
                                 #java/uri "https://i.vimeocdn.com/video/1730127247-0d51ef1be122e01b7a0e07884d207a1562825f15e23a081670e883e93c584bfd-d?f=webp",
-                                :width nil,
-                                :height nil}],
+                                :width 1280,
+                                :height 720}],
                 :media_type "video.other",
                 :title "backflip",
                 :favicons #{#java/uri "https://vimeo.com/favicon.ico"},
@@ -227,8 +227,8 @@
                 :images
                 [#:link_preview{:uri
                                 #java/uri "https://s.yimg.com/ny/api/res/1.2/EKE5seR5.XlVMRe5sQud.Q--/YXBwaWQ9aGlnaGxhbmRlcjt3PTEyMDA7aD04MDA-/https://media.zenfs.com/en/people_218/273b284742d885a26adad1036b1abb87",
-                                :width nil,
-                                :height nil}],
+                                :width 1200,
+                                :height 800}],
                 :media_type "article",
                 :title
                 "Jim Morrison's Brother Reflects on His Final Days in Rare Interview More Than 50 Years After Rocker's Death",
@@ -264,8 +264,8 @@
                 :images
                 [#:link_preview{:uri
                                 #java/uri "https://techcrunch.com/wp-content/uploads/2024/05/openAI-spiral-teal.jpg?resize=1200,675",
-                                :width nil,
-                                :height nil}],
+                                :width 1200,
+                                :height 675}],
                 :media_type "article",
                 :title
                 "ChatGPT now lets you schedule reminders and recurring tasks | TechCrunch",
@@ -483,8 +483,8 @@
                 :images
                 [#:link_preview{:uri
                                 #java/uri "https://opengraph.githubassets.com/1a438532909851015f0d4fc289a48a2865d595f8033e632c3d2d8420a28ecb53/rauhs/klang",
-                                :width nil,
-                                :height nil}],
+                                :width 1200,
+                                :height 600}],
                 :media_type "object",
                 :title
                 "GitHub - rauhs/klang: Clojurescript logging library",
@@ -502,8 +502,8 @@
                 :images
                 [#:link_preview{:uri
                                 #java/uri "https://i.ytimg.com/vi/l5WgAr4B8Vo/maxresdefault.jpg",
-                                :width nil,
-                                :height nil}],
+                                :width 1280,
+                                :height 720}],
                 :media_type "video.other",
                 :title
                 "Stromae - Multitude, le film (Full concert) - YouTube",
@@ -519,8 +519,8 @@
                 :videos
                 [#:link_preview{:uri
                                 #java/uri "https://www.youtube.com/embed/l5WgAr4B8Vo",
-                                :width nil,
-                                :height nil}],
+                                :width 1280,
+                                :height 720}],
                 :url "https://youtube.com",
                 :html nil,
                 :uri #java/uri "https://youtube.com"},
@@ -529,8 +529,8 @@
                 :images
                 [#:link_preview{:uri
                                 #java/uri "https://i1.sndcdn.com/artworks-QcpsIrEHYDxqBLWr-pkr4Sw-t500x500.jpg",
-                                :width nil,
-                                :height nil}],
+                                :width 500,
+                                :height 500}],
                 :media_type "music.song",
                 :title
                 "Stream Eatin' Good by Woodcamp | Listen online for free on SoundCloud",
@@ -663,12 +663,12 @@
                 :images
                 [#:link_preview{:uri
                                 #java/uri "https://upload.wikimedia.org/wikipedia/en/6/6c/Titans_of_Nuclear_podcast_logo.jpeg",
-                                :width nil,
-                                :height nil}
+                                :width 1200,
+                                :height 1200}
                  #:link_preview{:uri
                                 #java/uri "https://upload.wikimedia.org/wikipedia/en/6/6c/Titans_of_Nuclear_podcast_logo.jpeg",
-                                :width nil,
-                                :height nil}],
+                                :width 800,
+                                :height 800}],
                 :media_type "website",
                 :title "Titans of Nuclear - Wikipedia",
                 :favicons
@@ -723,8 +723,8 @@
                 :images
                 [#:link_preview{:uri
                                 #java/uri "https://m.media-amazon.com/images/I/41PjcXwoZlL._BO30,255,255,255_UF900,850_SR1910,1000,0,C_ZA2%252C340,500,900,420,420,AmazonEmber,50,4,0,0_PIRIOFOURANDHALF-medium,BottomLeft,30,-20_QL100_.jpg",
-                                :width nil,
-                                :height nil}],
+                                :width 1910,
+                                :height 1000}],
                 :media_type "book",
                 :title
                 "Amazon.com: Love's Executioner: 9780465020119: Yalom, Irvin D.: Libros",

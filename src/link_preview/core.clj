@@ -190,20 +190,31 @@
       (some-> (html/select resource [:link_preview/title]) first html/text)
       ""))
 
+(defn to-absolute [url-str base-uri]
+  (when url-str
+    (try
+      (let [uri (URI/create url-str)]
+        (if (.isAbsolute uri)
+          uri
+          (.resolve base-uri url-str)))
+      (catch Exception _
+        (.resolve base-uri url-str)))))
+
 (defn get-images
   "Extract image information from HTML"
   [resource base-uri]
   (let [og-images (html/select resource [(html/attr= :property "og:image")])
-        og-widths (html/select resource [(html/attr= :property "og:image:link_preview/width")])
-        og-heights (html/select resource [(html/attr= :property "og:image:link_preview/height")])]
+        og-widths (html/select resource [(html/attr= :property "og:image:width")])
+        og-heights (html/select resource [(html/attr= :property "og:image:height")])]
     (if (seq og-images)
       (->> (map (fn [img w h]
-                  {:link_preview/uri (-> img :attrs :content URI/create)
+                  {:link_preview/uri (some-> img :attrs :content (to-absolute base-uri))
                    :link_preview/width (some-> w :attrs :content try-parse-int)
                    :link_preview/height (some-> h :attrs :content try-parse-int)})
                 og-images
                 (concat og-widths (repeat nil))
                 (concat og-heights (repeat nil)))
+           (filter :link_preview/uri)
            (take 10)
            vec)
       []
@@ -225,28 +236,29 @@
   (let [icons (->> ["icon" "shortcut icon" "apple-touch-icon"]
                    (mapcat #(html/select resource [(html/attr= :rel %)]))
                    (map #(-> % :attrs :href))
-                   (map #(.resolve base-uri %))
+                   (keep #(to-absolute % base-uri))
                    (distinct)
                    (take 10)
                    set)]
     (if (empty? icons)
-      #{(.resolve base-uri "/favicon.ico")}
+      #{(to-absolute "/favicon.ico" base-uri)}
       icons)))
 
 (defn get-videos
   "Extract video information from HTML"
-  [resource]
+  [resource base-uri]
   (->> (concat
         (html/select resource [(html/attr= :property "og:video:secure_url")])
         (html/select resource [(html/attr= :property "og:video:url")]))
        (map #(-> % :attrs :content))
+       (keep #(to-absolute % base-uri))
        (distinct)
        (take 10)
-       (mapv (fn [url]
-               {:link_preview/uri (URI/create url)
-                :link_preview/width (some-> (get-meta-content resource "og:video:link_preview/width")
+       (mapv (fn [uri]
+               {:link_preview/uri uri
+                :link_preview/width (some-> (get-meta-content resource "og:video:width")
                                             try-parse-int)
-                :link_preview/height (some-> (get-meta-content resource "og:video:link_preview/height")
+                :link_preview/height (some-> (get-meta-content resource "og:video:height")
                                              try-parse-int)}))))
 
 (defn create-preview-from-html
@@ -269,7 +281,7 @@
                                    "website"))
      :link_preview/html nil
      :link_preview/images (get-images resource base-uri)
-     :link_preview/videos (get-videos resource)
+     :link_preview/videos (get-videos resource base-uri)
      :link_preview/favicons (get-favicons resource base-uri)}))
 
 ;; ==================================================================
