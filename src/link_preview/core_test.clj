@@ -110,6 +110,8 @@
 
   (fetch-and-save-html [["https://bensu.notion.site/friction-logs-d6e0cf603a59493681ed6c1365ede16f?pvs=4" "notion.html"]])
 
+  (fetch-and-save-html [["https://www.youtube.com/watch?v=9YL3zrpf1UY" "youtube.html"]])
+
   (process-file (io/file "resources/test/link_preview/html/notion.html"))
 
   (fetch-and-save-html

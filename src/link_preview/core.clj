@@ -304,7 +304,7 @@
    :provider_url "https://twitter.com", :height nil,
    :html "<blockquote class=\"twitter-tweet\"><p lang=\"en\" dir=\"ltr\">Trump Proposes 25 Percent Tariff On Imports From California <a href=\"https://t.co/dfF52auITC\">https://t.co/dfF52auITC</a> <a href=\"https://t.co/rLytnSDy3i\">pic.twitter.com/rLytnSDy3i</a></p>&mdash; The Babylon Bee (@TheBabylonBee) <a href=\"https://twitter.com/TheBabylonBee/status/1861454974426722737?ref_src=twsrc%5Etfw\">November 26, 2024</a></blockquote>\n<script async src=\"https://platform.twitter.com/widgets.js\" charset=\"utf-8\"></script>\n\n"})
 
-(defn create-preview-from-oembed
+(defn create-preview-from-oembed-twitter
   "Create a preview from a URL using the oembed API"
   [url]
   (log/info "(oembed) Creating preview for" url)
@@ -331,6 +331,7 @@
            :link_preview/favicons #{}
            :link_preview/html (:html embed)})
         (catch Exception e
+          ;; TODO: report to Sentry
           (throw e))))))
 
 
@@ -341,6 +342,71 @@
   (and (or (str/starts-with? url "https://x.com/")
            (str/starts-with? url "https://twitter.com/"))
        (str/includes? url "/status/")))
+
+
+;; https://www.youtube.com/oembed?url=VIDEO_URL&format=json
+(comment
+  {:author_url "https://www.youtube.com/@paramountpictures",
+   :thumbnail_height 360,
+   :thumbnail_url "https://i.ytimg.com/vi/-lsFs2615gw/hqdefault.jpg",
+   :width 200,
+   :type "video",
+   :title "Mission: Impossible - Dead Reckoning Part One | The Biggest Stunt in Cinema History (Tom Cruise)",
+   :provider_name "YouTube",
+   :author_name "Paramount Pictures",
+   :thumbnail_width 480,
+   :version "1.0",
+   :provider_url "https://www.youtube.com/",
+   :height 113,
+   :html "<iframe width=\"200\" height=\"113\" src=\"https://www.youtube.com/embed/-lsFs2615gw?feature=oembed\" frameborder=\"0\" allow=\"accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share\" referrerpolicy=\"strict-origin-when-cross-origin\" allowfullscreen title=\"Mission: Impossible - Dead Reckoning Part One | The Biggest Stunt in Cinema History (Tom Cruise)\"></iframe>"})
+
+(defn parse-title-and-description-youtube
+  [embed]
+  (let [title (:title embed)
+        [title description] (str/split title #" \| ")]
+    [title description]))
+
+(defn create-preview-from-oembed-youtube
+  "Create a preview from a URL using the oembed API"
+  [url]
+  (log/info "(oembed) Creating preview for" url)
+  (let [response (http/get (format "https://www.youtube.com/oembed?url=%s&format=json" url)
+                           {:timeout 3000
+                            :throw-exceptions false
+                            :cookie-policy :none
+                            :cookies {}
+                            :cookie-store nil})]
+    (log/info "status" (:status response))
+    (when (= (:status response) 200)
+      (log/info "(oembed) Request succeeded" url)
+      (log/info "yt response" (:body response))
+      (try
+        (let [embed (json/read-str (:body response) :key-fn keyword)
+              uri (URI/create url)
+              [title description] (parse-title-and-description-youtube embed)]
+          {:link_preview/uri uri
+           :link_preview/url (str uri)
+           :link_preview/title title
+           :link_preview/host (.getHost uri)
+           :link_preview/site_name (:provider_name embed)
+           :link_preview/description description
+           :link_preview/media_type "video"
+           :link_preview/images [{:link_preview/uri (URI/create (:thumbnail_url embed))
+                                  :link_preview/width (:thumbnail_width embed)
+                                  :link_preview/height (:thumbnail_height embed)}]
+           :link_preview/videos []
+           :link_preview/favicons #{#java/uri "https://www.youtube.com/s/desktop/024ccc3d/img/logos/favicon.ico"}
+           :link_preview/html nil})
+        (catch Exception e
+          ;; TODO: report to Sentry
+          (log/error "Failed to get Youtube oembed" e)
+          (throw e))))))
+
+(defn youtube? [url]
+  (or (str/starts-with? url "https://www.youtube.com/")
+      (str/starts-with? url "http://www.youtube.com/")
+      (str/starts-with? url "https://youtu.be/")
+      (str/starts-with? url "http://youtu.be")))
 
 (defn fetch-url! [url]
   (http/with-middleware http-middleware
@@ -357,16 +423,17 @@
 (defn create-preview
   "Create a preview from a URL. Returns a map conforming to preview-schema"
   [url]
-  (if (twitter? url)
-    (create-preview-from-oembed url)
-    (do
-      (log/info "(no cookies) Creating preview for" url)
-      (let [response (fetch-url! url)]
-        (log/info "Request succeeded" url)
-        (when (= (:status response) 200)
-          (when-let [content-type (get-in response [:headers "content-type"])]
-            (when (str/includes? content-type "text/html")
-              (create-preview-from-html url (:body response)))))))))
+  (cond
+    (twitter? url) (create-preview-from-oembed-twitter url)
+    (youtube? url) (create-preview-from-oembed-youtube url)
+    :else (do
+            (log/info "(no cookies) Creating preview for" url)
+            (let [response (fetch-url! url)]
+              (log/info "Request succeeded" url)
+              (when (= (:status response) 200)
+                (when-let [content-type (get-in response [:headers "content-type"])]
+                  (when (str/includes? content-type "text/html")
+                    (create-preview-from-html url (:body response)))))))))
 
 (defn create-previews
   "Create previews from text containing URLs"
