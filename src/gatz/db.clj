@@ -59,9 +59,11 @@
                                        [:mid uuid?]]]])
 
 (defn parse-originally-from [{:keys [did mid]}]
-  (cond-> {}
-    (some? did) (assoc :did (mt/-string->uuid did))
-    (some? mid) (assoc :mid (mt/-string->uuid mid))))
+  (let [did (mt/-string->uuid did)
+        mid (mt/-string->uuid mid)]
+    (if (and did mid)
+      {:did did :mid mid}
+      (throw (IllegalArgumentException. "Invalid originally_from")))))
 
 (defn parse-create-params
   [{:keys [name group_id text to_all_contacts
@@ -102,8 +104,6 @@
         now (or now (Date.))
         did (or did (random-uuid))
         mid (random-uuid)
-
-        originally-from (when originally_from originally_from)
 
         link-previews (mapv (fn [lid] (link-preview/by-id db lid)) (or link_previews []))
         updated-medias (some->> media_ids
@@ -147,6 +147,15 @@
                 [(:contacts/ids contacts) #{}]))))
 
         _ (assert (and (set? member-uids) (every? uuid? member-uids)))
+
+        originally-from (when originally_from
+                          (let [m (db.message/by-id db (:mid originally_from))
+                                og-user (db.user/by-id db (:message/user_id m))]
+                            (assert m)
+                            (assert og-user)
+                            (assert (contains? member-uids (:xt/id og-user))
+                                    "You need to include the person you are continuing from")
+                            originally_from))
 
         dm? (and (not group)
                  (= 1 (count (disj member-uids user-id))))
