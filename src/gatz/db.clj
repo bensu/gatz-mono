@@ -367,12 +367,15 @@
         mid (or mid (random-uuid))
         clock (crdt/new-hlc user-id now)
 
-        user (crdt.user/->value (db.user/by-id db user-id))
+        user (some-> (db.user/by-id db user-id) crdt.user/->value)
         _ (assert user)
 
-        d (crdt.discussion/->value (db.discussion/by-id db did))
+        d (some-> (db.discussion/by-id db did) crdt.discussion/->value)
+        _ (assert d "Discussion not found")
+
         members (:discussion/members d)
 
+        _ (assert (contains? members user-id) "User not in discussion")
         _ (when reply_to
             (let [reply-to (crdt.message/->value (db.message/by-id db reply_to))]
               (assert reply-to)

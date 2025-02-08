@@ -375,3 +375,176 @@
                                                     :did did
                                                     :now now})))))))
 
+(deftest test-create-message-conditions
+  (let [user-id #uuid "550e8400-e29b-41d4-a716-446655440000"
+        other-user-id #uuid "650e8400-e29b-41d4-a716-446655440000"
+        did #uuid "750e8400-e29b-41d4-a716-446655440000"
+        other-did #uuid "850e8400-e29b-41d4-a716-446655440000"
+        now (Date.)
+        ctx (db.util-test/test-system)
+        node (:biff.xtdb/node ctx)
+        get-ctx (fn [uid]
+                  (assoc ctx
+                         :auth/user-id uid
+                         :biff/db (xtdb/db node)))]
+
+    ;; Setup test data
+    (db.user/create-user! (get-ctx user-id)
+                          {:id user-id
+                           :username "test"
+                           :phone "+14159499000"
+                           :now now})
+    (db.user/create-user! (get-ctx other-user-id)
+                          {:id other-user-id
+                           :username "other"
+                           :phone "+14159499001"
+                           :now now})
+    (xtdb/sync node)
+
+    ;; Create two discussions
+    (db/create-discussion-with-message! (get-ctx user-id)
+                                        {:did did
+                                         :text "hello"
+                                         :to_all_contacts true
+                                         :now now})
+    (db/create-discussion-with-message! (get-ctx other-user-id)
+                                        {:did other-did
+                                         :text "hello"
+                                         :to_all_contacts true
+                                         :now now})
+    (xtdb/sync node)
+
+    (testing "User conditions"
+      (testing "Non-existent user"
+        (let [non-existent-user #uuid "950e8400-e29b-41d4-a716-446655440000"
+              params (db/parse-create-message-params {:text "hello"
+                                                      :discussion_id (str did)})]
+          (is (thrown? AssertionError
+                       (db/create-message! (get-ctx non-existent-user)
+                                           (assoc params :now now))))))
+
+      (testing "User not in discussion"
+        (let [params (db/parse-create-message-params {:text "hello"
+                                                      :discussion_id (str other-did)})]
+          (is (thrown? AssertionError
+                       (db/create-message! (get-ctx user-id)
+                                           (assoc params :now now)))))))
+
+    (testing "Discussion conditions"
+      (testing "Non-existent discussion"
+        (let [non-existent-did #uuid "a50e8400-e29b-41d4-a716-446655440000"
+              params (db/parse-create-message-params {:text "hello"
+                                                      :discussion_id (str non-existent-did)})]
+          (is (thrown? AssertionError
+                       (db/create-message! (get-ctx user-id)
+                                           (assoc params :now now)))))))
+
+    (testing "Reply conditions"
+      (testing "Reply to non-existent message"
+        (let [non-existent-msg #uuid "b50e8400-e29b-41d4-a716-446655440000"
+              params (db/parse-create-message-params {:text "hello"
+                                                      :discussion_id (str did)
+                                                      :reply_to (str non-existent-msg)})]
+          (is (thrown? AssertionError
+                       (db/create-message! (get-ctx user-id)
+                                           (assoc params :now now))))))
+
+      (testing "Reply to message from different discussion"
+        (let [msg-params (db/parse-create-message-params {:text "hello"
+                                                          :discussion_id (str other-did)})
+              msg-result (db/create-message! (get-ctx other-user-id) msg-params)
+              msg (crdt.message/->value msg-result)
+              reply-params (db/parse-create-message-params {:text "hello"
+                                                            :discussion_id (str did)
+                                                            :reply_to (str (:xt/id msg))})]
+          (xtdb/sync node)
+          (is (thrown? AssertionError
+                       (db/create-message! (get-ctx user-id)
+                                           (assoc reply-params :now now)))))))
+
+    (testing "Media conditions"
+      (testing "Non-existent media"
+        (let [non-existent-media #uuid "c50e8400-e29b-41d4-a716-446655440000"
+              params (db/parse-create-message-params {:text "hello"
+                                                      :discussion_id (str did)
+                                                      :media_ids [(str non-existent-media)]})]
+          (is (thrown? AssertionError
+                       (db/create-message! (get-ctx user-id)
+                                           (assoc params :now now))))))
+
+      (testing "Multiple media, one non-existent"
+        (let [media-id #uuid "d50e8400-e29b-41d4-a716-446655440000"
+              non-existent-media #uuid "e50e8400-e29b-41d4-a716-446655440000"
+              _ (db.media/create-media! (get-ctx user-id)
+                                        {:id media-id
+                                         :kind :media/img
+                                         :url "https://example.com/image.jpg"
+                                         :now now})
+              _ (xtdb/sync node)
+              params (db/parse-create-message-params {:text "hello"
+                                                      :discussion_id (str did)
+                                                      :media_ids [(str media-id)
+                                                                  (str non-existent-media)]})]
+          (is (thrown? AssertionError
+                       (db/create-message! (get-ctx user-id)
+                                           (assoc params :now now)))))))
+
+    (testing "Link preview conditions"
+      (testing "Non-existent link preview"
+        (let [non-existent-preview #uuid "f50e8400-e29b-41d4-a716-446655440000"
+              params (db/parse-create-message-params {:text "hello"
+                                                      :discussion_id (str did)
+                                                      :link_previews [(str non-existent-preview)]})]
+          (is (thrown? AssertionError
+                       (db/create-message! (get-ctx user-id)
+                                           (assoc params :now now))))))
+
+      (testing "Multiple previews, one non-existent"
+        (let [preview-id #uuid "150e8400-e29b-41d4-a716-446655440000"
+              non-existent-preview #uuid "250e8400-e29b-41d4-a716-446655440000"
+              _ (link-preview/create! (get-ctx user-id)
+                                      (assoc link-preview-data :xt/id preview-id))
+              _ (xtdb/sync node)
+              params (db/parse-create-message-params {:text "hello"
+                                                      :discussion_id (str did)
+                                                      :link_previews [(str preview-id)
+                                                                      (str non-existent-preview)]})]
+          (is (thrown? AssertionError
+                       (db/create-message! (get-ctx user-id)
+                                           (assoc params :now now)))))))
+
+    (testing "Valid combinations"
+      (let [media-id #uuid "350e8400-e29b-41d4-a716-446655440000"
+            preview-id #uuid "450e8400-e29b-41d4-a716-446655440000"
+            _ (db.media/create-media! (get-ctx user-id)
+                                      {:id media-id
+                                       :kind :media/img
+                                       :url "https://example.com/image.jpg"
+                                       :now now})
+            _ (link-preview/create! (get-ctx user-id)
+                                    (assoc link-preview-data :xt/id preview-id))
+            _ (xtdb/sync node)
+
+            ;; Create a message to reply to
+            reply-to-params (db/parse-create-message-params {:text "original"
+                                                             :discussion_id (str did)})
+            reply-to-result (db/create-message! (get-ctx user-id) reply-to-params)
+            reply-to-message (crdt.message/->value reply-to-result)
+            reply-to-id (:xt/id reply-to-message)
+            _ (xtdb/sync node)
+
+            ;; Create message with all valid references
+            params (db/parse-create-message-params {:text "hello"
+                                                    :discussion_id (str did)
+                                                    :media_ids [(str media-id)]
+                                                    :link_previews [(str preview-id)]
+                                                    :reply_to (str reply-to-id)})
+            result (db/create-message! (get-ctx user-id)
+                                       (assoc params :now now))
+            message (crdt.message/->value result)]
+
+        (is (= "hello" (:message/text message)))
+        (is (= [media-id] (map :xt/id (:message/media message))))
+        (is (= [preview-id] (map :xt/id (:message/link_previews message))))
+        (is (= reply-to-id (:message/reply_to message)))))))
+
