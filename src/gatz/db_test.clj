@@ -1,6 +1,13 @@
 (ns gatz.db-test
   (:require [clojure.test :refer [deftest is testing]]
-            [gatz.db :as db]))
+            [gatz.db :as db]
+            [gatz.db.media :as db.media]
+            [gatz.crdt.message :as crdt.message]
+            [gatz.db.user :as db.user]
+            [gatz.db.util-test :as db.util-test]
+            [link-preview.core :as link-preview]
+            [xtdb.api :as xtdb])
+  (:import [java.util Date]))
 
 (deftest test-parse-create-params
   (testing "Basic text-only message"
@@ -176,4 +183,184 @@
                                               :media_ids ["bad-uuid"]
                                               :link_previews ["also-bad"]
                                               :reply_to "nope"}))))))
+
+(def link-preview-data
+  #:link_preview{:host "github.com",
+                 :images
+                 [#:link_preview{:uri
+                                 #java/uri "https://opengraph.githubassets.com/1a438532909851015f0d4fc289a48a2865d595f8033e632c3d2d8420a28ecb53/rauhs/klang",
+                                 :width 1200,
+                                 :height 600}],
+                 :media_type "object",
+                 :title
+                 "GitHub - rauhs/klang: Clojurescript logging library",
+                 :favicons
+                 #{#java/uri "https://github.githubassets.com/favicons/favicon.svg"},
+                 :description
+                 "Clojurescript logging library. Contribute to rauhs/klang development by creating an account on GitHub.",
+                 :site_name "GitHub",
+                 :videos [],
+                 :url "https://github.com",
+                 :html nil,
+                 :uri #java/uri "https://github.com"})
+
+(deftest test-create-message!
+  (let [user-id #uuid "550e8400-e29b-41d4-a716-446655440000"
+        did #uuid "650e8400-e29b-41d4-a716-446655440000"
+        now (Date.)
+        ctx (db.util-test/test-system)
+        node (:biff.xtdb/node ctx)
+        get-ctx (fn []
+                  (assoc ctx
+                         :auth/user-id user-id
+                         :biff/db (xtdb/db node)))]
+
+    (db.user/create-user! (get-ctx) {:id user-id :username "test" :phone "+14159499000" :now now})
+    (xtdb/sync node)
+
+    (db/create-discussion-with-message! (get-ctx) {:did did :text "hello" :to_all_contacts true :now now})
+
+    (testing "Basic text-only message"
+      (let [params (db/parse-create-message-params {:text "hello"
+                                                    :discussion_id (str did)})
+            result (db/create-message! (get-ctx) (assoc params :now now))
+            message (crdt.message/->value result)]
+        (is (uuid? (:xt/id message)))
+        (is (= "hello" (:message/text message)))
+        (is (= did (:message/did message)))))
+
+    (testing "Message with made up media"
+      (let [media-id #uuid "750e8400-e29b-41d4-a716-446655440000"
+            params (db/parse-create-message-params {:text "hello"
+                                                    :discussion_id (str did)
+                                                    :media_ids [(str media-id)]})]
+        (is (thrown? AssertionError
+                     (db/create-message! (get-ctx) (assoc params :now now))))))
+
+    (testing "Message with media"
+      (let [media-id #uuid "750e8400-e29b-41d4-a716-446655440000"
+            _ (db.media/create-media! (get-ctx) {:id media-id
+                                                 :kind :media/img
+                                                 :url "https://example.com/image.jpg"
+                                                 :now now})
+            _ (xtdb/sync node)
+            params (db/parse-create-message-params {:text "hello"
+                                                    :discussion_id (str did)
+                                                    :media_ids [(str media-id)]})
+            result (db/create-message! (get-ctx) (assoc params :now now))
+            message (crdt.message/->value result)]
+        (is (uuid? (:xt/id message)))
+        (is (= "hello" (:message/text message)))
+        (is (= [media-id] (map :xt/id (:message/media message))))))
+
+    (testing "Message with missing link previews"
+      (let [preview-id #uuid "850e8400-e29b-41d4-a716-446655440000"
+            params (db/parse-create-message-params {:text "hello"
+                                                    :discussion_id (str did)
+                                                    :link_previews [(str preview-id)]})]
+
+        (is (thrown? AssertionError
+                     (db/create-message! (get-ctx) (assoc params :now now))))))
+
+    (testing "Message with link previews"
+      (let [preview-id #uuid "850e8400-e29b-41d4-a716-446655440000"
+            _ (link-preview/create! (get-ctx)  (assoc link-preview-data :xt/id preview-id))
+            _ (xtdb/sync node)
+            params (db/parse-create-message-params {:text "hello"
+                                                    :discussion_id (str did)
+                                                    :link_previews [(str preview-id)]})
+            result (db/create-message! (get-ctx) (assoc params :now now))
+            message (crdt.message/->value result)]
+        (is (= "hello" (:message/text message)))
+        (is (= [preview-id] (map :xt/id (:message/link_previews message))))))
+
+    (testing "Message with missing reply_to"
+      (let [reply-to #uuid "950e8400-e29b-41d4-a716-446655440000"
+            params (db/parse-create-message-params {:text "hello"
+                                                    :discussion_id (str did)
+                                                    :reply_to (str reply-to)})]
+        (is (thrown? AssertionError
+                     (db/create-message! (get-ctx) (assoc params :now now))))))
+
+    (testing "Message with reply_to"
+      (let [reply-to-params (db/parse-create-message-params {:text "hello"
+                                                             :discussion_id (str did)})
+            reply-to-result (db/create-message! (get-ctx) reply-to-params)
+            reply-to-message (crdt.message/->value reply-to-result)
+            reply-to-id (:xt/id reply-to-message)
+            _ (xtdb/sync node)
+            params (db/parse-create-message-params {:text "hello"
+                                                    :discussion_id (str did)
+                                                    :reply_to (str reply-to-id)})
+            result (db/create-message! (get-ctx) (assoc params :now now))
+            message (crdt.message/->value result)]
+        (is (= "hello" (:message/text message)))
+        (is (= reply-to-id (:message/reply_to message)))))
+
+    (testing "Message with all optional fields"
+      (let [media-id #uuid "750e8400-e29b-41d4-a716-446655440000"
+            _ (db.media/create-media! (get-ctx) {:id media-id
+                                                 :kind :media/img
+                                                 :url "https://example.com/image.jpg"
+                                                 :now now})
+
+            preview-id #uuid "850e8400-e29b-41d4-a716-446655440000"
+            _ (link-preview/create! (get-ctx)  (assoc link-preview-data :xt/id preview-id))
+
+            reply-to-params (db/parse-create-message-params {:text "hello"
+                                                             :discussion_id (str did)})
+            reply-to-result (db/create-message! (get-ctx) reply-to-params)
+            reply-to-message (crdt.message/->value reply-to-result)
+            reply-to-id (:xt/id reply-to-message)
+
+            _ (xtdb/sync node)
+
+            params (db/parse-create-message-params {:text "hello"
+                                                    :discussion_id (str did)
+                                                    :media_ids [(str media-id)]
+                                                    :link_previews [(str preview-id)]
+                                                    :reply_to (str reply-to-id)})
+            result (db/create-message! (get-ctx) (assoc params :now now))
+            message (crdt.message/->value result)]
+        (is (= "hello" (:message/text message)))
+        (is (= [media-id] (map :xt/id (:message/media message))))
+        (is (= [preview-id] (map :xt/id (:message/link_previews message))))
+        (is (= reply-to-id (:message/reply_to message)))))
+
+    (testing "Invalid cases"
+      (testing "Missing discussion ID"
+        (let [params (db/parse-create-message-params {:text "hello"})]
+          (is (thrown? AssertionError
+                       (db/create-message! (get-ctx) (assoc params :now now))))))
+
+      (testing "Invalid media_ids"
+        (let [params (db/parse-create-message-params {:text "hello"
+                                                      :discussion_id (str did)
+                                                      :media_ids ["not-a-uuid"]})]
+          (is (= [] (:media_ids params)))
+          (is (map? (db/create-message! (get-ctx) (assoc params :now now))))))
+
+      (testing "Invalid reply_to"
+        (let [params (db/parse-create-message-params {:text "hello"
+                                                      :discussion_id (str did)
+                                                      :reply_to "not-a-uuid"})]
+          (is (nil? (:reply_to params)))
+          (is (map? (db/create-message! (get-ctx) (assoc params :now now))))))
+
+      (testing "Invalid link_previews"
+        (let [params (db/parse-create-message-params {:text "hello"
+                                                      :discussion_id (str did)
+                                                      :link_previews ["not-a-uuid"]})]
+          (is (= [] (:link_previews params)))
+          (is (map? (db/create-message! (get-ctx) (assoc params :now now))))))
+
+      (testing "Missing text"
+        (is (thrown? AssertionError
+                     (db/create-message! (get-ctx) {:did did :now now}))))
+
+      (testing "Non-string text"
+        (is (thrown? AssertionError
+                     (db/create-message! (get-ctx) {:text 123
+                                                    :did did
+                                                    :now now})))))))
 

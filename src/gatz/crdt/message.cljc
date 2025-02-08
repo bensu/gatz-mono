@@ -245,9 +245,9 @@
 (defn ->value
   "To make the CRDT messages backwards compatible for older clients"
   [msg]
-  (-> (crdt/-value msg)
-      (assoc :message/flagged_uids [])
-      (update :message/reactions (fn [uid->emoji->ts]
-                                   (map-vals (fn [emoji->ts]
-                                               (filter-vals some? emoji->ts))
-                                             uid->emoji->ts)))))
+  (some-> (crdt/-value msg)
+          (assoc :message/flagged_uids [])
+          (update :message/reactions (fn [uid->emoji->ts]
+                                       (map-vals (fn [emoji->ts]
+                                                   (filter-vals some? emoji->ts))
+                                                 uid->emoji->ts)))))

@@ -148,7 +148,8 @@
 
 (defn by-id [db id]
   {:pre [(uuid? id)]}
-  (merge link-preview-defaults (xtdb/entity db id)))
+  (some->> (xtdb/entity db id)
+           (merge link-preview-defaults)))
 
 (defn by-url [db url]
   {:pre [(string? url)]}

@@ -344,8 +344,10 @@
     (string? id)            (assoc :mid (util/parse-uuid id))
     (string? reply_to)      (assoc :reply_to (util/parse-uuid reply_to))
     (string? discussion_id) (assoc :did (util/parse-uuid discussion_id))
+    (empty? media_ids)      (assoc :media_ids [])
     (string? media_id)      (assoc :media_ids [(util/parse-uuid media_id)])
     (coll? media_ids)       (assoc :media_ids (vec (keep util/parse-uuid media_ids)))
+    (empty? link_previews)  (assoc :link_previews [])
     (coll? link_previews)   (assoc :link_previews (vec (keep util/parse-uuid link_previews)))))
 
 (defn create-message!
@@ -370,6 +372,11 @@
 
         d (crdt.discussion/->value (db.discussion/by-id db did))
         members (:discussion/members d)
+
+        _ (when reply_to
+            (let [reply-to (crdt.message/->value (db.message/by-id db reply_to))]
+              (assert reply-to)
+              (assert (= did (:message/did reply-to)))))
 
         possible-mentions (db.message/extract-mentions text)
         mentions (if-not (empty? possible-mentions)
@@ -401,11 +408,18 @@
                            false)
         updated-medias (when media_ids
                          (mapv (fn [media-id]
-                                 (some-> (db.media/by-id db media-id)
-                                         (assoc :media/message_id mid)
-                                         (db.media/update-media)))
+                                 (let [media (db.media/by-id db media-id)]
+                                   (assert media)
+                                   (-> media
+                                       (assoc :media/message_id mid)
+                                       (db.media/update-media))))
                                media_ids))
-        link-previews (mapv (fn [lid] (link-preview/by-id db lid)) (or link_previews []))
+        link-previews (mapv (fn [lid]
+                              (let [preview (link-preview/by-id db lid)]
+                                (assert preview)
+                                preview))
+                            (or link_previews []))
+
         msg (crdt.message/new-message
              {:uid user-id :mid mid :did did
               :text text
