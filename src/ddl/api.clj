@@ -1,9 +1,7 @@
 (ns ddl.api
   "Stores Deferred Deep Links by matching browser fingerprints with device fingerprints"
   (:require [clojure.data.json :as json]
-            [clojure.string :as str]
-            [java-time.api :as jt]
-            [clojure.tools.logging :as log])
+            [java-time.api :as jt])
   (:import [eu.bitwalker.useragentutils UserAgent OperatingSystem]
            [java.time ZoneId ZonedDateTime]
            [java.util Date]))
@@ -15,12 +13,12 @@
   (= "Mobile" (:device-type ua)))
 
 #_(defn extract-ios-version [ua]
-  (let [os (.getOperatingSystem ua)]
-    (when (.equals (.getGroup os) OperatingSystem/IOS)
-      (let [os-name (.getName os)]
-        os-name
-        #_(when-let [version (second (re-find #"iOS (\d+_\d+(_\d+)?)" os-name))]
-            (str/replace version "_" "."))))))
+    (let [os (.getOperatingSystem ua)]
+      (when (.equals (.getGroup os) OperatingSystem/IOS)
+        (let [os-name (.getName os)]
+          os-name
+          #_(when-let [version (second (re-find #"iOS (\d+_\d+(_\d+)?)" os-name))]
+              (str/replace version "_" "."))))))
 
 (defn parse-user-agent
   "Extract what we are going to use from the user-agent
@@ -59,25 +57,32 @@
      :ddl/mobile? (:ddl/mobile? ua-matchers)
      :ddl/os (:ddl/os ua-matchers)}))
 
-(defn timezone-to-offset [timezone-name]
-  (try
-    (let [zone (ZoneId/of timezone-name)
-          now (ZonedDateTime/now zone)
-          offset (.getTotalSeconds (.getOffset now))]
-      (abs (/ offset 60)))  ; Convert seconds to minutes
-    (catch Exception e
-      (println "Error: Invalid timezone name")
-      nil)))
+;; TODO: this is not a pure function because it depends on the current time zone
+;; of the tester
+(defn timezone-to-offset
+  ([timezone-name]
+   (timezone-to-offset timezone-name (ZonedDateTime/now)))
+  ([timezone-name ^ZonedDateTime reference-time]
+   (try
+     (let [zone (ZoneId/of timezone-name)
+           time-in-zone (.withZoneSameInstant reference-time zone)
+           offset (.getTotalSeconds (.getOffset time-in-zone))]
+       (abs (/ offset 60)))  ; Convert seconds to minutes
+     (catch Exception _e
+       (println "Error: Invalid timezone name")
+       nil))))
+
+(def ^:dynamic *reference-time* nil)
 
 (defn device->matcher
   "Returns what we are going to match on based on the app device info"
   [device-info]
-  (let []
+  (let [reference-time (or *reference-time* (ZonedDateTime/now))]
     {:ddl/locale (get-in device-info [:locale 0 :languageTag])
      :ddl/screen-width (:screenWidth device-info)
      :ddl/screen-height (:screenHeight device-info)
      :ddl/timezone-offset (some-> (get-in device-info [:timezone 0 :timeZone])
-                                  timezone-to-offset)
+                                  (timezone-to-offset reference-time))
      :ddl/mobile? true
      :ddl/os (case (:os device-info)
                "android" :ddl/android
@@ -173,8 +178,8 @@
       (when (:ddl/mobile? browser-matcher)
         (put-link! ip url browser-matcher))))
   #_(catch Exception e
-    (log/error "Failed to register ddl link")
-    (log/error e))
+      (log/error "Failed to register ddl link")
+      (log/error e))
   {:status 200
    :headers {"content-type" "application/json"}
    :body (json/write-str {:success :ok})})

@@ -1,7 +1,12 @@
 (ns ddl.api-test
+  "Stores Deferred Deep Links by matching browser fingerprints with device fingerprints"
   (:require [clojure.data.json :as json]
             [clojure.test :as t :refer [deftest testing is]]
-            [ddl.api :as ddl.api]))
+            [ddl.api :as ddl.api])
+  (:import [java.time ZonedDateTime ZoneId]))
+
+(def test-reference-time
+  (-> (ZonedDateTime/of 2024 7 31 12 0 0 0 (ZoneId/of "America/New_York"))))
 
 (def -pixel-chrome-browser-info
   {:viewportHeight 1902,
@@ -131,30 +136,32 @@
    :os "ios"})
 
 (deftest device-matchers
-  (testing "we extract the information we expect from the device"
-    (is (= #:ddl{:locale "en-US",
-                 :screen-width 411.42857142857144, ;; XXX: how can this be?
-                 :screen-height 840,
-                 :timezone-offset 540,
-                 :mobile? true,
-                 :os :ddl/android}
-           (ddl.api/device->matcher -pixel-device-info)))
-    (is (= #:ddl{:locale "en-US",
-                 :screen-width 390,
-                 :screen-height 844,
-                 :timezone-offset 240,
-                 :mobile? true,
-                 :os :ddl/ios}
-           (ddl.api/device->matcher -iphone-device-info)))))
+  (binding [ddl.api/*reference-time* test-reference-time]
+    (testing "we extract the information we expect from the device"
+      (is (= #:ddl{:locale "en-US",
+                   :screen-width 411.42857142857144, ;; XXX: how can this be?
+                   :screen-height 840,
+                   :timezone-offset 540,
+                   :mobile? true,
+                   :os :ddl/android}
+             (ddl.api/device->matcher -pixel-device-info)))
+      (is (= #:ddl{:locale "en-US",
+                   :screen-width 390,
+                   :screen-height 844,
+                   :timezone-offset 240,
+                   :mobile? true,
+                   :os :ddl/ios}
+             (ddl.api/device->matcher -iphone-device-info))))))
 
 (deftest matchers
-  (testing "we can match across browser and device"
-    (is (ddl.api/match? (ddl.api/device->matcher -iphone-device-info)
-                        (ddl.api/browser->matcher -iphone-chrome-browser-info)))
-    (is (ddl.api/match? (ddl.api/device->matcher -iphone-device-info)
-                        (ddl.api/browser->matcher -iphone-chrome-browser-info)))
-    (is (ddl.api/match? (ddl.api/device->matcher -pixel-device-info)
-                        (ddl.api/browser->matcher -pixel-chrome-browser-info)))))
+  (binding [ddl.api/*reference-time* test-reference-time]
+    (testing "we can match across browser and device"
+      (is (ddl.api/match? (ddl.api/device->matcher -iphone-device-info)
+                          (ddl.api/browser->matcher -iphone-chrome-browser-info)))
+      (is (ddl.api/match? (ddl.api/device->matcher -iphone-device-info)
+                          (ddl.api/browser->matcher -iphone-chrome-browser-info)))
+      (is (ddl.api/match? (ddl.api/device->matcher -pixel-device-info)
+                          (ddl.api/browser->matcher -pixel-chrome-browser-info))))))
 
 ;; =============================================================================
 ;; Tests
@@ -254,55 +261,56 @@
    :os "android"})
 
 (deftest link-matching
-  (testing "if two people share an ip but not a device, they don't match"
-    (ddl.api/reset-pending-link!)
-    (let [url "chat.gatz://invite-link/123456"
-          android-url "chat.gatz://invite-link/123456"
-          shared-ip "192.168.0.1"
-          android-ip "192.168.2.2"]
-      (testing "a desktop fails to register a link"
-        (let [osx-params {:browser_info -osx-browser-params,
-                          :url url}
-              osx-req {:remote-addr shared-ip
-                       :params osx-params}
-              resp (ddl.api/register-link! osx-req)]
-          (is (= 0 (count @ddl.api/pending-links*)))
-          (is (nil? (ddl.api/get-link shared-ip)))))
-      (testing "an iphone registers a link"
-        (let [ios-params {:url url :browser_info -ios-browser-params}
-              ios-req {:remote-addr shared-ip
-                       :params ios-params}
-              resp (ddl.api/register-link! ios-req)]
-          (is (= 1 (count @ddl.api/pending-links*)))
-          (is (some? (ddl.api/get-link shared-ip)))))
-      (testing "an android registers a link to a different ip"
-        (let [android-params {:url android-url
-                              :browser_info -pixel-chrome-browser-info}
-              android-req {:remote-addr android-ip
-                           :params android-params}
-              {:keys [body]} (ddl.api/register-link! android-req)]
-          (is (= 2 (count @ddl.api/pending-links*)))
-          (is (some? (ddl.api/get-link android-ip)))))
-      (testing "the android can't find the link that doesn't belong to it"
-        (let [android-params {:device_info -android-device-params}
-              android-req {:remove-addr shared-ip
-                           :params android-params}
-              {:keys [body]} (ddl.api/pending-links! android-req)]
-          (is (nil? (:url (json/read-str body :key-fn keyword))))))
-      (testing "the iphone can't find the link that doesn't belong to it"
-        (let [ios-params {:device_info -iphone-device-params}
-              ios-req {:params ios-params
-                       :remote-addr android-ip}
-              {:keys [body]} (ddl.api/pending-links! ios-req)]
-          (is (nil? (:url (json/read-str body :key-fn keyword))))))
-      (testing "and that iphone can find it"
-        (let [ios-params {:device_info -iphone-device-params}
-              ios-req {:params ios-params
-                       :remote-addr shared-ip}
-              {:keys [body]} (ddl.api/pending-links! ios-req)]
-          (is (= 1 (count @ddl.api/pending-links*)) "The links are cleared when used")
-          (is (nil? (ddl.api/get-link shared-ip)))
-          (is (= url (:url (json/read-str body :key-fn keyword)))))))))
+  (binding [ddl.api/*reference-time* test-reference-time]
+    (testing "if two people share an ip but not a device, they don't match"
+      (ddl.api/reset-pending-link!)
+      (let [url "chat.gatz://invite-link/123456"
+            android-url "chat.gatz://invite-link/123456"
+            shared-ip "192.168.0.1"
+            android-ip "192.168.2.2"]
+        (testing "a desktop fails to register a link"
+          (let [osx-params {:browser_info -osx-browser-params,
+                            :url url}
+                osx-req {:remote-addr shared-ip
+                         :params osx-params}
+                resp (ddl.api/register-link! osx-req)]
+            (is (= 0 (count @ddl.api/pending-links*)))
+            (is (nil? (ddl.api/get-link shared-ip)))))
+        (testing "an iphone registers a link"
+          (let [ios-params {:url url :browser_info -ios-browser-params}
+                ios-req {:remote-addr shared-ip
+                         :params ios-params}
+                resp (ddl.api/register-link! ios-req)]
+            (is (= 1 (count @ddl.api/pending-links*)))
+            (is (some? (ddl.api/get-link shared-ip)))))
+        (testing "an android registers a link to a different ip"
+          (let [android-params {:url android-url
+                                :browser_info -pixel-chrome-browser-info}
+                android-req {:remote-addr android-ip
+                             :params android-params}
+                {:keys [body]} (ddl.api/register-link! android-req)]
+            (is (= 2 (count @ddl.api/pending-links*)))
+            (is (some? (ddl.api/get-link android-ip)))))
+        (testing "the android can't find the link that doesn't belong to it"
+          (let [android-params {:device_info -android-device-params}
+                android-req {:remove-addr shared-ip
+                             :params android-params}
+                {:keys [body]} (ddl.api/pending-links! android-req)]
+            (is (nil? (:url (json/read-str body :key-fn keyword))))))
+        (testing "the iphone can't find the link that doesn't belong to it"
+          (let [ios-params {:device_info -iphone-device-params}
+                ios-req {:params ios-params
+                         :remote-addr android-ip}
+                {:keys [body]} (ddl.api/pending-links! ios-req)]
+            (is (nil? (:url (json/read-str body :key-fn keyword))))))
+        (testing "and that iphone can find it"
+          (let [ios-params {:device_info -iphone-device-params}
+                ios-req {:params ios-params
+                         :remote-addr shared-ip}
+                {:keys [body]} (ddl.api/pending-links! ios-req)]
+            (is (= 1 (count @ddl.api/pending-links*)) "The links are cleared when used")
+            (is (nil? (ddl.api/get-link shared-ip)))
+            (is (= url (:url (json/read-str body :key-fn keyword))))))))))
 
 (comment
 
@@ -375,7 +383,7 @@
     {:decimalSeparator ",",
      :textDirection "ltr",
      :currencySymbol nil,
-     :digitGroupingSeparator ".",
+     :digitGroupingSeparator ",",
      :measurementSystem nil,
      :languageCode "es",
      :temperatureUnit "celsius",
