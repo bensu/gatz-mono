@@ -1,10 +1,5 @@
 (ns gatz.tasks
-  (:require [clojure.tools.build.api :as b]
-            [clojure.string :as str]
-            [clojure.java.io :as io]
-            #_[com.biffweb.tasks]
-            #_[babashka.tasks :refer [shell clojure]]
-            #_[babashka.fs :as fs]))
+  (:require [clojure.tools.build.api :as b]))
 
 (def lib 'gaz/api)
 (def version (format "0.0.%s" (b/git-count-revs nil)))
