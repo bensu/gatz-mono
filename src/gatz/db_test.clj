@@ -1,15 +1,19 @@
 (ns gatz.db-test
   (:require [clojure.test :refer [deftest is testing]]
+            [crdt.core :as crdt]
             [gatz.db :as db]
             [gatz.db.media :as db.media]
             [gatz.crdt.message :as crdt.message]
+            [gatz.crdt.discussion :as crdt.discussion]
+            [gatz.db.group :as db.group]
             [gatz.db.user :as db.user]
             [gatz.db.util-test :as db.util-test]
             [link-preview.core :as link-preview]
-            [xtdb.api :as xtdb])
+            [xtdb.api :as xtdb]
+            [gatz.db.contacts :as db.contacts])
   (:import [java.util Date]))
 
-(deftest test-parse-create-params
+(deftest test-parse-create-discussion-params
   (testing "Basic text-only message"
     (is (= {:text "hello" :to_all_contacts true}
            (db/parse-create-params {:text "hello"
@@ -24,7 +28,7 @@
                                     :to_all_contacts true}))))
 
   (testing "Message with group"
-    (let [group-id #crdt/ulid "01HQ7YXKB9P5RJ0K1HY3TQXJ8N"]
+    (let [group-id (crdt/random-ulid)]
       (is (= {:text "hello"
               :group_id group-id
               :to_all_contacts true}
@@ -33,7 +37,7 @@
                                       :to_all_contacts true})))))
 
   (testing "Message with single media (deprecated)"
-    (let [media-id #uuid "550e8400-e29b-41d4-a716-446655440000"]
+    (let [media-id (random-uuid)]
       (is (= {:text "hello"
               :media_ids [media-id]
               :to_all_contacts true}
@@ -42,8 +46,7 @@
                                       :to_all_contacts true})))))
 
   (testing "Message with multiple media"
-    (let [media-ids [#uuid "550e8400-e29b-41d4-a716-446655440000"
-                     #uuid "650e8400-e29b-41d4-a716-446655440000"]]
+    (let [media-ids [(random-uuid) (random-uuid)]]
       (is (= {:text "hello"
               :media_ids media-ids
               :to_all_contacts true}
@@ -52,7 +55,7 @@
                                       :media_ids (mapv str media-ids)})))))
 
   (testing "Message with link previews"
-    (let [preview-ids [#uuid "550e8400-e29b-41d4-a716-446655440000"]]
+    (let [preview-ids [(random-uuid) (random-uuid)]]
       (is (= {:text "hello"
               :link_previews preview-ids
               :to_all_contacts true}
@@ -61,8 +64,8 @@
                                       :link_previews (mapv str preview-ids)})))))
 
   (testing "Message with originally-from"
-    (let [did #uuid "550e8400-e29b-41d4-a716-446655440000"
-          mid #uuid "650e8400-e29b-41d4-a716-446655440000"]
+    (let [did (random-uuid)
+          mid (random-uuid)]
       (is (= {:text "hello"
               :originally_from {:did did
                                 :mid mid}
@@ -73,8 +76,7 @@
                                       :to_all_contacts true})))))
 
   (testing "Message with selected users"
-    (let [user-ids [#uuid "550e8400-e29b-41d4-a716-446655440000"
-                    #uuid "650e8400-e29b-41d4-a716-446655440000"]]
+    (let [user-ids [(random-uuid) (random-uuid)]]
       (is (= {:text "hello"
               :selected_users (set user-ids)}
              (db/parse-create-params {:text "hello"
@@ -87,7 +89,7 @@
                                     :to_all_contacts true}))))
 
   (testing "Empty text with media is valid"
-    (let [media-ids [#uuid "550e8400-e29b-41d4-a716-446655440000"]]
+    (let [media-ids [(random-uuid) (random-uuid)]]
       (is (= {:text ""
               :media_ids media-ids
               :to_all_contacts true}
@@ -376,10 +378,7 @@
                                                     :now now})))))))
 
 (deftest test-create-message-conditions
-  (let [user-id #uuid "550e8400-e29b-41d4-a716-446655440000"
-        other-user-id #uuid "650e8400-e29b-41d4-a716-446655440000"
-        did #uuid "750e8400-e29b-41d4-a716-446655440000"
-        other-did #uuid "850e8400-e29b-41d4-a716-446655440000"
+  (let [[user-id other-user-id did other-did] (repeatedly 4 random-uuid)
         now (Date.)
         ctx (db.util-test/test-system)
         node (:biff.xtdb/node ctx)
@@ -547,4 +546,201 @@
         (is (= [media-id] (map :xt/id (:message/media message))))
         (is (= [preview-id] (map :xt/id (:message/link_previews message))))
         (is (= reply-to-id (:message/reply_to message)))))))
+
+(deftest test-create-discussion-with-message!
+  (let [user-id (random-uuid)
+        other-user-id (random-uuid)
+        third-user-id (random-uuid)
+        now (Date.)
+        ctx (db.util-test/test-system)
+        node (:biff.xtdb/node ctx)
+        get-ctx (fn [uid]
+                  (assoc ctx
+                         :auth/user-id uid
+                         :biff/db (xtdb/db node)))]
+
+    ;; Setup test data
+    (db.user/create-user! (get-ctx user-id)
+                          {:id user-id
+                           :username "test"
+                           :phone "+14159499000"
+                           :now now})
+    (db.user/create-user! (get-ctx other-user-id)
+                          {:id other-user-id
+                           :username "other"
+                           :phone "+14159499001"
+                           :now now})
+    (db.user/create-user! (get-ctx third-user-id)
+                          {:id third-user-id
+                           :username "third"
+                           :phone "+14159499002"
+                           :now now})
+    (xtdb/sync node)
+    (db.contacts/force-contacts! (get-ctx user-id) user-id other-user-id)
+    (db.contacts/force-contacts! (get-ctx user-id) user-id third-user-id)
+    (xtdb/sync node)
+
+    (testing "Basic text-only message"
+      (let [{:keys [discussion message]}
+            (db/create-discussion-with-message!
+             (get-ctx user-id)
+             {:text "hello"
+              :to_all_contacts true
+              :now now})
+            discussion (crdt.discussion/->value discussion)
+            message (crdt.message/->value message)]
+        (is (uuid? (:xt/id discussion)))
+        (is (= "hello" (:message/text message)))
+        (is (= #{user-id other-user-id third-user-id} (:discussion/members discussion)))
+        (is (= :discussion.member_mode/open
+               (:discussion/member_mode discussion)))))
+
+    (testing "Message with group"
+      (let [group-id (crdt/random-ulid)
+            _ (db.group/create! (get-ctx user-id)
+                                {:id group-id
+                                 :name "Test Group"
+                                 :owner user-id
+                                 :members #{user-id}
+                                 :now now})
+            _ (xtdb/sync node)
+            result (db/create-discussion-with-message!
+                    (get-ctx user-id)
+                    {:text "hello"
+                     :group_id (str group-id)
+                     :to_all_contacts true
+                     :now now})
+            discussion (crdt.discussion/->value (:discussion result))
+            message (crdt.message/->value (:message result))]
+        (is (= group-id (:discussion/group_id discussion)))
+        (is (= #{user-id} (:discussion/members discussion)))
+        (is (= "hello" (:message/text message)))))
+
+    (testing "Message with single media (deprecated)"
+      (let [media-id (random-uuid)
+            _ (db.media/create-media! (get-ctx user-id)
+                                      {:id media-id
+                                       :kind :media/img
+                                       :url "https://example.com/image.jpg"
+                                       :now now})
+            _ (xtdb/sync node)
+            result (db/create-discussion-with-message!
+                    (get-ctx user-id)
+                    {:text "hello"
+                     :media_id (str media-id)
+                     :to_all_contacts true
+                     :now now})
+            message (crdt.message/->value (:message result))]
+        (is (= [media-id] (map :xt/id (:message/media message))))))
+
+    (testing "Message with multiple media"
+      (let [media-ids [(random-uuid) (random-uuid)]
+            _ (doseq [media-id media-ids]
+                (db.media/create-media! (get-ctx user-id)
+                                        {:id media-id
+                                         :kind :media/img
+                                         :url "https://example.com/image.jpg"
+                                         :now now}))
+            _ (xtdb/sync node)
+            result (db/create-discussion-with-message!
+                    (get-ctx user-id)
+                    {:text "hello"
+                     :to_all_contacts true
+                     :media_ids (mapv str media-ids)
+                     :now now})
+            message (crdt.message/->value (:message result))]
+        (is (= (set media-ids) (set (map :xt/id (:message/media message)))))))
+
+    (testing "Message with link previews"
+      (let [preview-ids [(random-uuid)]
+            _ (doseq [preview-id preview-ids]
+                (link-preview/create! (get-ctx user-id)
+                                      (assoc link-preview-data :xt/id preview-id)))
+            _ (xtdb/sync node)
+            result (db/create-discussion-with-message!
+                    (get-ctx user-id)
+                    {:text "hello"
+                     :to_all_contacts true
+                     :link_previews (mapv str preview-ids)
+                     :now now})
+            message (crdt.message/->value (:message result))]
+        (is (= preview-ids (map :xt/id (:message/link_previews message))))))
+
+    (testing "Message with originally-from"
+      (let [original-did (random-uuid)
+            original-result (db/create-discussion-with-message!
+                             (get-ctx user-id)
+                             {:did original-did
+                              :text "original"
+                              :to_all_contacts true
+                              :now now})
+            original-mid (:xt/id (:message original-result))
+            _ (xtdb/sync node)
+
+            result (db/create-discussion-with-message!
+                    (get-ctx user-id)
+                    {:text "hello"
+                     :originally_from {:did (str original-did)
+                                       :mid (str original-mid)}
+                     :to_all_contacts true
+                     :now now})
+            discussion (crdt.discussion/->value (:discussion result))]
+        (is (= {:did original-did :mid original-mid}
+               (:discussion/originally_from discussion)))))
+
+    (testing "Message with selected users"
+      (let [user-ids [user-id other-user-id]
+            result (db/create-discussion-with-message!
+                    (get-ctx user-id)
+                    {:text "hello"
+                     :selected_users (mapv str user-ids)
+                     :now now})
+            discussion (crdt.discussion/->value (:discussion result))]
+        (is (= (set user-ids) (:discussion/members discussion)))
+        (is (= :discussion.member_mode/closed
+               (:discussion/member_mode discussion)))))
+
+    (testing "Empty text with media is valid"
+      (let [media-ids [#uuid "550e8400-e29b-41d4-a716-446655440000"]
+            _ (doseq [media-id media-ids]
+                (db.media/create-media! (get-ctx user-id)
+                                        {:id media-id
+                                         :kind :media/img
+                                         :url "https://example.com/image.jpg"
+                                         :now now}))
+            _ (xtdb/sync node)
+            result (db/create-discussion-with-message!
+                    (get-ctx user-id)
+                    {:text ""
+                     :media_ids (mapv str media-ids)
+                     :to_all_contacts true
+                     :now now})
+            message (crdt.message/->value (:message result))]
+        (is (= "" (:message/text message)))
+        (is (= media-ids (map :xt/id (:message/media message))))))
+
+    (testing "Invalid cases"
+      (testing "Empty text without media"
+        (is (thrown? AssertionError
+                     (db/create-discussion-with-message!
+                      (get-ctx user-id)
+                      {:text ""
+                       :to_all_contacts true
+                       :now now}))))
+
+      (testing "Missing required recipient specification"
+        (is (thrown? AssertionError
+                     (db/create-discussion-with-message!
+                      (get-ctx user-id)
+                      {:text "hello"
+                       :now now}))))
+
+      (testing "Invalid originally-from (missing mid)"
+        (is (thrown? IllegalArgumentException
+                     (db/create-discussion-with-message!
+                      (get-ctx user-id)
+                      {:text "hello"
+                       :originally_from {:did "550e8400-e29b-41d4-a716-446655440000"}
+                       :to_all_contacts true
+                       :now now})))))))
 

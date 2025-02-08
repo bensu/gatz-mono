@@ -75,8 +75,9 @@
   "Returns the created group"
   [ctx group-opts]
   (let [id (or (:id group-opts) (crdt/random-ulid))
+        owner (or (:owner group-opts) (:auth/user-id ctx))
         group (-> group-opts
-                  (assoc :id id)
+                  (assoc :id id :owner owner)
                   new-group)]
     ;; We are going to redirect the user to the entity
     ;; Better to have it ready before they get there

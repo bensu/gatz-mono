@@ -151,16 +151,28 @@
                 (assert to_all_contacts)
                 [(:contacts/ids contacts) #{}]))))
 
-        _ (assert (and (set? member-uids) (every? uuid? member-uids)))
+        _ (assert (and (set? member-uids)
+                       (every? uuid? member-uids)))
 
-        originally-from (when originally_from
-                          (let [m (db.message/by-id db (:mid originally_from))
-                                og-user (db.user/by-id db (:message/user_id m))]
-                            (assert m)
+        originally-from (when-let [og-mid (:mid originally_from)]
+                          (assert (:did originally_from))
+                          (let [og-did (:did originally_from)
+                                og-d (db.discussion/by-id db og-did)
+                                og-m (db.message/by-id db og-mid)
+                                og-user-id (some-> og-m :message/user_id)
+                                og-user (some->> og-user-id
+                                                 (db.user/by-id db)
+                                                 (crdt.user/->value))]
+                            (assert og-d)
+                            (assert og-m)
                             (assert og-user)
-                            (assert (contains? member-uids (:xt/id og-user))
+                            (assert (= og-did (:message/did og-m))
+                                    "Original message is not from the discussion")
+                            (assert (or (= user-id og-user-id)
+                                        (contains? member-uids og-user-id))
                                     "You need to include the person you are continuing from")
-                            originally_from))
+                            {:mid og-mid
+                             :did og-did}))
 
         dm? (and (not group)
                  (= 1 (count (disj member-uids user-id))))
