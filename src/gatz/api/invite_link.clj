@@ -49,7 +49,8 @@
                                                  :type :invite_link/crew})
         link-id (:xt/id invite-link)]
     (posthog/capture! ctx "invite_link.new" invite-link)
-    (json-response {:url (db.invite-link/make-url ctx link-id)})))
+    (json-response {:id link-id
+                    :url (db.invite-link/make-url ctx link-id)})))
 
 (defn post-contact-invite-link [{:keys [auth/user-id] :as ctx}]
   (assert user-id "The user should be authenticated by now")
@@ -57,7 +58,8 @@
                                                  :type :invite_link/contact})
         link-id (:xt/id invite-link)]
     (posthog/capture! ctx "invite_link.new" invite-link)
-    (json-response {:url (db.invite-link/make-url ctx link-id)})))
+    (json-response {:id link-id
+                    :url (db.invite-link/make-url ctx link-id)})))
 
 (defn post-group-invite-link [{:keys [auth/user-id biff/db] :as ctx}]
   (let [now (Date.)
@@ -76,7 +78,8 @@
                                   :type il-type                                  :now now})
                 link-id (:xt/id invite-link)]
             (posthog/capture! ctx "invite_link.new" invite-link)
-            (json-response {:url (db.invite-link/make-url ctx link-id)}))
+            (json-response {:id link-id
+                            :url (db.invite-link/make-url ctx link-id)}))
           (err-resp "not_found" "Group not found"))
         (err-resp "not_found" "Group not found"))
       (err-resp "invalid_params" "Invalid params"))))

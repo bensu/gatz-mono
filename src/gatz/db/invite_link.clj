@@ -99,10 +99,6 @@
   (when-let [e (xtdb/entity db id)]
     (merge default-fields e)))
 
-(defn find-url [db url]
-  (when-let [id (parse-url url)]
-    (by-id db id)))
-
 (defn mark-used!
   [{:keys [biff/db] :as ctx} id {:keys [by-uid now]}]
   (when-let [invite-link (by-id db id)]

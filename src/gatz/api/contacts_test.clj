@@ -96,6 +96,7 @@
   (testing "when inviting a contact, they see your open discussions"
     (let [uid (random-uuid)
           cid (random-uuid)
+          cid2 (random-uuid)
           sid api.invite-link/test-special-contact
           fid (random-uuid)
           did (random-uuid)
@@ -112,11 +113,13 @@
       (db.user/create-user!
        ctx {:id uid :username "user_id" :phone "+14159499000" :now now})
       (db.user/create-user!
-       ctx {:id cid :username "contact" :phone "+14159499001" :now now})
+       ctx {:id cid :username "eventual_contact" :phone "+14159499001" :now now})
       (db.user/create-user!
-       ctx {:id sid :username "stranger" :phone "+14159499002" :now now})
+       ctx {:id sid :username "first_contact" :phone "+14159499002" :now now})
       (db.user/create-user!
-       ctx {:id fid :username "friend_of_friend" :phone "+14159499003" :now now})
+       ctx {:id cid2 :username "second_contact" :phone "+14159499003" :now now})
+      (db.user/create-user!
+       ctx {:id fid :username "friend_of_friend" :phone "+14159499004" :now now})
       (xtdb/sync node)
 
       (db.group/create! ctx
@@ -124,6 +127,7 @@
                          :settings {:discussion/member_mode :discussion.member_mode/open}
                          :name "test" :members #{}})
       (db.contacts/force-contacts! ctx uid sid)
+      (db.contacts/force-contacts! ctx uid cid2)
       (db.contacts/force-contacts! ctx sid fid)
       (xtdb/sync node)
 
@@ -143,20 +147,20 @@
 
       (let [db (xtdb/db node)
             d (crdt.discussion/->value (db.discussion/by-id db did))]
-        (is (= #{sid uid} (:discussion/members d)))
+        (is (= #{sid cid2 uid} (:discussion/members d)))
         (is (= :discussion.member_mode/open (:discussion/member_mode d))))
 
       (testing "inviting through a contact link, makes you contacts and gives you access to posts"
         (let [ok-resp (api.invite-link/post-contact-invite-link (get-ctx uid))
-              {:keys [url]} (json/read-str (:body ok-resp) {:key-fn keyword})
-              invite-link-id (db.invite-link/parse-url url)]
+              {:keys [url id]} (json/read-str (:body ok-resp) {:key-fn keyword})]
 
           (is (= 200 (:status ok-resp)))
-          (is (crdt/ulid? invite-link-id))
+          (is (string? url))
+          (is (crdt/ulid? (crdt/parse-ulid id)))
 
           (xtdb/sync node)
 
-          (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
+          (let [params  (json/read-str (json/write-str {:id id}) {:key-fn keyword})
                 ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
                                                                    (assoc :params params)))]
             (is (= 200 (:status ok-resp))))
@@ -164,10 +168,10 @@
           (xtdb/sync node)
 
           (testing "you can do this multiple times"
-            (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
-                  ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
-                                                                     (assoc :params params)))]
-              (is (= 200 (:status ok-resp)))))))
+            (let [params  (json/read-str (json/write-str {:id id}) {:key-fn keyword})
+                  {:keys [status]} (api.invite-link/post-join-invite-link (-> (get-ctx cid)
+                                                                              (assoc :params params)))]
+              (is (= 200 status))))))
       (xtdb/sync node)
 
       (let [db (xtdb/db node)
@@ -185,20 +189,20 @@
             (is (not (contains? (:contacts/ids cid-contacts) sid)))))
         (testing "the new contact can see personal posts but not group posts"
           (is (= [did] posts))
-          (is (= #{sid cid uid} (:discussion/members d)))
+          (is (= #{sid cid uid cid2} (:discussion/members d)))
           (is (= #{uid} (:discussion/members d2)))))
 
       (testing "some special people, can invite and make you contact of their contacts"
         (let [ok-resp (api.invite-link/post-contact-invite-link (get-ctx sid))
-              {:keys [url]} (json/read-str (:body ok-resp) {:key-fn keyword})
-              invite-link-id (db.invite-link/parse-url url)]
+              {:keys [url id]} (json/read-str (:body ok-resp) {:key-fn keyword})]
 
           (is (= 200 (:status ok-resp)))
-          (is (crdt/ulid? invite-link-id))
+          (is (string? url))
+          (is (crdt/ulid? (crdt/parse-ulid id)))
 
           (xtdb/sync node)
 
-          (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
+          (let [params  (json/read-str (json/write-str {:id id}) {:key-fn keyword})
                 ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
                                                                    (assoc :params params)))]
             (is (= 200 (:status ok-resp))))
@@ -221,26 +225,26 @@
               after-expiry-ts (Date. (+ (.getTime now)
                                         (.toMillis (Duration/ofDays 8))))
               ok-resp (api.invite-link/post-contact-invite-link (get-ctx uid))
-              {:keys [url]} (json/read-str (:body ok-resp) {:key-fn keyword})
-              invite-link-id (db.invite-link/parse-url url)]
+              {:keys [url id]} (json/read-str (:body ok-resp) {:key-fn keyword})]
 
           (is (= 200 (:status ok-resp)))
-          (is (crdt/ulid? invite-link-id))
+          (is (string? url))
+          (is (crdt/ulid? (crdt/parse-ulid id)))
 
           (xtdb/sync node)
 
           ;; Let the link expire
           (binding [db.invite-link/*test-current-ts* after-expiry-ts]
-            (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
+            (let [params  (json/read-str (json/write-str {:id id}) {:key-fn keyword})
                   ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
                                                                      (assoc :params params)))]
               (is (= 400 (:status ok-resp))))
-            (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
+            (let [params  (json/read-str (json/write-str {:id id}) {:key-fn keyword})
                   ok-resp (api.invite-link/get-invite-link (-> (get-ctx cid)
                                                                (assoc :params params)))]
               (is (= 400 (:status ok-resp)))))
           (binding [db.invite-link/*test-current-ts* before-expiry-ts]
-            (let [params  (json/read-str (json/write-str {:id invite-link-id}) {:key-fn keyword})
+            (let [params  (json/read-str (json/write-str {:id id}) {:key-fn keyword})
                   ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
                                                                      (assoc :params params)))]
               (is (= 200 (:status ok-resp)))))))
