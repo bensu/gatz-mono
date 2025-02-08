@@ -159,11 +159,12 @@
             _ (xtdb/sync node)
             db (xtdb/db node)
 
-            {:keys [url]} (json/read-str (:body ok-resp) {:key-fn keyword})
-            invite-link-id (db.invite-link/parse-url url)
+            {:keys [url id]} (json/read-str (:body ok-resp) {:key-fn keyword})
+            invite-link-id (crdt/parse-ulid id)
             invite-link (db.invite-link/by-id db invite-link-id)]
 
         (is (= 200 (:status ok-resp)))
+        (is (string? url))
         (is (crdt/ulid? invite-link-id))
         (is (some? invite-link))
         (is (= :invite_link/group (:invite_link/type invite-link)))
@@ -202,10 +203,11 @@
               ok-resp (api.invite-link/post-group-invite-link
                        (-> (get-ctx uid)
                            (assoc :params params)))
-              {:keys [url]} (json/read-str (:body ok-resp) {:key-fn keyword})
-              invite-link-id (db.invite-link/parse-url url)]
+              {:keys [url id]} (json/read-str (:body ok-resp) {:key-fn keyword})
+              invite-link-id (crdt/parse-ulid id)]
 
           (is (= 200 (:status ok-resp)))
+          (is (string? url))
           (is (crdt/ulid? invite-link-id))
 
           (xtdb/sync node)

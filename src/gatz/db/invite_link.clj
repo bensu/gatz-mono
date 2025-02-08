@@ -11,12 +11,6 @@
   "https://gatz.chat/invite-link/1234567890abcdef"
   "chat.gatz://invite-link/1234567890abcdef")
 
-(defn parse-url [s]
-  {:post [(or (nil? %) (crdt/ulid? %))]}
-  (some->> (str/split s #"/")
-           last
-           (crdt/parse-ulid)))
-
 (defn make-url [ctx id]
   {:pre [(crdt/ulid? id)] :post [(string? %)]}
   (format "%s/invite?id=%s"
