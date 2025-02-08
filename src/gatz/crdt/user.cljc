@@ -160,7 +160,7 @@
           final (reduce apply-delta initial (shuffle deltas))]
       (is (= {:xt/id uid
               :db/type :gatz/user
-              :db/version 1
+              :db/version 2
               :crdt/clock clock
               :user/created_at t0
               :user/is_test false
@@ -170,11 +170,15 @@
               :user/updated_at now
               :user/avatar nil
               :user/push_tokens nil
+              :user/blocked_uids #{}
+              :user/deleted_at nil
+              :user/profile {:profile/urls {:profile.urls/website nil
+                                            :profile.urls/twitter nil}}
               :user/settings {:settings/notifications notifications-off}}
              (->value initial)))
       (is (= {:xt/id uid
               :db/type :gatz/user
-              :db/version 1
+              :db/version 2
               :crdt/clock c5
               :user/created_at t0
               :user/is_test false
@@ -183,7 +187,11 @@
               :user/phone_number "111"
               :user/updated_at t5
               :user/avatar avatar
+              :user/blocked_uids #{}
               :user/push_tokens push-tokens
+              :user/deleted_at nil
+              :user/profile {:profile/urls {:profile.urls/website nil
+                                            :profile.urls/twitter nil}}
               :user/settings {:settings/notifications (merge np-t4 np-t5)}}
              (->value final)
              (->value (reduce apply-delta initial (shuffle (shuffle deltas)))))))))
