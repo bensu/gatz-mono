@@ -13,6 +13,7 @@
             [gatz.schema :as schema]
             [gatz.connections :as conns]
             [gatz.notify :as notify]
+            [gatz.util :as util]
             [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.test :as test]
@@ -22,7 +23,6 @@
             [ring.middleware.gzip :refer [wrap-gzip]]
             [malli.core :as malc]
             [malli.registry :as malr]
-            [malli.transform :as mt]
             [nrepl.cmdline :as nrepl-cmd]
             [ring.adapter.jetty9]
             [to-jdbc-uri.core :refer [to-jdbc-uri]]
@@ -112,7 +112,7 @@
 (defn start-fake-server [{:keys [biff/secret] :as ctx}]
      ;; This is here so that heroku is happy with the startup time
   (let [port (or (Integer/parseInt (System/getenv "PORT"))
-                 (mt/-string->long (secret :biff/port)))
+                 (util/parse-long (secret :biff/port)))
         _ (println "binding fake server to " port)
         server (ring.adapter.jetty9/run-jetty
                 tiny-handler
@@ -222,7 +222,7 @@
    biff/use-tx-listener
    (fn start-http-server [{:keys [biff/secret] :as ctx}]
      (let [port (or (some-> (System/getenv "PORT") Integer/parseInt)
-                    (some-> (secret :biff/port) mt/-string->long)
+                    (some-> (secret :biff/port) util/parse-long)
                     8080)]
        (assert (some? port))
        (log/info "Binding HTTP to port:" port)

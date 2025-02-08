@@ -9,7 +9,7 @@
             [gatz.db.user :as db.user]
             [gatz.crdt.user :as crdt.user]
             [gatz.schema :as schema]
-            [malli.transform :as mt]
+            [gatz.util :as util]
             [malli.core :as m]
             [sdk.posthog :as posthog])
   (:import [java.util Date]))
@@ -36,7 +36,7 @@
                 [:contact_ids [:vec schema/UserId]]]]])
 
 (defn strict-str->uuid [s]
-  (let [out (mt/-string->uuid s)]
+  (let [out (util/parse-uuid s)]
     (if (uuid? out) out nil)))
 
 (defn parse-group-params [params]

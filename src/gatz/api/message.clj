@@ -5,7 +5,7 @@
             [gatz.db.message :as db.message]
             [gatz.crdt.message :as crdt.message]
             [gatz.notify :as notify]
-            [malli.transform :as mt]
+            [gatz.util :as util]
             [sdk.posthog :as posthog]))
 
 ;; ============================================================================
@@ -18,8 +18,8 @@
 
 (defn edit-message! [{:keys [params] :as ctx}]
   (let [{:keys [text id discussion_id]} params
-        did (some-> discussion_id mt/-string->uuid)
-        mid (some-> id mt/-string->uuid)
+        did (some-> discussion_id util/parse-uuid)
+        mid (some-> id util/parse-uuid)
         {:keys [message]}
         (db.message/edit-message! ctx {:did did :mid mid :text text})]
     (posthog/capture! ctx "message.edit" {:did did :mid mid})
@@ -27,9 +27,9 @@
 
 (defn react-to-message! [{:keys [params biff/db] :as ctx}]
   (let [{:keys [reaction mid did]} params
-        did (mt/-string->uuid did)
+        did (util/parse-uuid did)
         d (db.discussion/by-id db did)
-        mid (or (some-> mid mt/-string->uuid)
+        mid (or (some-> mid util/parse-uuid)
                 (:discussion/first_message d))]
     (assert (string? reaction) "reaction must be a string")
     (let [{:keys [message]}
@@ -40,16 +40,16 @@
 (defn undo-react-to-message! [{:keys [params] :as ctx}]
   (let [{:keys [reaction mid did]} params
         _ (assert (string? reaction) "reaction must be a string")
-        did (mt/-string->uuid did)
-        mid (some-> mid mt/-string->uuid)
+        did (util/parse-uuid did)
+        mid (some-> mid util/parse-uuid)
         {:keys [message]}
         (db.message/undo-react! ctx {:did did :mid mid :reaction reaction})]
     (posthog/capture! ctx "message.undo_react" {:did did :mid mid :reaction reaction})
     (json-response {:message (crdt.message/->value message)})))
 
 (defn delete-message! [{:keys [params biff/db] :as ctx}]
-  (let [did (some->> (:did params) mt/-string->uuid)
-        mid (some->> (:id params) mt/-string->uuid)
+  (let [did (some->> (:did params) util/parse-uuid)
+        mid (some->> (:id params) util/parse-uuid)
         msg (some->> mid (db.message/by-id db) crdt.message/->value)]
     (when (nil? did)
       (log/error "warning, no did passed for delete message" mid))
@@ -64,8 +64,8 @@
 
 (defn parse-message-params [params]
   (cond-> {}
-    (some? (:mid params)) (assoc :mid (mt/-string->uuid (:mid params)))
-    (some? (:did params)) (assoc :did (mt/-string->uuid (:did params)))))
+    (some? (:mid params)) (assoc :mid (util/parse-uuid (:mid params)))
+    (some? (:did params)) (assoc :did (util/parse-uuid (:did params)))))
 
 (defn flag! [{:keys [params] :as ctx}]
   (let [{:keys [mid did]} (parse-message-params params)

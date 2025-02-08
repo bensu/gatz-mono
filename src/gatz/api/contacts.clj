@@ -6,7 +6,7 @@
             [gatz.db.user :as db.user]
             [gatz.crdt.user :as crdt.user]
             [gatz.schema :as schema]
-            [malli.transform :as mt]
+            [gatz.util :as util]
             [sdk.posthog :as posthog]))
 
 (defn json-response [body]
@@ -34,7 +34,7 @@
                           [:discussion [:vec schema/Discussion]]]]]]])
 
 (defn strict-str->uuid [s]
-  (let [out (mt/-string->uuid s)]
+  (let [out (util/parse-uuid s)]
     (if (uuid? out) out nil)))
 
 (defn parse-contact-params [params]

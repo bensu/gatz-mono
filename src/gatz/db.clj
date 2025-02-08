@@ -14,8 +14,8 @@
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
             [gatz.schema :as schema]
+            [gatz.util :as util]
             [link-preview.core :as link-preview]
-            [malli.transform :as mt]
             [xtdb.api :as xtdb]
             [clojure.tools.logging :as log])
   (:import [java.util Date]))
@@ -59,8 +59,8 @@
                                        [:mid uuid?]]]])
 
 (defn parse-originally-from [{:keys [did mid]}]
-  (let [did (mt/-string->uuid did)
-        mid (mt/-string->uuid mid)]
+  (let [did (util/parse-uuid did)
+        mid (util/parse-uuid mid)]
     (if (and did mid)
       {:did did :mid mid}
       (throw (IllegalArgumentException. "Invalid originally_from")))))
@@ -85,12 +85,12 @@
     (string? name)   (assoc :name (str/trim name))
     (string? text)   (assoc :text (str/trim text))
     (some? group_id) (assoc :group_id (crdt/parse-ulid group_id))
-    (some? media_id) (assoc :media_ids (when-let [media-id (mt/-string->uuid media_id)]
+    (some? media_id) (assoc :media_ids (when-let [media-id (util/parse-uuid media_id)]
                                          [media-id]))
-    (coll? media_ids)          (assoc :media_ids (vec (keep mt/-string->uuid media_ids)))
-    (coll? link_previews)      (assoc :link_previews (vec (keep mt/-string->uuid link_previews)))
+    (coll? media_ids)          (assoc :media_ids (vec (keep util/parse-uuid media_ids)))
+    (coll? link_previews)      (assoc :link_previews (vec (keep util/parse-uuid link_previews)))
     (some? originally_from)    (assoc :originally_from (parse-originally-from originally_from))
-    (some? selected_users)     (assoc :selected_users (set (keep mt/-string->uuid selected_users)))
+    (some? selected_users)     (assoc :selected_users (set (keep util/parse-uuid selected_users)))
     (boolean? to_all_contacts) (assoc :to_all_contacts to_all_contacts)))
 
 (defn create-discussion-with-message!
@@ -326,11 +326,27 @@
 ;; ======================================================================
 ;; Messages
 
-#_(defn ->uuid [s]
-    (if (string? s)
-      (try
-        (java.util.UUID/fromString s)
-        (catch Exception _ nil))))
+(def create-message-params
+  [:map
+   [:text string?]
+   [:id [:maybe uuid?]]
+   [:reply_to [:maybe uuid?]]
+   [:discussion_id [:maybe uuid?]]
+   ;; deprecated
+   [:media_id [:maybe uuid?]]
+   [:media_ids [:vec uuid?]]
+   [:link_previews [:vec uuid?]]])
+
+(defn parse-create-message-params
+  [{:keys [text id discussion_id media_id media_ids link_previews reply_to]}]
+  (cond-> {}
+    (string? text)          (assoc :text text)
+    (string? id)            (assoc :mid (util/parse-uuid id))
+    (string? reply_to)      (assoc :reply_to (util/parse-uuid reply_to))
+    (string? discussion_id) (assoc :did (util/parse-uuid discussion_id))
+    (string? media_id)      (assoc :media_ids [(util/parse-uuid media_id)])
+    (coll? media_ids)       (assoc :media_ids (vec (keep util/parse-uuid media_ids)))
+    (coll? link_previews)   (assoc :link_previews (vec (keep util/parse-uuid link_previews)))))
 
 (defn create-message!
 

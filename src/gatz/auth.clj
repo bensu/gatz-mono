@@ -2,7 +2,7 @@
   (:require [clojure.data.json :as json]
             [gatz.db.user :as db.user]
             [buddy.sign.jwt :as jwt]
-            [malli.transform :as mt]))
+            [gatz.util :as util]))
 
 (def auth-schema
   [:map
@@ -24,7 +24,7 @@
    (try
      (-> auth-token
          (jwt/unsign jwt-token)
-         (update :auth/user-id mt/-string->uuid))
+         (update :auth/user-id util/parse-uuid))
      (catch Exception _e
       ;; Maybe it is an old token
        (let [prev-jwt-secret (old-jwt-secret ctx)]
@@ -53,7 +53,7 @@
     (if-let [token (or (get headers "authorization")
                        (get params :token))]
       (if-let [auth-payload (verify-auth-token ctx token)]
-        (let [user-id (mt/-string->uuid (:auth/user-id auth-payload))
+        (let [user-id (util/parse-uuid (:auth/user-id auth-payload))
               migrate-to (:auth/migrate-to-token auth-payload)]
           (if-let [user (db.user/by-id db user-id)]
             (let [resp (handler (assoc ctx

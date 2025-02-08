@@ -104,3 +104,76 @@
                                             :originally_from {:did "550e8400-e29b-41d4-a716-446655440000"}
                                             :to_all_contacts true}))))))
 
+(deftest test-parse-create-message-params
+  (let [uuid1 #uuid "550e8400-e29b-41d4-a716-446655440000"
+        uuid2 #uuid "650e8400-e29b-41d4-a716-446655440000"]
+
+    (testing "Basic text-only message"
+      (is (= {:text "hello"}
+             (db/parse-create-message-params {:text "hello"}))))
+
+    (testing "Message with ID"
+      (is (= {:text "hello"
+              :mid uuid1}
+             (db/parse-create-message-params {:text "hello"
+                                              :id (str uuid1)}))))
+
+    (testing "Message with discussion ID"
+      (is (= {:text "hello"
+              :did uuid1}
+             (db/parse-create-message-params {:text "hello"
+                                              :discussion_id (str uuid1)}))))
+
+    (testing "Message with single media (deprecated)"
+      (is (= {:text "hello"
+              :media_ids [uuid1]}
+             (db/parse-create-message-params {:text "hello"
+                                              :media_id (str uuid1)}))))
+
+    (testing "Message with multiple media"
+      (is (= {:text "hello"
+              :media_ids [uuid1 uuid2]}
+             (db/parse-create-message-params {:text "hello"
+                                              :media_ids [(str uuid1)
+                                                          (str uuid2)]}))))
+
+    (testing "Message with link previews"
+      (is (= {:text "hello"
+              :link_previews [uuid1]}
+             (db/parse-create-message-params {:text "hello"
+                                              :link_previews [(str uuid1)]}))))
+
+    (testing "Message with reply_to"
+      (is (= {:text "hello"
+              :reply_to uuid1}
+             (db/parse-create-message-params {:text "hello"
+                                              :reply_to (str uuid1)}))))
+
+    (testing "Message with all optional fields"
+      (is (= {:text "hello"
+              :mid uuid1
+              :did uuid2
+              :media_ids [uuid1]
+              :link_previews [uuid2]
+              :reply_to uuid1}
+             (db/parse-create-message-params {:text "hello"
+                                              :id (str uuid1)
+                                              :discussion_id (str uuid2)
+                                              :media_ids [(str uuid1)]
+                                              :link_previews [(str uuid2)]
+                                              :reply_to (str uuid1)}))))
+
+    (testing "Invalid UUID strings are ignored"
+      (is (= {:text "hello"
+              :mid nil
+              :reply_to nil
+              :did nil
+              :media_ids []
+              :link_previews []}
+             (db/parse-create-message-params {:text "hello"
+                                              :id "not-a-uuid"
+                                              :discussion_id "invalid"
+                                              :media_ids ["bad-uuid"]
+                                              :link_previews ["also-bad"]
+                                              :reply_to "nope"}))))))
+

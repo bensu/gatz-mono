@@ -2,7 +2,7 @@
   "All the operations but in an API"
   (:require [clojure.data.json :as json]
             [gatz.db.media :as db.media]
-            [malli.transform :as mt]
+            [gatz.util :as util]
             [sdk.posthog :as posthog]
             [sdk.s3 :as s3]
             [xtdb.api :as xtdb])
@@ -44,7 +44,7 @@
   (if (and (string? (:file_url params))
            (string? (:kind params))
            (contains? media-kinds (:kind params)))
-    (if-let [id (some-> (:id params) mt/-string->uuid)]
+    (if-let [id (some-> (:id params) util/parse-uuid)]
       (if-let [media-kind (str->media-kind (:kind params))]
         (let [media (db.media/create-media! ctx {:kind media-kind
                                                  :id id

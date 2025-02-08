@@ -7,7 +7,7 @@
             [gatz.db.group :as db.group]
             [gatz.db.user :as db.user]
             [gatz.schema :as schema]
-            [malli.transform :as mt]
+            [gatz.util :as util]
             [medley.core :refer [map-keys]]
             [sdk.posthog :as posthog]
             [sdk.twilio :as twilio]))
@@ -57,7 +57,7 @@
 
 (defn get-user
   [{:keys [params biff/db] :as _ctx}]
-  (if-let [user-id (some-> (:id params) mt/-string->uuid)]
+  (if-let [user-id (some-> (:id params) util/parse-uuid)]
     (let [user (db.user/by-id db user-id)]
       (json-response {:user (crdt.user/->value user)}))
     {:status 400 :body "invalid params"}))
@@ -258,7 +258,7 @@
    [:contact_id uuid?]])
 
 (defn strict-str->uuid [s]
-  (let [out (mt/-string->uuid s)]
+  (let [out (util/parse-uuid s)]
     (if (uuid? out) out nil)))
 
 (defn parse-block-user-params [params]

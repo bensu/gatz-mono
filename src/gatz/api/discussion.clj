@@ -13,9 +13,9 @@
             [gatz.crdt.user :as crdt.user]
             [gatz.notify :as notify]
             [gatz.schema :as schema]
+            [gatz.util :as util]
             [malli.core :as m]
             [malli.util :as mu]
-            [malli.transform :as mt]
             [sdk.posthog :as posthog]
             [xtdb.api :as xt])
   (:import [java.util Date]))
@@ -71,12 +71,12 @@
 (defn get-discussion
   [{:keys [biff/db biff.xtdb/node params auth/user auth/user-id] :as _ctx}]
   (let [latest-tx (xt/latest-completed-tx node)
-        tx-id (some-> (:latest_tx params) mt/-string->long)]
+        tx-id (some-> (:latest_tx params) util/parse-long)]
     (if (= tx-id (::xt/tx-id latest-tx))
       (json-response {:current true
                       :latest_tx {:id (::xt/tx-id latest-tx)
                                   :ts (::xt/tx-time latest-tx)}})
-      (if-let [did (mt/-string->uuid (:id params))]
+      (if-let [did (util/parse-uuid (:id params))]
         (if-let [r (db/discussion-by-id db did)]
           (let [{:keys [discussion messages user_ids]} r
                 poster (db.user/by-id db (:discussion/created_by discussion))
@@ -110,7 +110,7 @@
   [{:keys [biff/db auth/user-id params] :as ctx}]
 
   {:pre [(uuid? user-id)]}
-  (let [did (mt/-string->uuid (:did params))
+  (let [did (util/parse-uuid (:did params))
         d (crdt.discussion/->value (gatz.db.discussion/by-id db did))]
     (if-authorized-for-discussion
      [user-id d]
@@ -121,7 +121,7 @@
 
 (defn mark-many-seen! [{:keys [biff/db auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
-  (let [dids (map mt/-string->uuid (:dids params))
+  (let [dids (map util/parse-uuid (:dids params))
         ds (mapv (comp crdt.discussion/->value
                        (partial db.discussion/by-id db))
                  dids)]
@@ -134,15 +134,15 @@
 
 (defn mark-message-read! [{:keys [auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
-  (let [did (mt/-string->uuid (:did params))
-        mid (mt/-string->uuid (:mid params))
+  (let [did (util/parse-uuid (:did params))
+        mid (util/parse-uuid (:mid params))
         {:keys [discussion]} (db.discussion/mark-message-read! ctx user-id did mid)]
     (posthog/capture! ctx "discussion.read" {:did did :mid mid})
     (json-response {:discussion (crdt.discussion/->value discussion)})))
 
 (defn archive! [{:keys [biff/db auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
-  (let [did (mt/-string->uuid (:did params))
+  (let [did (util/parse-uuid (:did params))
         {:keys [discussion]} (db.discussion/archive! ctx did user-id)
         d (crdt.discussion/->value discussion)
         ;; fine if these values are stale compared to the discussion
@@ -160,7 +160,7 @@
 (defn subscribe-to-discussion!
   [{:keys [auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
-  (let [did (mt/-string->uuid (:did params))
+  (let [did (util/parse-uuid (:did params))
         {:keys [discussion]} (db.discussion/subscribe! ctx did user-id)]
     (posthog/capture! ctx "discussion.subscribe" {:did did})
     (json-response {:discussion (crdt.discussion/->value discussion)})))
@@ -168,7 +168,7 @@
 (defn unsubscribe-to-discussion!
   [{:keys [auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
-  (let [did (mt/-string->uuid (:did params))
+  (let [did (util/parse-uuid (:did params))
         {:keys [discussion]} (db.discussion/unsubscribe! ctx did user-id)]
     (posthog/capture! ctx "discussion.unsubscribe" {:did did})
     (json-response {:discussion (crdt.discussion/->value discussion)})))
@@ -184,11 +184,11 @@
 
 (defn parse-delta [{:keys [members]}]
   (cond-> {}
-    (coll? members) (assoc :discussion/members (set (map mt/-string->uuid members)))))
+    (coll? members) (assoc :discussion/members (set (map util/parse-uuid members)))))
 
 (defn parse-action-params [{:keys [id action delta]}]
   (cond-> {}
-    (some? id) (assoc :id mt/-string->uuid)
+    (some? id) (assoc :id util/parse-uuid)
     (some? action) (assoc :action (keyword "discussion" action))
     (some? delta) (assoc :delta (parse-delta delta))))
 
@@ -242,13 +242,13 @@
 (defn get-full-discussions
   [{:keys [biff/db biff.xtdb/node auth/user-id params] :as _ctx}]
   (let [latest-tx (xt/latest-completed-tx node)
-        tx-id (some-> (:latest_tx params) mt/-string->long)]
+        tx-id (some-> (:latest_tx params) util/parse-long)]
     (if (= (::xt/tx-id latest-tx) tx-id)
       (json-response {:current true
                       :latest_tx {:id (::xt/tx-id latest-tx)
                                   :ts (::xt/tx-time latest-tx)}})
       (let [dis (if-let [older-than-ts (some->> (:last_did params)
-                                                mt/-string->uuid
+                                                util/parse-uuid
                                                 (db/discussion-by-id db)
                                                 :discussion
                                                 :discussion/created_at)]
@@ -291,8 +291,8 @@
     (err-resp "invalid_params" "Invalid params: missing post text")))
 
 #_(defn add-member! [{:keys [params auth/user-id biff/db] :as ctx}]
-    (let [did (mt/-string->uuid (:discussion_id params))
-          uid (mt/-string->uuid (:user_id params))]
+    (let [did (util/parse-uuid (:discussion_id params))
+          uid (util/parse-uuid (:user_id params))]
       (if (and (uuid? did) (uuid? did))
         (let [d (crdt.discussion/->value (db.discussion/by-id db did))]
           (if-admin-for-discussion
@@ -301,30 +301,9 @@
              (json-response {:discussion (crdt.discussion/->value d)}))))
         {:status 400 :body "invalid params"})))
 
-(def create-message-params
-  [:map
-   [:text string?]
-   [:id [:maybe uuid?]]
-   [:reply_to [:maybe uuid?]]
-   [:discussion_id [:maybe uuid?]]
-   ;; deprecated
-   [:media_id [:maybe uuid?]]
-   [:media_ids [:vec uuid?]]
-   [:link_previews [:vec uuid?]]])
-
-(defn parse-create-message-params
-  [{:keys [text id discussion_id media_id media_ids link_previews reply_to]}]
-  (cond-> {}
-    (string? text)          (assoc :text text)
-    (string? id)            (assoc :mid (mt/-string->uuid id))
-    (string? reply_to)      (assoc :reply_to (mt/-string->uuid reply_to))
-    (string? discussion_id) (assoc :did (mt/-string->uuid discussion_id))
-    (string? media_id)      (assoc :media_ids [(mt/-string->uuid media_id)])
-    (coll? media_ids)       (assoc :media_ids (vec (keep mt/-string->uuid media_ids)))
-    (coll? link_previews)   (assoc :link_previews (vec (keep mt/-string->uuid link_previews)))))
-
 (defn create-message! [{:keys [params biff/db auth/user-id] :as ctx}]
-  (let [{:keys [text mid did media_ids reply_to link_previews]} (parse-create-message-params params)
+  (let [{:keys [text mid did media_ids reply_to link_previews]}
+        (db/parse-create-message-params params)
         mid (or mid (random-uuid))
         d (crdt.discussion/->value (db.discussion/by-id db did))]
     (when media_ids
@@ -361,7 +340,7 @@
                                          :groups [:vec schema/Group]]]]]])
 
 (defn strict-str->uuid [s]
-  (let [out (mt/-string->uuid s)]
+  (let [out (util/parse-uuid s)]
     (if (uuid? out) out nil)))
 
 (defn parse-feed-params [params]
