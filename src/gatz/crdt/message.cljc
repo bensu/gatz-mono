@@ -103,7 +103,7 @@
                                            :message/edited_at now}})
      :message/mentions msg-mentions
      :message/text (crdt/->LWW clock text)
-     :message/link_previews (crdt/lww clock link_previews)
+     :message/link_previews (crdt/lww clock (or link_previews []))
      :message/reactions {}}))
 
 (deftest crdt-messages
