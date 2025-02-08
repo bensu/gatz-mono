@@ -62,10 +62,11 @@
         (let [params  (db.util-test/json-params {:group_id gid})
               ok-resp (api.invite-link/post-crew-invite-link
                        (assoc (get-ctx uid) :params params))
-              {:keys [url]} (json/read-str (:body ok-resp) {:key-fn keyword})
-              invite-link-id (db.invite-link/parse-url url)]
+              {:keys [url id]} (json/read-str (:body ok-resp) {:key-fn keyword})
+              invite-link-id (crdt/parse-ulid id)]
 
           (is (= 200 (:status ok-resp)))
+          (is (string? url))
           (is (crdt/ulid? invite-link-id))
 
           (xtdb/sync node)
