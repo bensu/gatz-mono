@@ -1,29 +1,16 @@
 (ns gatz.test
   (:gen-class)
   (:require [clojure.test :as test]
-            [crdt.core]
-            [gatz.api-test]
-            [gatz.api.contacts-test]
-            [gatz.api.discussion-test]
-            [gatz.api.group-test]
-            [gatz.db.contacts-test]
-            [gatz.db.discussion-test]
-            [gatz.db.group-test]
-            [gatz.db.message-test]
-            [gatz.db.user-test]
-            [gatz.notify-test]
             [gatz.system]))
 
 (defn -main [& args]
-  (clojure.test/run-tests
-   'crdt.core
-   'gatz.api-test
-   'gatz.api.contacts-test
-   'gatz.api.discussion-test
-   'gatz.api.group-test
-   'gatz.db.contacts-test
-   'gatz.db.discussion-test
-   'gatz.db.group-test
-   'gatz.db.message-test
-   'gatz.db.user-test
-   'gatz.notify-test))
+  (let [test-results (test/run-all-tests #".*-test$")]
+    ;; Shutdown any running components
+    (when-let [stop-fn (resolve 'gatz.system/stop)]
+      (stop-fn))
+    ;; Exit with appropriate status code
+    (System/exit (if (and
+                      (zero? (:fail test-results))
+                      (zero? (:error test-results)))
+                   0
+                   1))))
