@@ -95,13 +95,14 @@
         (xtdb/sync node)
         (let [db (xtdb/db node)
               nts4 (notify/notifications-for-comment db message)]
-          (is (= [{:expo/uid commenter-uid
-                   :expo/to ctoken
+          (is (= [{:expo/to ctoken
+                   :expo/uid commenter-uid
                    :expo/body "First discussion!"
-                   :expo/data {:url (str "/discussion/" did)
+                   :expo/data {:url (notify/message-url did (:xt/id message))
                                :scope :notify/message
-                               :did did :mid (:xt/id message)}
-                   :expo/title "poster commented on their own post"}]
+                               :did did
+                               :mid (:xt/id message)}
+                   :expo/title "poster commented on their post"}]
                  nts4))))
 
       (testing "The original poster gets notifications when new comments come in"
@@ -121,12 +122,13 @@
                 nts-for-new-comment (notify/notifications-for-comment db new-comment)]
             (is (= #{commenter-uid} (set (map :expo/uid nts-for-og-post)))
                 "Only the commenter gets the notifications for the OG post")
-            (is (= [{:expo/uid poster-uid
-                     :expo/to ptoken
+            (is (= [{:expo/to ptoken
+                     :expo/uid poster-uid
                      :expo/body "A comment"
-                     :expo/data {:url (str "/discussion/" did)
+                     :expo/data {:url (notify/message-url did (:xt/id new-comment))
                                  :scope :notify/message
-                                 :did did :mid (:xt/id new-comment)}
+                                 :did did
+                                 :mid (:xt/id new-comment)}
                      :expo/title "commenter commented on your post"}]
                    nts-for-new-comment)))))
       (testing "The lurker auto subscribes and listens to new comments"
@@ -438,22 +440,18 @@
 
           _ (xtdb/sync node)
 
-          {:keys [discussion message]}
+          {:keys [discussion]}
           (db/create-discussion-with-message!
            (get-ctx uid)
            {:name ""
             :selected_users #{uid cid cid2 lid}
             :text "First discussion!"})
-          post-message message
-
           _ (xtdb/sync node)
 
           did (:xt/id discussion)
           message (db/create-message! (get-ctx cid)
                                       {:text "Commenter at-mentions @member in this message"
-                                       :did did})
-          mid (:xt/id message)
-          url (str "/discussion/" did "/message/" mid)]
+                                       :did did})]
 
       (xtdb/sync node)
 
