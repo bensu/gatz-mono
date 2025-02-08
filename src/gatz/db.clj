@@ -76,6 +76,11 @@
                  (valid-post? text media_ids)))
          (or (boolean? to_all_contacts)
              (some? selected_users))]}
+
+  (when (empty? text)
+    (assert (not (empty? media_ids))
+            "Text is empty, media_ids must not be empty"))
+
   (cond-> {}
     (string? name)   (assoc :name (str/trim name))
     (string? text)   (assoc :text (str/trim text))
