@@ -9,7 +9,7 @@
             [gatz.db.discussion :as db.discussion]
             [gatz.db.group :as db.group]
             [gatz.db.invite-link :as db.invite-link]
-            [gatz.db.util-test :as db.util-test :refer [is-equal]]
+            [gatz.db.util-test :as db.util-test]
             [gatz.db.user :as db.user]
             [malli.core :as malli]
             [xtdb.api :as xtdb])
@@ -17,7 +17,7 @@
            [java.time Duration]))
 
 (deftest params
-  (testing "parsing the deltas wors"
+  (testing "parsing the deltas works"
     (let [json-delta {:name "Name" :description "des" :avatar "avatar"}]
       (is (= {:group/name "Name" :group/description "des" :group/avatar "avatar"}
              (api.group/parse-delta json-delta)))))

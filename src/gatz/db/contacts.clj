@@ -77,14 +77,16 @@
         to-contacts   (by-uid db to)]
     (assert (inst? now))
     (assert (and from-contacts to-contacts))
-    [[:xtdb.api/put (-> from-contacts
-                        (assoc :contacts/updated_at now)
-                        (update :contacts/ids disj to)
-                        (assoc :db/doc-type :gatz/contacts))]
-     [:xtdb.api/put (-> to-contacts
-                        (assoc :contacts/updated_at now)
-                        (update :contacts/ids disj from)
-                        (assoc :db/doc-type :gatz/contacts))]]))
+    (when (or (contains? (:contacts/ids from-contacts) to)
+              (contains? (:contacts/ids to-contacts) from))
+      [[:xtdb.api/put (-> from-contacts
+                          (assoc :contacts/updated_at now)
+                          (update :contacts/ids disj to)
+                          (assoc :db/doc-type :gatz/contacts))]
+       [:xtdb.api/put (-> to-contacts
+                          (assoc :contacts/updated_at now)
+                          (update :contacts/ids disj from)
+                          (assoc :db/doc-type :gatz/contacts))]])))
 
 (def remove-contacts-expr
   '(fn remove-contacts-fn [ctx args]
@@ -97,9 +99,9 @@
   (let [db (xtdb.api/db node)
         all-cids (:contacts/ids (by-uid db uid))]
     (map (fn [cid]
-              (let [args {:from cid :to uid :now now}]
-                [:xtdb.api/fn :gatz.db.contacts/remove-contacts {:args args}]))
-            all-cids)))
+           (let [args {:from cid :to uid :now now}]
+             [:xtdb.api/fn :gatz.db.contacts/remove-contacts {:args args}]))
+         all-cids)))
 
 ;; ======================================================================
 ;; Contact Requests
