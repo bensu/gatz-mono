@@ -116,29 +116,37 @@
         uuid2 #uuid "650e8400-e29b-41d4-a716-446655440000"]
 
     (testing "Basic text-only message"
-      (is (= {:text "hello"}
+      (is (= {:text "hello"
+              :media_ids []
+              :link_previews []}
              (db/parse-create-message-params {:text "hello"}))))
 
     (testing "Message with ID"
       (is (= {:text "hello"
+              :media_ids []
+              :link_previews []
               :mid uuid1}
              (db/parse-create-message-params {:text "hello"
                                               :id (str uuid1)}))))
 
     (testing "Message with discussion ID"
       (is (= {:text "hello"
+              :media_ids []
+              :link_previews []
               :did uuid1}
              (db/parse-create-message-params {:text "hello"
                                               :discussion_id (str uuid1)}))))
 
     (testing "Message with single media (deprecated)"
       (is (= {:text "hello"
+              :link_previews []
               :media_ids [uuid1]}
              (db/parse-create-message-params {:text "hello"
                                               :media_id (str uuid1)}))))
 
     (testing "Message with multiple media"
       (is (= {:text "hello"
+              :link_previews []
               :media_ids [uuid1 uuid2]}
              (db/parse-create-message-params {:text "hello"
                                               :media_ids [(str uuid1)
@@ -146,12 +154,15 @@
 
     (testing "Message with link previews"
       (is (= {:text "hello"
+              :media_ids []
               :link_previews [uuid1]}
              (db/parse-create-message-params {:text "hello"
                                               :link_previews [(str uuid1)]}))))
 
     (testing "Message with reply_to"
       (is (= {:text "hello"
+              :media_ids []
+              :link_previews []
               :reply_to uuid1}
              (db/parse-create-message-params {:text "hello"
                                               :reply_to (str uuid1)}))))
