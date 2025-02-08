@@ -175,7 +175,7 @@
                 (render-at-mention-in-post-header by-user)
                 (render-at-mention-header by-user))
         m-preview (message-preview message)
-        data {:url (discussion-url did)
+        data {:url (message-url did mid)
               :scope :notify/message
               :did did
               :mid mid}]
@@ -205,8 +205,8 @@
                                 (map (fn [{:keys [expo/uid] :as n}]
                                        [uid n]))
                                 (into {}))
-          ;; this guarantees that each user will see at most one notification
-          ;; the precendence matters in merge
+        ;; this guarantees that each user will see at most one notification
+        ;; the precendence matters in merge
         uid->notifications (merge nts-to-subscribers
                                   nts-to-mentioned)]
     (vec (vals uid->notifications))))

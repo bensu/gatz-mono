@@ -464,7 +464,7 @@
           (is (= [{:expo/uid cid2
                    :expo/to mtoken
                    :expo/body "Commenter at-mentions @member ..."
-                   :expo/data {:url (str "/discussion/" did)
+                   :expo/data {:url (notify/message-url did (:xt/id message))
                                :scope :notify/message
                                :did did :mid (:xt/id message)}
                    :expo/title "commenter mentioned you in their comment"}]
@@ -472,17 +472,18 @@
           (is (= [{:expo/uid uid
                    :expo/to utoken
                    :expo/body "Commenter at-mentions @member ..."
-                   :expo/data {:url (str "/discussion/" did)
+                   :expo/data {:url (notify/message-url did (:xt/id message))
                                :scope :notify/message
                                :did did :mid (:xt/id message)}
                    :expo/title "commenter commented on your post"}
-                  {:expo/uid cid2
-                   :expo/to mtoken
+                  {:expo/to mtoken
+                   :expo/uid cid2
                    :expo/body "Commenter at-mentions @member ..."
-                   :expo/data {:url (str "/discussion/" did)
+                   :expo/title "commenter mentioned you in their comment"
+                   :expo/data {:url (notify/message-url did (:xt/id message))
                                :scope :notify/message
-                               :did did :mid (:xt/id message)}
-                   :expo/title "commenter mentioned you in their comment"}]
+                               :did did
+                               :mid (:xt/id message)}}]
                  (notify/all-notifications-for-message db message)))))
 
       (testing "a second mention also triggers a notifiation"
@@ -496,7 +497,7 @@
           (is (= [{:expo/uid cid2
                    :expo/to mtoken
                    :expo/body "Another at-mention for @member"
-                   :expo/data {:url (str "/discussion/" did)
+                   :expo/data {:url (notify/message-url did (:xt/id message))
                                :scope :notify/message
                                :did did :mid (:xt/id message)}
                    :expo/title "commenter mentioned you in their comment"}]
@@ -504,7 +505,7 @@
           (is (= [{:expo/uid uid
                    :expo/to utoken
                    :expo/body "Another at-mention for @member"
-                   :expo/data {:url (str "/discussion/" did)
+                   :expo/data {:url (notify/message-url did (:xt/id message))
                                :scope :notify/message
                                :did did :mid (:xt/id message)}
                    :expo/title "commenter commented on your post"}]
