@@ -5,8 +5,7 @@
 (def media-kinds
   #{;;  :media/aud 
     :media/img
-                  ;;  :media/vid
-    })
+    :media/vid})
 
 (def default-media
   {:media/size nil :media/height nil :media/width nil})

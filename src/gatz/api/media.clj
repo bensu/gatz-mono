@@ -4,9 +4,7 @@
             [gatz.db.media :as db.media]
             [gatz.util :as util]
             [sdk.posthog :as posthog]
-            [sdk.s3 :as s3]
-            [xtdb.api :as xtdb])
-  (:import [java.time Instant Duration]))
+            [sdk.s3 :as s3]))
 
 (defn json-response [body]
   {:status 200
@@ -14,7 +12,9 @@
    :body (json/write-str body)})
 
 (defn err-resp [err-type err-msg]
-  (json-response {:type "error" :error err-type :message err-msg}))
+  (-> {:type "error" :error err-type :message err-msg}
+      (json-response)
+      (assoc :status 400)))
 
 (def folders #{"media" "avatars"})
 
@@ -30,25 +30,41 @@
                         :url (s3/make-path secret k)}))
       (err-resp "invalid_folder" "Invalid folder"))))
 
-(def media-kinds (set (map name db.media/media-kinds)))
+(def str-media-kinds (set (map name db.media/media-kinds)))
 
 (defn str->media-kind [s]
-  {:pre [(string? s)
-         (contains? media-kinds s)]}
-  (keyword "media" s))
+  {:pre [(string? s)]
+   :post [(or (nil? %) (contains? db.media/media-kinds %))]}
+  (when (contains? str-media-kinds s)
+    (keyword "media" s)))
+
+(def create-params
+  [:map
+   [:id uuid?]
+   [:file_url string?]
+   [:kind [:enum "img" "vid"]]
+   [:height [:maybe int?]]
+   [:width [:maybe int?]]
+   [:size [:maybe int?]]])
+
+(defn parse-create-params [{:keys [id file_url kind height width size]}]
+  (cond-> {}
+    (string? id) (assoc :id (util/parse-uuid id))
+    (string? file_url) (assoc :file_url file_url)
+    (string? kind) (assoc :kind (str->media-kind kind))
+    (number? height) (assoc :height height)
+    (number? width) (assoc :width width)
+    (number? size) (assoc :size size)))
 
 ;; TODO: fill in the other elements of the media type
 ;; TODO: this should be authenticated
 (defn create-media!
   [{:keys [params] :as ctx}]
-  (if (and (string? (:file_url params))
-           (string? (:kind params))
-           (contains? media-kinds (:kind params)))
-    (if-let [id (some-> (:id params) util/parse-uuid)]
-      (if-let [media-kind (str->media-kind (:kind params))]
+  (let [params (parse-create-params params)]
+    (if-let [id (:id params)]
+      (if-let [media-kind (:kind params)]
         (let [media (db.media/create-media! ctx {:kind media-kind
                                                  :id id
-                                      ;; :mime (:mime params)
                                                  :size (:size params)
                                                  :height (:height params)
                                                  :width (:width params)
@@ -56,6 +72,5 @@
           (posthog/capture! ctx "media.new" {:media_id id :media_kind media-kind})
           (json-response {:media media}))
         (err-resp "invalid_media_type" "Invalid media type"))
-      (err-resp "invalid_id" "Invalid id"))
-    (err-resp "invalid_params" "Invalid params")))
+      (err-resp "invalid_id" "Invalid id"))))
 
