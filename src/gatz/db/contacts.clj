@@ -47,7 +47,8 @@
   {:pre [(uuid? a-uid) (uuid? b-uid)]}
   (let [a-contacts (by-uid db a-uid)
         b-contacts (by-uid db b-uid)]
-    (in-common a-contacts b-contacts)))
+    (-> (in-common a-contacts b-contacts)
+        (disj a-uid b-uid))))
 
 ;; We can only do two things to Contacts, we can add or remove them
 

@@ -17,6 +17,14 @@
   (:import [java.time LocalDateTime ZoneId Instant Duration]
            [java.util Date]))
 
+(def Notification
+  [:map
+   [:expo/to string?]
+   [:expo/uid schema/UserId]
+   [:expo/title string?]
+   [:expo/body string?]
+   [:expo/data any?]])
+
 (defn ->token [user]
   (get-in user [:user/push_tokens :push/expo :push/token]))
 
@@ -319,6 +327,33 @@
                                :reaction reaction}}]
     (biff/submit-job ctx :notify/reaction job)))
 
+;; ======================================================================
+;; Friends notifications
+
+(defn friend-accepted [to-user new-friend]
+  (let [title (format "You are now friends with %s" (:user/name new-friend))
+        body "They accepted your request"]
+    (when-let [token (->token to-user)]
+      (when (get-in to-user [:user/settings :settings/notifications :settings.notification/overall])
+        ;; TODO: add new setting to disable friend notification
+        {:expo/to token
+         :expo/uid (:xt/id to-user)
+         :expo/title title
+         :expo/body body
+         :expo/data {:scope :notify/friend_accepted
+                     :url (format "/contact/%s" (:xt/id new-friend))}}))))
+
+(def notify-any-job-schema
+  [:map
+   [:notify/notifications [:vec Notification]]])
+
+(defn on-notifications!
+  [{:keys [biff/job] :as ctx}]
+  (log/info "Sending notifications" job)
+  (let [nts (:notify/notifications job)]
+    (when-not (empty? nts)
+      (expo/push-many! ctx nts))))
+
 ;; sebas, ameesh, and tara are in gatz
 ;; 3 new posts, 2 replies
 
@@ -378,6 +413,9 @@
              :n-threads 1}
             {:id :notify/reaction
              :consumer #'on-reaction!
+             :n-threads 1}
+            {:id :notify/any
+             :consumer #'on-notifications!
              :n-threads 1}]
    :tasks [{:task activity-for-all-users!
             :schedule (fn []

@@ -1,11 +1,13 @@
 (ns gatz.api.contacts
   (:require [clojure.data.json :as json]
+            [com.biffweb :as biff]
             [crdt.core :as crdt]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.group :as db.group]
             [gatz.db.user :as db.user]
             [gatz.crdt.user :as crdt.user]
             [gatz.schema :as schema]
+            [gatz.notify :as notify]
             [gatz.util :as util]
             [sdk.posthog :as posthog]))
 
@@ -164,6 +166,10 @@
             _ (assert (not (db.user/mutually-blocked? from-user to-user)))
             {:keys [request]} (db.contacts/apply-request! ctx {:them to :action action})
             contact-request-state (db.contacts/state-for request user-id)]
+        (when (= :contact_request/accepted contact-request-state)
+          (when-let [notification (notify/friend-accepted (crdt.user/->value to-user)
+                                                          (crdt.user/->value from-user))]
+            (biff/submit-job ctx :notify/any {:notify/notifications [notification]})))
         (when-let [event-name (action->evt-name action)]
           (posthog/capture! ctx event-name {:contact_request_id (:id request)
                                             :by user-id
