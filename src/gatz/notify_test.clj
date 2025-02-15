@@ -10,7 +10,8 @@
             [gatz.system]
             [gatz.notify :as notify]
             [gatz.crdt.message :as crdt.message]
-            [gatz.crdt.discussion :as crdt.discussion])
+            [gatz.crdt.discussion :as crdt.discussion]
+            [gatz.crdt.user :as crdt.user])
   (:import [java.util Date]))
 
 (defn ->ctx []
@@ -508,6 +509,53 @@
                                :did did :mid (:xt/id message)}
                    :expo/title "commenter commented on your post"}]
                  (notify/notifications-for-comment db message))))))))
+
+(deftest friend-accepted-nts
+  (testing "when your friend accepts a request"
+    (let [ctx (->ctx)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid] (with-db (->auth-ctx ctx uid)))
+          [uid cid cid2] (repeatedly 2 random-uuid)
+          token "REQUESTER_TOKEN"]
+
+      (db.user/create-user! (get-ctx uid) {:id uid :username "requester" :phone "+11111111111"})
+      (db.user/create-user! (get-ctx cid) {:id cid :username "friend" :phone "+2222222222"})
+      (db.user/create-user! (get-ctx cid2) {:id cid2 :username "friend2" :phone "+33333333333"})
+      (xtdb/sync node)
+
+      (testing "you don't get a ntoification if you don't have notifications on"
+        (let [db (xtdb/db node)
+              to-user (crdt.user/->value (db.user/by-id db uid))
+              new-friend (crdt.user/->value (db.user/by-id db cid))]
+          (is (nil? (notify/friend-accepted to-user new-friend)))))
+
+      (db.user/add-push-token! (get-ctx uid)
+                               {:push-token {:push/expo {:push/service :push/expo
+                                                         :push/token token
+                                                         :push/created_at (Date.)}}})
+      (xtdb/sync node)
+
+      (testing "you get a notification if you have notifications on"
+        (let [db (xtdb/db node)
+              to-user (crdt.user/->value (db.user/by-id db uid))
+              new-friend (crdt.user/->value (db.user/by-id db cid))]
+          (is (= {:expo/to token
+                  :expo/uid uid
+                  :expo/title "You are now friends with friend"
+                  :expo/body "They accepted your request"
+                  :expo/data {:scope :notify/friend_accepted
+                              :url (str "/contact/" cid)}}
+                 (notify/friend-accepted to-user new-friend)))))
+
+      (db.user/edit-notifications! (get-ctx uid) {:settings.notification/friend_accepted false})
+      (xtdb/sync node)
+
+      (testing "you don't a notification if you turned off friend accepted notifications"
+        (let [db (xtdb/db node)
+              to-user (crdt.user/->value (db.user/by-id db uid))
+              new-friend (crdt.user/->value (db.user/by-id db cid))]
+          (is (nil? (notify/friend-accepted to-user new-friend))))))))
+
 
 #_(deftest special-reaction-notificactions
     (testing "After 3 special reactions it triggers a notification"
