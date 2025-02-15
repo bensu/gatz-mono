@@ -412,8 +412,8 @@
         d-group-ids (set (keep (comp :discussion/group_id :discussion) ds))
         d-user-ids  (reduce set/union (map :user_ids ds))
 
-        ;; Any pending contact requests?
-        contact-requests (db.contacts/pending-requests-to db user-id)
+        ;; Any contact requests that are visible to the user?
+        contact-requests (db.contacts/visible-requests-to db user-id)
         crs (mapv (fn [{:contact_request/keys [from] :as cr}]
                     {:contact_request cr
                      :in_common {:contacts (db.contacts/get-in-common db user-id from)
