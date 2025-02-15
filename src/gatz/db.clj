@@ -110,6 +110,9 @@
         did (or did (random-uuid))
         mid (random-uuid)
 
+        user (db.user/by-id db user-id)
+        _ (assert user)
+
         link-previews (mapv (fn [lid] (link-preview/by-id db lid)) (or link_previews []))
         updated-medias (some->> media_ids
                                 (keep (partial db.media/by-id db))

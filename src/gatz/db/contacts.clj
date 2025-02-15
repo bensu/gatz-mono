@@ -315,14 +315,21 @@
   (let [args {:id (random-uuid) :from from :to to :now (Date.)}]
     (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.contacts/new-request {:args args}]])))
 
-(defn decide-on-request! [ctx {:keys [by from to decision]}]
-  {:pre [(uuid? from) (uuid? to) (uuid? by)
-         (contains? #{:contact_request/accepted :contact_request/ignored} decision)]}
+(defn accept-request! [ctx {:keys [by from to] :as params}]
+  {:pre [(uuid? from) (uuid? to) (uuid? by)]}
+  (let [now (Date.)
+        args {:from from :to to :by by :now now :state :contact_request/accepted}]
+    (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.contacts/transition-to {:args args}]
+                         [:xtdb.api/fn :gatz.db.contacts/add-to-open-discussions {:by-uid from :to-uid to :now now}]
+                         [:xtdb.api/fn :gatz.db.contacts/add-to-open-discussions {:by-uid to :to-uid from :now now}]])))
+
+(defn ignore-request! [ctx {:keys [by from to]}]
+  {:pre [(uuid? from) (uuid? to) (uuid? by)]}
   (let [args {:from from
               :to to
               :by by
               :now (Date.)
-              :state decision}]
+              :state :contact_request/ignored}]
     (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.contacts/transition-to {:args args}]])))
 
 (defn remove-contact! [ctx {:keys [by from to]}]
@@ -350,8 +357,7 @@
   [{:keys [auth/user-id biff.xtdb/node] :as ctx} {:keys [them]}]
   (let [from them
         to user-id
-        txn (decide-on-request! ctx {:from from :to to :by user-id
-                                     :decision :contact_request/accepted})
+        txn (accept-request! ctx {:from from :to to :by user-id})
         request (current-request-from-to (xtdb/db node) from to)]
     {:txt txn :request request}))
 
@@ -359,9 +365,7 @@
   [{:keys [auth/user-id biff.xtdb/node] :as ctx} {:keys [them]}]
   (let [from them
         to user-id
-        txn (decide-on-request! ctx {:from them :to to :by user-id
-                                     :decision :contact_request/ignored})
-        ;; We want to return the request we operated on
+        txn (ignore-request! ctx {:from them :to to :by user-id})
         request (last (requests-from-to (xtdb/db node) from to))]
     {:txn txn :request request}))
 
@@ -417,6 +421,20 @@
   (let [args {:from aid :to bid :now (Date.)}]
     (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.contacts/remove-contacts {:args args}]])))
 
+(defn add-to-open-discussions-txn [xtdb-ctx {:keys [by-uid to-uid now] :as params}]
+  {:pre [(uuid? by-uid) (uuid? to-uid) (inst? now)]}
+  (let [db (xtdb/db xtdb-ctx)
+        dids (db.discussion/open-for-contact db by-uid)]
+    (db.discussion/add-member-to-dids-txn db
+                                          {:now now
+                                           :by-uid by-uid
+                                           :members #{to-uid}
+                                           :dids dids})))
+
+(def add-to-open-discussions-expr
+  '(fn add-to-open-discussions-fn [xtdb-ctx args]
+     (gatz.db.contacts/add-to-open-discussions-txn xtdb-ctx args)))
+
 (defn invite-contact-txn [xtdb-ctx {:keys [args]}]
   (let [{:keys [by-uid to-uid now]} args
         db (xtdb/db xtdb-ctx)
@@ -438,4 +456,5 @@
    :gatz.db.contacts/remove-contacts remove-contacts-expr
    :gatz.db.contacts/new-request new-contact-request-expr
    :gatz.db.contacts/transition-to transition-to-expr
-   :gatz.db.contacts/invite-contact invite-contact-expr})
+   :gatz.db.contacts/invite-contact invite-contact-expr
+   :gatz.db.contacts/add-to-open-discussions add-to-open-discussions-expr})
