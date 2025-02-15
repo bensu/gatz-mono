@@ -210,6 +210,16 @@
                   [cr :contact_request/state :contact_request/requested]]}
      to))
 
+(defn visible-requests-to [db to]
+  {:pre [(uuid? to)]}
+  (q db '{:find (pull cr [*])
+          :in [to]
+          :where [[cr :db/type :gatz/contact_request]
+                  [cr :contact_request/to to]
+                  [cr :contact_request/state state]
+                  [(contains? #{:contact_request/requested :contact_request/accepted} state)]]}
+     to))
+
 (defn requests-from-to [db from to]
   {:pre [(uuid? from) (uuid? to)]}
   (q db '{:find (pull cr [*])

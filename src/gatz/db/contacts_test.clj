@@ -369,6 +369,19 @@
               (is (= denier-pending (db.contacts/requests-from-to db requester-id denier-id)))
               (is (= all-pending-to-a (db.contacts/requests-from-to db requester-id accepter-id)))))
 
+          (testing "visible requests show both pending and accepted requests"
+            (let [db (xtdb/db node)
+                  accepter-visible (db.contacts/visible-requests-to db accepter-id)
+                  denier-visible (db.contacts/visible-requests-to db denier-id)
+                  requester-visible (db.contacts/visible-requests-to db requester-id)]
+
+              (is (= 1 (count accepter-visible))
+                  "accepter sees the pending request from requester")
+              (is (= 1 (count denier-visible))
+                  "denier sees the pending request from requester")
+              (is (empty? requester-visible)
+                  "requester has no visible requests since they are all from them")))
+
           (testing "and those requests can be accepted or denied"
             (db.contacts/apply-request! (assoc ctx :auth/user-id accepter-id)
                                         {:them requester-id :action :contact_request/accepted})
@@ -416,6 +429,11 @@
                         (-> (db.contacts/requests-from-to db requester-id denier-id)
                             first
                             (select-keys contact-request-ks)))
+
+              (is (= #{accepted-req}
+                     (->> (db.contacts/visible-requests-to db accepter-id)
+                          (map #(select-keys % contact-request-ks))
+                          set)))
 
               (testing "it does nothing if you accept again"
                 (db.contacts/apply-request! (assoc ctx :auth/user-id accepter-id)
