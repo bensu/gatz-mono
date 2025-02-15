@@ -40,6 +40,7 @@
                                      [:enum :settings.notification/daily :settings.notification/none])]
    [:settings.notification/subscribe_on_comment (crdt/lww-schema boolean?)]
    [:settings.notification/suggestions_from_gatz (crdt/lww-schema boolean?)]
+   [:settings.notification/friend_accepted (crdt/lww-schema boolean?)]
    ;; These below are unused:
    ;; [:settings.notification/comments_to_own_post boolean?]
    ;; [:settings.notification/reactions_to_own_post boolean?]
@@ -98,7 +99,7 @@
   [:map
    [:xt/id #'UserId]
    [:db/type [:enum :gatz/user]]
-   [:db/version [:enum 2]]
+   [:db/version [:enum 3]]
    [:crdt/clock crdt/hlc-schema]
    [:user/created_at inst?]
    [:user/is_test [:maybe boolean?]]

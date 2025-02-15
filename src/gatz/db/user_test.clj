@@ -180,7 +180,7 @@
             (apply-action! (get-ctx uid) action))
           (xtdb/sync node)
           (let [final-user (by-id (xtdb/db node) uid)]
-            (is-equal {:db/version 2,
+            (is-equal {:db/version 3,
                        :db/doc-type :gatz/user
                        :db/type :gatz/user,
                        :xt/id uid
@@ -201,6 +201,7 @@
                        #:settings{:notifications
                                   #:settings.notification{:overall false,
                                                           :activity :settings.notification/daily,
+                                                          :friend_accepted false,
                                                           :subscribe_on_comment false,
                                                           :suggestions_from_gatz false}}}
 
@@ -271,7 +272,7 @@
                        :user/avatar nil
                        :db/doc-type :gatz/user
                        :user/blocked_uids #{blocked-uid}
-                       :db/version 2,
+                       :db/version 3,
                        :user/push_tokens nil,
                        :user/phone_number "4159499932",
                        :user/created_at now
@@ -284,6 +285,7 @@
                        #:settings{:notifications
                                   #:settings.notification{:overall false,
                                                           :activity :settings.notification/daily,
+                                                          :friend_accepted false,
                                                           :subscribe_on_comment false,
                                                           :suggestions_from_gatz false}}}
 

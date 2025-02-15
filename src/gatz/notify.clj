@@ -334,14 +334,15 @@
   (let [title (format "You are now friends with %s" (:user/name new-friend))
         body "They accepted your request"]
     (when-let [token (->token to-user)]
-      (when (get-in to-user [:user/settings :settings/notifications :settings.notification/overall])
-        ;; TODO: add new setting to disable friend notification
-        {:expo/to token
-         :expo/uid (:xt/id to-user)
-         :expo/title title
-         :expo/body body
-         :expo/data {:scope :notify/friend_accepted
-                     :url (format "/contact/%s" (:xt/id new-friend))}}))))
+      (let [{:settings.notification/keys [overall friend_accepted]}
+            (get-in to-user [:user/settings :settings/notifications])]
+        (when (and overall friend_accepted)
+          {:expo/to token
+           :expo/uid (:xt/id to-user)
+           :expo/title title
+           :expo/body body
+           :expo/data {:scope :notify/friend_accepted
+                       :url (format "/contact/%s" (:xt/id new-friend))}})))))
 
 (def notify-any-job-schema
   [:map

@@ -31,6 +31,7 @@
    :settings.notification/activity :settings.notification/none
    :settings.notification/subscribe_on_comment false
    :settings.notification/suggestions_from_gatz false
+   :settings.notification/friend_accepted false
 
    ;; :settings.notification/comments_to_own_post false
    ;; :settings.notification/reactions_to_own_post false
@@ -47,6 +48,7 @@
    :settings.notification/activity :settings.notification/daily
    :settings.notification/subscribe_on_comment true
    :settings.notification/suggestions_from_gatz true
+   :settings.notification/friend_accepted true
 
    ;; :settings.notification/comments_to_own_post true
    ;; :settings.notification/reactions_to_own_post true
@@ -95,7 +97,7 @@
         clock (crdt/new-hlc uid now)]
     {:xt/id uid
      :db/type :gatz/user
-     :db/version 2
+     :db/version 3
      :crdt/clock clock
      :user/created_at now
      :user/is_test false
@@ -135,6 +137,7 @@
                                    :push/created_at t3
                                    :push/service :push/expo}}
           np-t4 {:settings.notification/overall true
+                 :settings.notification/friend_accepted true
                  :settings.notification/activity :settings.notification/daily}
           np-t5 {:settings.notification/subscribe_on_comment false
                  :settings.notification/suggestions_from_gatz true}
@@ -160,7 +163,7 @@
           final (reduce apply-delta initial (shuffle deltas))]
       (is (= {:xt/id uid
               :db/type :gatz/user
-              :db/version 2
+              :db/version 3
               :crdt/clock clock
               :user/created_at t0
               :user/is_test false
@@ -178,7 +181,7 @@
              (->value initial)))
       (is (= {:xt/id uid
               :db/type :gatz/user
-              :db/version 2
+              :db/version 3
               :crdt/clock c5
               :user/created_at t0
               :user/is_test false

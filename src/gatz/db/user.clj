@@ -37,9 +37,17 @@
         (assoc :db/version 2 :crdt/clock clock)
         (update-in [:user/profile :profile/urls] #(merge (crdt.user/empty-links clock) %)))))
 
+(defn v2->v3 [data]
+  (let [clock (crdt/new-hlc migration-client-id)
+        nts-on (crdt/-value (get-in data [:user/settings :settings/notifications :settings.notification/overall]))]
+    (-> data
+        (assoc :db/version 3 :crdt/clock clock)
+        (assoc-in [:user/settings :settings/notifications :settings.notification/friend_accepted] (crdt/lww clock nts-on)))))
+
 (def all-migrations
   [{:from 0 :to 1 :transform v0->v1}
-   {:from 1 :to 2 :transform v1->v2}])
+   {:from 1 :to 2 :transform v1->v2}
+   {:from 2 :to 3 :transform v2->v3}])
 
 (defn- as-unique [x] [:db/unique x])
 
