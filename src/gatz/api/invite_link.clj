@@ -241,8 +241,8 @@
 (defn make-contacts-with-txn [new-uid contact-ids now]
   {:pre [(every? uuid? contact-ids) (uuid? new-uid) (inst? now)]}
   (mapv (fn [cid]
-          (let [args {:from new-uid :to cid :now now}]
-            [:xtdb.api/fn :gatz.db.contacts/add-contacts {:args args}]))
+          (let [args {:by-uid new-uid :to-uid cid :now now}]
+            [:xtdb.api/fn :gatz.db.contacts/invite-contact {:args args}]))
         (set contact-ids)))
 
 (defn make-friends-with-my-contacts-txn [db my-uid new-uid now]
@@ -252,7 +252,7 @@
   (let [existing-uids (:contacts/ids (db.contacts/by-uid db my-uid))]
     (make-contacts-with-txn new-uid existing-uids now)))
 
-(def test-special-contact #uuid "7295a445-0935-4cf4-853b-dd6f8a991fc6")
+(def test-special-contact #uuid "64a719fa-4963-42e2-bc7e-0cb7beb8844c")
 
 (def prod-uids
   {"sebas" #uuid "06942e79-cda8-4f55-8bd0-50ce61ebfb60"})

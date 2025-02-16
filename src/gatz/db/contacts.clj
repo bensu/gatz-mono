@@ -439,13 +439,9 @@
   (let [{:keys [by-uid to-uid now]} args
         db (xtdb/db xtdb-ctx)
         contact-txns (forced-contact-txn db by-uid to-uid {:now now})
-        dids (db.discussion/open-for-contact db by-uid)
-        discussion-txns (db.discussion/add-member-to-dids-txn db
-                                                              {:now now
-                                                               :by-uid by-uid
-                                                               :members #{to-uid}
-                                                               :dids dids})]
-    (vec (concat contact-txns discussion-txns))))
+        d1-txns (add-to-open-discussions-txn xtdb-ctx {:by-uid by-uid :to-uid to-uid :now now})
+        d2-txns (add-to-open-discussions-txn xtdb-ctx {:by-uid to-uid :to-uid by-uid :now now})]
+    (vec (concat contact-txns d1-txns d2-txns))))
 
 (def invite-contact-expr
   '(fn invite-contact-fn [xtdb-ctx args]
