@@ -17,7 +17,9 @@
    :body (json/write-str body)})
 
 (defn err-resp [err-type err-msg]
-  (json-response {:type "error" :error err-type :message err-msg}))
+  (-> {:type "error" :error err-type :message err-msg}
+      (json-response)
+      (assoc :status 400)))
 
 (def get-contact-params
   [:map
