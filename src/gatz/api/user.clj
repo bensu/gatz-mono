@@ -38,11 +38,12 @@
 (defn get-me [{:keys [auth/user auth/user-id biff/db] :as _ctx}]
   (let [my-contacts (db.contacts/by-uid db user-id)
         groups (db.group/by-member-uid db user-id)
-        contacts (mapv (fn [uid]
-                         (-> (db.user/by-id db uid)
-                             crdt.user/->value
-                             db.contacts/->contact))
-                       (:contacts/ids my-contacts))
+        contacts (->> (:contacts/ids my-contacts)
+                      (remove (partial = user-id))
+                      (mapv (fn [uid]
+                              (-> (db.user/by-id db uid)
+                                  crdt.user/->value
+                                  db.contacts/->contact))))
         contact_requests (->> (db.contacts/pending-requests-to db user-id)
                               (map (fn [{:contact_request/keys [from id]}]
                                      {:id id
