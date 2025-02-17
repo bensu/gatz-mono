@@ -1,8 +1,8 @@
 (ns gatz.db.invite-link
   (:require [crdt.core :as crdt]
-            [com.biffweb :as biff :refer [q]]
-            [xtdb.api :as xtdb]
-            [clojure.string :as str])
+            [com.biffweb :as biff]
+            [gatz.schema :as schema]
+            [xtdb.api :as xtdb])
   (:import [java.util Date]
            [java.time Duration]))
 
@@ -45,16 +45,12 @@
 (defn make [{:keys [type uid gid now id]}]
 
   {:pre [(uuid? uid)
-         (contains? #{:invite_link/group :invite_link/contact :invite_link/crew} type)
+         (contains? schema/invite-link-types type)
          (or (nil? id) (crdt/ulid? id))
          (or (nil? now) (instance? Date now))]}
 
   (when (= :invite_link/group type)
     (assert (crdt/ulid? gid)))
-  ;; we'll let people create invite_link/crew without
-  ;; groups for a week while installed apps can do it
-  #_(when (= :invite_link/crew type)
-      (assert (crdt/ulid? gid)))
 
   (let [id (or id (crdt/random-ulid))
         now (or now (Date.))]
@@ -97,8 +93,7 @@
   [{:keys [biff/db] :as ctx} id {:keys [by-uid now]}]
   (when-let [invite-link (by-id db id)]
     (let [now (or now (Date.))
-          new-invite-link (mark-used invite-link {:by-uid by-uid
-                                                  :now now})]
+          new-invite-link (mark-used invite-link {:by-uid by-uid :now now})]
       (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
                       [(assoc new-invite-link :db/doc-type :gatz/invite_link)])
       new-invite-link)))
