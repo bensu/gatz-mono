@@ -483,8 +483,8 @@
           (or (nil? older-than-ts) (inst? older-than-ts))
           (or (nil? contact_id) (uuid? contact_id))
           (or (nil? group_id) (crdt/ulid? group_id))]}
-   (let [limit (or limit 20)
-         exclude-archive? (and (not group_id) (not contact_id))]
+   ;;  exclude-archive? (and (not group_id) (not contact_id))
+   (let [limit (or limit 20)]
      (q db {:find '[did created-at]
             :in '[user-id older-than-ts cid gid]
             :limit limit
@@ -494,7 +494,9 @@
                              [did :discussion/created_at created-at]]
                      contact_id       (conj '[did :discussion/created_by cid])
                      group_id         (conj '[did :discussion/group_id gid])
-                     exclude-archive? (conj '(not [did :discussion/archived_uids user-id]))
+                     ;; We don't exclude archived discussions 
+                     ;; for the feed, the frontend will filter them out
+                     ;; exclude-archive? (conj '(not [did :discussion/archived_uids user-id]))
                      older-than-ts    (conj '[(< created-at older-than-ts)]))}
         uid older-than-ts contact_id group_id))))
 
@@ -528,8 +530,8 @@
           (or (nil? contact_id) (uuid? contact_id))
           (or (nil? group_id) (crdt/ulid? group_id))
           (or (nil? limit) (pos-int? limit))]}
-   (let [exclude-archive? (and (not group_id) (not contact_id))
-         limit (or limit 20)
+   ;;  exclude-archive? (and (not group_id) (not contact_id))
+   (let [limit (or limit 20)
          query (cond-> '[[did :db/type :gatz/discussion]
                          [did :discussion/active_members user-id]
                          [did :discussion/first_message first-mid]
@@ -538,7 +540,9 @@
                          [did :discussion/latest_activity_ts latest-activity-ts]]
                  group_id         (conj '[did :discussion/group_id gid])
                  contact_id       (conj '[did :discussion/created_by cid])
-                 exclude-archive? (conj '(not [did :discussion/archived_uids user-id]))
+                 ;; We don't exclude archived discussions for the feed,
+                 ;; the frontend will filter them out
+                 ;; exclude-archive? (conj '(not [did :discussion/archived_uids user-id]))
                  older-than-ts    (conj '[(< latest-activity-ts older-than-ts)]))]
      (->> (q db {:find '[did latest-activity-ts]
                  :in '[user-id older-than-ts cid gid]

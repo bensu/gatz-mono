@@ -922,12 +922,12 @@
           (is (= []          (db.discussion/active-for-user db mid)))
           (is (= []          (db.discussion/active-for-user db sid))))
 
-        (testing "if they archive a post, they don't see it in the feed"
+        (testing "if they archive a post, they still get it in the feed because the frontend hides it"
           (db.discussion/archive! (get-ctx aid) did2 aid)
           (xtdb/sync node)
           (let [db (xtdb/db node)]
-            (is (= [did3] (db.discussion/posts-for-user db aid)))
-            (is (= []     (db.discussion/active-for-user db aid)))))
+            (is (= [did3 did2] (db.discussion/posts-for-user db aid)))
+            (is (= [did2]      (db.discussion/active-for-user db aid)))))
 
         (db.discussion/unarchive! (get-ctx aid) did2 aid)
         (xtdb/sync node)
@@ -1041,13 +1041,13 @@
             (is (= gid (:discussion/group_id d6))))
 
           (is (= [did6 did5 did4 did3 did2 did1] (db.discussion/posts-for-user db oid)))
-          (is (= [did5 did4 did3 did2]           (db.discussion/posts-for-user db aid)))
+          (is (= [did6 did5 did4 did3 did2]      (db.discussion/posts-for-user db aid)))
           (is (= [did6 did4 did3]                (db.discussion/posts-for-user db mid)))
           (is (= [did4]                          (db.discussion/posts-for-user db sid)))
 
-          (testing "we hide archived messages from active"
+          (testing "we don't hide archived messages from active, the frontend hides them"
             (is (= [did6 did2 did1] (db.discussion/active-for-user db oid)))
-            (is (= [did2]           (db.discussion/active-for-user db aid)))
+            (is (= [did6 did2]      (db.discussion/active-for-user db aid)))
             (is (= [did6]           (db.discussion/active-for-user db mid)))
             (is (= []               (db.discussion/active-for-user db sid))))
 
