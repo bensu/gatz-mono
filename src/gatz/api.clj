@@ -309,5 +309,6 @@
                  ["/discussion/mark-seen" {:post  api.discussion/mark-seen!}]
                  ["/discussion/mark-message-seen" {:post api.discussion/mark-message-read!}]
                  ["/discussion/archive" {:post api.discussion/archive!}]
+                 ["/discussion/unarchive" {:post api.discussion/unarchive!}]
                  ["/discussion/subscribe" {:post api.discussion/subscribe-to-discussion!}]
                  ["/discussion/unsubscribe" {:post api.discussion/unsubscribe-to-discussion!}]]]})

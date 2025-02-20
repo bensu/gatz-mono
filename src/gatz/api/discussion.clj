@@ -142,20 +142,27 @@
 
 (defn archive! [{:keys [biff/db auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
-  (let [did (util/parse-uuid (:did params))
-        {:keys [discussion]} (db.discussion/archive! ctx did user-id)
-        d (crdt.discussion/->value discussion)
-        ;; fine if these values are stale compared to the discussion
-        users (->> (:discussion/members d)
-                   (mapv (comp crdt.user/->value
-                               (partial db.user/by-id db))))
-        messages (db.message/by-did db did)]
-    (posthog/capture! ctx "discussion.archive" {:did did})
-      ;; TODO: change to only return the discussion
-      ;; The client has already been fixed to handle this
-    (json-response {:discussion d
-                    :users users
-                    :messages (mapv crdt.message/->value messages)})))
+  (if-let [did (util/parse-uuid (:did params))]
+    (if-let [d (some-> (db.discussion/by-id db did) crdt.discussion/->value)]
+      (if-authorized-for-discussion
+       [user-id d]
+       (let [{:keys [discussion]} (db.discussion/archive! ctx did user-id)]
+         (posthog/capture! ctx "discussion.archive" {:did did})
+         (json-response {:discussion (crdt.discussion/->value discussion)})))
+      (err-resp "discussion_not_found" "Discussion not found"))
+    (err-resp "invalid_params" "Invalid params: missing did")))
+
+(defn unarchive! [{:keys [biff/db auth/user-id params] :as ctx}]
+  {:pre [(uuid? user-id)]}
+  (if-let [did (util/parse-uuid (:did params))]
+    (if-let [d (some-> (db.discussion/by-id db did) crdt.discussion/->value)]
+      (if-authorized-for-discussion
+       [user-id d]
+       (let [{:keys [discussion]} (db.discussion/unarchive! ctx did user-id)]
+         (posthog/capture! ctx "discussion.archive" {:did did})
+         (json-response {:discussion (crdt.discussion/->value discussion)})))
+      (err-resp "discussion_not_found" "Discussion not found"))
+    (err-resp "invalid_params" "Invalid params: missing did")))
 
 (defn subscribe-to-discussion!
   [{:keys [auth/user-id params] :as ctx}]
