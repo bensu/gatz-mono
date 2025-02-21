@@ -115,7 +115,7 @@
           (db.user/add-push-token! (get-ctx poster-uid)
                                    {:push-token {:push/expo {:push/service :push/expo
                                                              :push/token ptoken
-                                                             :push/created_at (java.util.Date.)}}})
+                                                             :push/created_at (Date.)}}})
           (xtdb/sync node)
 
           (let [db (xtdb/db node)
@@ -161,10 +161,10 @@
           ptoken "POSTER_TOKEN"
           ctoken "COMMENTER_TOKEN"]
 
-      (db.user/create-user! (get-ctx uid)
-                            {:id uid :username "poster" :phone "+11111111111"})
-      (db.user/create-user! (get-ctx cid)
-                            {:id cid :username "commenter" :phone "+12222222222"})
+      (db.user/create-user!
+       (get-ctx uid) {:id uid :username "poster" :phone "+11111111111"})
+      (db.user/create-user!
+       (get-ctx cid) {:id cid :username "commenter" :phone "+12222222222"})
       (db.contacts/force-contacts! ctx uid cid)
       (xtdb/sync node)
 
@@ -172,10 +172,11 @@
             nts (notify/activity-notification-for-user db uid)]
         (is (empty? nts) "No notifications if user doesn't have them set up"))
 
-      (db.user/add-push-token! (get-ctx uid)
-                               {:push-token {:push/expo {:push/service :push/expo
-                                                         :push/token ptoken
-                                                         :push/created_at (java.util.Date.)}}})
+      (db.user/add-push-token!
+       (get-ctx uid)
+       {:push-token {:push/expo {:push/service :push/expo
+                                 :push/token ptoken
+                                 :push/created_at (java.util.Date.)}}})
       (xtdb/sync node)
 
       (is (empty? (notify/activity-notification-for-user (xtdb/db node) uid))
@@ -204,11 +205,11 @@
         (let [db (xtdb/db node)]
           (is (= {:expo/to ctoken
                   :expo/uid cid
-                  :expo/title "poster is in gatz"
+                  :expo/title "poster posted in gatz"
                   :expo/data {:scope :notify/activity :url "/"}
                   ;; TODO: this is an error: we are double counting the first message
                   ;; of the discussion as a new post and a new reply
-                  :expo/body "1 new post, 1 new reply"}
+                  :expo/body "1 new post"}
                  (notify/activity-notification-for-user db cid))
               "Friends get notifications from your activity"))
 
@@ -239,11 +240,11 @@
           (let [db (xtdb/db node)]
             (is (= {:expo/to ctoken
                     :expo/uid cid
-                    :expo/title "poster is in gatz"
+                    :expo/title "poster posted in gatz"
                     :expo/data {:scope :notify/activity :url "/"}
                     ;; TODO: this is an error: we are double counting the first message
                     ;; of the discussion as a new post and a new reply
-                    :expo/body "3 new posts, 3 new replies"}
+                    :expo/body "3 new posts"}
                    (notify/activity-notification-for-user db cid))
                 "Friends get notifications from your activity"))
 

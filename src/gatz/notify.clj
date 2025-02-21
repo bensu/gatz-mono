@@ -89,7 +89,10 @@
               (format "%s, %s, and %s more" f1 f2 (count more))))))
 
 (defn render-activity [dids mids]
-  {:post [(string? %)]}
+
+  {:pre [(coll? dids) (every? uuid? dids)
+         (coll? mids) (every? uuid? mids)]
+   :post [(string? %)]}
 
   (let [n-dids (count dids)
         n-mids (count mids)]
@@ -377,17 +380,18 @@
     (when-let [expo-token (->token to-user)]
       (when (and (:settings.notification/overall settings)
                  (= :settings.notification/daily (:settings.notification/activity settings)))
-        (let [{:keys [senders mids]}  (db.notify/messages-sent-to-user-since db uid since-ts)
+        (let [;; {:keys [senders mids]}  (db.notify/messages-sent-to-user-since db uid since-ts)
+              mids [] ;; turn off activity from new messages
               {:keys [creators dids]} (db.notify/discussions-for-user-since-ts db uid since-ts)
-              friends-usernames (vec (distinct (concat creators senders)))
+              friends-usernames (vec (distinct (seq creators)))
               friends (remove #(= % (:user/name to-user)) friends-usernames)]
           (when-not (empty? friends)
             {:expo/to expo-token
              :expo/uid uid
              :expo/data {:scope :notify/activity :url "/"}
              :expo/title (if (= 1 (count friends))
-                           (format "%s is in gatz" (render-friends friends))
-                           (format "%s are in gatz" (render-friends friends)))
+                           (format "%s posted in gatz" (render-friends friends))
+                           (format "%s posted in gatz" (render-friends friends)))
              :expo/body (render-activity dids mids)}))))))
 
 (defn activity-for-all-users!

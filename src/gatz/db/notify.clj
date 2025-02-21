@@ -31,10 +31,10 @@
 
 
 ;; TODO: can't query messages like this directly anymore
-(defn messages-sent-to-user-since
+(defn ^:deprecated
+  messages-sent-to-user-since
 
   [db user-id since-ts]
-
   {:pre [(uuid? user-id) (inst? since-ts)]}
 
   (let [r (q db '{:find [sender-name mid]
