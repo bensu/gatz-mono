@@ -145,14 +145,16 @@
                 [group-members archiver-uids])))
 
           ;; The post is directed to a set of users
-          (let [contacts (db.contacts/by-uid db user-id)]
+          (let [contacts (db.contacts/by-uid db user-id)
+                contact-uids (:contacts/ids contacts)
+                muted-uids (or (:contacts/hidden_me contacts) #{})]
             (if selected_users
               (let [member-uids (disj selected_users user-id)]
-                (assert (set/subset? member-uids (:contacts/ids contacts)))
-                [member-uids #{}])
+                (assert (set/subset? member-uids contact-uids))
+                [member-uids (set/intersection muted-uids member-uids)])
               (do
                 (assert to_all_contacts)
-                [(:contacts/ids contacts) #{}]))))
+                [contact-uids (set/intersection contact-uids muted-uids)]))))
 
         _ (assert (and (set? member-uids)
                        (every? uuid? member-uids)))

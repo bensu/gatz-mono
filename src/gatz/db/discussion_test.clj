@@ -1521,3 +1521,74 @@
                 "next page has remaining 1 post"))))
 
       (.close node))))
+
+(deftest muted-contacts-posts
+  (testing "posts to muted contacts are marked as archived"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (let [db (xtdb/db node)]
+                      (assoc ctx
+                             :biff/db db
+                             :auth/user (db.user/by-id db uid)
+                             :auth/user-id uid
+                             :auth/cid uid)))
+          now (Date.)
+          t1 (crdt/inc-time now)
+          t2 (crdt/inc-time t1)
+          all-uids (take 3 (repeatedly random-uuid))
+          [poster-id hider-id friend-id] all-uids
+          [did1 did2] (take 2 (repeatedly random-uuid))]
+
+      ;; Create users
+      (db.user/create-user!
+       ctx {:id poster-id :username "poster" :phone "+14159499000" :now now})
+      (db.user/create-user!
+       ctx {:id hider-id :username "muted" :phone "+14159499001" :now now})
+      (db.user/create-user!
+       ctx {:id friend-id :username "unmuted" :phone "+14159499002" :now now})
+      (xtdb/sync node)
+
+      ;; Set up contacts with one muted and one unmuted
+      (doseq [a all-uids
+              b all-uids]
+        (when-not (= a b)
+          (db.contacts/force-contacts! ctx a b)))
+
+      (db.contacts/hide! (get-ctx hider-id) {:hidden-by hider-id :hidden poster-id})
+      (xtdb/sync node)
+
+      (testing "when posting to all contacts, those that hid the poster are marked archived"
+        (db/create-discussion-with-message!
+         (get-ctx poster-id)
+         {:did did1
+          :to_all_contacts true
+          :text "Hello to all contacts"
+          :now t1})
+        (xtdb/sync node)
+
+        (let [db (xtdb/db node)
+              d1 (crdt.discussion/->value (db.discussion/by-id db did1))]
+          (is (= #{poster-id hider-id friend-id} (:discussion/members d1))
+              "All contacts are members")
+          (is (= #{hider-id} (:discussion/archived_uids d1))
+              "Only the poster that hid the poster has archived the post")))
+
+      (testing "when posting to specific users including the poster that hid them, their posts are archived"
+        (db/create-discussion-with-message!
+         (get-ctx poster-id)
+         {:did did2
+          :to_all_contacts false
+          :selected_users #{hider-id friend-id}
+          :text "Hello to selected contacts"
+          :now t2})
+        (xtdb/sync node)
+
+        (let [db (xtdb/db node)
+              d2 (crdt.discussion/->value (db.discussion/by-id db did2))]
+          (is (= #{poster-id hider-id friend-id} (:discussion/members d2))
+              "Selected contacts are members")
+          (is (= #{hider-id} (:discussion/archived_uids d2))
+              "Only the poster that hid the poster has archived the post")))
+
+      (.close node))))
