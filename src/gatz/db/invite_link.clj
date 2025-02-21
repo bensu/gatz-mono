@@ -2,6 +2,7 @@
   (:require [crdt.core :as crdt]
             [com.biffweb :as biff]
             [gatz.schema :as schema]
+            [gatz.util :as util]
             [xtdb.api :as xtdb])
   (:import [java.util Date]
            [java.time Duration]))
@@ -28,16 +29,13 @@
 
 (def ^:dynamic *test-current-ts* nil)
 
-(defn before? [^Date d1 ^Date d2]
-  (.before d1 d2))
-
 ;; This dynamic var is a sign that I need effect handlers
 (defn expired?
   ([invite-link]
    (expired? invite-link {:now (or *test-current-ts* (Date.))}))
   ([{:invite_link/keys [expires_at]} {:keys [now]}]
    (boolean (and expires_at
-                 (before? expires_at now)))))
+                 (util/before? expires_at now)))))
 
 #_(def default-settings
     {:invite_link/multi-user-mode :invite_link/crew})

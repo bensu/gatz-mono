@@ -10,6 +10,7 @@
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
             [gatz.schema :as schema]
+            [gatz.util :as util]
             [sdk.expo :as expo]
             [sdk.heroku :as heroku]
             [sdk.posthog :as posthog]
@@ -361,38 +362,65 @@
 ;; sebas, ameesh, and tara are in gatz
 ;; 3 new posts, 2 replies
 
+(def ^:dynamic *current-time* nil)
+
+(defmacro with-current-time [time & body]
+  `(binding [*current-time* ~time]
+     ~@body))
+
+(defn date-to-localdatetime [^Date date]
+  (LocalDateTime/ofInstant (.toInstant date) (ZoneId/systemDefault)))
+
+(defn hours-forward [n]
+  {:pre [(integer? n) (>= n 0)]
+   :post [(inst? %)]}
+  (let [ldt (LocalDateTime/now)
+        forward (.plusHours ldt n)
+        zone-date (.atZone forward (ZoneId/systemDefault))]
+    (Date/from (.toInstant zone-date))))
+
 (defn hours-ago [n]
 
   {:pre [(integer? n) (>= n 0)]
    :post [(inst? %)]}
 
-  (let [ldt (LocalDateTime/now)
+  (let [ldt (or (some-> *current-time* date-to-localdatetime)
+                (LocalDateTime/now))
         ago (.minusHours ldt n)
         zone-id (ZoneId/systemDefault)
         zone-date (.atZone ago zone-id)]
     (Date/from (.toInstant zone-date))))
 
-(defn activity-notification-for-user [db uid]
-  (let [to-user (crdt.user/->value (db.user/by-id db uid))
-        settings (get-in to-user [:user/settings :settings/notifications])
-        to-user-activity (db.user/activity-by-uid db uid)
-        since-ts (or (:user_activity/last_active to-user-activity) (hours-ago 8))]
-    (when-let [expo-token (->token to-user)]
-      (when (and (:settings.notification/overall settings)
-                 (= :settings.notification/daily (:settings.notification/activity settings)))
-        (let [;; {:keys [senders mids]}  (db.notify/messages-sent-to-user-since db uid since-ts)
-              mids [] ;; turn off activity from new messages
-              {:keys [creators dids]} (db.notify/discussions-for-user-since-ts db uid since-ts)
-              friends-usernames (vec (distinct (seq creators)))
-              friends (remove #(= % (:user/name to-user)) friends-usernames)]
-          (when-not (empty? friends)
-            {:expo/to expo-token
-             :expo/uid uid
-             :expo/data {:scope :notify/activity :url "/"}
-             :expo/title (if (= 1 (count friends))
-                           (format "%s posted in gatz" (render-friends friends))
-                           (format "%s posted in gatz" (render-friends friends)))
-             :expo/body (render-activity dids mids)}))))))
+(def ^:dynamic *last-active-ts* nil)
+
+(defn activity-notification-for-user
+  ([db uid]
+   (activity-notification-for-user db uid {:since-ts (hours-ago 24)}))
+  ([db uid {:keys [since-ts]}]
+   (let [to-user (crdt.user/->value (db.user/by-id db uid))
+         settings (get-in to-user [:user/settings :settings/notifications])
+         to-user-activity (db.user/activity-by-uid db uid)
+         last-active (or *last-active-ts* (:user_activity/last_active to-user-activity))
+         not-active-in-last-24-hours? (or (nil? last-active)
+                                          (util/before? last-active since-ts))
+         notify? (and (:settings.notification/overall settings)
+                      (= :settings.notification/daily (:settings.notification/activity settings)))]
+     (when (and not-active-in-last-24-hours? notify?)
+       (when-let [expo-token (->token to-user)]
+         ;; turn off activity from new messages
+         (let [mids []
+               ;; {:keys [senders mids]}  (db.notify/messages-sent-to-user-since db uid since-ts)
+               {:keys [creators dids]} (db.notify/discussions-for-user-since-ts db uid since-ts)
+               friends-usernames (vec (distinct (seq creators)))
+               friends (remove #(= % (:user/name to-user)) friends-usernames)]
+           (when-not (empty? friends)
+             {:expo/to expo-token
+              :expo/uid uid
+              :expo/data {:scope :notify/activity :url "/"}
+              :expo/title (if (= 1 (count friends))
+                            (format "%s posted in gatz" (render-friends friends))
+                            (format "%s posted in gatz" (render-friends friends)))
+              :expo/body (render-activity dids mids)})))))))
 
 (defn activity-for-all-users!
   [{:keys [biff.xtdb/node] :as ctx}]
