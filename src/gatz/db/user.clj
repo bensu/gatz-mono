@@ -87,8 +87,9 @@
         {:keys [uid now]} args]
     (when-let [activity-doc (activity-by-uid db uid)]
       (let [new-doc (-> activity-doc
+                        (assoc :db/doc-type :gatz/user_activity)
                         (update :user_activity/last_active #(max-date % now)))]
-        [[:xtdb.api/put (assoc new-doc :db/doc-type :gatz/user_activity)]]))))
+        [[:xtdb.api/put new-doc]]))))
 
 (def mark-active-expr
   '(fn mark-active-fn [ctx args]
