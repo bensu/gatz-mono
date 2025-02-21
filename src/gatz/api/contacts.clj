@@ -31,6 +31,8 @@
    ;; we show their_contacts temporarily while we are getting started
    [:their_contacts {:optional true} [:vec schema/ContactResponse]]
    [:contact_request_state [:enum schema/ContactRequestState]]
+   [:settings {:optional true} [:map
+                                [:posts_hidden boolean?]]]
    [:in_common [:map
                 [:contacts [:vec schema/ContactResponse]]
                 #_[:feed [:map
@@ -57,8 +59,10 @@
               :contact_request_state :contact_request/viewer_awaits_response
               :their_contacts []
               :in_common {:contacts  []}}))
-          (let [their-contacts-ids (:contacts/ids (db.contacts/by-uid db id))
+          (let [their-contacts (db.contacts/by-uid db id)
+                their-contacts-ids (:contacts/ids their-contacts)
                 in-common-uids (db.contacts/get-in-common db user-id id)
+                hidden-by-me? (contains? (:contacts/hidden_me their-contacts) user-id)
                 already-my-contact? (contains? their-contacts-ids user-id)
                 their-contacts (->> their-contacts-ids
                                     (remove (partial contains? in-common-uids))
@@ -74,6 +78,7 @@
             (json-response
              {:contact (-> viewed-user crdt.user/->value db.contacts/->contact)
               :contact_request_state contact-request-state
+              :settings {:posts_hidden hidden-by-me?}
               :their_contacts (mapv #(-> % crdt.user/->value db.contacts/->contact) their-contacts)
               :in_common {:contacts (->> contacts-in-common
                                          (mapv #(-> % crdt.user/->value db.contacts/->contact)))}}))))
