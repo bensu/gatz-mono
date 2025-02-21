@@ -289,6 +289,7 @@
                              :auth/user-id uid
                              :auth/user (crdt.user/->value user))))
           ks [:contacts/user_id :contacts/ids]
+<<<<<<< HEAD
           contact-request-ks [:contact_request/from :contact_request/to :contact_request/state]
           [requester-id accepter-id denier-id dummy-id dummy-id2] (repeatedly 5 random-uuid)]
       (db.user/create-user! ctx {:id requester-id :username "requester" :phone "+14159499932"})
@@ -296,6 +297,31 @@
       (db.user/create-user! ctx {:id accepter-id :username "accepter" :phone "+14159499931"})
       (db.user/create-user! ctx {:id dummy-id :username "dummy" :phone "+14159499933"})
       (db.user/create-user! ctx {:id dummy-id2 :username "dummy2" :phone "+14159499934"})
+=======
+          contact-request-ks [:contact_request/from
+                              :contact_request/to
+                              :contact_request/state]
+          [requester-id accepter-id denier-id dummy-id dummy-id2 dummy-id3]
+          (repeatedly 6 random-uuid)]
+      (db.user/create-user! ctx {:id requester-id
+                                 :username "requester"
+                                 :phone "+14159499932"})
+      (db.user/create-user! ctx {:id denier-id
+                                 :username "denier"
+                                 :phone "+14159499930"})
+      (db.user/create-user! ctx {:id accepter-id
+                                 :username "accepter"
+                                 :phone "+14159499931"})
+      (db.user/create-user! ctx {:id dummy-id
+                                 :username "dummy"
+                                 :phone "+14159499933"})
+      (db.user/create-user! ctx {:id dummy-id2
+                                 :username "dummy2"
+                                 :phone "+14159499934"})
+      (db.user/create-user! ctx {:id dummy-id3
+                                 :username "dummy3"
+                                 :phone "+14159499935"})
+>>>>>>> 32d01f7 (contacts: add harder test to pass)
       (xtdb/sync node)
 
       (testing "which look like what we expect"
@@ -448,6 +474,9 @@
                 (doseq [uid [requester-id denier-id]]
                   (db.contacts/force-contacts! (get-ctx dummy-id) dummy-id uid)
                   (db.contacts/force-contacts! (get-ctx dummy-id2) dummy-id2 uid))
+                ;; dummy-id3 is unreachable by accepter because it is never directly connected to dummy-id or dummy-id2
+                (db.contacts/force-contacts! (get-ctx dummy-id3) dummy-id3 dummy-id)
+                (db.contacts/force-contacts! (get-ctx dummy-id3) dummy-id3 dummy-id2)
                 (xtdb/sync node)
                 (assert (db.user/by-id (xtdb/db node) requester-id))
                 (db/create-discussion-with-message! (get-ctx requester-id)
@@ -466,8 +495,8 @@
                     (is (= :discussion.member_mode/open (:discussion/member_mode d2)))
                     (is (not (contains? (:discussion/members d2) accepter-id)))
 
-                    (is (= #{dummy-id dummy-id2 denier-id requester-id} (db.contacts/friends-of-friends db requester-id)))
-                    (is (= #{dummy-id dummy-id2 denier-id requester-id} (db.contacts/friends-of-friends db denier-id)))
+                    (is (= #{dummy-id dummy-id2 dummy-id3 denier-id requester-id} (db.contacts/friends-of-friends db requester-id)))
+                    (is (= #{dummy-id dummy-id2 dummy-id3 denier-id requester-id} (db.contacts/friends-of-friends db denier-id)))
                     (is (= #{} (db.contacts/friends-of-friends db accepter-id))))))
 
               ;; accepter -> requester -> dummy1, dummy2
@@ -484,8 +513,8 @@
                   (is (contains? (:discussion/members d1) accepter-id))
                   (is (not (contains? (:discussion/members d2) accepter-id)))
 
-                  (is (= #{dummy-id dummy-id2 denier-id requester-id accepter-id} (db.contacts/friends-of-friends db requester-id)))
-                  (is (= #{dummy-id dummy-id2 denier-id requester-id} (db.contacts/friends-of-friends db denier-id)))
+                  (is (= #{dummy-id dummy-id2 dummy-id3 denier-id requester-id accepter-id} (db.contacts/friends-of-friends db requester-id)))
+                  (is (= #{dummy-id dummy-id2 dummy-id3 denier-id requester-id} (db.contacts/friends-of-friends db denier-id)))
                   (is (= #{dummy-id dummy-id2 requester-id accepter-id} (db.contacts/friends-of-friends db accepter-id)))))
 
               (let [db (xtdb/db node)
@@ -593,8 +622,8 @@
             (is (empty? (db.contacts/get-in-common db accepter-id denier-id)))
             (is (= #{accepter-id dummy-id dummy-id2} (db.contacts/get-in-common db requester-id denier-id)))
 
-            (is (= #{dummy-id dummy-id2 denier-id requester-id accepter-id} (db.contacts/friends-of-friends db requester-id)))
-            (is (= #{dummy-id dummy-id2 denier-id requester-id accepter-id} (db.contacts/friends-of-friends db denier-id)))
+            (is (= #{dummy-id dummy-id2 dummy-id3 denier-id requester-id accepter-id} (db.contacts/friends-of-friends db requester-id)))
+            (is (= #{dummy-id dummy-id2 dummy-id3 denier-id requester-id accepter-id} (db.contacts/friends-of-friends db denier-id)))
             (is (= #{dummy-id dummy-id2 denier-id requester-id accepter-id} (db.contacts/friends-of-friends db accepter-id)))
 
             (doall
@@ -637,8 +666,8 @@
             (is (= #{dummy-id dummy-id2} (db.contacts/get-in-common db requester-id denier-id)))
             (is (empty? (db.contacts/get-in-common db accepter-id denier-id)))
 
-            (is (= #{dummy-id dummy-id2 denier-id requester-id} (db.contacts/friends-of-friends db requester-id)))
-            (is (= #{dummy-id dummy-id2 denier-id requester-id accepter-id} (db.contacts/friends-of-friends db denier-id)))
+            (is (= #{dummy-id dummy-id2 dummy-id3 denier-id requester-id} (db.contacts/friends-of-friends db requester-id)))
+            (is (= #{dummy-id dummy-id2 dummy-id3 denier-id requester-id accepter-id} (db.contacts/friends-of-friends db denier-id)))
             (is (= #{dummy-id dummy-id2 denier-id accepter-id} (db.contacts/friends-of-friends db accepter-id)))
 
             (testing "and removing again works"
