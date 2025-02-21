@@ -343,7 +343,7 @@
                             :contact_request/state :contact_request/requested}
               all-pending-to-a (db.contacts/pending-requests-to db accepter-id)
               r-to-a (first all-pending-to-a)]
-          (is-equal {:contacts/user_id requester-id  :contacts/ids #{}}
+          (is-equal {:contacts/user_id requester-id :contacts/ids #{}}
                     (select-keys r-contacts ks))
           (is-equal {:contacts/user_id accepter-id :contacts/ids #{}}
                     (select-keys a-contacts ks))
@@ -388,10 +388,9 @@
                                                      {:them requester-id :action :contact_request/requested}))))
 
           (testing "to multiple people"
-
             (let [{:keys [request]}
-                  (db.contacts/apply-request! (get-ctx requester-id)
-                                              {:them denier-id :action :contact_request/requested})
+                  (db.contacts/apply-request!
+                   (get-ctx requester-id) {:them denier-id :action :contact_request/requested})
                   _ (xtdb/sync node)
 
                   db (xtdb/db node)
@@ -443,6 +442,8 @@
                 now (Date.)]
             (testing "and those requests can be accepted or denied"
 
+              ;; requester -> dummy1, dummy2
+              ;; denier -> dummy1, dummy2
               (testing "accepting a contact gives access to open discussions"
                 (doseq [uid [requester-id denier-id]]
                   (db.contacts/force-contacts! (get-ctx dummy-id) dummy-id uid)
@@ -463,8 +464,13 @@
                     (is (= :discussion.member_mode/open (:discussion/member_mode d1)))
                     (is (not (contains? (:discussion/members d1) accepter-id)))
                     (is (= :discussion.member_mode/open (:discussion/member_mode d2)))
-                    (is (not (contains? (:discussion/members d2) accepter-id))))))
+                    (is (not (contains? (:discussion/members d2) accepter-id)))
 
+                    (is (= #{dummy-id dummy-id2 denier-id requester-id} (db.contacts/friends-of-friends db requester-id)))
+                    (is (= #{dummy-id dummy-id2 denier-id requester-id} (db.contacts/friends-of-friends db denier-id)))
+                    (is (= #{} (db.contacts/friends-of-friends db accepter-id))))))
+
+              ;; accepter -> requester -> dummy1, dummy2
               (db.contacts/apply-request! (get-ctx accepter-id)
                                           {:them requester-id :action :contact_request/accepted})
               (db.contacts/apply-request! (get-ctx denier-id)
@@ -476,8 +482,11 @@
                       d1 (crdt.discussion/->value (db.discussion/by-id db did1))
                       d2 (crdt.discussion/->value (db.discussion/by-id db did2))]
                   (is (contains? (:discussion/members d1) accepter-id))
-                  (is (not (contains? (:discussion/members d2) accepter-id)))))
+                  (is (not (contains? (:discussion/members d2) accepter-id)))
 
+                  (is (= #{dummy-id dummy-id2 denier-id requester-id accepter-id} (db.contacts/friends-of-friends db requester-id)))
+                  (is (= #{dummy-id dummy-id2 denier-id requester-id} (db.contacts/friends-of-friends db denier-id)))
+                  (is (= #{dummy-id dummy-id2 requester-id accepter-id} (db.contacts/friends-of-friends db accepter-id)))))
 
               (let [db (xtdb/db node)
                     r-contacts (db.contacts/by-uid db requester-id)
@@ -571,6 +580,7 @@
         (testing "once people have contacts, we can find who they have in common"
           (db.contacts/apply-request! (get-ctx denier-id)
                                       {:them accepter-id :action :contact_request/requested})
+          ;; accepter -> (denier, requester) -> dummy1, dummy2
           (db.contacts/apply-request! (get-ctx accepter-id)
                                       {:them denier-id :action :contact_request/accepted})
           (xtdb/sync node)
@@ -583,15 +593,19 @@
             (is (empty? (db.contacts/get-in-common db accepter-id denier-id)))
             (is (= #{accepter-id dummy-id dummy-id2} (db.contacts/get-in-common db requester-id denier-id)))
 
+            (is (= #{dummy-id dummy-id2 denier-id requester-id accepter-id} (db.contacts/friends-of-friends db requester-id)))
+            (is (= #{dummy-id dummy-id2 denier-id requester-id accepter-id} (db.contacts/friends-of-friends db denier-id)))
+            (is (= #{dummy-id dummy-id2 denier-id requester-id accepter-id} (db.contacts/friends-of-friends db accepter-id)))
+
             (doall
              (for [from [accepter-id]
                    to [requester-id denier-id]]
                (is (empty? (db.contacts/requests-from-to db from to)))))))
         (testing "and they can remove contacts"
           (let [{:keys [request]}
-                (db.contacts/apply-request! (get-ctx accepter-id)
-                                            {:them requester-id
-                                             :action :contact_request/removed})
+                ;; accepter -> denier -> dummy1, dummy2
+                (db.contacts/apply-request!
+                 (get-ctx accepter-id) {:them requester-id :action :contact_request/removed})
                 _ (xtdb/sync node)
                 db (xtdb/db node)
                 ks [:contacts/user_id :contacts/ids :contacts/removed]
@@ -622,6 +636,10 @@
             (is (empty? (db.contacts/get-in-common db requester-id accepter-id)))
             (is (= #{dummy-id dummy-id2} (db.contacts/get-in-common db requester-id denier-id)))
             (is (empty? (db.contacts/get-in-common db accepter-id denier-id)))
+
+            (is (= #{dummy-id dummy-id2 denier-id requester-id} (db.contacts/friends-of-friends db requester-id)))
+            (is (= #{dummy-id dummy-id2 denier-id requester-id accepter-id} (db.contacts/friends-of-friends db denier-id)))
+            (is (= #{dummy-id dummy-id2 denier-id accepter-id} (db.contacts/friends-of-friends db accepter-id)))
 
             (testing "and removing again works"
               (db.contacts/apply-request! (get-ctx accepter-id)

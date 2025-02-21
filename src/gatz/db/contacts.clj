@@ -52,6 +52,20 @@
                    uid))]
     (some-> entity (db.util/->latest-version all-migrations))))
 
+(defn friends-of-friends [db uid]
+  {:pre [(uuid? uid)]
+   :post [(set? %) (every? uuid? %)]}
+  (->> (q db '{:find [?friend-id ?fof-id]
+               :in [uid]
+               :where [[c :db/type :gatz/contacts]
+                       [c :contacts/user_id uid]
+                       [c :contacts/ids ?friend-id]
+                       [f :contacts/user_id ?friend-id]
+                       [f :contacts/ids ?fof-id]]}
+          uid)
+       (mapcat identity)
+       set))
+
 (defn in-common
   [a-contacts b-contacts]
   {:post [(set? %) (every? uuid? %)]}
