@@ -3,8 +3,22 @@
             [com.biffweb :as biff :refer [q]]
             [gatz.db.discussion :as db.discussion]
             [gatz.schema :as schema]
+            [gatz.db.util :as db.util]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
+
+;; ======================================================================
+;; Migrations
+
+(defn v1->v2 [data]
+  (-> data
+      (assoc :db/version 2)
+      (update :contacts/hidden_by_me #(or % #{}))
+      (update :contacts/hidden_me #(or % #{}))))
+
+(def all-migrations
+  [{:from 0 :to 1 :transform identity}
+   {:from 1 :to 2 :transform v1->v2}])
 
 ;; ======================================================================
 ;; Contacts
@@ -18,9 +32,11 @@
   (let [now (or now (Date.))]
     {:xt/id (or id (random-uuid))
      :db/type :gatz/contacts
-     :db/version 1
+     :db/version 2
      :contacts/created_at now
      :contacts/updated_at now
+     :contacts/hidden_by_me #{}
+     :contacts/hidden_me #{}
      :contacts/user_id uid
      :contacts/ids contact-ids}))
 
@@ -28,12 +44,13 @@
 ;; and they are unique by :contacts/user_id
 (defn by-uid [db uid]
   {:pre [(uuid? uid)]}
-  (first
-   (q db '{:find (pull c [*])
-           :in [uid]
-           :where [[c :db/type :gatz/contacts]
-                   [c :contacts/user_id uid]]}
-      uid)))
+  (let [entity (first
+                (q db '{:find (pull c [*])
+                        :in [uid]
+                        :where [[c :db/type :gatz/contacts]
+                                [c :contacts/user_id uid]]}
+                   uid))]
+    (some-> entity (db.util/->latest-version all-migrations))))
 
 (defn in-common
   [a-contacts b-contacts]
@@ -103,6 +120,61 @@
            (let [args {:from cid :to uid :now now}]
              [:xtdb.api/fn :gatz.db.contacts/remove-contacts {:args args}]))
          all-cids)))
+
+;; ======================================================================
+;; Muting
+
+(defn hide-contact-txn [xtdb-ctx {:keys [hidden-by hidden now]}]
+  (let [db (xtdb.api/db xtdb-ctx)
+        hidden-by-contacts (by-uid db hidden-by)
+        contacts-of-hidden (by-uid db hidden)]
+    (assert (not= hidden-by hidden))
+    (assert (and hidden-by-contacts contacts-of-hidden))
+    [[:xtdb.api/put (-> contacts-of-hidden
+                        (assoc :contacts/updated_at now)
+                        (update :contacts/hidden_me conj hidden-by)
+                        (assoc :db/doc-type :gatz/contacts))]
+     [:xtdb.api/put (-> hidden-by-contacts
+                        (assoc :contacts/updated_at now)
+                        (update :contacts/hidden_by_me conj hidden)
+                        (assoc :db/doc-type :gatz/contacts))]]))
+
+(def hide-contact-expr
+  '(fn hide-contact-fn [ctx args]
+     (gatz.db.contacts/hide-contact-txn ctx args)))
+
+(defn hide! [{:keys [auth/user-id] :as ctx} {:keys [hidden-by hidden]}]
+  {:pre [(uuid? user-id) (uuid? hidden-by) (uuid? hidden)]}
+  (let [args {:hidden-by hidden-by :hidden hidden :now (Date.)}]
+    (assert (= user-id hidden-by))
+    (assert (not= user-id hidden))
+    (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.contacts/hide-contact args]])))
+
+(defn unhide-contact-txn [xtdb-ctx {:keys [hidden-by hidden now]}]
+  (let [db (xtdb/db xtdb-ctx)
+        hidden-by-contacts (by-uid db hidden-by)
+        contacts-of-hidden (by-uid db hidden)]
+    (assert (not= hidden-by hidden))
+    (assert (and hidden-by-contacts contacts-of-hidden))
+    [[:xtdb.api/put (-> contacts-of-hidden
+                        (assoc :contacts/updated_at now)
+                        (update :contacts/hidden_me disj hidden-by)
+                        (assoc :db/doc-type :gatz/contacts))]
+     [:xtdb.api/put (-> hidden-by-contacts
+                        (assoc :contacts/updated_at now)
+                        (update :contacts/hidden_by_me disj hidden)
+                        (assoc :db/doc-type :gatz/contacts))]]))
+
+(def unhide-contact-expr
+  '(fn unhide-contact-fn [ctx args]
+     (gatz.db.contacts/unhide-contact-txn ctx args)))
+
+(defn unhide! [{:keys [auth/user-id] :as ctx} {:keys [hidden-by hidden]}]
+  {:pre [(uuid? user-id) (uuid? hidden-by) (uuid? hidden)]}
+  (let [args {:hidden-by hidden-by :hidden hidden :now (Date.)}]
+    (assert (= user-id hidden-by))
+    (assert (not= user-id hidden))
+    (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.contacts/unhide-contact args]])))
 
 ;; ======================================================================
 ;; Contact Requests
@@ -204,31 +276,43 @@
 
 (defn pending-requests-to [db to]
   {:pre [(uuid? to)]}
-  (q db '{:find (pull cr [*])
-          :in [to]
-          :where [[cr :db/type :gatz/contact_request]
-                  [cr :contact_request/to to]
-                  [cr :contact_request/state :contact_request/requested]]}
-     to))
+  (let [entities (q db '{:find (pull cr [*])
+                         :in [to]
+                         :where [[cr :db/type :gatz/contact_request]
+                                 [cr :contact_request/to to]
+                                 [cr :contact_request/state :contact_request/requested]]}
+                    to)]
+    (->> entities
+         (keep (fn [entity]
+                 (some-> entity (db.util/->latest-version all-migrations))))
+         vec)))
 
 (defn visible-requests-to [db to]
   {:pre [(uuid? to)]}
-  (q db '{:find (pull cr [*])
-          :in [to]
-          :where [[cr :db/type :gatz/contact_request]
-                  [cr :contact_request/to to]
-                  [cr :contact_request/state state]
-                  [(contains? #{:contact_request/requested :contact_request/accepted} state)]]}
-     to))
+  (let [entities (q db '{:find (pull cr [*])
+                         :in [to]
+                         :where [[cr :db/type :gatz/contact_request]
+                                 [cr :contact_request/to to]
+                                 [cr :contact_request/state state]
+                                 [(contains? #{:contact_request/requested :contact_request/accepted} state)]]}
+                    to)]
+    (->> entities
+         (keep (fn [entity]
+                 (some-> entity (db.util/->latest-version all-migrations))))
+         vec)))
 
 (defn requests-from-to [db from to]
   {:pre [(uuid? from) (uuid? to)]}
-  (q db '{:find (pull cr [*])
-          :in [to from]
-          :where [[cr :db/type :gatz/contact_request]
-                  [cr :contact_request/to to]
-                  [cr :contact_request/from from]]}
-     to from))
+  (let [entities (q db '{:find (pull cr [*])
+                         :in [to from]
+                         :where [[cr :db/type :gatz/contact_request]
+                                 [cr :contact_request/to to]
+                                 [cr :contact_request/from from]]}
+                    to from)]
+    (->> entities
+         (keep (fn [entity]
+                 (some-> entity (db.util/->latest-version all-migrations))))
+         vec)))
 
 (def final-states #{:contact_request/removed :contact_request/ignored})
 
@@ -272,12 +356,12 @@
 
 (defn transition-to-txn [ctx {:keys [args]}]
   (let [db (xtdb.api/db ctx)
-        {:keys [by to from state now]} args
-        _ (assert (uuid? by))
-        _ (assert (uuid? to))
-        _ (assert (uuid? from))
-        _ (assert (inst? now))
-        _ (assert (some? state))]
+        {:keys [by to from state now]} args]
+    (assert (uuid? by))
+    (assert (uuid? to))
+    (assert (uuid? from))
+    (assert (inst? now))
+    (assert (some? state))
     (if-let [current-request (if (= :contact_request/removed state)
                                ;; removed doesn't care who is who
                                (current-request-between db from to)
@@ -453,4 +537,6 @@
    :gatz.db.contacts/new-request new-contact-request-expr
    :gatz.db.contacts/transition-to transition-to-expr
    :gatz.db.contacts/invite-contact invite-contact-expr
-   :gatz.db.contacts/add-to-open-discussions add-to-open-discussions-expr})
+   :gatz.db.contacts/add-to-open-discussions add-to-open-discussions-expr
+   :gatz.db.contacts/hide-contact hide-contact-expr
+   :gatz.db.contacts/unhide-contact unhide-contact-expr})

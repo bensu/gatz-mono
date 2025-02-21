@@ -591,3 +591,82 @@
 
       (.close node))))
 
+(deftest muting-contacts
+  (testing "users can hide and unhide their contacts"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (let [db (xtdb/db node)
+                          user (db.user/by-id db uid)]
+                      (assert user)
+                      (assoc ctx
+                             :biff/db (xtdb/db node)
+                             :auth/user-id uid
+                             :auth/user (crdt.user/->value user))))
+          [user-a user-b] (repeatedly 2 random-uuid)]
+
+      ;; Create test users
+      (db.user/create-user! ctx {:id user-a :username "user-a" :phone "+14159499932"})
+      (db.user/create-user! ctx {:id user-b :username "user-b" :phone "+14159499930"})
+      (xtdb/sync node)
+
+      ;; Make them contacts first
+      (db.contacts/force-contacts! ctx user-a user-b)
+      (xtdb/sync node)
+
+      (testing "initially no one is hidden"
+        (let [db (xtdb/db node)
+              a-contacts (db.contacts/by-uid db user-a)
+              b-contacts (db.contacts/by-uid db user-b)]
+          (is (empty? (:contacts/hidden_by_me a-contacts)))
+          (is (empty? (:contacts/hidden_me a-contacts)))
+          (is (empty? (:contacts/hidden_by_me b-contacts)))
+          (is (empty? (:contacts/hidden_me b-contacts)))))
+
+      (testing "user-a can hide user-b"
+        (db.contacts/hide! (get-ctx user-a) {:hidden-by user-a :hidden user-b})
+        (xtdb/sync node)
+
+        (let [db (xtdb/db node)
+              a-contacts (db.contacts/by-uid db user-a)
+              b-contacts (db.contacts/by-uid db user-b)]
+          (is (= #{user-b} (:contacts/hidden_by_me a-contacts)))
+          (is (empty? (:contacts/hidden_me a-contacts)))
+          (is (empty? (:contacts/hidden_by_me b-contacts)))
+          (is (= #{user-a} (:contacts/hidden_me b-contacts)))))
+
+      (testing "user-b can also hide user-a"
+        (db.contacts/hide! (get-ctx user-b) {:hidden-by user-b :hidden user-a})
+        (xtdb/sync node)
+
+        (let [db (xtdb/db node)
+              a-contacts (db.contacts/by-uid db user-a)
+              b-contacts (db.contacts/by-uid db user-b)]
+          (is (= #{user-b} (:contacts/hidden_by_me a-contacts)))
+          (is (= #{user-b} (:contacts/hidden_me a-contacts)))
+          (is (= #{user-a} (:contacts/hidden_by_me b-contacts)))
+          (is (= #{user-a} (:contacts/hidden_me b-contacts)))))
+
+      (testing "users can unhide each other"
+        (db.contacts/unhide! (get-ctx user-a) {:hidden-by user-a :hidden user-b})
+        (xtdb/sync node)
+
+        (let [db (xtdb/db node)
+              a-contacts (db.contacts/by-uid db user-a)
+              b-contacts (db.contacts/by-uid db user-b)]
+          (is (empty? (:contacts/hidden_by_me a-contacts)))
+          (is (= #{user-b} (:contacts/hidden_me a-contacts)))
+          (is (= #{}       (:contacts/hidden_by_me a-contacts)))
+          (is (= #{}       (:contacts/hidden_me b-contacts)))
+          (is (= #{user-a} (:contacts/hidden_by_me b-contacts)))))
+
+      (testing "users need to be authorized to hide each other"
+        (is (thrown? Throwable
+                     (db.contacts/hide! (get-ctx user-a) {:hidden-by user-b :hidden user-a}))))
+
+      (testing "users can't hide themselves"
+        (is (thrown? Throwable
+                     (db.contacts/hide! (get-ctx user-a) {:hidden-by user-a :hidden user-a}))))
+
+      (.close node))))
+

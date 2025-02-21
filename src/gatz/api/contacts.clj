@@ -178,3 +178,24 @@
                                             :contact_id to}))
         (json-response {:status "success"
                         :state contact-request-state})))))
+
+;; ======================================================================
+;; Contact hide actions
+
+(def hide-contact-params
+  [:map
+   [:contact_id schema/UserId]])
+
+(defn parse-hide-contact-params [params]
+  (cond-> params
+    (some? (:contact_id params)) (update :contact_id strict-str->uuid)))
+
+(defn hide! [{:keys [auth/user-id params] :as ctx}]
+  (let [{:keys [contact_id]} (parse-hide-contact-params params)]
+    (db.contacts/hide! ctx {:hidden-by user-id :hidden contact_id})
+    (json-response {:status "success"})))
+
+(defn unhide! [{:keys [auth/user-id params] :as ctx}]
+  (let [{:keys [contact_id]} (parse-hide-contact-params params)]
+    (db.contacts/unhide! ctx {:hidden-by user-id :hidden contact_id})
+    (json-response {:status "success"})))

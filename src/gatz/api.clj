@@ -286,6 +286,8 @@
                  ["/contacts" {:get api.contacts/get-all-contacts}]
                  ["/contact/request" {:post api.contacts/handle-request!}]
                  ["/contact/share-link" {:post api.invite-link/post-contact-invite-link}]
+                 ["/contact/hide" {:post api.contacts/hide!}]
+                 ["/contact/unhide" {:post api.contacts/unhide!}]
 
                  ["/group" {:get api.group/get-group
                             :post api.group/create!}]

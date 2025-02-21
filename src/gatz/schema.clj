@@ -177,9 +177,12 @@
   [:map
    [:xt/id :uuid] ;; never used
    [:db/type [:enum :gatz/contacts]]
+   [:db/version [:enum 2]]
    [:contacts/user_id #'UserId] ;; acts as main key
    [:contacts/created_at inst?]
    [:contacts/updated_at inst?]
+   [:contacts/hidden_by_me [:set #'UserId]]
+   [:contacts/hidden_me [:set #'UserId]]
    [:contacts/ids [:set #'UserId]]])
 
 (def invite-link-types
