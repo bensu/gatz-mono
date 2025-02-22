@@ -539,15 +539,12 @@
   (let [args {:from aid :to bid :now (Date.)}]
     (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.contacts/remove-contacts {:args args}]])))
 
-(defn add-to-open-discussions-txn [xtdb-ctx {:keys [by-uid to-uid now] :as params}]
+(defn add-to-open-discussions-txn [xtdb-ctx {:keys [by-uid to-uid now]}]
   {:pre [(uuid? by-uid) (uuid? to-uid) (inst? now)]}
   (let [db (xtdb/db xtdb-ctx)
         dids (db.discussion/open-for-contact db by-uid)]
-    (db.discussion/add-member-to-dids-txn db
-                                          {:now now
-                                           :by-uid by-uid
-                                           :members #{to-uid}
-                                           :dids dids})))
+    (db.discussion/add-member-to-dids-txn
+     db {:now now :by-uid by-uid :members #{to-uid} :dids dids})))
 
 (def add-to-open-discussions-expr
   '(fn add-to-open-discussions-fn [xtdb-ctx args]

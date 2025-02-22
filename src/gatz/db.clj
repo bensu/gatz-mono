@@ -241,10 +241,9 @@
               :discussion.member_mode/open
               :discussion.member_mode/closed))
           (if (and (not dm?) to_all_contacts)
-
-            :discussion.member_mode/open
-            #_(if friends_of_friends
-                :discussion.member_mode/friends_of_friends)
+            (if friends_of_friends
+              :discussion.member_mode/friends_of_friends
+              :discussion.member_mode/open)
             :discussion.member_mode/closed))
 
         open? (contains? schema/open-member-modes member-mode)

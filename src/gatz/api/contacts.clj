@@ -1,5 +1,6 @@
 (ns gatz.api.contacts
   (:require [clojure.data.json :as json]
+            [clojure.set :as set]
             [com.biffweb :as biff]
             [crdt.core :as crdt]
             [gatz.db.contacts :as db.contacts]
@@ -97,6 +98,7 @@
 (def get-all-contacts-response
   [:map
    [:contacts [:vec schema/ContactResponse]]
+   [:friends_of_friends [:vec schema/Contact]]
    [:group {:optional true} schema/Group]])
 
 (defn get-all-contacts [{:keys [auth/user-id auth/user biff/db] :as ctx}]
@@ -108,12 +110,19 @@
         (json-response {:user (crdt.user/->value user)
                         :contacts (mapv #(-> % crdt.user/->value db.contacts/->contact)
                                         group-contacts)
+                        :friends_of_friends []
                         :group group}))
       (let [my-contact-ids (:contacts/ids (db.contacts/by-uid db user-id))
-            my-contacts (mapv (partial db.user/by-id db) my-contact-ids)]
+            my-contacts (->> my-contact-ids
+                             (map (partial db.user/by-id db))
+                             (mapv #(-> % crdt.user/->value db.contacts/->contact)))
+            friends-of-friends (->> (-> (db.contacts/friends-of-friends db user-id)
+                                        (set/difference my-contact-ids #{user-id}))
+                                    (map (partial db.user/by-id db))
+                                    (mapv #(-> % crdt.user/->value db.contacts/->contact)))]
         (json-response {:user (crdt.user/->value user)
-                        :contacts (mapv #(-> % crdt.user/->value db.contacts/->contact)
-                                        my-contacts)
+                        :contacts my-contacts
+                        :friends_of_friends friends-of-friends
                         :group nil})))))
 
 ;; ======================================================================
