@@ -208,7 +208,12 @@
 (def DiscussionMemberMode
   [:enum
    :discussion.member_mode/open
-   :discussion.member_mode/closed])
+   :discussion.member_mode/closed
+   :discussion.member_mode/friends_of_friends])
+
+(def open-member-modes
+  #{:discussion.member_mode/open
+    :discussion.member_mode/friends_of_friends})
 
 (def DiscussionPublicMode
   [:enum :discussion.public_mode/hidden :discussion.public_mode/public])

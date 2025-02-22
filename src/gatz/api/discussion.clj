@@ -98,8 +98,10 @@
                                                (partial db.user/by-id db))
                                          all-user-ids)
                              :messages (mapv crdt.message/->value messages)})))
-          (err-resp "discussion_not_found" "Discussion not found"))
-        (err-resp "invalid_params" "Invalid params: missing id")))))
+          (-> (err-resp "discussion_not_found" "Discussion not found")
+              (assoc :status 404)))
+        (-> (err-resp "invalid_params" "Invalid params: missing id")
+            (assoc :status 400))))))
 
 (defn ^:deprecated
 

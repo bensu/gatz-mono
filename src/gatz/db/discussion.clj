@@ -184,7 +184,7 @@
 ;; TODO: you can't add members after the time has passed
 (defmethod authorized-for-delta? :discussion.crdt/add-members
   [d evt]
-  (let [open? (= :discussion.member_mode/open (:discussion/member_mode d))
+  (let [open? (contains? schema/open-member-modes (:discussion/member_mode d))
         public? (= :discussion.public_mode/public (:discussion/public_mode d))
         group? (some? (:discussion/group_id d))
         uid (:evt/uid evt)]

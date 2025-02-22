@@ -2,6 +2,7 @@
   (:require [com.biffweb :as biff :refer [q]]
             [clojure.set :as set]
             [clojure.string :as str]
+            [clojure.tools.logging :as log]
             [crdt.core :as crdt]
             [gatz.crdt.discussion :as crdt.discussion]
             [gatz.crdt.message :as crdt.message]
@@ -16,8 +17,7 @@
             [gatz.schema :as schema]
             [gatz.util :as util]
             [link-preview.core :as link-preview]
-            [xtdb.api :as xtdb]
-            [clojure.tools.logging :as log])
+            [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
 ;; ======================================================================
@@ -54,6 +54,7 @@
    [:group_id {:optional true} schema/ulid?]
    [:selected_users {:optional true} [:vec uuid?]]
    [:to_all_contacts {:optional true} boolean?]
+   [:friends_of_friends {:optional true} boolean?]
    [:originally_from {:optional true} [:map
                                        [:did uuid?]
                                        [:mid uuid?]]]])
@@ -69,13 +70,16 @@
   [{:keys [name group_id text to_all_contacts
            media_id media_ids
            link_previews
-           originally_from selected_users]}]
+           originally_from selected_users
+           friends_of_friends]}]
   {:pre [(or (nil? name)
              (and (string? name) (not (empty? name)))
              (or (old-valid-post? text media_id)
                  (valid-post? text media_ids)))
          (or (boolean? to_all_contacts)
-             (some? selected_users))]}
+             (some? selected_users))
+         (or (nil? friends_of_friends)
+             (boolean? friends_of_friends))]}
 
   (when (empty? text)
     (assert (not (empty? media_ids))
@@ -87,11 +91,13 @@
     (some? group_id) (assoc :group_id (crdt/parse-ulid group_id))
     (some? media_id) (assoc :media_ids (when-let [media-id (util/parse-uuid media_id)]
                                          [media-id]))
-    (coll? media_ids)          (assoc :media_ids (vec (keep util/parse-uuid media_ids)))
-    (coll? link_previews)      (assoc :link_previews (vec (keep util/parse-uuid link_previews)))
-    (some? originally_from)    (assoc :originally_from (parse-originally-from originally_from))
-    (some? selected_users)     (assoc :selected_users (set (keep util/parse-uuid selected_users)))
-    (boolean? to_all_contacts) (assoc :to_all_contacts to_all_contacts)))
+    (coll? media_ids)             (assoc :media_ids (vec (keep util/parse-uuid media_ids)))
+    (coll? link_previews)         (assoc :link_previews (vec (keep util/parse-uuid link_previews)))
+    (some? originally_from)       (assoc :originally_from (parse-originally-from originally_from))
+    (some? selected_users)        (assoc :selected_users (set (keep util/parse-uuid selected_users)))
+    (boolean? to_all_contacts)    (assoc :to_all_contacts to_all_contacts)
+    (boolean? friends_of_friends) (assoc :friends_of_friends friends_of_friends)
+    (nil? friends_of_friends)     (assoc :friends_of_friends false)))
 
 (defn create-discussion-with-message!
 
@@ -103,8 +109,13 @@
 
   (let [{:keys [selected_users group_id to_all_contacts
                 text originally_from
+                friends_of_friends
                 media_ids link_previews]}
         (parse-create-params init-params)
+
+        _ (when friends_of_friends
+            (assert to_all_contacts "Friends of friends requires to_all_contacts to be true")
+            (assert (nil? group_id) "Friends of friends can't be used with a group"))
 
         now (or now (Date.))
         did (or did (random-uuid))
@@ -113,7 +124,7 @@
         user (db.user/by-id db user-id)
         _ (assert user)
 
-        link-previews (mapv (fn [lid] (link-preview/by-id db lid)) (or link_previews []))
+        link-previews (mapv #(link-preview/by-id db %) (or link_previews []))
         updated-medias (some->> media_ids
                                 (keep (partial db.media/by-id db))
                                 (mapv (fn [m]
@@ -131,17 +142,16 @@
           (let [group-members (:group/members group)
                 archiver-uids (:group/archived_uids group)]
             (assert group "Group passed doesn't exist")
-            (assert (contains? group-members user-id)
-                    "Not authorized to post to this group")
+            (assert (contains? group-members user-id) "Not authorized to post to this group")
 
             (if selected_users
               ;; The post is directed to a subset of the group
               (do
-                (assert (set/subset? selected_users group-members))
+                (assert (set/subset? selected_users group-members) "The selected users are not a subset of the group members")
                 [selected_users (set/intersection archiver-uids selected_users)])
               ;; The post is directed to the entire group
               (do
-                (assert to_all_contacts)
+                (assert to_all_contacts "The post is not directed to the entire group nor to a subset")
                 [group-members archiver-uids])))
 
           ;; The post is directed to a set of users
@@ -149,15 +159,22 @@
                 contact-uids (:contacts/ids contacts)
                 muted-uids (or (:contacts/hidden_me contacts) #{})]
             (if selected_users
+              ;; The post is directed to a subset of the user's contacts
               (let [member-uids (disj selected_users user-id)]
-                (assert (set/subset? member-uids contact-uids))
+                (assert (set/subset? member-uids contact-uids) "The selected users are not a subset of the user's contacts")
                 [member-uids (set/intersection muted-uids member-uids)])
-              (do
-                (assert to_all_contacts)
-                [contact-uids (set/intersection contact-uids muted-uids)]))))
 
-        _ (assert (and (set? member-uids)
-                       (every? uuid? member-uids)))
+              (if friends_of_friends
+                ;; The post is directed to the user's friends and friends of friends
+                (let [fof (db.contacts/friends-of-friends db user-id)]
+                  [fof (set/intersection muted-uids fof)])
+                (do
+                  ;; The post is directed to all of the user's contacts
+                  (assert to_all_contacts "The post is not directed to all of the user's contacts")
+                  [contact-uids (set/intersection contact-uids muted-uids)])))))
+
+        _ (assert (and (set? member-uids) (every? uuid? member-uids)))
+        _ (assert (and (set? archived-uids) (every? uuid? archived-uids)))
 
         originally-from (when-let [og-mid (:mid originally_from)]
                           (assert (:did originally_from))
@@ -216,17 +233,28 @@
             :member-uids member-uids :group-id group_id
             :archived-uids archived-uids}
            {:now now})
-        open? (boolean
-               (if group
-                 (let [group-mode (get-in group [:group/settings :discussion/member_mode])]
-                   (and to_all_contacts (= :discussion.member_mode/open group-mode)))
-                 (and (not dm?) to_all_contacts)))
+
+        member-mode
+        (if group
+          (let [group-mode (get-in group [:group/settings :discussion/member_mode])]
+            (if (and to_all_contacts (= :discussion.member_mode/open group-mode))
+              :discussion.member_mode/open
+              :discussion.member_mode/closed))
+          (if (and (not dm?) to_all_contacts)
+
+            :discussion.member_mode/open
+            #_(if friends_of_friends
+                :discussion.member_mode/friends_of_friends)
+            :discussion.member_mode/closed))
+
+        open? (contains? schema/open-member-modes member-mode)
         public? (if group
                   (:group/is_public group)
                   false)
+
         d (cond-> d
             public? (assoc :discussion/public_mode :discussion.public_mode/public)
-            open?   (assoc :discussion/member_mode :discussion.member_mode/open
+            open?   (assoc :discussion/member_mode member-mode
                            :discussion/open_until (db.discussion/open-until now)))
         msg (crdt.message/new-message
              {:uid user-id :mid mid :did did
@@ -284,13 +312,11 @@
 
 (defn discussion-by-id [db did]
   {:pre [(uuid? did)]}
-  ;; TODO: change shape
-  (let [discussion (db.discussion/by-id db did)
-        messages (db.message/by-did db did)]
-    (assert discussion)
-    {:discussion (crdt.discussion/->value discussion)
-     :user_ids (crdt/-value (:discussion/members discussion))
-     :messages (mapv crdt.message/->value messages)}))
+  (when-let [discussion (db.discussion/by-id db did)]
+    (let [messages (db.message/by-did db did)]
+      {:discussion (crdt.discussion/->value discussion)
+       :user_ids (crdt/-value (:discussion/members discussion))
+       :messages (mapv crdt.message/->value messages)})))
 
 ;; TODO: add a max limit
 (defn discussions-by-user-id [db user-id]
