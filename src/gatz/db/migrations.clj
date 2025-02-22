@@ -4,7 +4,9 @@
             [clojure.pprint :as pp]
             [clojure.data.json :as json]
             [clojure.java.io :as io]
+            [clojure.tools.logging :as log]
             [crdt.core :as crdt]
+            [gatz.api.invite-link :as api.invite-link]
             [gatz.db :refer :all]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.discussion :as db.discussion]
@@ -15,6 +17,7 @@
             [gatz.crdt.discussion :as crdt.discussion]
             [gatz.crdt.user :as crdt.user]
             [gatz.schema :as schema]
+            [gatz.system :as gatz.system]
             [malli.core :as malli]
             [com.biffweb :as biff :refer [q]]
             [xtdb.api :as xtdb])
@@ -950,3 +953,43 @@
   (add-user-to-dids! -ctx -riley-dids (:xt/id -riley) (:xt/id -new-user))
   (add-user-to-dids! -ctx -rinad-dids (:xt/id -rinada) (:xt/id -new-user))
   (add-user-to-dids! -ctx -grants-did (:xt/id -grant) (:xt/id -new-user)))
+
+;; ======================================================================
+;; Force accept invites
+
+(defn get-ctx [ctx uid]
+  (let [db (xtdb.api/db (:biff.xtdb/node ctx))
+        user (db.user/by-id db uid)]
+    (assoc ctx :biff/db db
+           :auth/user-id uid
+           :auth/user (crdt.user/->value user))))
+
+(defn force-invite! [ctx from-uid to-uid]
+  (let [invite-link (db.invite-link/create! (get-ctx ctx from-uid)
+                                            {:uid from-uid
+                                             :type :invite_link/contact})]
+    (xtdb/sync (:biff.xtdb/node ctx))
+    (api.invite-link/invite-to-contact!
+     (get-ctx ctx to-uid)
+     invite-link
+     {:make-friends-with-contacts? true})))
+
+
+(comment
+  (def -sebas-uid #uuid "06942e79-cda8-4f55-8bd0-50ce61ebfb60")
+  (def -new-users [#uuid "c3a19ce7-99e0-46ec-a0ad-b74d0a958019"
+                   #uuid "26bd5197-3b99-4f78-8a96-2b1a3cba7a4c"
+                   #uuid "0dd54a1d-aadf-404b-ba41-b1785fdc1be5"])
+  (def -ctx @gatz.system/system)
+
+  (doseq [to-uid -new-users]
+    (log/info "forcing invite from" -sebas-uid "to" to-uid)
+    (log/info (force-invite! -ctx -sebas-uid to-uid)))
+
+  (def -test-users [#uuid "867884d0-986e-4e5f-816c-b12846645e6b"])
+  (def -sebas-test-uid #uuid "64a719fa-4963-42e2-bc7e-0cb7beb8844c")
+
+  (doseq [to-uid -test-users]
+    (log/info "forcing invite from" -sebas-test-uid "to" to-uid)
+    (log/info (force-invite! -ctx -sebas-test-uid to-uid))))
+
