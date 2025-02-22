@@ -291,7 +291,13 @@
 
 (defn invite-to-crew!
 
-  ([{:keys [auth/user-id biff.xtdb/node] :as ctx} invite-link]
+  ([ctx invite-link]
+   (let [special-contact? (contains? invite-all-users (:invite_link/created_by invite-link))]
+     (invite-to-crew! ctx invite-link {:make-friends-with-contacts? special-contact?})))
+
+  ([{:keys [auth/user-id biff.xtdb/node] :as ctx}
+    invite-link
+    {:keys [make-friends-with-contacts?]}]
 
    (assert user-id)
    (assert (= :invite_link/crew (:invite_link/type invite-link)))
@@ -317,6 +323,11 @@
          txns (concat
                [[:xtdb.api/fn :gatz.db.contacts/invite-contact {:args contact-args}]
                 [:xtdb.api/fn :gatz.db.invite-links/mark-used {:args invite-link-args}]]
+
+               (if make-friends-with-contacts?
+                 (make-friends-with-my-contacts-txn db by-uid user-id now)
+                 [])
+
                (if group
                  [[:xtdb.api/fn :gatz.db.group/add-to-group-and-discussions {:action group-action}]]
                  [])
