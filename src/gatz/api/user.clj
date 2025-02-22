@@ -35,7 +35,7 @@
                              [:id schema/ContactRequestId]
                              [:contact schema/ContactResponse]]]]])
 
-(defn get-me [{:keys [auth/user auth/user-id biff/db] :as _ctx}]
+(defn get-me [{:keys [auth/user auth/user-id biff/db] :as ctx}]
   (let [my-contacts (db.contacts/by-uid db user-id)
         groups (db.group/by-member-uid db user-id)
         contacts (->> (:contacts/ids my-contacts)
@@ -51,6 +51,7 @@
                                                    crdt.user/->value
                                                    db.contacts/->contact)}))
                               vec)]
+    (posthog/identify! ctx user)
     (json-response {:user (crdt.user/->value user)
                     :groups groups
                     :contacts contacts
