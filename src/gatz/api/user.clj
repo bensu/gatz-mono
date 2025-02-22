@@ -150,6 +150,7 @@
 
         :else
         (let [user (db.user/create-user! ctx {:username username :phone phone})]
+          (posthog/identify! ctx user)
           (posthog/capture! (assoc ctx :auth/user-id (:xt/id user)) "user.sign_up")
           (json-response {:type "sign_up"
                           :user  (crdt.user/->value user)
