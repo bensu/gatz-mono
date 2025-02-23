@@ -64,9 +64,11 @@
 (defn notifications-on-crdt [clock]
   (crdt/->lww-map notifications-on clock))
 
-(defn update-user
+(defn ^:deprecated
+  update-user
   ([u] (update-user u (Date.)))
   ([u now]
+   (assert false)
    (cond-> (merge user-defaults u)
 
      (nil? (:user/settings u))

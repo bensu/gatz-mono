@@ -272,12 +272,9 @@
 
 (defn rename-user! [{:keys [biff.xtdb/node] :as ctx} old-name new-name]
   (let [db (xtdb/db node)
-        user (db.user/by-name db old-name)
-        now (java.util.Date.)
-        new-user (-> user
-                     (assoc :user/name new-name)
-                     (crdt.user/update-user now))]
-    (biff/submit-tx ctx [new-user])))
+        user (db.user/by-name db old-name)]
+    (assert user)
+    (db.user/update-username! ctx (:xt/id user) new-name)))
 
 (defn all-messages [db]
   (q db '{:find (pull m [*])
