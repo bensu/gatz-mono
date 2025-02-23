@@ -993,3 +993,9 @@
     (log/info "forcing invite from" -sebas-test-uid "to" to-uid)
     (log/info (force-invite! -ctx -sebas-test-uid to-uid))))
 
+(comment
+  ;; rename parth
+
+  (def -ctx @gatz.system/system)
+  (rename-user! -ctx "parthahya" "parth"))
+
