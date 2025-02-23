@@ -215,6 +215,50 @@
 
       (.close node))))
 
+(deftest dangling-contact-requests
+  (testing "when there is a contact request"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (let [db (xtdb/db node)
+                          user (db.user/by-id db uid)]
+                      (assert user)
+                      (assoc ctx
+                             :biff/db db
+                             :auth/user-id uid
+                             :auth/user (crdt.user/->value user))))
+          [requester-id accepter-id denier-id dummy-id dummy-id2] (repeatedly 5 random-uuid)]
+      (db.user/create-user! ctx {:id requester-id :username "requester" :phone "+14159499932"})
+      (db.user/create-user! ctx {:id denier-id :username "denier" :phone "+14159499930"})
+      (db.user/create-user! ctx {:id accepter-id :username "accepter" :phone "+14159499931"})
+
+      (xtdb/sync node)
+      ;; there is a pending request
+      (db.contacts/apply-request!
+       (get-ctx requester-id) {:them accepter-id :action :contact_request/requested})
+      (xtdb/sync node)
+
+      (let [db (xtdb/db node)
+            contact-request-ks [:contact_request/from
+                                :contact_request/to
+                                :contact_request/state]
+            request-made {:contact_request/from requester-id
+                          :contact_request/to accepter-id
+                          :contact_request/state :contact_request/requested}
+            all-pending-to-a (db.contacts/pending-requests-to db accepter-id)
+            r-to-a (first all-pending-to-a)]
+        (testing "you can find it"
+          (is-equal request-made (select-keys r-to-a contact-request-ks))
+          (is (= :contact_request/viewer_awaits_response (db.contacts/state-for r-to-a requester-id)))
+          (is (= :contact_request/response_pending_from_viewer (db.contacts/state-for r-to-a accepter-id))))
+        (testing "but when you forcefully make them friends, it goes away"
+        ;; TODO: all ways of adding contacts should have the same result
+          (db.contacts/force-contacts! (get-ctx accepter-id) accepter-id requester-id)
+          (xtdb/sync node)
+          (let [db (xtdb/db node)
+                all-pending-to-a (db.contacts/pending-requests-to db accepter-id)]
+            (is (empty? all-pending-to-a))))))))
+
 (deftest basic-flow
   (testing "users start with empty contacts"
     (let [ctx (db.util-test/test-system)
@@ -228,25 +272,13 @@
                              :auth/user-id uid
                              :auth/user (crdt.user/->value user))))
           ks [:contacts/user_id :contacts/ids]
-          contact-request-ks [:contact_request/from
-                              :contact_request/to
-                              :contact_request/state]
+          contact-request-ks [:contact_request/from :contact_request/to :contact_request/state]
           [requester-id accepter-id denier-id dummy-id dummy-id2] (repeatedly 5 random-uuid)]
-      (db.user/create-user! ctx {:id requester-id
-                                 :username "requester"
-                                 :phone "+14159499932"})
-      (db.user/create-user! ctx {:id denier-id
-                                 :username "denier"
-                                 :phone "+14159499930"})
-      (db.user/create-user! ctx {:id accepter-id
-                                 :username "accepter"
-                                 :phone "+14159499931"})
-      (db.user/create-user! ctx {:id dummy-id
-                                 :username "dummy"
-                                 :phone "+14159499933"})
-      (db.user/create-user! ctx {:id dummy-id2
-                                 :username "dummy2"
-                                 :phone "+14159499934"})
+      (db.user/create-user! ctx {:id requester-id :username "requester" :phone "+14159499932"})
+      (db.user/create-user! ctx {:id denier-id :username "denier" :phone "+14159499930"})
+      (db.user/create-user! ctx {:id accepter-id :username "accepter" :phone "+14159499931"})
+      (db.user/create-user! ctx {:id dummy-id :username "dummy" :phone "+14159499933"})
+      (db.user/create-user! ctx {:id dummy-id2 :username "dummy2" :phone "+14159499934"})
       (xtdb/sync node)
 
       (testing "which look like what we expect"
@@ -254,14 +286,11 @@
               r-contacts (db.contacts/by-uid db requester-id)
               a-contacts (db.contacts/by-uid db accepter-id)
               d-contacts (db.contacts/by-uid db denier-id)]
-          (is-equal {:contacts/user_id requester-id
-                     :contacts/ids #{}}
+          (is-equal {:contacts/user_id requester-id :contacts/ids #{}}
                     (select-keys r-contacts ks))
-          (is-equal {:contacts/user_id accepter-id
-                     :contacts/ids #{}}
+          (is-equal {:contacts/user_id accepter-id :contacts/ids #{}}
                     (select-keys a-contacts ks))
-          (is-equal {:contacts/user_id denier-id
-                     :contacts/ids #{}}
+          (is-equal {:contacts/user_id denier-id :contacts/ids #{}}
                     (select-keys d-contacts ks))
           (is (empty? (db.contacts/get-in-common db requester-id accepter-id)))
           (is (empty? (db.contacts/get-in-common db requester-id denier-id)))
@@ -297,14 +326,11 @@
                             :contact_request/state :contact_request/requested}
               all-pending-to-a (db.contacts/pending-requests-to db accepter-id)
               r-to-a (first all-pending-to-a)]
-          (is-equal {:contacts/user_id requester-id
-                     :contacts/ids #{}}
+          (is-equal {:contacts/user_id requester-id  :contacts/ids #{}}
                     (select-keys r-contacts ks))
-          (is-equal {:contacts/user_id accepter-id
-                     :contacts/ids #{}}
+          (is-equal {:contacts/user_id accepter-id :contacts/ids #{}}
                     (select-keys a-contacts ks))
-          (is-equal {:contacts/user_id denier-id
-                     :contacts/ids #{}}
+          (is-equal {:contacts/user_id denier-id :contacts/ids #{}}
                     (select-keys d-contacts ks))
           (is-equal r-to-a request)
 
@@ -358,11 +384,9 @@
                                   :contact_request/to denier-id
                                   :contact_request/state :contact_request/requested}
                   denier-pending (db.contacts/pending-requests-to db denier-id)]
-              (is-equal {:contacts/user_id requester-id
-                         :contacts/ids #{}}
+              (is-equal {:contacts/user_id requester-id :contacts/ids #{}}
                         (-> r-contacts (select-keys ks)))
-              (is-equal {:contacts/user_id denier-id
-                         :contacts/ids #{}}
+              (is-equal {:contacts/user_id denier-id :contacts/ids #{}}
                         (-> d-contacts (select-keys ks)))
               (is-equal (first denier-pending) request)
 

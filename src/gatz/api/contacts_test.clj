@@ -251,7 +251,5 @@
 
       (xtdb/sync node)
 
-
-
       (.close node))))
 

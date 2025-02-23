@@ -72,6 +72,9 @@
 (defn add-contacts-txn [xtdb-ctx {:keys [args]}]
   (let [db (xtdb.api/db xtdb-ctx)
         {:keys [from to now]} args
+        _     (assert (uuid? from))
+        _     (assert (uuid? to))
+        _     (assert (inst? now))
         from-contacts (by-uid db from)
         to-contacts   (by-uid db to)]
     (assert (and from-contacts to-contacts))
@@ -82,7 +85,8 @@
      [:xtdb.api/put (-> to-contacts
                         (assoc :contacts/updated_at now)
                         (update :contacts/ids conj from)
-                        (assoc :db/doc-type :gatz/contacts))]]))
+                        (assoc :db/doc-type :gatz/contacts))]
+     [:xtdb.api/fn :gatz.db.contacts/accept-pending-requests-between {:aid from :bid to :now now}]]))
 
 (def add-contacts-expr
   '(fn add-contacts-fn [ctx args]
@@ -392,6 +396,22 @@
   '(fn transition-to-fn [ctx args]
      (gatz.db.contacts/transition-to-txn ctx args)))
 
+(defn accept-pending-requests-between-txn [xtdb-ctx {:keys [aid bid now]}]
+  {:pre [(inst? now) (uuid? aid) (uuid? bid)]}
+  (let [db (xtdb.api/db xtdb-ctx)
+        current-reqs (->> (concat
+                           (requests-from-to db aid bid)
+                           (requests-from-to db bid aid))
+                          (filter current?))]
+    (mapv (fn [{:contact_request/keys [from to]}]
+            (let [args {:by to :to to :from from :state :contact_request/accepted :now now}]
+              [:xtdb.api/fn :gatz.db.contacts/transition-to {:args args}]))
+          current-reqs)))
+
+(def accept-pending-requests-between-expr
+  '(fn accept-pending-request-between-fn [xtdb-ctx args]
+     (gatz.db.contacts/accept-pending-requests-between-txn xtdb-ctx args)))
+
 ;; ======================================================================
 ;; Functions for the API
 
@@ -536,6 +556,7 @@
    :gatz.db.contacts/remove-contacts remove-contacts-expr
    :gatz.db.contacts/new-request new-contact-request-expr
    :gatz.db.contacts/transition-to transition-to-expr
+   :gatz.db.contacts/accept-pending-requests-between accept-pending-requests-between-expr
    :gatz.db.contacts/invite-contact invite-contact-expr
    :gatz.db.contacts/add-to-open-discussions add-to-open-discussions-expr
    :gatz.db.contacts/hide-contact hide-contact-expr
