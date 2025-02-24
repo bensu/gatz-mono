@@ -99,8 +99,11 @@
                    :event/message_edited)
         evt {:event/type evt-type
              :event/data {:did did :mid mid
-                          :message m :discussion d}}]
-    (doseq [ws (conns/did->wss @conns-state did)]
+                          :message m :discussion d}}
+        conns @conns-state]
+    (doseq [uid (conns/discussion-users conns did)
+            ws (conns/user-wss conns uid)]
+      (log/info "sending message delta to connected clients for" uid)
       (jetty/send! ws (json/write-str evt)))))
 
 (defmulti handle-evt! (fn [_ctx evt]
@@ -113,6 +116,7 @@
              :event/data {:user (crdt.user/->value u)
                           :delta (crdt/-value delta)}}]
     ;; 1. Connections for the same user want to hear everything
+    (log/info "sending user delta to connected clients for" uid)
     (doseq [ws (conns/user-wss @conns-state uid)]
       (jetty/send! ws (json/write-str evt)))))
 
@@ -160,8 +164,11 @@
              :event/data {:message m
                           :discussion (crdt.discussion/->value d)
                           :did did
-                          :mid (:xt/id m)}}]
-    (doseq [ws (conns/did->wss @conns-state did)]
+                          :mid (:xt/id m)}}
+        conns @conns-state]
+    (doseq [uid (conns/discussion-users conns did)
+            ws (conns/user-wss conns uid)]
+      (log/info "sending new message to connected clients for" uid)
       (jetty/send! ws (json/write-str evt)))))
 
 (defn register-new-discussion!
@@ -175,11 +182,12 @@
                           :users (mapv (comp crdt.user/->value
                                              (partial db.user/by-id db))
                                        user_ids)}}
-        conns @conns-state
-        wss (mapcat (partial conns/user-wss conns) members)]
+        conns @conns-state]
     ;; register these users to listen to the discussion
     (swap! conns-state conns/add-users-to-d {:did did :user-ids members})
-    (doseq [ws wss]
+    (doseq [uid members
+            ws (conns/user-wss conns uid)]
+      (log/info "sending new discussion to connected clients for" uid)
       (jetty/send! ws (json/write-str msg)))))
 
 (defmethod handle-evt! :discussion.crdt/delta
