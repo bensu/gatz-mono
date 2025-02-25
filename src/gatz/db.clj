@@ -54,7 +54,7 @@
    [:group_id {:optional true} schema/ulid?]
    [:selected_users {:optional true} [:vec uuid?]]
    [:to_all_contacts {:optional true} boolean?]
-   [:friends_of_friends {:optional true} boolean?]
+   [:to_all_friends_of_friends {:optional true} boolean?]
    [:originally_from {:optional true} [:map
                                        [:did uuid?]
                                        [:mid uuid?]]]])
@@ -71,15 +71,15 @@
            media_id media_ids
            link_previews
            originally_from selected_users
-           friends_of_friends]}]
+           to_all_friends_of_friends]}]
   {:pre [(or (nil? name)
              (and (string? name) (not (empty? name)))
              (or (old-valid-post? text media_id)
                  (valid-post? text media_ids)))
          (or (boolean? to_all_contacts)
              (some? selected_users))
-         (or (nil? friends_of_friends)
-             (boolean? friends_of_friends))]}
+         (or (nil? to_all_friends_of_friends)
+             (boolean? to_all_friends_of_friends))]}
 
   (when (empty? text)
     (assert (not (empty? media_ids))
@@ -96,8 +96,9 @@
     (some? originally_from)       (assoc :originally_from (parse-originally-from originally_from))
     (some? selected_users)        (assoc :selected_users (set (keep util/parse-uuid selected_users)))
     (boolean? to_all_contacts)    (assoc :to_all_contacts to_all_contacts)
-    (boolean? friends_of_friends) (assoc :friends_of_friends friends_of_friends)
-    (nil? friends_of_friends)     (assoc :friends_of_friends false)))
+
+    (boolean? to_all_friends_of_friends) (assoc :to_all_friends_of_friends to_all_friends_of_friends)
+    (nil? to_all_friends_of_friends)     (assoc :to_all_friends_of_friends false)))
 
 (defn create-discussion-with-message!
 
@@ -109,11 +110,11 @@
 
   (let [{:keys [selected_users group_id to_all_contacts
                 text originally_from
-                friends_of_friends
+                to_all_friends_of_friends
                 media_ids link_previews]}
         (parse-create-params init-params)
 
-        _ (when friends_of_friends
+        _ (when to_all_friends_of_friends
             (assert to_all_contacts "Friends of friends requires to_all_contacts to be true")
             (assert (nil? group_id) "Friends of friends can't be used with a group"))
 
@@ -164,7 +165,7 @@
                 (assert (set/subset? member-uids contact-uids) "The selected users are not a subset of the user's contacts")
                 [member-uids (set/intersection muted-uids member-uids)])
 
-              (if friends_of_friends
+              (if to_all_friends_of_friends
                 ;; The post is directed to the user's friends and friends of friends
                 (let [fof (db.contacts/friends-of-friends db user-id)]
                   [fof (set/intersection muted-uids fof)])
@@ -241,7 +242,7 @@
               :discussion.member_mode/open
               :discussion.member_mode/closed))
           (if (and (not dm?) to_all_contacts)
-            (if friends_of_friends
+            (if to_all_friends_of_friends
               :discussion.member_mode/friends_of_friends
               :discussion.member_mode/open)
             :discussion.member_mode/closed))
