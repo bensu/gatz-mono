@@ -10,6 +10,9 @@
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
+(defn roundtrip [data]
+  (json/read-str (json/write-str data) {:key-fn keyword}))
+
 (deftest feed-params
   (testing "it can parse the basic params"
     (let [did (random-uuid)]
@@ -24,7 +27,7 @@
           clock (crdt/new-hlc uid t0)
           lww-set-delta {uid (crdt/->LWW clock true)}
           delta {:discussion/members #{uid}}
-          json-delta (json/read-str (json/write-str delta) {:key-fn keyword})]
+          json-delta (roundtrip delta)]
       (is (= delta (api.discussion/parse-delta json-delta)))
       (is (= lww-set-delta (crdt/lww-set-delta clock (:discussion/members delta))))
       (is (= {:discussion/members lww-set-delta}
@@ -38,7 +41,7 @@
                   :selected_users (set [(random-uuid) (random-uuid)])
                   :to_all_friends_of_friends false
                   :originally_from {:did (random-uuid) :mid (random-uuid)}}
-          json-params (json/read-str (json/write-str params) {:key-fn keyword})]
+          json-params (roundtrip params)]
       (is (= params (db/parse-create-params json-params))))))
 
 (def user-id #uuid "867884d0-986e-4e5f-816c-b12846645e6b")

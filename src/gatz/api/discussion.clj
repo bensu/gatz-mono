@@ -84,6 +84,7 @@
                 _ (assert (not (db.user/mutually-blocked? user poster)))
                 group (when-let [gid (:discussion/group_id discussion)]
                         (db.group/by-id db gid))
+                ;; TODO: is this union necessary? It is probably not necessary
                 all-user-ids (if group
                                (set/union (:group/members group) (set user_ids))
                                (set user_ids))]
@@ -94,7 +95,8 @@
                                          :ts (::xt/tx-time latest-tx)}
                              :discussion discussion
                              :group group
-                             :users (map (comp crdt.user/->value
+                             :users (map (comp db.contacts/->contact
+                                               crdt.user/->value
                                                (partial db.user/by-id db))
                                          all-user-ids)
                              :messages (mapv crdt.message/->value messages)})))
@@ -268,7 +270,7 @@
             ;; TODO: this should be a union of the right users, not all users
             users (db.user/all-users db)]
         (json-response {:discussions (mapv crdt.discussion/->value ds)
-                        :users (mapv crdt.user/->value users)
+                        :users (mapv (comp db.contacts/->contact crdt.user/->value) users)
                         :current false
                         :latest_tx {:id (::xt/tx-id latest-tx)
                                     :ts (::xt/tx-time latest-tx)}})))))
@@ -294,7 +296,9 @@
         ;; TODO: change shape of response
         (json-response
          {:discussion d
-          :users (mapv (comp crdt.user/->value (partial db.user/by-id db))
+          :users (mapv (comp db.contacts/->contact
+                             crdt.user/->value
+                             (partial db.user/by-id db))
                        (:discussion/members d))
           :messages [(crdt.message/->value message)]})))
     (err-resp "invalid_params" "Invalid params: missing post text")))
@@ -330,6 +334,7 @@
          (catch Exception e
            (println "failed submitting the job" e)))
        (posthog/capture! ctx "message.new" {:did (:xt/id d) :mid (:xt/id msg)})
+       ;; TODO: this could include the discussion to set the clock of the discussion?
        (json-response {:message (crdt.message/->value msg)})))))
 
 (def feed-query-params
@@ -341,7 +346,7 @@
 (def feed-response
   [:map
    [:discussion [:vec schema/Discussion]]
-   [:users [:vec schema/User]]
+   [:users [:vec schema/Contact]]
    [:groups [:vec schema/Group]]
    [:contact_requests [:vec [:contact_request schema/ContactRequest
                              :contact schema/Contact
@@ -446,7 +451,7 @@
     (json-response {:discussions (->> ds
                                       (sort-by (comp :discussion/created_at :discussion))
                                       (vec))
-                    :users (mapv crdt.user/->value users)
+                    :users (mapv (comp db.contacts/->contact crdt.user/->value) users)
                     :groups groups
                     :contact_requests crs
                     ;; TODO: remove this
@@ -484,7 +489,7 @@
         groups (mapv (partial db.group/by-id db) group-ids)
         users (db.user/all-users db)]
     (json-response {:discussions (mapv crdt.discussion/->value ds)
-                    :users (mapv crdt.user/->value users)
+                    :users (mapv (comp db.contacts/->contact crdt.user/->value) users)
                     :groups groups
                     :contact_requests []
                     ;; TODO: remove this

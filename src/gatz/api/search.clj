@@ -3,6 +3,7 @@
             [clojure.string :as str]
             [clojure.data.json :as json]
             [gatz.crdt.discussion :as crdt.discussion]
+            [gatz.db.contacts :as db.contacts]
             [gatz.db.search :as db.search]
             [gatz.db :as db]
             [gatz.db.discussion :as db.discussion]
@@ -51,7 +52,7 @@
                        (reduce set/union)
                        (mapv (partial db.user/by-id db)))]
         (json-response {:discussions (mapv crdt.discussion/->value ds)
-                        :users (mapv crdt.user/->value users)
+                        :users (mapv (comp db.contacts/->contact crdt.user/->value) users)
                         :groups groups}))
       (json-response {:discussions [] :users [] :groups []}))))
 
