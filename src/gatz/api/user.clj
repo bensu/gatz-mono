@@ -26,9 +26,18 @@
 ;; ======================================================================  
 ;; Endpoints
 
+(def current-flags
+  {:flags/post_to_friends_of_friends true})
+
+(def feature-flags-schema
+  [:map
+   [:flags/post_to_friends_of_friends boolean?]])
+
 (def get-me-response
   [:map
    [:user schema/User]
+   [:flags [:map
+            [:values feature-flags-schema]]]
    [:groups [:vec schema/Group]]
    [:contacts [:vec schema/ContactResponse]]
    [:contact_requests [:vec [:map
@@ -57,7 +66,8 @@
     (json-response {:user (crdt.user/->value user)
                     :groups groups
                     :contacts contacts
-                    :contact_requests contact_requests})))
+                    :contact_requests contact_requests
+                    :flags {:values current-flags}})))
 
 (defn get-user
   [{:keys [params biff/db] :as _ctx}]
