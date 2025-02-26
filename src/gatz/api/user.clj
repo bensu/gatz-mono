@@ -35,6 +35,14 @@
                              [:id schema/ContactRequestId]
                              [:contact schema/ContactResponse]]]]])
 
+(defn pending-contact-requests [db user-id]
+  (->> (db.contacts/pending-requests-to db user-id)
+       (mapv (fn [{:contact_request/keys [from id]}]
+               {:id id
+                :contact (-> (db.user/by-id db from)
+                             crdt.user/->value
+                             db.contacts/->contact)}))))
+
 (defn get-me [{:keys [auth/user auth/user-id biff/db] :as ctx}]
   (let [my-contacts (db.contacts/by-uid db user-id)
         groups (db.group/by-member-uid db user-id)
@@ -44,13 +52,7 @@
                               (-> (db.user/by-id db uid)
                                   crdt.user/->value
                                   db.contacts/->contact))))
-        contact_requests (->> (db.contacts/pending-requests-to db user-id)
-                              (map (fn [{:contact_request/keys [from id]}]
-                                     {:id id
-                                      :contact (-> (db.user/by-id db from)
-                                                   crdt.user/->value
-                                                   db.contacts/->contact)}))
-                              vec)]
+        contact_requests (pending-contact-requests db user-id)]
     (posthog/identify! ctx user)
     (json-response {:user (crdt.user/->value user)
                     :groups groups
