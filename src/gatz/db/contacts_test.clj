@@ -289,39 +289,15 @@
                              :auth/user-id uid
                              :auth/user (crdt.user/->value user))))
           ks [:contacts/user_id :contacts/ids]
-<<<<<<< HEAD
           contact-request-ks [:contact_request/from :contact_request/to :contact_request/state]
-          [requester-id accepter-id denier-id dummy-id dummy-id2] (repeatedly 5 random-uuid)]
+          [requester-id accepter-id denier-id dummy-id dummy-id2 dummy-id3]
+          (repeatedly 6 random-uuid)]
       (db.user/create-user! ctx {:id requester-id :username "requester" :phone "+14159499932"})
       (db.user/create-user! ctx {:id denier-id :username "denier" :phone "+14159499930"})
       (db.user/create-user! ctx {:id accepter-id :username "accepter" :phone "+14159499931"})
       (db.user/create-user! ctx {:id dummy-id :username "dummy" :phone "+14159499933"})
       (db.user/create-user! ctx {:id dummy-id2 :username "dummy2" :phone "+14159499934"})
-=======
-          contact-request-ks [:contact_request/from
-                              :contact_request/to
-                              :contact_request/state]
-          [requester-id accepter-id denier-id dummy-id dummy-id2 dummy-id3]
-          (repeatedly 6 random-uuid)]
-      (db.user/create-user! ctx {:id requester-id
-                                 :username "requester"
-                                 :phone "+14159499932"})
-      (db.user/create-user! ctx {:id denier-id
-                                 :username "denier"
-                                 :phone "+14159499930"})
-      (db.user/create-user! ctx {:id accepter-id
-                                 :username "accepter"
-                                 :phone "+14159499931"})
-      (db.user/create-user! ctx {:id dummy-id
-                                 :username "dummy"
-                                 :phone "+14159499933"})
-      (db.user/create-user! ctx {:id dummy-id2
-                                 :username "dummy2"
-                                 :phone "+14159499934"})
-      (db.user/create-user! ctx {:id dummy-id3
-                                 :username "dummy3"
-                                 :phone "+14159499935"})
->>>>>>> 32d01f7 (contacts: add harder test to pass)
+      (db.user/create-user! ctx {:id dummy-id3 :username "dummy3" :phone "+14159499935"})
       (xtdb/sync node)
 
       (testing "which look like what we expect"
