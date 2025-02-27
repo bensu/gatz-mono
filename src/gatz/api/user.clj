@@ -6,6 +6,7 @@
             [gatz.db.contacts :as db.contacts]
             [gatz.db.group :as db.group]
             [gatz.db.user :as db.user]
+            [gatz.flags :as flags]
             [gatz.schema :as schema]
             [gatz.util :as util]
             [medley.core :refer [map-keys]]
@@ -26,18 +27,11 @@
 ;; ======================================================================  
 ;; Endpoints
 
-(def current-flags
-  {:flags/post_to_friends_of_friends true})
-
-(def feature-flags-schema
-  [:map
-   [:flags/post_to_friends_of_friends boolean?]])
-
 (def get-me-response
   [:map
    [:user schema/User]
    [:flags [:map
-            [:values feature-flags-schema]]]
+            [:values flags/values-schema]]]
    [:groups [:vec schema/Group]]
    [:contacts [:vec schema/ContactResponse]]
    [:contact_requests [:vec [:map
@@ -52,7 +46,7 @@
                              crdt.user/->value
                              db.contacts/->contact)}))))
 
-(defn get-me [{:keys [auth/user auth/user-id biff/db] :as ctx}]
+(defn get-me [{:keys [auth/user auth/user-id biff/db flags/flags] :as ctx}]
   (let [my-contacts (db.contacts/by-uid db user-id)
         groups (db.group/by-member-uid db user-id)
         contacts (->> (:contacts/ids my-contacts)
@@ -67,7 +61,7 @@
                     :groups groups
                     :contacts contacts
                     :contact_requests contact_requests
-                    :flags {:values current-flags}})))
+                    :flags flags})))
 
 (defn get-user
   [{:keys [params biff/db] :as _ctx}]

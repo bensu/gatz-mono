@@ -1,7 +1,8 @@
 (ns gatz.db.util-test
   (:require [gatz.system :as system]
             [clojure.data.json :as json]
-            [clojure.data] ;; this is necessary for clojure.data
+            [gatz.flags :as flags]
+            [clojure.data] ;; this is necessary for is-equal
             [com.biffweb.impl.xtdb :as biff.xtdb]
             [xtdb.api :as xtdb]))
 
@@ -21,6 +22,7 @@
     (xtdb/sync node)
     {:biff.xtdb/node node
      :biff/db (xtdb/db node)
+     :flags/flags {:flags/values flags/current-values}
      :posthog/enabled? false
      :gatz/host "http://localhost:3000"
      :biff/malli-opts #'gatz.system/malli-opts}))

@@ -277,7 +277,7 @@
 
 ;; TODO: validate all params at the API level, not the db level
 ;; TODO: members are not validated as existing
-(defn create-discussion! [{:keys [params biff/db] :as ctx}]
+(defn create-discussion! [{:keys [params biff/db flags/flags] :as ctx}]
   (if-let [post-text (:text params)]
     (if-not (db/valid-post? post-text (:media_id params))
       (err-resp "invalid_post" "Invalid post")
@@ -286,6 +286,9 @@
                                                     (if (:selected_users params)
                                                       false
                                                       true)))
+            _ (when (:to_all_friends_of_friends params)
+                (assert (get-in flags [:flags/values :flags/post_to_friends_of_friends])
+                        "Posting to friends of friends is not enabled"))
             {:keys [discussion message]} (db/create-discussion-with-message! ctx params)
             d (crdt.discussion/->value discussion)]
         (try

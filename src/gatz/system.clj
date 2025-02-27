@@ -10,6 +10,7 @@
             [gatz.db.mention :as db.mention]
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
+            [gatz.flags :as flags]
             [gatz.schema :as schema]
             [gatz.connections :as conns]
             [gatz.notify :as notify]
@@ -208,6 +209,7 @@
 
 (def components
   [biff/use-config
+   flags/use-flags
    biff/use-secrets
    posthog/use-posthog
    heroku/use-heroku-config
