@@ -6,7 +6,7 @@
    [:flags/post_to_friends_of_friends boolean?]])
 
 (def current-values
-  {:flags/post_to_friends_of_friends false})
+  {:flags/post_to_friends_of_friends true})
 
 (defn use-flags [ctx]
   (let [flags current-values]
