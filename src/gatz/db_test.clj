@@ -15,14 +15,17 @@
 
 (deftest test-parse-create-discussion-params
   (testing "Basic text-only message"
-    (is (= {:text "hello" :to_all_contacts true}
+    (is (= {:text "hello"
+            :to_all_contacts true
+            :to_all_friends_of_friends false}
            (db/parse-create-params {:text "hello"
                                     :to_all_contacts true}))))
 
   (testing "Message with name"
     (is (= {:name "Test Discussion"
             :text "hello"
-            :to_all_contacts true}
+            :to_all_contacts true
+            :to_all_friends_of_friends false}
            (db/parse-create-params {:name "Test Discussion  "
                                     :text "hello  "
                                     :to_all_contacts true}))))
@@ -31,7 +34,8 @@
     (let [group-id (crdt/random-ulid)]
       (is (= {:text "hello"
               :group_id group-id
-              :to_all_contacts true}
+              :to_all_contacts true
+              :to_all_friends_of_friends false}
              (db/parse-create-params {:text "hello"
                                       :group_id (str group-id)
                                       :to_all_contacts true})))))
@@ -40,7 +44,8 @@
     (let [media-id (random-uuid)]
       (is (= {:text "hello"
               :media_ids [media-id]
-              :to_all_contacts true}
+              :to_all_contacts true
+              :to_all_friends_of_friends false}
              (db/parse-create-params {:text "hello"
                                       :media_id (str media-id)
                                       :to_all_contacts true})))))
@@ -49,7 +54,8 @@
     (let [media-ids [(random-uuid) (random-uuid)]]
       (is (= {:text "hello"
               :media_ids media-ids
-              :to_all_contacts true}
+              :to_all_contacts true
+              :to_all_friends_of_friends false}
              (db/parse-create-params {:text "hello"
                                       :to_all_contacts true
                                       :media_ids (mapv str media-ids)})))))
@@ -58,7 +64,8 @@
     (let [preview-ids [(random-uuid) (random-uuid)]]
       (is (= {:text "hello"
               :link_previews preview-ids
-              :to_all_contacts true}
+              :to_all_contacts true
+              :to_all_friends_of_friends false}
              (db/parse-create-params {:text "hello"
                                       :to_all_contacts true
                                       :link_previews (mapv str preview-ids)})))))
@@ -69,7 +76,8 @@
       (is (= {:text "hello"
               :originally_from {:did did
                                 :mid mid}
-              :to_all_contacts true}
+              :to_all_contacts true
+              :to_all_friends_of_friends false}
              (db/parse-create-params {:text "hello"
                                       :originally_from {:did (str did)
                                                         :mid (str mid)}
@@ -78,13 +86,15 @@
   (testing "Message with selected users"
     (let [user-ids [(random-uuid) (random-uuid)]]
       (is (= {:text "hello"
-              :selected_users (set user-ids)}
+              :selected_users (set user-ids)
+              :to_all_friends_of_friends false}
              (db/parse-create-params {:text "hello"
                                       :selected_users (mapv str user-ids)})))))
 
   (testing "Message to all contacts"
     (is (= {:text "hello"
-            :to_all_contacts true}
+            :to_all_contacts true
+            :to_all_friends_of_friends false}
            (db/parse-create-params {:text "hello"
                                     :to_all_contacts true}))))
 
@@ -92,7 +102,8 @@
     (let [media-ids [(random-uuid) (random-uuid)]]
       (is (= {:text ""
               :media_ids media-ids
-              :to_all_contacts true}
+              :to_all_contacts true
+              :to_all_friends_of_friends false}
              (db/parse-create-params {:text ""
                                       :media_ids (mapv str media-ids)
                                       :to_all_contacts true})))))

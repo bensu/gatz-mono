@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.data.json :as json]
             [crdt.core :as crdt]
+            [gatz.flags :as flags]
             [gatz.api.discussion :as api.discussion]
             [gatz.db :as db]
             [gatz.db.user :as db.user]
@@ -90,85 +91,86 @@
 
 (deftest test-discussion-params
   (testing "creating discussions with different parameter sets"
-    (let [ctx (db.util-test/test-system)
-          node (:biff.xtdb/node ctx)
-          now (Date.)
-          all-friends (set (map str #{friend1-id friend2-id friend3-id friend4-id user-id}))
-          get-ctx (fn [uid]
-                    (let [db (xtdb/db node)
-                          user (db.user/by-id db uid)]
-                      (assoc ctx
-                             :biff/db db
-                             :auth/user user
-                             :auth/user-id uid
-                             :auth/cid uid)))
-          parse-response (fn [response]
-                           (json/read-str (:body response) {:key-fn keyword}))]
+    (flags/with-flags {:flags/post_to_friends_of_friends true}
+      (let [ctx (db.util-test/test-system)
+            node (:biff.xtdb/node ctx)
+            now (Date.)
+            all-friends (set (map str #{friend1-id friend2-id friend3-id friend4-id user-id}))
+            get-ctx (fn [uid]
+                      (let [db (xtdb/db node)
+                            user (db.user/by-id db uid)]
+                        (assoc ctx
+                               :biff/db db
+                               :auth/user user
+                               :auth/user-id uid
+                               :auth/cid uid)))
+            parse-response (fn [response]
+                             (json/read-str (:body response) {:key-fn keyword}))]
 
       ;; Create users
-      (db.user/create-user! ctx {:id user-id :username "test" :phone "+14159499000" :now now})
-      (db.user/create-user! ctx {:id friend1-id :username "friend1" :phone "+14159499001" :now now})
-      (db.user/create-user! ctx {:id friend2-id :username "friend2" :phone "+14159499002" :now now})
-      (db.user/create-user! ctx {:id friend3-id :username "friend3" :phone "+14159499003" :now now})
-      (db.user/create-user! ctx {:id friend4-id :username "friend4" :phone "+14159499004" :now now})
-      (xtdb/sync node)
+        (db.user/create-user! ctx {:id user-id :username "test" :phone "+14159499000" :now now})
+        (db.user/create-user! ctx {:id friend1-id :username "friend1" :phone "+14159499001" :now now})
+        (db.user/create-user! ctx {:id friend2-id :username "friend2" :phone "+14159499002" :now now})
+        (db.user/create-user! ctx {:id friend3-id :username "friend3" :phone "+14159499003" :now now})
+        (db.user/create-user! ctx {:id friend4-id :username "friend4" :phone "+14159499004" :now now})
+        (xtdb/sync node)
 
       ;; Set up contacts
-      (doseq [friend-id [friend1-id friend2-id friend3-id friend4-id]]
-        (db.contacts/force-contacts! ctx user-id friend-id))
-      (xtdb/sync node)
+        (doseq [friend-id [friend1-id friend2-id friend3-id friend4-id]]
+          (db.contacts/force-contacts! ctx user-id friend-id))
+        (xtdb/sync node)
 
-      (testing "v1.1.10 all friends"
-        (let [did (random-uuid)
-              response (api.discussion/create-discussion!
-                        (assoc (get-ctx user-id)
-                               :params (assoc friends-params-v1-1-10 :did did)))
-              discussion (:discussion (parse-response response))]
-          (is (= 200 (:status response)))
-          (is (= all-friends (set (:members discussion))))
-          (is (= "open" (:member_mode discussion)))))
+        (testing "v1.1.10 all friends"
+          (let [did (random-uuid)
+                response (api.discussion/create-discussion!
+                          (assoc (get-ctx user-id)
+                                 :params (assoc friends-params-v1-1-10 :did did)))
+                discussion (:discussion (parse-response response))]
+            (is (= 200 (:status response)))
+            (is (= all-friends (set (:members discussion))))
+            (is (= "open" (:member_mode discussion)))))
 
-      (testing "v1.1.10 selected friends"
-        (let [did (random-uuid)
-              response (api.discussion/create-discussion!
-                        (assoc (get-ctx user-id)
-                               :params (assoc selected-friends-params-v1-1-10 :did did)))
-              discussion (:discussion (parse-response response))]
-          (is (= 200 (:status response)))
-          (is (= (set (map str #{user-id friend1-id friend3-id}))
-                 (set (:members discussion))))
-          (is (= "closed" (:member_mode discussion)))))
+        (testing "v1.1.10 selected friends"
+          (let [did (random-uuid)
+                response (api.discussion/create-discussion!
+                          (assoc (get-ctx user-id)
+                                 :params (assoc selected-friends-params-v1-1-10 :did did)))
+                discussion (:discussion (parse-response response))]
+            (is (= 200 (:status response)))
+            (is (= (set (map str #{user-id friend1-id friend3-id}))
+                   (set (:members discussion))))
+            (is (= "closed" (:member_mode discussion)))))
 
-      (testing "v1.1.11 friends of friends"
-        (let [did (random-uuid)
-              response (api.discussion/create-discussion!
-                        (assoc (get-ctx user-id)
-                               :params (assoc fof-params-v1-1-11 :did did)))
-              discussion (:discussion (parse-response response))]
-          (is (= 200 (:status response)))
-          (is (= "friends_of_friends" (:member_mode discussion)))
-          (is (= all-friends (set (:members discussion))))
-          (is (some? (:open_until discussion)))))
+        (testing "v1.1.11 friends of friends"
+          (let [did (random-uuid)
+                response (api.discussion/create-discussion!
+                          (assoc (get-ctx user-id)
+                                 :params (assoc fof-params-v1-1-11 :did did)))
+                discussion (:discussion (parse-response response))]
+            (is (= 200 (:status response)))
+            (is (= "friends_of_friends" (:member_mode discussion)))
+            (is (= all-friends (set (:members discussion))))
+            (is (some? (:open_until discussion)))))
 
-      (testing "v1.1.11 all friends"
-        (let [did (random-uuid)
-              response (api.discussion/create-discussion!
-                        (assoc (get-ctx user-id)
-                               :params (assoc friends-params-v1-1-11 :did did)))
-              discussion (:discussion (parse-response response))]
-          (is (= 200 (:status response)))
-          (is (= "open" (:member_mode discussion)))
-          (is (= all-friends (set (:members discussion))))
-          (is (some? (:open_until discussion)))))
+        (testing "v1.1.11 all friends"
+          (let [did (random-uuid)
+                response (api.discussion/create-discussion!
+                          (assoc (get-ctx user-id)
+                                 :params (assoc friends-params-v1-1-11 :did did)))
+                discussion (:discussion (parse-response response))]
+            (is (= 200 (:status response)))
+            (is (= "open" (:member_mode discussion)))
+            (is (= all-friends (set (:members discussion))))
+            (is (some? (:open_until discussion)))))
 
-      (testing "v1.1.11 selected friends"
-        (let [did (random-uuid)
-              response (api.discussion/create-discussion!
-                        (assoc (get-ctx user-id)
-                               :params (assoc selected-friends-params-v1-1-11 :did did)))
-              discussion (:discussion (parse-response response))]
-          (is (= 200 (:status response)))
-          (is (= (set (map str #{user-id friend1-id friend4-id})) (set (:members discussion))))
-          (is (= "closed" (:member_mode discussion)))
-          (is (nil? (:open_until discussion))))))))
+        (testing "v1.1.11 selected friends"
+          (let [did (random-uuid)
+                response (api.discussion/create-discussion!
+                          (assoc (get-ctx user-id)
+                                 :params (assoc selected-friends-params-v1-1-11 :did did)))
+                discussion (:discussion (parse-response response))]
+            (is (= 200 (:status response)))
+            (is (= (set (map str #{user-id friend1-id friend4-id})) (set (:members discussion))))
+            (is (= "closed" (:member_mode discussion)))
+            (is (nil? (:open_until discussion)))))))))
 

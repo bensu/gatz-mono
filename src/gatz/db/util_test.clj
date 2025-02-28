@@ -20,12 +20,12 @@
   (let [node (test-node)]
     (biff.xtdb/save-tx-fns! node system/tx-fns)
     (xtdb/sync node)
-    {:biff.xtdb/node node
-     :biff/db (xtdb/db node)
-     :flags/flags {:flags/values flags/current-values}
-     :posthog/enabled? false
-     :gatz/host "http://localhost:3000"
-     :biff/malli-opts #'gatz.system/malli-opts}))
+    (flags/use-flags
+     {:biff.xtdb/node node
+      :biff/db (xtdb/db node)
+      :posthog/enabled? false
+      :gatz/host "http://localhost:3000"
+      :biff/malli-opts #'gatz.system/malli-opts})))
 
 (defn json-params [m]
   {:pre [(map? m)] :post [(map? %)]}

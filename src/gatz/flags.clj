@@ -8,8 +8,14 @@
 (def current-values
   {:flags/post_to_friends_of_friends false})
 
+(def ^:dynamic *flags* current-values)
+
+(defmacro with-flags [flags & body]
+  `(binding [*flags* (merge (or *flags* {}) ~flags)]
+     ~@body))
+
 (defn use-flags [ctx]
-  (let [flags current-values]
+  (let [flags (merge current-values *flags*)]
     (log/info "Initializing flags:" flags)
     (assoc ctx :flags/flags {:flags/values flags})))
 
