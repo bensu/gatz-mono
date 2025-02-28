@@ -101,6 +101,34 @@
       (db.util/->latest-version all-migrations)))
 
 ;; =======================================================================
+;; External discussions
+;; Users don't need to see everything that we store in the db for a discussion
+;; so we can hide some fields when we return them
+
+;; We assume that by now, this is no longer a crdt
+
+(defn set-of-one [s uid]
+  {:pre [(set? s) (uuid? uid)]}
+  (if (contains? s uid)
+    #{uid}
+    #{}))
+
+(defn map-of-one [m uid]
+  {:pre [(map? m) (uuid? uid)]}
+  (if (contains? m uid)
+    {uid (m uid)}
+    {}))
+
+(defn ->external [d uid]
+  {:pre [(some? uuid?)]}
+  (-> d
+      (update :discussion/subscribers #(set-of-one % uid))
+      (update :discussion/seen_at #(map-of-one % uid))
+      (update :discussion/last_message_read #(map-of-one % uid))
+      (update :discussion/archived_uids #(set-of-one % uid))))
+
+
+;; =======================================================================
 ;; Open discussions
 
 (def default-open-duration (Duration/ofDays 30))

@@ -42,7 +42,11 @@
             ds (->> search-results
                     (map (fn [{:keys [search/did]}]
                            (db/discussion-by-id db did)))
-                    (remove poster-blocked?))
+                    (remove poster-blocked?)
+                    (map (fn [dr]
+                           (update dr :discussion #(-> %
+                                                       (crdt.discussion/->value)
+                                                       (db.discussion/->external user-id))))))
 
           ;; What are the groups and users in those discussions?
             groups (->> (keep (comp :discussion/group_id :discussion) ds)
@@ -51,7 +55,7 @@
             users (->> (map :user_ids ds)
                        (reduce set/union)
                        (mapv (partial db.user/by-id db)))]
-        (json-response {:discussions (mapv crdt.discussion/->value ds)
+        (json-response {:discussions ds
                         :users (mapv (comp db.contacts/->contact crdt.user/->value) users)
                         :groups groups}))
       (json-response {:discussions [] :users [] :groups []}))))

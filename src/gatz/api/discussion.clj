@@ -93,7 +93,7 @@
              (json-response {:current false
                              :latest_tx {:id (::xt/tx-id latest-tx)
                                          :ts (::xt/tx-time latest-tx)}
-                             :discussion discussion
+                             :discussion (db.discussion/->external discussion user-id)
                              :group group
                              :users (map (comp db.contacts/->contact
                                                crdt.user/->value
@@ -142,7 +142,9 @@
         mid (util/parse-uuid (:mid params))
         {:keys [discussion]} (db.discussion/mark-message-read! ctx user-id did mid)]
     (posthog/capture! ctx "discussion.read" {:did did :mid mid})
-    (json-response {:discussion (crdt.discussion/->value discussion)})))
+    (json-response {:discussion (-> discussion
+                                    (crdt.discussion/->value)
+                                    (db.discussion/->external  user-id))})))
 
 (defn archive! [{:keys [biff/db auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
@@ -152,7 +154,9 @@
        [user-id d]
        (let [{:keys [discussion]} (db.discussion/archive! ctx did user-id)]
          (posthog/capture! ctx "discussion.archive" {:did did})
-         (json-response {:discussion (crdt.discussion/->value discussion)})))
+         (json-response {:discussion (-> discussion
+                                         (crdt.discussion/->value)
+                                         (db.discussion/->external user-id))})))
       (err-resp "discussion_not_found" "Discussion not found"))
     (err-resp "invalid_params" "Invalid params: missing did")))
 
@@ -164,7 +168,9 @@
        [user-id d]
        (let [{:keys [discussion]} (db.discussion/unarchive! ctx did user-id)]
          (posthog/capture! ctx "discussion.archive" {:did did})
-         (json-response {:discussion (crdt.discussion/->value discussion)})))
+         (json-response {:discussion (-> discussion
+                                         (crdt.discussion/->value)
+                                         (db.discussion/->external user-id))})))
       (err-resp "discussion_not_found" "Discussion not found"))
     (err-resp "invalid_params" "Invalid params: missing did")))
 
@@ -174,7 +180,9 @@
   (let [did (util/parse-uuid (:did params))
         {:keys [discussion]} (db.discussion/subscribe! ctx did user-id)]
     (posthog/capture! ctx "discussion.subscribe" {:did did})
-    (json-response {:discussion (crdt.discussion/->value discussion)})))
+    (json-response {:discussion (-> discussion
+                                    (crdt.discussion/->value)
+                                    (db.discussion/->external user-id))})))
 
 (defn unsubscribe-to-discussion!
   [{:keys [auth/user-id params] :as ctx}]
@@ -182,7 +190,9 @@
   (let [did (util/parse-uuid (:did params))
         {:keys [discussion]} (db.discussion/unsubscribe! ctx did user-id)]
     (posthog/capture! ctx "discussion.unsubscribe" {:did did})
-    (json-response {:discussion (crdt.discussion/->value discussion)})))
+    (json-response {:discussion (-> discussion
+                                    (crdt.discussion/->value)
+                                    (db.discussion/->external user-id))})))
 
 ;; ======================================================================
 ;; Actions
@@ -236,7 +246,9 @@
       (let [{:keys [discussion]}
             (db.discussion/apply-action! ctx id full-action)]
         (posthog/capture! ctx (action->evt-name action) {:id id})
-        (json-response {:discussion discussion})))))
+        (json-response {:discussion (-> discussion
+                                        (crdt.discussion/->value)
+                                        (db.discussion/->external user-id))})))))
 
 ;; ======================================================================
 ;; Feeds
@@ -269,7 +281,7 @@
             ds (map (partial db/discussion-by-id db) dis)
             ;; TODO: this should be a union of the right users, not all users
             users (db.user/all-users db)]
-        (json-response {:discussions (mapv crdt.discussion/->value ds)
+        (json-response {:discussions (mapv (comp #(db.discussion/->external % user-id) crdt.discussion/->value) ds)
                         :users (mapv (comp db.contacts/->contact crdt.user/->value) users)
                         :current false
                         :latest_tx {:id (::xt/tx-id latest-tx)
@@ -277,7 +289,7 @@
 
 ;; TODO: validate all params at the API level, not the db level
 ;; TODO: members are not validated as existing
-(defn create-discussion! [{:keys [params biff/db flags/flags] :as ctx}]
+(defn create-discussion! [{:keys [params biff/db flags/flags auth/user-id] :as ctx}]
   (if-let [post-text (:text params)]
     (if-not (db/valid-post? post-text (:media_id params))
       (err-resp "invalid_post" "Invalid post")
@@ -298,7 +310,7 @@
         (posthog/capture! ctx "discussion.new" {:did (:xt/id d)})
         ;; TODO: change shape of response
         (json-response
-         {:discussion d
+         {:discussion (db.discussion/->external d user-id)
           :users (mapv (comp db.contacts/->contact
                              crdt.user/->value
                              (partial db.user/by-id db))
@@ -453,7 +465,10 @@
                         (set/union d-user-ids c-user-ids)))]
     (json-response {:discussions (->> ds
                                       (sort-by (comp :discussion/created_at :discussion))
-                                      (vec))
+                                      (mapv (fn [dr]
+                                              (update dr :discussion #(-> %
+                                                                          (crdt.discussion/->value)
+                                                                          (db.discussion/->external user-id))))))
                     :users (mapv (comp db.contacts/->contact crdt.user/->value) users)
                     :groups groups
                     :contact_requests crs
@@ -491,7 +506,11 @@
         group-ids (set (keep (comp :discussion/group_id :discussion) ds))
         groups (mapv (partial db.group/by-id db) group-ids)
         users (db.user/all-users db)]
-    (json-response {:discussions (mapv crdt.discussion/->value ds)
+    (json-response {:discussions (->> ds
+                                      (mapv (fn [dr]
+                                              (update dr :discussion #(-> %
+                                                                          (crdt.discussion/->value)
+                                                                          (db.discussion/->external user-id))))))
                     :users (mapv (comp db.contacts/->contact crdt.user/->value) users)
                     :groups groups
                     :contact_requests []
