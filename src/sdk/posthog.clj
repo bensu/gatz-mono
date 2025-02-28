@@ -61,7 +61,7 @@
       (try
         (when (:posthog/enabled? ctx)
           (.identify posthog (str id) hash-opts)
-          (log/info "identified user" (str user)))
+          (log/info "identified user" (select-keys user [:user/name :xt/id])))
         (catch Throwable t
           (log/error "Failed to identify user" (str user))
           (log/error t))))))
