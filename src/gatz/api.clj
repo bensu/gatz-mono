@@ -272,6 +272,8 @@
                  ["/user/delete" {:post api.user/delete-account!}]
                  ["/user/block" {:post api.user/block!}]
                  ["/user/settings/urls" {:post api.user/update-urls!}]
+                 ["/user/settings/profile" {:post api.user/update-profile!}]
+
 
                  ["/file/presign" {:post api.media/presigned-url!}]
                  ["/media" {:post api.media/create-media!}]

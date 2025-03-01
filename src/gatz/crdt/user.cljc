@@ -99,7 +99,7 @@
         clock (crdt/new-hlc uid now)]
     {:xt/id uid
      :db/type :gatz/user
-     :db/version 3
+     :db/version 4
      :crdt/clock clock
      :user/created_at now
      :user/is_test false
@@ -112,7 +112,8 @@
      :user/avatar (crdt/lww clock nil)
      :user/push_tokens (crdt/lww clock nil)
      :user/settings {:settings/notifications (notifications-off-crdt clock)}
-     :user/profile {:profile/urls {:profile.urls/website (crdt/lww clock nil)
+     :user/profile {:profile/full_name (crdt/lww clock nil)
+                    :profile/urls {:profile.urls/website (crdt/lww clock nil)
                                    :profile.urls/twitter (crdt/lww clock nil)}}}))
 
 
@@ -165,7 +166,7 @@
           final (reduce apply-delta initial (shuffle deltas))]
       (is (= {:xt/id uid
               :db/type :gatz/user
-              :db/version 3
+              :db/version 4
               :crdt/clock clock
               :user/created_at t0
               :user/is_test false
@@ -177,13 +178,14 @@
               :user/push_tokens nil
               :user/blocked_uids #{}
               :user/deleted_at nil
-              :user/profile {:profile/urls {:profile.urls/website nil
+              :user/profile {:profile/full_name nil
+                             :profile/urls {:profile.urls/website nil
                                             :profile.urls/twitter nil}}
               :user/settings {:settings/notifications notifications-off}}
              (->value initial)))
       (is (= {:xt/id uid
               :db/type :gatz/user
-              :db/version 3
+              :db/version 4
               :crdt/clock c5
               :user/created_at t0
               :user/is_test false
@@ -195,7 +197,8 @@
               :user/blocked_uids #{}
               :user/push_tokens push-tokens
               :user/deleted_at nil
-              :user/profile {:profile/urls {:profile.urls/website nil
+              :user/profile {:profile/full_name nil
+                             :profile/urls {:profile.urls/website nil
                                             :profile.urls/twitter nil}}
               :user/settings {:settings/notifications (merge np-t4 np-t5)}}
              (->value final)

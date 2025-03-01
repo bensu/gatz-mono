@@ -44,10 +44,18 @@
         (assoc :db/version 3 :crdt/clock clock)
         (assoc-in [:user/settings :settings/notifications :settings.notification/friend_accepted] (crdt/lww clock nts-on)))))
 
+(defn v3->v4 [data]
+  (let [clock (crdt/new-hlc migration-client-id)]
+    (-> data
+        (assoc :db/version 4 :crdt/clock clock)
+        (update-in [:user/profile :profile/full_name] #(or % (crdt/lww clock nil))))))
+
+
 (def all-migrations
   [{:from 0 :to 1 :transform v0->v1}
    {:from 1 :to 2 :transform v1->v2}
-   {:from 2 :to 3 :transform v2->v3}])
+   {:from 2 :to 3 :transform v2->v3}
+   {:from 3 :to 4 :transform v3->v4}])
 
 (defn- as-unique [x] [:db/unique x])
 
@@ -243,18 +251,19 @@
                                         :user/avatar (crdt/->LWW clock avatar–url)}}]
      (apply-action! ctx action))))
 
-(defn edit-links!
-  ([ctx user-links]
-   (edit-links! ctx user-links {:now (Date.)}))
+(defn edit-profile!
+  ([ctx profile]
+   (edit-profile! ctx profile {:now (Date.)}))
 
-  ([{:keys [auth/user-id] :as ctx} user-links {:keys [now]}]
+  ([{:keys [auth/user-id] :as ctx} profile {:keys [now]}]
    {:pre [(uuid? user-id)]}
-   (let [clock (crdt/new-hlc user-id now)
-         delta {:crdt/clock clock
-                :user/updated_at now
-                :user/profile {:profile/urls (crdt/->lww-map user-links clock)}}
-         action {:gatz.crdt.user/action :gatz.crdt.user/update-links
-                 :gatz.crdt.user/delta delta}]
+   (let [{:profile/keys [urls full_name]} profile
+         clock (crdt/new-hlc user-id now)
+         crdt (cond-> {}
+                (not (empty? urls)) (assoc :profile/urls (crdt/->lww-map urls clock))
+                (not (empty? full_name)) (assoc :profile/full_name (crdt/lww clock full_name)))
+         action {:gatz.crdt.user/action :gatz.crdt.user/update-profile
+                 :gatz.crdt.user/delta {:crdt/clock clock :user/updated_at now :user/profile crdt}}]
      (apply-action! ctx action))))
 
 (defn add-push-token!

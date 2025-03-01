@@ -33,6 +33,11 @@
    [:profile.urls/twitter (crdt/lww-schema [:maybe string?])]
    [:profile.urls/website (crdt/lww-schema [:maybe string?])]])
 
+(def UserSettingsLinks
+  [:map
+   [:profile.urls/twitter [:maybe string?]]
+   [:profile.urls/website [:maybe string?]]])
+
 (def NotificationPreferencesCRDT
   [:map
    [:settings.notification/overall (crdt/lww-schema boolean?)]
@@ -69,6 +74,7 @@
   [:map
    [:xt/id #'UserId]
    [:db/type [:enum :gatz/user]]
+   [:db/version [:enum 4]]
    [:user/created_at inst?]
    [:user/is_test [:maybe boolean?]]
    [:user/is_admin [:maybe boolean?]]
@@ -86,7 +92,8 @@
    [:user/settings [:map
                     [:settings/notifications NotificationPreferences]]]
    [:user/profile [:map
-                   [:profile/urls UserSettingsLinksCRDT]]]
+                   [:profile/full_name [:maybe string?]]
+                   [:profile/urls UserSettingsLinks]]]
    [:user/push_tokens [:maybe PushTokens]]])
 
 (def contact-ks [:xt/id :user/name :user/avatar :user/profile])
@@ -99,7 +106,7 @@
   [:map
    [:xt/id #'UserId]
    [:db/type [:enum :gatz/user]]
-   [:db/version [:enum 3]]
+   [:db/version [:enum 4]]
    [:crdt/clock crdt/hlc-schema]
    [:user/created_at inst?]
    [:user/is_test [:maybe boolean?]]
@@ -542,6 +549,15 @@
     [:map
      [:profile/urls (mu/optional-keys UserSettingsLinksCRDT)]]]])
 
+(def UserUpdateProfile
+  [:map
+   [:crdt/clock crdt/hlc-schema]
+   [:user/updated_at inst?]
+   [:user/profile
+    [:map
+     [:profile/full_name {:optional true} (crdt/lww-schema [:maybe string?])]
+     [:profile/urls {:optional true} (mu/optional-keys UserSettingsLinksCRDT)]]]])
+
 (def UserMarkDeleted
   [:map
    [:crdt/clock crdt/hlc-schema]
@@ -577,7 +593,10 @@
      [:gatz.crdt.user/delta UserUpdateNotifications]]
     [:map
      [:gatz.crdt.user/action [:enum :gatz.crdt.user/update-links]]
-     [:gatz.crdt.user/delta UserUpdateLinks]]]))
+     [:gatz.crdt.user/delta UserUpdateLinks]]
+    [:map
+     [:gatz.crdt.user/action [:enum :gatz.crdt.user/update-profile]]
+     [:gatz.crdt.user/delta UserUpdateProfile]]]))
 
 (def UserEvent
   [:map

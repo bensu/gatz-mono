@@ -25,10 +25,10 @@
 (deftest migrate-existing-users
   (testing "We can migrate users we already have"
     (let [v0-users (read-string (slurp (io/resource "test/users_v0.edn")))
-          v1-users (mapv #(db.util/->latest-version % all-migrations)
+          v4-users (mapv #(db.util/->latest-version % all-migrations)
                          v0-users)]
-      (is (= (count v0-users) (count v1-users)))
-      (doseq [user v1-users]
+      (is (= (count v0-users) (count v4-users)))
+      (doseq [user v4-users]
         (is (malli/validate schema/UserCRDT user)
             (vec (:errors (malli/explain schema/UserCRDT user))))))))
 
@@ -131,13 +131,13 @@
                     :gatz.crdt.user/delta {:crdt/clock c4
                                            :user/updated_at t4
                                            :user/deleted_at t4}}
-                   {:gatz.crdt.user/action :gatz.crdt.user/update-links
+                   {:gatz.crdt.user/action :gatz.crdt.user/update-profile
                     :gatz.crdt.user/delta
                     {:crdt/clock c5
                      :user/updated_at t5
-                     :user/profile {:profile/urls
-                                    (crdt/->lww-map {:profile.urls/twitter "https://twitter.com/test"}
-                                                    c5)}}}]]
+                     :user/profile {:profile/full_name (crdt/lww c5 "Test User")
+                                    :profile/urls (crdt/->lww-map {:profile.urls/twitter "https://twitter.com/test"}
+                                                                  c5)}}}]]
       (doseq [action actions]
         (is (malli/validate schema/UserAction action)
             (malli/explain schema/UserAction action)))
@@ -180,7 +180,7 @@
             (apply-action! (get-ctx uid) action))
           (xtdb/sync node)
           (let [final-user (by-id (xtdb/db node) uid)]
-            (is-equal {:db/version 3,
+            (is-equal {:db/version 4,
                        :db/doc-type :gatz/user
                        :db/type :gatz/user,
                        :xt/id uid
@@ -195,7 +195,8 @@
                        :user/deleted_at t4
                        :user/updated_at t5
                        :user/blocked_uids #{blocked-uid}
-                       :user/profile {:profile/urls {:profile.urls/website nil
+                       :user/profile {:profile/full_name "Test User"
+                                      :profile/urls {:profile.urls/website nil
                                                      :profile.urls/twitter "https://twitter.com/test"}}
                        :user/settings
                        #:settings{:notifications
@@ -260,7 +261,8 @@
                                {:now t5})
           (block-user! (get-ctx uid) blocked-uid {:now t6})
           (mark-deleted! (get-ctx uid) {:now t7})
-          (edit-links! (get-ctx uid) {:profile.urls/twitter "https://twitter.com/test"} {:now t8})
+          (edit-profile! (get-ctx uid) {:profile/full_name "Test User"
+                                        :profile/urls {:profile.urls/twitter "https://twitter.com/test"}} {:now t8})
           (xtdb/sync node)
 
           (let [final-user (by-id (xtdb/db node) uid)]
@@ -272,14 +274,15 @@
                        :user/avatar nil
                        :db/doc-type :gatz/user
                        :user/blocked_uids #{blocked-uid}
-                       :db/version 3,
+                       :db/version 4,
                        :user/push_tokens nil,
                        :user/phone_number "4159499932",
                        :user/created_at now
                        :crdt/clock c8
                        :user/deleted_at t7
                        :user/updated_at t8
-                       :user/profile {:profile/urls {:profile.urls/website nil
+                       :user/profile {:profile/full_name "Test User"
+                                      :profile/urls {:profile.urls/website nil
                                                      :profile.urls/twitter "https://twitter.com/test"}}
                        :user/settings
                        #:settings{:notifications

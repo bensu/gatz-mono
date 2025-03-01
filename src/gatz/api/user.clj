@@ -232,29 +232,63 @@
    (and (string? handle)
         (re-matches #"^[A-Za-z0-9_]{1,15}$" handle))))
 
-(defn update-urls! [{:keys [params] :as ctx}]
-  (if-let [ps (:urls params)]
-    (let [{:keys [twitter website]} ps
-          website (some-> website (str/trim) (str/lower-case))
-          twitter (some-> twitter
-                          (str/lower-case)
-                          (str/trim)
-                          (str/replace-first #"^@" ""))]
-      (cond
-        (and (some? twitter) (not (valid-twitter-handle? twitter)))
-        (err-resp "invalid_twitter" "Invalid Twitter username")
+(defn valid-full-name? [full-name]
+  (boolean
+   (and (string? full-name)
+        (not-empty full-name))))
 
-        (and (some? website) (not (valid-website-url? website)))
-        (err-resp "invalid_website" "Invalid website URL")
+(defn parse-profile [params]
+  (let [full-name (:full_name params)
+        {:keys [twitter website]} (:urls params)
+        full-name (some-> full-name (str/trim))
+        website (some-> website (str/trim) (str/lower-case))
+        twitter (some-> twitter
+                        (str/lower-case)
+                        (str/trim)
+                        (str/replace-first #"^@" ""))
+        user-links (cond-> {}
+                     (string? twitter) (assoc :profile.urls/twitter twitter)
+                     (string? website) (assoc :profile.urls/website website))]
+    (cond-> {}
+      (not (empty? user-links)) (assoc :profile/urls user-links)
+      (not (empty? full-name)) (assoc :profile/full_name full-name))))
 
-        :else
-        (let [user-links (cond-> {}
-                           (string? twitter) (assoc :profile.urls/twitter twitter)
-                           (string? website) (assoc :profile.urls/website website))
-              {:keys [user]} (db.user/edit-links! ctx user-links)]
-          (posthog/capture! ctx "user.update_urls")
-          (json-response {:user (crdt.user/->value user)}))))
-    (err-resp "invalid_user_links" "Invalid user links")))
+(defn update-profile! [{:keys [params] :as ctx}]
+  (let [profile (parse-profile params)
+        full-name (:profile/full_name profile)
+        {:profile.urls/keys [twitter website]} (:profile/urls profile)]
+    (cond
+      (and (some? twitter) (not (valid-twitter-handle? twitter)))
+      (err-resp "invalid_twitter" "Invalid Twitter username")
+
+      (and (some? website) (not (valid-website-url? website)))
+      (err-resp "invalid_website" "Invalid website URL")
+
+      (and (some? full-name) (not (valid-full-name? full-name)))
+      (err-resp "invalid_full_name" "Invalid full name")
+
+      :else
+      (let [{:keys [user]} (db.user/edit-profile! ctx profile)]
+        (posthog/capture! ctx "user.update_profile")
+        (json-response {:user (crdt.user/->value user)})))))
+
+(defn ^:deprecated
+  update-urls!
+  [{:keys [params] :as ctx}]
+  (let [profile (parse-profile params)
+        ;; full-name (:profile/full_name profile)
+        {:profile.urls/keys [twitter website]} (:profile/urls profile)]
+    (cond
+      (and (some? twitter) (not (valid-twitter-handle? twitter)))
+      (err-resp "invalid_twitter" "Invalid Twitter username")
+
+      (and (some? website) (not (valid-website-url? website)))
+      (err-resp "invalid_website" "Invalid website URL")
+
+      :else
+      (let [{:keys [user]} (db.user/edit-profile! ctx profile)]
+        (posthog/capture! ctx "user.update_urls")
+        (json-response {:user (crdt.user/->value user)})))))
 
 (defn delete-account! [{:keys [auth/user-id] :as ctx}]
   (assert (uuid? user-id))

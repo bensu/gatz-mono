@@ -898,9 +898,9 @@
              (:user/profile
               (crdt.user/->value
                (:user
-                (db.user/edit-links! authed-ctx
-                                     {:profile.urls/twitter handle}
-                                     {:now now})))))))))))
+                (db.user/edit-profile! authed-ctx
+                                       {:profile.urls/twitter handle}
+                                       {:now now})))))))))))
 
 
 (comment
