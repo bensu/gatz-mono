@@ -5,6 +5,7 @@
             [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.tools.logging :as log]
+            [clojure.data.csv :as csv]
             [crdt.core :as crdt]
             [gatz.api.invite-link :as api.invite-link]
             [gatz.db :refer :all]
@@ -995,4 +996,41 @@
 
   (def -ctx @gatz.system/system)
   (rename-user! -ctx "parthahya" "parth"))
+
+;; ======================================================================
+;; Add full names
+
+(defn gatz-username->full-name []
+  ;; reads csv in resources/migrations/full_names.txt
+  ;; returns a map of gatz username to full name
+  (->> (io/resource "migrations/full_names.txt")
+       slurp
+       (csv/read-csv)
+       (keep (fn [[username full-name]]
+               (when-not (empty? full-name)
+                 [(str/trim username) (str/trim full-name)])))
+       (into {})))
+
+(defn add-full-name-to-users! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb.api/db node)
+        username->full-name (gatz-username->full-name)
+        now (java.util.Date.)]
+    (doseq [[username full-name] username->full-name]
+      (when-let [user (some-> (db.user/by-name db username)
+                              (crdt.user/->value))]
+        (when (nil? (get-in user [:user/profile :profile/full_name]))
+          (println "Adding full name" full-name "to user" username)
+          (let [authed-ctx (assoc ctx
+                                  :biff/db (xtdb.api/db node)
+                                  :auth/user-id (:xt/id user)
+                                  :auth/user user)
+                {:keys [user]} (db.user/edit-profile! authed-ctx
+                                                      {:profile/full_name full-name}
+                                                      {:now now})]
+            (println (:user/profile (crdt.user/->value user)))))))))
+
+(comment
+  (def -ctx @gatz.system/system)
+
+  (add-full-name-to-users! -ctx))
 

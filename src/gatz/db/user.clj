@@ -263,7 +263,9 @@
                 (not (empty? urls)) (assoc :profile/urls (crdt/->lww-map urls clock))
                 (not (empty? full_name)) (assoc :profile/full_name (crdt/lww clock full_name)))
          action {:gatz.crdt.user/action :gatz.crdt.user/update-profile
-                 :gatz.crdt.user/delta {:crdt/clock clock :user/updated_at now :user/profile crdt}}]
+                 :gatz.crdt.user/delta {:crdt/clock clock
+                                        :user/updated_at now
+                                        :user/profile crdt}}]
      (apply-action! ctx action))))
 
 (defn add-push-token!
