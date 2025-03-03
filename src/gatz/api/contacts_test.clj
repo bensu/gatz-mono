@@ -253,3 +253,88 @@
 
       (.close node))))
 
+(deftest deleted-users
+  (testing "only deleted users are masked in the response"
+    (let [uid (random-uuid)
+          cid1 (random-uuid)
+          cid2 (random-uuid)
+          cid3 (random-uuid)
+          fof1 (random-uuid)  ;; friend of friend 1
+          fof2 (random-uuid)  ;; friend of friend 2
+          now (Date.)
+          ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (-> ctx
+                        (assoc :biff/db (xtdb/db node))
+                        (assoc :auth/user-id uid)))]
+
+      ;; Create users - main user, three contacts, and two friends-of-friends
+      (db.user/create-user!
+       ctx {:id uid :username "user_id" :phone "+14159499000" :now now})
+      (db.user/create-user!
+       ctx {:id cid1 :username "contact1" :phone "+14159499001" :now now})
+      (db.user/create-user!
+       ctx {:id cid2 :username "contact2" :phone "+14159499002" :now now})
+      (db.user/create-user!
+       ctx {:id cid3 :username "contact3" :phone "+14159499003" :now now})
+      (db.user/create-user!
+       ctx {:id fof1 :username "friend_of_friend1" :phone "+14159499004" :now now})
+      (db.user/create-user!
+       ctx {:id fof2 :username "friend_of_friend2" :phone "+14159499005" :now now})
+      (xtdb/sync node)
+
+      ;; Make them all contacts
+      (db.contacts/force-contacts! ctx uid cid1)
+      (db.contacts/force-contacts! ctx uid cid2)
+      (db.contacts/force-contacts! ctx uid cid3)
+      ;; Make friends-of-friends connections
+      (db.contacts/force-contacts! ctx cid1 fof1)
+      (db.contacts/force-contacts! ctx cid2 fof2)
+      (xtdb/sync node)
+
+      ;; Verify initial state - all contacts and friends-of-friends visible
+      (let [ok-resp (api.contacts/get-all-contacts (get-ctx uid))
+            {:keys [contacts friends_of_friends]} (json/read-str (:body ok-resp) {:key-fn keyword})
+            contact-names (set (map :name contacts))
+            fof-names (set (map :name friends_of_friends))]
+        (is (= 200 (:status ok-resp)))
+        (is (= 3 (count contacts)))
+        (is (= #{"contact1" "contact2" "contact3"} contact-names))
+        (is (= 2 (count friends_of_friends)))
+        (is (= #{"friend_of_friend1" "friend_of_friend2"} fof-names)))
+
+      ;; Delete one contact and one friend-of-friend
+      (db.user/mark-deleted! (get-ctx cid2) {:now now})
+      (db.user/mark-deleted! (get-ctx fof1) {:now now})
+      (xtdb/sync node)
+
+      ;; Verify only the deleted users are masked
+      (let [ok-resp (api.contacts/get-all-contacts (get-ctx uid))
+            {:keys [contacts friends_of_friends]} (json/read-str (:body ok-resp) {:key-fn keyword})
+            contacts-by-id (reduce #(assoc %1 (:id %2) %2) {} contacts)
+            fof-by-id (reduce #(assoc %1 (:id %2) %2) {} friends_of_friends)]
+        (is (= 200 (:status ok-resp)))
+        (is (= 2 (count contacts)))
+        (is (= 1 (count friends_of_friends)))
+
+        (testing "deleted contact is hidden"
+          (let [deleted-contact (get contacts-by-id (str cid2))]
+            (is (nil? deleted-contact))))
+
+        (testing "the other contacts are unaffected"
+          (let [contact1 (get contacts-by-id (str cid1))
+                contact3 (get contacts-by-id (str cid3))]
+            (is (= "contact1" (:name contact1)))
+            (is (= "contact3" (:name contact3)))))
+
+        (testing "deleted friend-of-friend is hidden"
+          (let [deleted-fof (get fof-by-id (str fof1))]
+            (is (nil? deleted-fof))))
+
+        (testing "the other friend-of-friend is unaffected"
+          (let [active-fof (get fof-by-id (str fof2))]
+            (is (= "friend_of_friend2" (:name active-fof))))))
+
+      (.close node))))
+

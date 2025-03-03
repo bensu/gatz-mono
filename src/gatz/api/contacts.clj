@@ -116,13 +116,15 @@
                         :group group}))
       (let [my-contact-ids (:contacts/ids (db.contacts/by-uid db user-id))
             my-contacts (->> my-contact-ids
-                             (map (partial db.user/by-id db))
-                             (mapv #(-> % crdt.user/->value db.contacts/->contact)))
+                             (map (comp crdt.user/->value (partial db.user/by-id db)))
+                             (remove db.user/deleted?)
+                             (mapv db.contacts/->contact))
             contact-requests (api.user/pending-contact-requests db user-id)
             friends-of-friends (->> (-> (db.contacts/friends-of-friends db user-id)
                                         (set/difference my-contact-ids #{user-id}))
-                                    (map (partial db.user/by-id db))
-                                    (mapv #(-> % crdt.user/->value db.contacts/->contact)))]
+                                    (map (comp crdt.user/->value (partial db.user/by-id db)))
+                                    (remove db.user/deleted?)
+                                    (mapv db.contacts/->contact))]
         (json-response {:user (crdt.user/->value user)
                         :contacts my-contacts
                         :friends_of_friends friends-of-friends

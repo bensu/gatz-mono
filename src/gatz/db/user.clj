@@ -332,6 +332,9 @@
      (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
                      [[:xtdb.api/fn :gatz.db.user/mark-active {:args args}]]))))
 
+(defn deleted? [user]
+  (boolean (:user/deleted_at (crdt.user/->value user))))
+
 (defn mark-deleted!
   ([ctx]
    (mark-deleted! ctx {:now (Date.)}))
