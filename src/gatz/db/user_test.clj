@@ -227,7 +227,7 @@
                        :user/name "[deleted]",
                        :user/avatar nil
                        :user/push_tokens nil,
-                       :user/phone_number "4159499932",
+                       :user/phone_number nil
                        :user/created_at now
                        :crdt/clock c5
                        :user/deleted_at t5
@@ -346,7 +346,7 @@
                        :user/blocked_uids #{blocked-uid}
                        :db/version 4,
                        :user/push_tokens nil,
-                       :user/phone_number "4159499932",
+                       :user/phone_number nil
                        :user/created_at now
                        :crdt/clock c8
                        :user/deleted_at t8

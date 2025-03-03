@@ -151,8 +151,13 @@
 
 (defn mask-deleted [user]
   (cond-> user
-    (some? (:user/deleted_at (crdt.user/->value user)))
-    (assoc :user/name "[deleted]" :user/avatar nil)))
+    (some? (some-> user :user/deleted_at crdt/-value))
+    (assoc :user/name "[deleted]"
+           :user/avatar nil
+           :user/profile {:profile/full_name nil
+                          :profile/urls {:profile.urls/twitter nil
+                                         :profile.urls/website nil}}
+           :user/phone_number nil)))
 
 (defn by-id [db user-id]
   {:pre [(uuid? user-id)]}
