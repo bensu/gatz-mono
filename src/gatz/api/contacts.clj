@@ -106,14 +106,15 @@
   (let [{:keys [group_id]} (parse-get-contact-params (:params ctx))]
     (if group_id
       (let [group (db.group/by-id db group_id)
-            contact-ids (:group/members group)
-            group-contacts (mapv (partial db.user/by-id db) contact-ids)]
+            contact-ids (:group/members group)]
         (json-response {:user (crdt.user/->value user)
-                        :contacts (mapv #(-> % crdt.user/->value db.contacts/->contact)
-                                        group-contacts)
                         :friends_of_friends []
                         :contact_requests []
-                        :group group}))
+                        :group group
+                        :contacts (->> contact-ids
+                                       (map (comp crdt.user/->value (partial db.user/by-id db)))
+                                       (remove db.user/deleted?)
+                                       (mapv db.contacts/->contact))}))
       (let [my-contact-ids (:contacts/ids (db.contacts/by-uid db user-id))
             my-contacts (->> my-contact-ids
                              (map (comp crdt.user/->value (partial db.user/by-id db)))

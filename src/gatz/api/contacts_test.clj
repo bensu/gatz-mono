@@ -261,6 +261,7 @@
           cid3 (random-uuid)
           fof1 (random-uuid)  ;; friend of friend 1
           fof2 (random-uuid)  ;; friend of friend 2
+          gid (crdt/random-ulid)  ;; group id
           now (Date.)
           ctx (db.util-test/test-system)
           node (:biff.xtdb/node ctx)
@@ -284,6 +285,11 @@
        ctx {:id fof2 :username "friend_of_friend2" :phone "+14159499005" :now now})
       (xtdb/sync node)
 
+      ;; Create a group with all users
+      (db.group/create!
+       ctx {:id gid :owner uid :now now
+            :name "test" :members #{cid1 cid2 cid3 fof1 fof2}})
+
       ;; Make them all contacts
       (db.contacts/force-contacts! ctx uid cid1)
       (db.contacts/force-contacts! ctx uid cid2)
@@ -304,12 +310,22 @@
         (is (= 2 (count friends_of_friends)))
         (is (= #{"friend_of_friend1" "friend_of_friend2"} fof-names)))
 
+      ;; Verify initial group state
+      (let [ok-resp (api.contacts/get-all-contacts (-> (get-ctx uid)
+                                                       (assoc :params {:group_id (str gid)})))
+            {:keys [contacts group]} (json/read-str (:body ok-resp) {:key-fn keyword})
+            contact-names (set (map :name contacts))]
+        (is (= 200 (:status ok-resp)))
+        (is (= (str gid) (:id group)))
+        (is (= 6 (count contacts)))
+        (is (= #{"user_id" "contact1" "contact2" "contact3" "friend_of_friend1" "friend_of_friend2"} contact-names)))
+
       ;; Delete one contact and one friend-of-friend
       (db.user/mark-deleted! (get-ctx cid2) {:now now})
       (db.user/mark-deleted! (get-ctx fof1) {:now now})
       (xtdb/sync node)
 
-      ;; Verify only the deleted users are masked
+      ;; Verify only the deleted users are masked in direct contacts
       (let [ok-resp (api.contacts/get-all-contacts (get-ctx uid))
             {:keys [contacts friends_of_friends]} (json/read-str (:body ok-resp) {:key-fn keyword})
             contacts-by-id (reduce #(assoc %1 (:id %2) %2) {} contacts)
@@ -335,6 +351,25 @@
         (testing "the other friend-of-friend is unaffected"
           (let [active-fof (get fof-by-id (str fof2))]
             (is (= "friend_of_friend2" (:name active-fof))))))
+
+      ;; Verify deleted users are also hidden in group contacts
+      (let [ok-resp (api.contacts/get-all-contacts (-> (get-ctx uid)
+                                                       (assoc :params {:group_id (str gid)})))
+            {:keys [contacts group]} (json/read-str (:body ok-resp) {:key-fn keyword})
+            contacts-by-id (reduce #(assoc %1 (:id %2) %2) {} contacts)]
+        (is (= 200 (:status ok-resp)))
+        (is (= (str gid) (:id group)))
+        (is (= 4 (count contacts)))
+
+        (testing "deleted users are hidden from group contacts"
+          (let [deleted-contact (get contacts-by-id (str cid2))
+                deleted-fof (get contacts-by-id (str fof1))]
+            (is (nil? deleted-contact))
+            (is (nil? deleted-fof))))
+
+        (testing "active users remain visible in group contacts"
+          (is (= #{"user_id" "contact1" "contact3" "friend_of_friend2"}
+                 (set (map :name contacts))))))
 
       (.close node))))
 
