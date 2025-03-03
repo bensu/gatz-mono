@@ -562,7 +562,11 @@
   [:map
    [:crdt/clock crdt/hlc-schema]
    [:user/updated_at inst?]
-   [:user/deleted_at inst?]])
+   [:user/deleted_at inst?]
+   [:user/profile {:optional true}
+    [:map
+     [:profile/full_name {:optional true} (crdt/lww-schema [:maybe string?])]
+     [:profile/urls {:optional true} (mu/optional-keys UserSettingsLinksCRDT)]]]])
 
 (def UserBlocksAnotherUser
   [:map

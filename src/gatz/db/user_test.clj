@@ -127,17 +127,13 @@
                     :gatz.crdt.user/delta {:crdt/clock c3
                                            :user/updated_at t3
                                            :user/blocked_uids (crdt/lww-set-delta c3 #{blocked-uid})}}
-                   {:gatz.crdt.user/action :gatz.crdt.user/mark-deleted
-                    :gatz.crdt.user/delta {:crdt/clock c4
-                                           :user/updated_at t4
-                                           :user/deleted_at t4}}
                    {:gatz.crdt.user/action :gatz.crdt.user/update-profile
                     :gatz.crdt.user/delta
-                    {:crdt/clock c5
-                     :user/updated_at t5
-                     :user/profile {:profile/full_name (crdt/lww c5 "Test User")
+                    {:crdt/clock c4
+                     :user/updated_at t4
+                     :user/profile {:profile/full_name (crdt/lww c4 "Test User")
                                     :profile/urls (crdt/->lww-map {:profile.urls/twitter "https://twitter.com/test"}
-                                                                  c5)}}}]]
+                                                                  c4)}}}]]
       (doseq [action actions]
         (is (malli/validate schema/UserAction action)
             (malli/explain schema/UserAction action)))
@@ -179,6 +175,7 @@
           (doseq [action actions]
             (apply-action! (get-ctx uid) action))
           (xtdb/sync node)
+
           (let [final-user (by-id (xtdb/db node) uid)]
             (is-equal {:db/version 4,
                        :db/doc-type :gatz/user
@@ -186,14 +183,14 @@
                        :xt/id uid
                        :user/is_test true,
                        :user/is_admin false,
-                       :user/name "[deleted]",
-                       :user/avatar nil
+                       :user/name "test_123",
+                       :user/avatar "https://example.com/avatar.jpg"
                        :user/push_tokens nil,
                        :user/phone_number "4159499932",
                        :user/created_at now
-                       :crdt/clock c5
-                       :user/deleted_at t4
-                       :user/updated_at t5
+                       :crdt/clock c4
+                       :user/deleted_at nil
+                       :user/updated_at t4
                        :user/blocked_uids #{blocked-uid}
                        :user/profile {:profile/full_name "Test User"
                                       :profile/urls {:profile.urls/website nil
@@ -207,6 +204,48 @@
                                                           :suggestions_from_gatz false}}}
 
                       (crdt.user/->value final-user)))
+
+          (apply-action!
+           (get-ctx uid)
+           {:gatz.crdt.user/action :gatz.crdt.user/mark-deleted
+            :gatz.crdt.user/delta {:crdt/clock c5
+                                   :user/updated_at t5
+                                   :user/deleted_at t5
+                                   :user/profile {:profile/full_name (crdt/lww c5 nil)
+                                                  :profile/urls (crdt/->lww-map {:profile.urls/twitter nil
+                                                                                 :profile.urls/website nil}
+                                                                                c5)}}})
+          (xtdb/sync node)
+
+          (let [deleted-user (by-id (xtdb/db node) uid)]
+            (is-equal {:db/version 4,
+                       :db/doc-type :gatz/user
+                       :db/type :gatz/user,
+                       :xt/id uid
+                       :user/is_test true,
+                       :user/is_admin false,
+                       :user/name "[deleted]",
+                       :user/avatar nil
+                       :user/push_tokens nil,
+                       :user/phone_number "4159499932",
+                       :user/created_at now
+                       :crdt/clock c5
+                       :user/deleted_at t5
+                       :user/updated_at t5
+                       :user/blocked_uids #{blocked-uid}
+                       :user/profile {:profile/full_name nil
+                                      :profile/urls {:profile.urls/website nil
+                                                     :profile.urls/twitter nil}}
+                       :user/settings
+                       #:settings{:notifications
+                                  #:settings.notification{:overall false,
+                                                          :activity :settings.notification/daily,
+                                                          :friend_accepted false,
+                                                          :subscribe_on_comment false,
+                                                          :suggestions_from_gatz false}}}
+
+                      (crdt.user/->value deleted-user)))
+
           (.close node)))
 
       (testing "we can apply the actions through named functions"
@@ -226,7 +265,7 @@
               t6 (crdt/inc-time t5)
               t7 (crdt/inc-time t6)
               t8 (crdt/inc-time t7)
-              [_c1 _c2 _c3 _c4 _c5 _c6 _c7 c8] (mapv (partial crdt/new-hlc uid) [t1 t2 t3 t4 t5 t6 t7 t8])]
+              [_c1 _c2 _c3 _c4 _c5 _c6 c7 c8] (mapv (partial crdt/new-hlc uid) [t1 t2 t3 t4 t5 t6 t7 t8])]
           (create-user! ctx {:id uid
                              :username "test_456"
                              :phone "4159499932"
@@ -260,12 +299,43 @@
                                {:settings.notification/activity :settings.notification/daily}
                                {:now t5})
           (block-user! (get-ctx uid) blocked-uid {:now t6})
-          (mark-deleted! (get-ctx uid) {:now t7})
           (edit-profile! (get-ctx uid) {:profile/full_name "Test User"
-                                        :profile/urls {:profile.urls/twitter "https://twitter.com/test"}} {:now t8})
+                                        :profile/urls {:profile.urls/twitter "https://twitter.com/test"}}
+                         {:now t7})
           (xtdb/sync node)
 
           (let [final-user (by-id (xtdb/db node) uid)]
+            (is-equal {:xt/id uid
+                       :db/type :gatz/user,
+                       :user/is_test true,
+                       :user/is_admin false,
+                       :user/name "test_456",
+                       :user/avatar "https://example.com/avatar.jpg"
+                       :db/doc-type :gatz/user
+                       :user/blocked_uids #{blocked-uid}
+                       :db/version 4,
+                       :user/push_tokens nil,
+                       :user/phone_number "4159499932",
+                       :user/created_at now
+                       :crdt/clock c7
+                       :user/deleted_at nil
+                       :user/updated_at t7
+                       :user/profile {:profile/full_name "Test User"
+                                      :profile/urls {:profile.urls/website nil
+                                                     :profile.urls/twitter "https://twitter.com/test"}}
+                       :user/settings
+                       #:settings{:notifications
+                                  #:settings.notification{:overall false,
+                                                          :activity :settings.notification/daily,
+                                                          :friend_accepted false,
+                                                          :subscribe_on_comment false,
+                                                          :suggestions_from_gatz false}}}
+                      (crdt.user/->value final-user)))
+
+          (mark-deleted! (get-ctx uid) {:now t8})
+          (xtdb/sync node)
+
+          (let [deleted-user (by-id (xtdb/db node) uid)]
             (is-equal {:xt/id uid
                        :db/type :gatz/user,
                        :user/is_test true,
@@ -279,11 +349,11 @@
                        :user/phone_number "4159499932",
                        :user/created_at now
                        :crdt/clock c8
-                       :user/deleted_at t7
+                       :user/deleted_at t8
                        :user/updated_at t8
-                       :user/profile {:profile/full_name "Test User"
+                       :user/profile {:profile/full_name nil
                                       :profile/urls {:profile.urls/website nil
-                                                     :profile.urls/twitter "https://twitter.com/test"}}
+                                                     :profile.urls/twitter nil}}
                        :user/settings
                        #:settings{:notifications
                                   #:settings.notification{:overall false,
@@ -292,7 +362,8 @@
                                                           :subscribe_on_comment false,
                                                           :suggestions_from_gatz false}}}
 
-                      (crdt.user/->value final-user)))
+                      (crdt.user/->value deleted-user)))
+
           (.close node))))))
 
 

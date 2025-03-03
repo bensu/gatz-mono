@@ -343,7 +343,10 @@
    (let [clock (crdt/new-hlc user-id now)
          delta {:crdt/clock clock
                 :user/updated_at now
-                :user/deleted_at now}
+                :user/deleted_at now
+                :user/profile {:profile/full_name (crdt/lww clock nil)
+                               :profile/urls {:profile.urls/twitter (crdt/lww clock nil)
+                                              :profile.urls/website (crdt/lww clock nil)}}}
          action {:gatz.crdt.user/action :gatz.crdt.user/mark-deleted
                  :gatz.crdt.user/delta delta}]
      (apply-action! ctx action))))
