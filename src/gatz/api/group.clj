@@ -54,10 +54,10 @@
                 my-contact-ids (:contacts/ids my-contacts)
                 all-contact-ids (set/union member-ids my-contact-ids)
                 in-common (set/intersection member-ids my-contact-ids)
-                all-contacts (mapv (comp db.contacts/->contact
-                                         crdt.user/->value
-                                         (partial db.user/by-id db))
-                                   all-contact-ids)]
+                all-contacts (->> all-contact-ids
+                                  (map (comp crdt.user/->value (partial db.user/by-id db)))
+                                  (remove db.user/deleted?)
+                                  (map db.contacts/->contact))]
             (posthog/capture! ctx "group.viewed" {:id id})
             (json-response {:group group
             ;; should this include me?

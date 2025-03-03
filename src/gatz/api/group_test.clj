@@ -237,3 +237,63 @@
               (is (= 200 (:status ok-resp)))))))
 
       (.close node))))
+
+(deftest deleted-users-in-group
+  (testing "deleted users are not returned in the member list"
+    (let [owner (random-uuid)
+          member (random-uuid)
+          deleted-member (random-uuid)
+          now (Date.)
+          ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (-> ctx
+                        (assoc :biff/db (xtdb/db node))
+                        (assoc :auth/user-id uid)))]
+
+      ;; Create users
+      (db.user/create-user!
+       ctx {:id owner :username "owner" :phone "+14159499000" :now now})
+      (db.user/create-user!
+       ctx {:id member :username "member" :phone "+14159499001" :now now})
+      (db.user/create-user!
+       ctx {:id deleted-member :username "deleted_member" :phone "+14159499002" :now now})
+      (xtdb/sync node)
+
+      ;; Create a group and add all users
+      (let [ok-resp (api.group/create! (-> (get-ctx owner)
+                                           (assoc :params {:name "Test Group"
+                                                           :description nil
+                                                           :avatar nil})))
+            {:keys [group]} (json/read-str (:body ok-resp) {:key-fn keyword})
+            gid (crdt/parse-ulid (:id group))]
+
+        ;; Add members to the group
+        (doseq [uid [member deleted-member]]
+          (db.group/apply-action! (get-ctx owner)
+                                  {:xt/id gid
+                                   :group/by_uid owner
+                                   :group/action :group/add-member
+                                   :group/delta {:group/members #{uid}
+                                                 :group/updated_at now}}))
+        (xtdb/sync node)
+
+        ;; Verify all members are initially visible
+        (let [ok-resp (api.group/get-group (-> (get-ctx owner)
+                                               (assoc :params {:id (str gid)})))
+              {:keys [all_contacts]} (json/read-str (:body ok-resp) {:key-fn keyword})
+              member-usernames (set (map :name all_contacts))]
+          (is (= 200 (:status ok-resp)))
+          (is (= #{"owner" "member" "deleted_member"} member-usernames)))
+
+        ;; Delete one member
+        (db.user/mark-deleted! (get-ctx deleted-member) {:now now})
+        (xtdb/sync node)
+
+        ;; Verify deleted member is not returned
+        (let [ok-resp (api.group/get-group (-> (get-ctx owner)
+                                               (assoc :params {:id (str gid)})))
+              {:keys [all_contacts]} (json/read-str (:body ok-resp) {:key-fn keyword})
+              member-usernames (set (map :name all_contacts))]
+          (is (= 200 (:status ok-resp)))
+          (is (= #{"owner" "member"} member-usernames)))))))
