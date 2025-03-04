@@ -494,14 +494,21 @@
 ;; User deletion
 
 (defn remove-from-all-groups-txn [db {:keys [uid now]}]
-  (let [groups (by-member-uid db uid)
-        actions (map (fn [group]
-                       {:xt/id (:xt/id group)
-                        :group/by_uid uid
-                        :group/action :group/remove-member
-                        :group/delta {:group/updated_at now
-                                      :group/members #{uid}}})
-                     groups)]
-    (mapcat (fn [action]
-              (apply-action-internal-txn db {:action action}))
-            actions)))
+  (let [groups (by-member-uid db uid)]
+    (assert (every? #(not (= uid (:group/owner %))) groups)
+            "You can't be removed from a group you own")
+    (->> groups
+         (mapcat (fn [{:keys [xt/id group/owner group/admins]}]
+                   (cond-> [{:xt/id id
+                             :group/by_uid owner
+                             :group/action :group/remove-member
+                             :group/delta {:group/updated_at now
+                                           :group/members #{uid}}}]
+                     (contains? admins uid)
+                     (conj {:xt/id id
+                            :group/by_uid owner
+                            :group/action :group/remove-admin
+                            :group/delta {:group/updated_at now
+                                          :group/admins #{uid}}}))))
+         (map (fn [action]
+                [:xtdb.api/fn :gatz.db.group/apply-action {:action action}])))))

@@ -374,6 +374,7 @@
   (let [[uid contact1 contact2 group-member] (repeatedly 4 random-uuid)
         [did1 did2 did3] (repeatedly 3 random-uuid)
         gid (crdt/random-ulid)  ;; group id
+        gid2 (crdt/random-ulid) ;; group owned by user
         now (Date.)
         ctx (db.util-test/test-system)
         node (:biff.xtdb/node ctx)
@@ -398,6 +399,19 @@
      ;; Create a group and add users
     (db.group/create! ctx {:id gid :owner group-member :now now
                            :name "test" :members #{uid contact1 contact2}})
+
+     ;; Create a group owned by the user
+    (db.group/create! ctx {:id gid2 :owner uid :now now
+                           :name "owned group" :members #{contact1 contact2}})
+    (xtdb/sync node)
+
+    ;; Add an admin that we can transfer the ownership to later
+    (db.group/apply-action! (get-ctx uid)
+                            {:xt/id gid2
+                             :group/by_uid uid
+                             :group/action :group/add-admin
+                             :group/delta {:group/updated_at now
+                                           :group/admins #{contact1}}})
     (xtdb/sync node)
 
      ;; Create discussions
@@ -420,6 +434,7 @@
           user (by-id db uid)
           contacts (db.contacts/by-uid db uid)
           group (db.group/by-id db gid)
+          owned-group (db.group/by-id db gid2)
           d1 (crdt.discussion/->value (db.discussion/by-id db did1))
           d2 (crdt.discussion/->value (db.discussion/by-id db did2))
           d3 (crdt.discussion/->value (db.discussion/by-id db did3))]
@@ -427,7 +442,11 @@
       (testing "initial state is correct"
         (is (= "user" (:user/name user)))
         (is (= #{contact1 contact2} (:contacts/ids contacts)))
+
         (is (contains? (:group/members group) uid))
+        (is (= uid (:group/owner owned-group)))
+        (is (contains? (:group/admins owned-group) uid))
+
         (is (contains? (:discussion/members d1) uid))
         (is (contains? (:discussion/members d2) uid))
         (is (contains? (:discussion/members d3) uid))
@@ -440,7 +459,25 @@
       (is (thrown? java.lang.AssertionError
                    (db/delete-user! (get-ctx uid) contact1 {:now now}))))
 
-     ;; Delete the user
+    (testing "you can't delete yourself while owning groups"
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (db/delete-user! (get-ctx uid) uid {:now now}))))
+
+     ;; Transfer ownership of the group
+    (db.group/apply-action! (get-ctx uid)
+                            {:xt/id gid2
+                             :group/by_uid uid
+                             :group/action :group/transfer-ownership
+                             :group/delta {:group/updated_at now
+                                           :group/owner contact1}})
+    (xtdb/sync node)
+
+    (let [db (xtdb/db node)
+          g2 (db.group/by-id db gid2)]
+      (is (= #{uid contact1} (:group/admins g2)))
+      (is (= contact1 (:group/owner g2))))
+
+     ;; Now delete the user
     (db/delete-user! (get-ctx uid) uid {:now (Date.)})
     (xtdb/sync node)
 
@@ -451,6 +488,7 @@
           contact1-contacts (db.contacts/by-uid db contact1)
           contact2-contacts (db.contacts/by-uid db contact2)
           updated-group (db.group/by-id db gid)
+          owned-group (db.group/by-id db gid2)
           d1 (crdt.discussion/->value (db.discussion/by-id db did1))
           d2 (crdt.discussion/->value (db.discussion/by-id db did2))]
 
@@ -468,7 +506,10 @@
         (is (not (contains? (:contacts/ids contact2-contacts) uid))))
 
       (testing "user is removed from groups"
-        (is (not (contains? (:group/members updated-group) uid))))
+        (is (not (contains? (:group/members updated-group) uid)))
+        (is (not (contains? (:group/admins owned-group) uid)))
+        (is (not (contains? (:group/members owned-group) uid)))
+        (is (= contact1 (:group/owner owned-group))))
 
       (testing "user remains in discussions they participated in"
         (is (contains? (:discussion/members d1) uid)))
