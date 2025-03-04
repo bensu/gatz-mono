@@ -21,7 +21,8 @@
             [gatz.system :as gatz.system]
             [malli.core :as malli]
             [com.biffweb :as biff :refer [q]]
-            [xtdb.api :as xtdb])
+            [xtdb.api :as xtdb]
+            [gatz.db :as db])
   (:import [java.util Date]))
 
 (def good-users
@@ -1031,6 +1032,16 @@
 
 (comment
   (def -ctx @gatz.system/system)
+
+  (def -michelle-id #uuid "bc895fc1-fe83-4e10-a1a0-8052494cfa8d")
+
+  (let [node (:biff.xtdb/node -ctx)
+        db (xtdb.api/db node)
+        ctx (assoc -ctx
+                   :biff/db db
+                   :auth/user-id -michelle-id
+                   :auth/user (db.user/by-id db -michelle-id))]
+    (db/delete-user! ctx -michelle-id))
 
   (add-full-name-to-users! -ctx))
 
