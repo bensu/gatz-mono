@@ -239,6 +239,16 @@
                         (crdt->doc)
                         (assoc :db/doc-type :gatz.doc/discussion))]]))
 
+;; Be careful with this function, it doesn't check if the user is authorized
+(defn apply-delta-without-event-txn
+  [xtdb-ctx {:keys [did delta]}]
+  (let [db (xtdb.api/db xtdb-ctx)]
+    (when-let [d (gatz.db.discussion/by-id db did)]
+      (println "delta" delta)
+      [[:xtdb.api/put (-> (gatz.crdt.discussion/apply-delta d delta)
+                          (crdt->doc)
+                          (assoc :db/doc-type :gatz.doc/discussion))]])))
+
 (defn apply-delta-xtdb
   [ctx {:keys [evt] :as _args}]
   (let [did (:evt/did evt)
@@ -662,3 +672,33 @@
                              :by-uid by-uid
                              :members members
                              :dids dids})))
+
+;; ======================================================================
+;; User deletion
+
+(defn inactive-for-user [db uid]
+  {:pre [(uuid? uid)]
+   :post [(set? %) (every? uuid? %)]}
+  (->> (q db '{:find [did]
+               :in [uid]
+               :where [[did :db/type :gatz/discussion]
+                       [did :discussion/members uid]
+                       (not [did :discussion/created_by uid])
+                       (not [did :discussion/active_members uid])]}
+          uid)
+       (map first)
+       set))
+
+(defn remove-from-all-inactive-discussions-txn [db {:keys [uid now]}]
+  {:pre [(uuid? uid) (inst? now)]}
+  (let [clock (crdt/new-hlc uid now)
+        delta {:crdt/clock clock
+               :discussion/updated_at now
+               :discussion/members (crdt/lww-set-delta clock #{uid} false)}
+        dids (inactive-for-user db uid)]
+    (->> dids
+         (keep (partial gatz.db.discussion/by-id db))
+         (map (fn [d]
+                [:xtdb.api/put (-> (gatz.crdt.discussion/apply-delta d delta)
+                                   (crdt->doc)
+                                   (assoc :db/doc-type :gatz.doc/discussion))])))))

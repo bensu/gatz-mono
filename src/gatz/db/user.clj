@@ -340,18 +340,29 @@
 (defn deleted? [user]
   (boolean (:user/deleted_at (crdt.user/->value user))))
 
+(defn mark-delete-delta [uid now]
+  (let [clock (crdt/new-hlc uid now)]
+    {:crdt/clock clock
+     :user/updated_at now
+     :user/deleted_at now
+     :user/profile {:profile/full_name (crdt/lww clock nil)
+                    :profile/urls {:profile.urls/twitter (crdt/lww clock nil)
+                                   :profile.urls/website (crdt/lww clock nil)}}}))
+
+(defn mark-deleted-txn [db {:keys [uid now]}]
+  (let [user (by-id db uid)
+        delta (mark-delete-delta uid now)]
+    (assert user)
+    [[:xtdb.api/put (-> user
+                        (gatz.crdt.user/apply-delta delta)
+                        (assoc :db/doc-type :gatz.crdt/user))]]))
+
 (defn mark-deleted!
   ([ctx]
    (mark-deleted! ctx {:now (Date.)}))
   ([{:keys [auth/user-id] :as ctx} {:keys [now]}]
    {:pre [(uuid? user-id)]}
-   (let [clock (crdt/new-hlc user-id now)
-         delta {:crdt/clock clock
-                :user/updated_at now
-                :user/deleted_at now
-                :user/profile {:profile/full_name (crdt/lww clock nil)
-                               :profile/urls {:profile.urls/twitter (crdt/lww clock nil)
-                                              :profile.urls/website (crdt/lww clock nil)}}}
+   (let [delta (mark-delete-delta user-id now)
          action {:gatz.crdt.user/action :gatz.crdt.user/mark-deleted
                  :gatz.crdt.user/delta delta}]
      (apply-action! ctx action))))

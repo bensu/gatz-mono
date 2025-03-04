@@ -502,3 +502,38 @@
     (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
                     (vec (remove nil? txns)))
     msg))
+
+
+;; ======================================================================
+;; User
+
+(defn delete-user-txn [xtdb-ctx {:keys [uid now]}]
+  {:pre [(uuid? uid) (inst? now)]}
+  (let [db (xtdb/db xtdb-ctx)
+        user-txn (db.user/mark-deleted-txn db {:uid uid :now now})
+        contacts-txn (db.contacts/remove-all-user-contacts-txn db uid now)
+        group-txns (db.group/remove-from-all-groups-txn db {:uid uid :now now})
+        discussion-txns (db.discussion/remove-from-all-inactive-discussions-txn db {:uid uid :now now})]
+    (vec (remove nil? (concat
+                       user-txn
+                       contacts-txn
+                       group-txns
+                       discussion-txns)))))
+
+(def delete-user-expr
+  '(fn delete-user-fn [xtdb-ctx args]
+     (gatz.db/delete-user-txn xtdb-ctx args)))
+
+(def tx-fns
+  {:gatz.db/delete-user delete-user-expr})
+
+(defn delete-user!
+
+  ([ctx uid]
+   (delete-user! ctx uid {:now (Date.)}))
+  ([{:keys [auth/user-id] :as ctx} uid {:keys [now]}]
+   {:pre [(uuid? uid) (= user-id uid)
+          (or (nil? now) (inst? now))]}
+  ;; TODO: check if user is admin of any groups
+   (let [now (or now (Date.))]
+     (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db/delete-user {:uid uid :now now}]]))))

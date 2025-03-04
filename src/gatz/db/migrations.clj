@@ -576,7 +576,7 @@
                   (keep (partial db.user/by-name db))
                   (mapcat (fn [u]
                             (let [uid (:xt/id u)]
-                              (db.contacts/remove-all-user-contacts-txn node uid now))))
+                              (db.contacts/remove-all-user-contacts-txn db uid now))))
                   vec)]
     (biff/submit-tx ctx txns)))
 

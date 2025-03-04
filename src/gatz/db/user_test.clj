@@ -4,7 +4,11 @@
             [clojure.java.io :as io]
             [crdt.core :as crdt]
             [gatz.crdt.user :as crdt.user]
+            [gatz.crdt.discussion :as crdt.discussion]
+            [gatz.db.discussion :as db.discussion]
             [gatz.db.contacts :as db.contacts]
+            [gatz.db.group :as db.group]
+            [gatz.db :as db]
             [gatz.db.user :refer :all]
             [gatz.db.util :as db.util]
             [gatz.db.util-test :as db.util-test :refer [is-equal]]
@@ -365,5 +369,113 @@
                       (crdt.user/->value deleted-user)))
 
           (.close node))))))
+
+(deftest user-deletion-effects
+  (let [[uid contact1 contact2 group-member] (repeatedly 4 random-uuid)
+        [did1 did2 did3] (repeatedly 3 random-uuid)
+        gid (crdt/random-ulid)  ;; group id
+        now (Date.)
+        ctx (db.util-test/test-system)
+        node (:biff.xtdb/node ctx)
+        get-ctx (fn [uid]
+                  (let [db (xtdb/db node)
+                        user (by-id db uid)]
+                    (assoc ctx
+                           :biff/db db :auth/user-id uid :auth/user user)))]
+
+     ;; Create users
+    (create-user! ctx {:id uid :username "user" :phone "+14159499000" :now now})
+    (create-user! ctx {:id contact1 :username "contact1" :phone "+14159499001" :now now})
+    (create-user! ctx {:id contact2 :username "contact2" :phone "+14159499002" :now now})
+    (create-user! ctx {:id group-member :username "group_member" :phone "+14159499003" :now now})
+    (xtdb/sync node)
+
+     ;; Make them contacts
+    (db.contacts/force-contacts! ctx uid contact1)
+    (db.contacts/force-contacts! ctx uid contact2)
+    (xtdb/sync node)
+
+     ;; Create a group and add users
+    (db.group/create! ctx {:id gid :owner group-member :now now
+                           :name "test" :members #{uid contact1 contact2}})
+    (xtdb/sync node)
+
+     ;; Create discussions
+    (db/create-discussion-with-message!
+     (get-ctx uid) {:did did1 :text "Discussion they created"
+                    :to_all_contacts true :now now})
+    (db/create-discussion-with-message!
+     (get-ctx contact1) {:did did2 :text "Discussion without participation"
+                         :to_all_contacts true :now now})
+    (db/create-discussion-with-message!
+     (get-ctx contact1) {:did did3 :text "Discussion with participation"
+                         :to_all_contacts true :now now})
+    (xtdb/sync node)
+
+    (db/create-message! (get-ctx uid) {:did did3 :text "Message in discussion with participation" :now now})
+    (xtdb/sync node)
+
+     ;; Verify initial state
+    (let [db (xtdb/db node)
+          user (by-id db uid)
+          contacts (db.contacts/by-uid db uid)
+          group (db.group/by-id db gid)
+          d1 (crdt.discussion/->value (db.discussion/by-id db did1))
+          d2 (crdt.discussion/->value (db.discussion/by-id db did2))
+          d3 (crdt.discussion/->value (db.discussion/by-id db did3))]
+
+      (testing "initial state is correct"
+        (is (= "user" (:user/name user)))
+        (is (= #{contact1 contact2} (:contacts/ids contacts)))
+        (is (contains? (:group/members group) uid))
+        (is (contains? (:discussion/members d1) uid))
+        (is (contains? (:discussion/members d2) uid))
+        (is (contains? (:discussion/members d3) uid))
+
+        (is (contains? (:discussion/active_members d1) uid))
+        (is (not (contains? (:discussion/active_members d2) uid)))
+        (is (contains? (:discussion/active_members d3) uid))))
+
+    (testing "you can't delete other users"
+      (is (thrown? java.lang.AssertionError
+                   (db/delete-user! (get-ctx uid) contact1 {:now now}))))
+
+     ;; Delete the user
+    (db/delete-user! (get-ctx uid) uid {:now (Date.)})
+    (xtdb/sync node)
+
+     ;; Verify post-deletion state
+    (let [db (xtdb/db node)
+          deleted-user (by-id db uid)
+          uid-contacts (db.contacts/by-uid db uid)
+          contact1-contacts (db.contacts/by-uid db contact1)
+          contact2-contacts (db.contacts/by-uid db contact2)
+          updated-group (db.group/by-id db gid)
+          d1 (crdt.discussion/->value (db.discussion/by-id db did1))
+          d2 (crdt.discussion/->value (db.discussion/by-id db did2))]
+
+      (testing "user is marked as deleted with appropriate fields removed"
+        (is (= "[deleted]" (:user/name deleted-user)))
+        (is (nil? (:user/avatar deleted-user)))
+        (is (nil? (:user/phone_number deleted-user)))
+        (is (nil? (get-in deleted-user [:user/profile :profile/full_name])))
+        (is (nil? (get-in deleted-user [:user/profile :profile/urls :profile.urls/website])))
+        (is (nil? (get-in deleted-user [:user/profile :profile/urls :profile.urls/twitter]))))
+
+      (testing "user is removed from contacts"
+        (is (empty? (:contacts/ids uid-contacts)))
+        (is (not (contains? (:contacts/ids contact1-contacts) uid)))
+        (is (not (contains? (:contacts/ids contact2-contacts) uid))))
+
+      (testing "user is removed from groups"
+        (is (not (contains? (:group/members updated-group) uid))))
+
+      (testing "user remains in discussions they participated in"
+        (is (contains? (:discussion/members d1) uid)))
+
+      (testing "user is removed from discussions they haven't participated in"
+        (is (not (contains? (:discussion/members d2) uid)))))
+
+    (.close node)))
 
 

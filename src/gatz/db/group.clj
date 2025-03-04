@@ -398,10 +398,9 @@
   (let [to-be-transferred (:group/owner delta)]
     (and (= by_uid owner) (contains? admins to-be-transferred))))
 
-(defn apply-action-txn [xtdb-ctx {:keys [action] :as _args}]
+(defn apply-action-internal-txn [db {:keys [action] :as _args}]
   (assert action)
   (let [{:keys [xt/id]} action
-        db (xtdb.api/db xtdb-ctx)
         group (gatz.db.group/by-id db id)]
     (when (m/validate Action action)
       (assert (authorized-for-action? group action))
@@ -409,6 +408,9 @@
       (when (authorized-for-action? group action)
         (let [updated-group (apply-action group action)]
           [[:xtdb.api/put updated-group]])))))
+
+(defn apply-action-txn [xtdb-ctx {:keys [action]}]
+  (apply-action-internal-txn (xtdb/db xtdb-ctx) {:action action}))
 
 (def apply-action-expr
   '(fn apply-action-fn [xtdb-ctx args]
@@ -487,3 +489,19 @@
 
 (defn mark-crew [group]
   (assoc-in group [:group/settings :invites/mode] :group.invites/crew))
+
+;; ======================================================================
+;; User deletion
+
+(defn remove-from-all-groups-txn [db {:keys [uid now]}]
+  (let [groups (by-member-uid db uid)
+        actions (map (fn [group]
+                       {:xt/id (:xt/id group)
+                        :group/by_uid uid
+                        :group/action :group/remove-member
+                        :group/delta {:group/updated_at now
+                                      :group/members #{uid}}})
+                     groups)]
+    (mapcat (fn [action]
+              (apply-action-internal-txn db {:action action}))
+            actions)))
