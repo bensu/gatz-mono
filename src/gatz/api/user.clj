@@ -3,6 +3,7 @@
             [clojure.string :as str]
             [gatz.auth :as auth]
             [gatz.crdt.user :as crdt.user]
+            [gatz.db :as db]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.group :as db.group]
             [gatz.db.user :as db.user]
@@ -290,11 +291,15 @@
         (posthog/capture! ctx "user.update_urls")
         (json-response {:user (crdt.user/->value user)})))))
 
-(defn delete-account! [{:keys [auth/user-id] :as ctx}]
-  (assert (uuid? user-id))
-  (db.user/mark-deleted! ctx)
-  (posthog/capture! ctx "user.delete_account")
-  (json-response {:status "success"}))
+(defn delete-account! [{:keys [biff/db auth/user-id] :as ctx}]
+  (let [owner-groups (->> (db.group/by-member-uid db user-id)
+                          (filter #(= user-id (:group/owner %))))]
+    (if-not (empty? owner-groups)
+      (err-resp "account_admin" "You can't delete your account because you are an admin of at least one group")
+      (do
+        (db/delete-user! ctx user-id)
+        (posthog/capture! ctx "user.delete_account")
+        (json-response {:status "success"})))))
 
 (def block-user-params
   [:map
