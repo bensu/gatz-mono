@@ -373,3 +373,110 @@
 
       (.close node))))
 
+(deftest profile-visibility
+  (testing "users can only see full profiles of contacts and friends of friends"
+    (let [uid (random-uuid)  ;; main user
+          cid (random-uuid)  ;; direct contact
+          cid2 (random-uuid)  ;; direct contact
+          fof (random-uuid)  ;; friend of friend
+          fof2 (random-uuid)  ;; friend of friend
+          sid (random-uuid)  ;; stranger
+          now (Date.)
+          ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (-> ctx
+                        (assoc :biff/db (xtdb/db node))
+                        (assoc :auth/user-id uid)))]
+
+      ;; Create users with full profiles
+      (db.user/create-user!
+       ctx {:id uid :username "main_user" :phone "+14159499000" :now now})
+      (db.user/create-user!
+       ctx {:id cid :username "contact" :phone "+14159499001" :now now})
+      (db.user/create-user!
+       ctx {:id fof :username "friend_of_friend" :phone "+14159499002" :now now})
+      (db.user/create-user!
+       ctx {:id sid :username "stranger" :phone "+14159499003" :now now})
+      (db.user/create-user!
+       ctx {:id cid2 :username "contact2" :phone "+14159499004" :now now})
+      (db.user/create-user!
+       ctx {:id fof2 :username "friend_of_friend2" :phone "+14159499005" :now now})
+      (xtdb/sync node)
+
+      ;; Give them avatars and profiles
+      (db.user/update-avatar! (get-ctx uid) "https://example.com/uid")
+      (db.user/edit-profile! (get-ctx uid) {:profile/full_name "Main User"
+                                            :profile/urls {:profile.urls/website "https://example.com/uid"}})
+      (db.user/update-avatar! (get-ctx cid) "https://example.com/cid")
+      (db.user/edit-profile! (get-ctx cid) {:profile/full_name "Contact"
+                                            :profile/urls {:profile.urls/website "https://example.com/cid"}})
+      (db.user/update-avatar! (get-ctx fof) "https://example.com/fof")
+      (db.user/edit-profile! (get-ctx fof) {:profile/full_name "Friend of Friend"
+                                            :profile/urls {:profile.urls/website "https://example.com/fof"}})
+      (db.user/update-avatar! (get-ctx fof2) "https://example.com/fof2")
+      (db.user/edit-profile! (get-ctx fof2) {:profile/full_name "Friend of Friend 2"
+                                             :profile/urls {:profile.urls/website "https://example.com/fof2"}})
+
+      (db.user/update-avatar! (get-ctx sid) "https://example.com/sid")
+      (db.user/edit-profile! (get-ctx sid) {:profile/full_name "Stranger"
+                                            :profile/urls {:profile.urls/website "https://example.com/sid"}})
+
+      ;; Set up contact relationships
+      (db.contacts/force-contacts! ctx uid cid)  ;; main user -> contact
+      (db.contacts/force-contacts! ctx cid fof)  ;; contact -> friend of friend
+      (db.contacts/force-contacts! ctx uid cid2)  ;; main user -> contact2
+      (db.contacts/force-contacts! ctx cid2 fof2)  ;; contact2 -> friend of friend2
+      (db.contacts/force-contacts! ctx fof fof2)  ;; main user -> friend of friend2
+      (db.contacts/force-contacts! ctx cid cid2)  ;; one friend in common between uid and cid
+      (db.contacts/force-contacts! ctx fof2 sid) ;; the stranger is too removed to be found
+      (xtdb/sync node)
+
+      (testing "can see full profile of direct contact"
+        (let [{:keys [status body]} (api.contacts/get-contact
+                                     (-> (get-ctx uid)
+                                         (assoc :params {:id (str cid)})))
+              {:keys [contact their_contacts in_common]} (json/read-str body {:key-fn keyword})
+              profile (:profile contact)]
+          (is (= 200 status))
+          (is (= "contact" (:name contact)))
+          (is (not (contains? contact :phone_number)))
+          (is (= "Contact" (:full_name profile)))
+          (is (= "https://example.com/cid" (:avatar contact)))
+          (is (= #{(str fof)} (set (map :id their_contacts))))
+          (is (= #{(str cid2)} (set (map :id (:contacts in_common)))))))
+
+      (testing "can see full profile of friend of friend"
+        (let [{:keys [status body]} (api.contacts/get-contact
+                                     (-> (get-ctx uid)
+                                         (assoc :params {:id (str fof)})))
+              {:keys [contact their_contacts in_common]} (json/read-str body {:key-fn keyword})
+              profile (:profile contact)]
+          (is (= 200 status))
+          (is (= "friend_of_friend" (:name contact)))
+          (is (not (contains? contact :phone_number)))
+          (is (= "Friend of Friend" (:full_name profile)))
+          (is (= "https://example.com/fof" (:avatar contact)))
+          (is (= #{(str cid)} (set (map :id (:contacts in_common)))))
+          (testing "but not their friends not in common"
+            (is (empty? their_contacts)))))
+
+      (testing "can only see limited profile of stranger"
+        (let [{:keys [status body]} (api.contacts/get-contact
+                                     (-> (get-ctx uid)
+                                         (assoc :params {:id (str sid)})))
+              {:keys [contact their_contacts in_common]} (json/read-str body {:key-fn keyword})
+              profile (:profile contact)]
+          (is (= 200 status))
+          (is (= "stranger" (:name contact)))
+          (is (not (contains? contact :phone_number)))
+          (is (= "https://example.com/sid" (:avatar contact)))
+          (testing "stranger profile should not be exposed"
+            (is (nil? (:full_name profile)))
+            (is (nil? (:website (:urls profile))))
+            (is (nil? (:twitter (:urls profile)))))
+          (is (empty? their_contacts))
+          (is (empty? (:contacts in_common)))))
+
+      (.close node))))
+

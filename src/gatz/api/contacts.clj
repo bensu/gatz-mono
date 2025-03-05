@@ -49,6 +49,10 @@
   (cond-> params
     (some? (:id params)) (update :id strict-str->uuid)))
 
+(def empty-profile
+  {:profile/full_name nil
+   :profile/urls {:profile.urls/website nil :profile.urls/twitter nil}})
+
 (defn get-contact [{:keys [auth/user auth/user-id biff/db] :as ctx}]
   (let [params (parse-contact-params (:params ctx))]
     (if-let [id (:id params)]
@@ -77,13 +81,26 @@
                                         (-> (db.contacts/current-request-between db user-id id)
                                             (db.contacts/state-for user-id)))]
             (posthog/capture! ctx "contact.viewed" {:contact_id id :by user-id})
-            (json-response
-             {:contact (-> viewed-user crdt.user/->value db.contacts/->contact)
-              :contact_request_state contact-request-state
-              :settings {:posts_hidden hidden-by-me?}
-              :their_contacts (mapv #(-> % crdt.user/->value db.contacts/->contact) their-contacts)
-              :in_common {:contacts (->> contacts-in-common
-                                         (mapv #(-> % crdt.user/->value db.contacts/->contact)))}}))))
+            (if (empty? in-common-uids)
+              (json-response
+               {:contact (-> viewed-user
+                             crdt.user/->value
+                             db.contacts/->contact
+                             (assoc :user/profile empty-profile))
+                :contact_request_state contact-request-state
+                :settings {:posts_hidden hidden-by-me?}
+                :their_contacts []
+                :in_common {:contacts []}})
+              (json-response
+               {:contact (-> viewed-user crdt.user/->value db.contacts/->contact)
+                :contact_request_state contact-request-state
+                :settings {:posts_hidden hidden-by-me?}
+                ;; we hide their friends not in common if we are not already friends
+                :their_contacts (if already-my-contact?
+                                  (mapv #(-> % crdt.user/->value db.contacts/->contact) their-contacts)
+                                  [])
+                :in_common {:contacts (->> contacts-in-common
+                                           (mapv #(-> % crdt.user/->value db.contacts/->contact)))}})))))
 
       (err-resp "invalid_params" "Invalid params"))))
 
