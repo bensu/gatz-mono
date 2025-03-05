@@ -67,9 +67,10 @@
 (defn get-user
   [{:keys [params biff/db] :as _ctx}]
   (if-let [user-id (some-> (:id params) util/parse-uuid)]
-    (let [user (db.user/by-id db user-id)]
-      (json-response {:user (crdt.user/->value user)}))
-    {:status 400 :body "invalid params"}))
+    (if-let [user (db.user/by-id db user-id)]
+      (json-response {:user (-> user crdt.user/->value db.contacts/->contact (dissoc :user/profile))})
+      (err-resp "user_not_found" "User not found"))
+    (err-resp "invalid_params" "Invalid parameters")))
 
 (defn add-push-token! [{:keys [params] :as ctx}]
   (if-let [push-token (:push_token params)]
@@ -176,7 +177,7 @@
 (defn verify-phone! [{:keys [params biff/db biff/secret] :as _ctx}]
   (let [{:keys [phone_number]} params
         phone (clean-phone phone_number)
-        user  (crdt.user/->value (db.user/by-phone db phone))]
+        user  (some-> (db.user/by-phone db phone) crdt.user/->value)]
     (if (:user/deleted_at user)
       (err-resp "account_deleted" "Account deleted")
       (if-not (valid-phone? phone)
@@ -208,7 +209,7 @@
 (defn check-username [{:keys [params biff/db] :as _ctx}]
   (let [{:keys [username]} params
         existing-user (db.user/by-name db username)]
-    (json-response {:username (crdt.user/->value username)
+    (json-response {:username username
                     :available (nil? existing-user)})))
 
 (defn update-avatar! [{:keys [params] :as ctx}]
