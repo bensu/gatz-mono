@@ -6,6 +6,7 @@
             [gatz.api.invite-link :as api.invite-link]
             [gatz.crdt.discussion :as crdt.discussion]
             [gatz.db :as db]
+            [gatz.db.contacts :as db.contacts]
             [gatz.db.discussion :as db.discussion]
             [gatz.db.group :as db.group]
             [gatz.db.invite-link :as db.invite-link]
@@ -297,3 +298,89 @@
               member-usernames (set (map :name all_contacts))]
           (is (= 200 (:status ok-resp)))
           (is (= #{"owner" "member"} member-usernames)))))))
+
+(deftest group-access-permissions
+  (testing "group access permissions are enforced correctly"
+    (let [owner (random-uuid)
+          member (random-uuid)
+          non-member (random-uuid)
+          now (Date.)
+          ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          pid (crdt/random-ulid)
+          get-ctx (fn [uid]
+                    (-> ctx
+                        (assoc :biff/db (xtdb/db node))
+                        (assoc :auth/user-id uid)))]
+
+      ;; Create users
+      (db.user/create-user! ctx {:id owner :username "owner" :phone "+14159499000" :now now})
+      (db.user/create-user! ctx {:id member :username "member" :phone "+14159499001" :now now})
+      (db.user/create-user! ctx {:id non-member :username "non-member" :phone "+14159499002" :now now})
+      (xtdb/sync node)
+
+      (db.contacts/force-contacts! ctx owner member)
+
+      ;; Create a private group
+      (let [private-resp (api.group/create! (-> (get-ctx owner)
+                                                (assoc :params {:name "Private Group"
+                                                                :description "For members only"
+                                                                :avatar nil})))
+            private-group (-> private-resp :body (json/read-str {:key-fn keyword}) :group)
+            private-gid (crdt/parse-ulid (:id private-group))]
+
+        ;; Add member to the private group
+        (db.group/apply-action! (get-ctx owner)
+                                {:xt/id private-gid
+                                 :group/by_uid owner
+                                 :group/action :group/add-member
+                                 :group/delta {:group/members #{member}
+                                               :group/updated_at now}})
+        (xtdb/sync node)
+
+        ;; Test private group access
+        (testing "owner can access private group"
+          (let [{:keys [status body]} (api.group/get-group (-> (get-ctx owner)
+                                                               (assoc :params {:id (str private-gid)})))
+                {:keys [group all_contacts in_common]} (json/read-str body {:key-fn keyword})]
+            (is (= 200 status))
+            (is (= "Private Group" (:name group)))
+            (is (not (empty? all_contacts)))
+            (is (= [(str member)] (:contact_ids in_common)))))
+
+        (testing "member can access private group"
+          (let [{:keys [status body]} (api.group/get-group (-> (get-ctx member)
+                                                               (assoc :params {:id (str private-gid)})))
+                {:keys [group all_contacts in_common]} (json/read-str body {:key-fn keyword})]
+            (is (= 200 status))
+            (is (= "Private Group" (:name group)))
+            (is (not (empty? all_contacts)))
+            (is (= [(str owner)] (:contact_ids in_common)))))
+
+        (testing "non-member cannot access private group"
+          (let [{:keys [status body]}
+                (api.group/get-group (-> (get-ctx non-member)
+                                         (assoc :params {:id (str private-gid)})))]
+            (is (= 400 status))
+            (is (= "not_found" (:error (json/read-str body {:key-fn keyword})))))))
+
+      ;; Create a public group
+      (db.group/create!
+       ctx
+       {:id pid :owner owner :now now
+        :name "public" :members #{member}
+        :is_public true
+        :settings {:discussion/member_mode :discussion.member_mode/open}})
+      (xtdb/sync node)
+
+        ;; Test public group access
+      (testing "anyone can access public group"
+        (doseq [uid [owner member non-member]]
+          (let [{:keys [status body]} (api.group/get-group (-> (get-ctx uid)
+                                                               (assoc :params {:id (str pid)})))
+                {:keys [group all_contacts]} (json/read-str body {:key-fn keyword})]
+            (is (= 200 status))
+            (is (= "public" (:name group)))
+            (is (not (empty? all_contacts))))))
+
+      (.close node))))
