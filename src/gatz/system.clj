@@ -16,6 +16,7 @@
             [gatz.connections :as conns]
             [gatz.notify :as notify]
             [gatz.util :as util]
+            [gatz.http :as http]
             [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.test :as test]
@@ -48,9 +49,11 @@
        :access-control-allow-origin [#".*"]
        :access-control-allow-methods [:get :put :post :delete])))
 
-(def routes [["" {:middleware [biff/wrap-site-defaults]}
+(def routes [["" {:middleware [http/wrap-maintenance-mode
+                               biff/wrap-site-defaults]}
               (keep :routes plugins)]
-             ["" {:middleware [biff/wrap-api-defaults
+             ["" {:middleware [http/wrap-maintenance-mode
+                               biff/wrap-api-defaults
                                sentry/wrap-sentry
                                wrap-cors
                                wrap-gzip]}
