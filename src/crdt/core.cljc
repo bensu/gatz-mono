@@ -9,14 +9,31 @@
   #?(:cljs (:require-macros [crdt.core :refer [stagger-compare]]))
   #?(:clj (:import [java.util Date UUID]
                    [clojure.lang IPersistentMap]
-                   [java.lang Comparable])
-     :cljs (:import [goog.date Date])))
+                   [java.lang Comparable])))
 
-#?(:cljs (def IPersistentMap cljs.core/IMap))
+(defn now []
+  #?(:clj (Date.)
+     :cljs (js/Date.)))
 
 (defn comparable? [x]
   #?(:clj (instance? Comparable x)
-     :cljs (instance? IComparable x)))
+     :cljs (or (instance? IComparable x) (number? x))))
+
+#?(:cljs
+   (extend-type js/Date
+     IComparable
+     (-compare [this other]
+       (if (instance? js/Date other)
+         (compare (.getTime this) (.getTime other))
+         (throw (js/Error. "Cannot compare Date with non-Date"))))))
+
+#?(:cljs
+   (extend-type string
+     IComparable
+     (-compare [this other]
+       (if (string? other)
+         (.localeCompare this other)
+         (throw (js/Error. "Cannot compare string with non-string"))))))
 
 #?(:clj (defn random-ulid [] (ulid/random)))
 
@@ -155,7 +172,7 @@
   (-increment [this now] "Increment the clock")
   (-receive [this that now] "Combine two clocks"))
 
-(defrecord HLC [^Date ts
+(defrecord HLC [#?(:clj ^Date ts :cljs ^js/Date ts)
                 #?(:clj ^Long counter :cljs ^number counter)
                 ^UUID node]
   IHLC
@@ -174,8 +191,8 @@
   #?(:clj  Comparable
      :cljs IComparable)
   #?(:clj
-     (compare [this that]
-              (stagger-compare [:ts :counter :node] this that))
+     (compareTo [this that]
+                (stagger-compare [:ts :counter :node] this that))
 
      :cljs
      (-compare [this that]
@@ -204,7 +221,7 @@
      (print-method [(.ts hlc) (.counter hlc) (.node hlc)] writer)))
 
 (defn new-hlc
-  ([node] (new-hlc node (Date.)))
+  ([node] (new-hlc node (now)))
   ([node now] (HLC. now 0 node)))
 
 (defn read-hlc
@@ -218,9 +235,9 @@
   (assert (<= (count value) 3)
           "HLC must have 0, 1, 2, or 3 elements")
   (case (count value)
-    0 (->HLC (Date.) 0 (random-uuid))
-    1 (->HLC (Date.) 0 (first value))
-    2 (->HLC (Date.) (first value) (second value))
+    0 (->HLC (now) 0 (random-uuid))
+    1 (->HLC (now) 0 (first value))
+    2 (->HLC (now) (first value) (second value))
     3 (->HLC (first value) (second value) (nth value 2))))
 
 (defn hlc-instance? [x]
@@ -232,15 +249,16 @@
    [:counter integer?]
    [:node :uuid]])
 
-(defn inc-time [^Date d]
-  (Date. (inc (.getTime d))))
+(defn inc-time [#?(:clj ^Date d :cljs ^js/Date d)]
+  #?(:clj (Date. (inc (.getTime d)))
+     :cljs (js/Date. (inc (.getTime d)))))
 
 (defrecord ClientClock [event-number ts user-id conn-id]
   #?(:clj  Comparable
      :cljs IComparable)
   #?(:clj
-     (compare [this that]
-              (stagger-compare [:event-number :ts :user-id :conn-id] this that))
+     (compareTo [this that]
+                (stagger-compare [:event-number :ts :user-id :conn-id] this that))
      :cljs
      (-compare [this that]
                (stagger-compare [:event-number :ts :user-id :conn-id] this that))))
@@ -271,9 +289,9 @@
   (-init [_] (LWW. ::empty (-init value)))
   OpCRDT
   (-value [_] value)
-  (-apply-delta [this ^LWW delta]
-    (let [delta-clock (.clock delta)
-          delta-value (.value delta)]
+  (-apply-delta [this #?(:clj delta :cljs ^LWW delta)]
+    (let [delta-clock (.-clock delta)
+          delta-value (.-value delta)]
       (cond
         (= ::empty delta-clock) this
         (= ::empty clock)       delta
@@ -438,39 +456,150 @@
 (extend-protocol CRDTDelta
   nil
   (-init [_] nil)
-  IPersistentMap
+  #?(:clj IPersistentMap :cljs cljs.core/IMap)
   (-init [_] {}))
 
 (extend-protocol CRDTDelta
   #?(:clj Object :cljs object)
   (-init [this] this))
 
+#?(:cljs
+   (extend-protocol CRDTDelta
+     number
+     (-init [this] this)
+
+     string
+     (-init [this] this)
+
+     boolean
+     (-init [this] this)
+
+     array
+     (-init [this] this)
+
+     js/Date
+     (-init [this] this)
+
+     uuid
+     (-init [this] this)
+
+     Keyword
+     (-init [this] this)
+
+     Symbol
+     (-init [this] this)))
+
 (extend-protocol OpCRDT
   nil
   (-value [_] nil)
   (-apply-delta [_ delta]
-    (-apply-delta (-init delta) delta))
-  IPersistentMap
-  (-value [this]
-    (reduce (fn [m [k v]] (assoc m k (-value v))) {} this))
-  (-apply-delta [this delta]
-    ;; delta is a {key delta} map
-    (reduce (fn [m [k val-delta]]
-              (update m k -apply-delta val-delta))
-            this
-            delta)))
+    (-apply-delta (-init delta) delta)))
 
-(extend-protocol StateCRDT
-  IPersistentMap
-  (-merge [this that]
-    (merge-with -merge this that)))
+(defn- value-map [this]
+  (reduce (fn [m [k v]] (assoc m k (-value v))) {} this))
+
+(defn- apply-delta-map [this delta]
+  (reduce (fn [m [k val-delta]]
+            (update m k -apply-delta val-delta))
+          this
+          delta))
+
+#?(:clj
+   (extend-protocol OpCRDT
+     IPersistentMap
+     (-value [this]
+       (value-map this))
+     (-apply-delta [this delta]
+       (apply-delta-map this delta))))
+
+#?(:cljs
+   (extend-protocol OpCRDT
+     cljs.core/PersistentArrayMap
+     (-value [this]
+       (value-map this))
+     (-apply-delta [this delta]
+       (apply-delta-map this delta))
+     cljs.core/PersistentTreeMap
+     (-value [this]
+       (value-map this))
+     (-apply-delta [this delta]
+       (apply-delta-map this delta))
+     cljs.core/PersistentHashMap
+     (-value [this]
+       (value-map this))
+     (-apply-delta [this delta]
+       (apply-delta-map this delta))))
+
+#?(:clj
+   (extend-protocol StateCRDT
+     IPersistentMap
+     (-merge [this that]
+       (merge-with -merge this that))))
+
+#?(:cljs
+   (extend-protocol StateCRDT
+     cljs.core/PersistentHashMap
+     (-merge [this that]
+       (merge-with -merge this that))
+     cljs.core/PersistentArrayMap
+     (-merge [this that]
+       (merge-with -merge this that))
+     cljs.core/PersistentTreeMap
+     (-merge [this that]
+       (merge-with -merge this that))))
+
+(defn throw-unsupported-op [this delta]
+  (throw (ex-info (str "Applied a delta to a value that is not a CRDT: %s \n %s"
+                       (type this) (pr-str delta))
+                  {:this this :delta delta})))
 
 (extend-protocol OpCRDT
   #?(:clj Object :cljs object)
   (-value [this] this)
   (-apply-delta [this delta]
-    (assert false (str "Applied a delta to a value that is not a CRDT: %s \n %s"
-                       (type this) (pr-str delta)))))
+    (throw-unsupported-op this delta)))
+
+#?(:cljs
+   (extend-protocol OpCRDT
+     number
+     (-value [this] this)
+     (-apply-delta [this delta]
+       (throw-unsupported-op this delta))
+
+     string
+     (-value [this] this)
+     (-apply-delta [this delta]
+       (throw-unsupported-op this delta))
+
+     boolean
+     (-value [this] this)
+     (-apply-delta [this delta]
+       (throw-unsupported-op this delta))
+
+     array
+     (-value [this] this)
+     (-apply-delta [this delta]
+       (throw-unsupported-op this delta))
+
+     js/Date
+     (-value [this] this)
+     (-apply-delta [this delta]
+       (throw-unsupported-op this delta))
+
+     uuid
+     (-value [this] this)
+     (-apply-delta [this delta]
+       (throw-unsupported-op this delta))
+
+     Keyword
+     (-value [this] this)
+     (-apply-delta [this delta]
+       (throw-unsupported-op this delta))
+
+     Symbol
+     (-value [this] this)
+     (-apply-delta [this delta]
+       (throw-unsupported-op this delta))))
 
 (defn clock? [x]
   (comparable? x))
