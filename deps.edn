@@ -2,14 +2,10 @@
  :aliases {:test {:ns-default gatz.test}
            :build {:ns-default gatz.system
                    :paths ["tasks/src"]}
-           :cljs {:extra-deps {}
-                  :extra-paths ["test"]}}
+           :cljs {:extra-deps {org.clojure/clojurescript {:mvn/version "1.11.132"}
+                               olical/cljs-test-runner {:mvn/version "3.8.0"}
+                               thheller/shadow-cljs {:mvn/version "2.28.21"}}}}
  :deps {com.taoensso/nippy {:mvn/version "3.1.1"}
-
-        ;; CLJS
-        org.clojure/clojurescript {:mvn/version "1.11.132"}
-        olical/cljs-test-runner {:mvn/version "3.8.0"}
-        thheller/shadow-cljs {:mvn/version "2.28.21"}
 
         org.clojure/data.csv {:mvn/version "1.0.1"}
         metosin/malli {:mvn/version "0.17.0"}
