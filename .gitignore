@@ -17,4 +17,4 @@ logs/
 .DS_Store
 **/.calva/repl.calva-repl
 dumps/*
-
+.shadow-cljs/

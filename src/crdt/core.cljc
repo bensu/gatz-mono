@@ -1,20 +1,31 @@
 (ns crdt.core
   {:clojure.tools.namespace.repl/load false}
-  (:require [clojure.core :refer [print-method read-string format]]
-            [clojure.set :as set]
-            [crdt.ulid :as ulid]
-            [malli.core :as malli]
+  (:require [clojure.set :as set]
+            #?(:clj [crdt.ulid :as ulid])
+            ;; [malli.core :as malli]
             [medley.core :refer [map-vals]]
-            [juxt.clojars-mirrors.nippy.v3v1v1.taoensso.nippy :as juxt-nippy]
-            [taoensso.nippy :as nippy])
-  (:import [java.util Date UUID]
-           [clojure.lang IPersistentMap]
-           [java.lang Comparable Thread]))
+            #?(:clj [taoensso.nippy :as nippy])
+            #?(:clj [juxt.clojars-mirrors.nippy.v3v1v1.taoensso.nippy :as juxt-nippy]))
+  #?(:cljs (:require-macros [crdt.core :refer [stagger-compare]]))
+  #?(:clj (:import [java.util Date UUID]
+                   [clojure.lang IPersistentMap]
+                   [java.lang Comparable])
+     :cljs (:import [goog.date Date])))
 
-(defn random-ulid [] (ulid/random))
-(defn rand-uuid [] (ulid/rand-uuid))
-(defn ulid? [x] (ulid/ulid? x))
-(defn parse-ulid [x] (ulid/maybe-parse x))
+#?(:cljs (def IPersistentMap cljs.core/IMap))
+
+(defn comparable? [x]
+  #?(:clj (instance? Comparable x)
+     :cljs (instance? IComparable x)))
+
+#?(:clj (defn random-ulid [] (ulid/random)))
+
+(defn rand-uuid []
+  #?(:clj  (ulid/rand-uuid)
+     :cljs (random-uuid)))
+
+#?(:clj (defn ulid? [x] (ulid/ulid? x)))
+#?(:clj (defn parse-ulid [x] (ulid/maybe-parse x)))
 
 (defprotocol StateCRDT
   (-merge [this that]))
@@ -28,32 +39,36 @@
 
 (defrecord MinWins [value]
   CRDTDelta
-  (-init [_] (->MinWins nil))
+  (-init [_] (MinWins. nil))
   OpCRDT
   (-value [_] value)
   (-apply-delta [this delta]
     (let [delta-value (-value delta)]
       (cond
         (nil? delta-value) this
-        (nil? value)       (->MinWins delta-value)
+        (nil? value)       (MinWins. delta-value)
         :else (case (compare value delta-value)
                 -1 this
                 0 this
-                1 (->MinWins delta-value)))))
+                1 (MinWins. delta-value)))))
   StateCRDT
   (-merge [this that]
-    (-apply-delta this that))
-  juxt-nippy/IFreezable1
-  (-freeze-without-meta! [this out]
-    (nippy/freeze-to-out! out this)))
+    (-apply-delta this that)))
+
+#?(:clj
+   (extend-type MinWins
+     juxt-nippy/IFreezable1
+     (-freeze-without-meta! [this out]
+       (nippy/freeze-to-out! out this))))
 
 (defn min-wins [value]
   (if (instance? MinWins value) value (->MinWins value)))
 
-(defmethod print-method MinWins
-  [^MinWins min-wins ^java.io.Writer writer]
-  (.write writer "#crdt/min-wins ")
-  (print-method (.value min-wins) writer))
+#?(:clj
+   (defmethod print-method MinWins
+     [^MinWins min-wins ^java.io.Writer writer]
+     (.write writer "#crdt/min-wins ")
+     (print-method (.value min-wins) writer)))
 
 (defn read-min-wins
   "Used by the reader like so:
@@ -74,33 +89,36 @@
 
 (defrecord MaxWins [value]
   CRDTDelta
-  (-init [_] (->MaxWins nil))
+  (-init [_] (MaxWins. nil))
   OpCRDT
   (-value [_] value)
-  ;; Should the delta be expected to be a MaxWins or could it be the value?
   (-apply-delta [this delta]
     (let [delta-value (-value delta)]
       (cond
         (nil? delta-value) this
-        (nil? value)       (->MaxWins delta-value)
+        (nil? value)       (MaxWins. delta-value)
         :else (case (compare value delta-value)
-                -1 (->MaxWins delta-value)
+                -1 (MaxWins. delta-value)
                 0 this
                 1 this))))
   StateCRDT
   (-merge [this that]
-    (-apply-delta this that))
-  juxt-nippy/IFreezable1
-  (-freeze-without-meta! [this out]
-    (nippy/freeze-to-out! out this)))
+    (-apply-delta this that)))
+
+#?(:clj
+   (extend-type MaxWins
+     juxt-nippy/IFreezable1
+     (-freeze-without-meta! [this out]
+       (nippy/freeze-to-out! out this))))
 
 (defn max-wins [value]
   (if (instance? MaxWins value) value (->MaxWins value)))
 
-(defmethod print-method MaxWins
-  [^MaxWins max-wins ^java.io.Writer writer]
-  (.write writer "#crdt/max-wins ")
-  (print-method (.value max-wins) writer))
+#?(:clj
+   (defmethod print-method MaxWins
+     [^MaxWins max-wins ^java.io.Writer writer]
+     (.write writer "#crdt/max-wins ")
+     (print-method (.value max-wins) writer)))
 
 (defn read-max-wins
   "Used by the reader like so:
@@ -119,15 +137,16 @@
   [:map
    [:value value-schema]])
 
-(defmacro stagger-compare [ks a b]
-  (let [k (first ks)]
-    (assert k "Can't compare empty keys")
-    `(case (compare (get ~a ~k) (get ~b ~k))
-       -1 -1
-       1 1
-       0 ~(if (empty? (rest ks))
-            0
-            `(stagger-compare ~(rest ks) ~a ~b)))))
+#?(:clj
+   (defmacro stagger-compare [ks a b]
+     (let [k (first ks)]
+       (assert k "Can't compare empty keys")
+       `(case (compare (get ~a ~k) (get ~b ~k))
+          -1 -1
+          1 1
+          0 ~(if (empty? (rest ks))
+               0
+               `(stagger-compare ~(rest ks) ~a ~b))))))
 
 ;; Hybrid Logical Clocks
 ;; https://adamwulf.me/2021/05/distributed-clocks-and-crdts/
@@ -136,47 +155,57 @@
   (-increment [this now] "Increment the clock")
   (-receive [this that now] "Combine two clocks"))
 
-(defrecord HLC [^Date ts ^Long counter ^UUID node]
+(defrecord HLC [^Date ts
+                #?(:clj ^Long counter :cljs ^number counter)
+                ^UUID node]
   IHLC
   (-increment [_ now]
     (if (< (.getTime ts) (.getTime now))
-      (->HLC now 0 node)
-      (->HLC ts (inc counter) node)))
+      (HLC. now 0 node)
+      (HLC. ts (inc counter) node)))
   (-receive [_ remote now]
     (if (and (< (.getTime ts) (.getTime now))
              (< (.getTime (:ts remote)) (.getTime now)))
-      (->HLC now 0 node)
+      (HLC. now 0 node)
       (case (compare ts (:ts remote))
-        -1 (->HLC (:ts remote) (inc (:counter remote)) node)
-        0 (->HLC ts (inc (max counter (:counter remote))) node)
-        1 (->HLC ts (inc counter) node))))
-  Comparable
-  (compareTo [this that]
-    (stagger-compare [:ts :counter :node] this that))
+        -1 (HLC. (:ts remote) (inc (:counter remote)) node)
+        0 (HLC. ts (inc (max counter (:counter remote))) node)
+        1 (HLC. ts (inc counter) node))))
+  #?(:clj  Comparable
+     :cljs IComparable)
+  #?(:clj
+     (compare [this that]
+              (stagger-compare [:ts :counter :node] this that))
+
+     :cljs
+     (-compare [this that]
+               (stagger-compare [:ts :counter :node] this that)))
   CRDTDelta
-  (-init [_] (->HLC ts 0 node))
-  OpCRDT ;; as a LWW where the value is itself
+  (-init [_] (HLC. ts 0 node))
+  OpCRDT
   (-value [this] this)
-  ;; TODO: shouldn't this move things forward by using
-  ;; either -increment or -receive?
   (-apply-delta [this delta]
     (case (compare this delta)
       -1 delta 0 this 1 this))
   StateCRDT
   (-merge [this that]
-    (-apply-delta this that))
-  juxt-nippy/IFreezable1
-  (-freeze-without-meta! [this out]
-    (nippy/freeze-to-out! out this)))
+    (-apply-delta this that)))
 
-(defmethod print-method HLC
-  [^HLC hlc ^java.io.Writer writer]
-  (.write writer "#crdt/hlc ")
-  (print-method [(.ts hlc) (.counter hlc) (.node hlc)] writer))
+#?(:clj
+   (extend-type HLC
+     juxt-nippy/IFreezable1
+     (-freeze-without-meta! [this out]
+       (nippy/freeze-to-out! out this))))
+
+#?(:clj
+   (defmethod print-method HLC
+     [^HLC hlc ^java.io.Writer writer]
+     (.write writer "#crdt/hlc ")
+     (print-method [(.ts hlc) (.counter hlc) (.node hlc)] writer)))
 
 (defn new-hlc
   ([node] (new-hlc node (Date.)))
-  ([node now] (->HLC now 0 node)))
+  ([node now] (HLC. now 0 node)))
 
 (defn read-hlc
   "Used by the reader like so:
@@ -207,9 +236,14 @@
   (Date. (inc (.getTime d))))
 
 (defrecord ClientClock [event-number ts user-id conn-id]
-  Comparable
-  (compareTo [this that]
-    (stagger-compare [:event-number :ts :user-id :conn-id] this that)))
+  #?(:clj  Comparable
+     :cljs IComparable)
+  #?(:clj
+     (compare [this that]
+              (stagger-compare [:event-number :ts :user-id :conn-id] this that))
+     :cljs
+     (-compare [this that]
+               (stagger-compare [:event-number :ts :user-id :conn-id] this that))))
 
 (defn choose-incoming? ^Boolean
   [existing incoming]
@@ -223,7 +257,7 @@
       0 false)
 
     ;; If both are comparable, get the bigger one
-    (and (instance? Comparable incoming) (instance? Comparable existing))
+    (and (comparable? incoming) (comparable? existing))
     (case (compare incoming existing)
       -1 false
       1 true
@@ -234,10 +268,10 @@
 
 (defrecord LWW [clock value]
   CRDTDelta
-  (-init [_] (->LWW ::empty (-init value)))
+  (-init [_] (LWW. ::empty (-init value)))
   OpCRDT
   (-value [_] value)
-  (-apply-delta [this delta]
+  (-apply-delta [this ^LWW delta]
     (let [delta-clock (.clock delta)
           delta-value (.value delta)]
       (cond
@@ -253,18 +287,22 @@
                     this)))))
   StateCRDT
   (-merge [this that]
-    (-apply-delta this that))
-  juxt-nippy/IFreezable1
-  (-freeze-without-meta! [this out]
-    (nippy/freeze-to-out! out this)))
+    (-apply-delta this that)))
+
+#?(:clj
+   (extend-type LWW
+     juxt-nippy/IFreezable1
+     (-freeze-without-meta! [this out]
+       (nippy/freeze-to-out! out this))))
 
 (defn lww [clock value]
   (if (instance? LWW value) value (->LWW clock value)))
 
-(defmethod print-method LWW
-  [^LWW lww ^java.io.Writer writer]
-  (.write writer "#crdt/lww ")
-  (print-method [(.clock lww) (.value lww)] writer))
+#?(:clj
+   (defmethod print-method LWW
+     [^LWW lww ^java.io.Writer writer]
+     (.write writer "#crdt/lww ")
+     (print-method [(.clock lww) (.value lww)] writer)))
 
 (defn read-lww
   "Used by the reader like so:
@@ -294,25 +332,29 @@
 (defrecord GrowOnlySet [xs]
   CRDTDelta
   (-init [_]
-    (->GrowOnlySet #{}))
+    (GrowOnlySet. #{}))
   OpCRDT
   (-value [_] xs)
   (-apply-delta [_ delta]
      ;; TODO: can you pass a set to a GOS and have it be merged in?
     (cond
-      (grow-only-set-instance? delta) (->GrowOnlySet (set/union xs (-value delta)))
-      :else (->GrowOnlySet (conj xs (-value delta)))))
+      (grow-only-set-instance? delta) (GrowOnlySet. (set/union xs (-value delta)))
+      :else (GrowOnlySet. (conj xs (-value delta)))))
   StateCRDT
   (-merge [this that]
-    (->GrowOnlySet (set/union (:xs this) (:xs that))))
-  juxt-nippy/IFreezable1
-  (-freeze-without-meta! [this out]
-    (nippy/freeze-to-out! out this)))
+    (GrowOnlySet. (set/union (:xs this) (:xs that)))))
 
-(defmethod print-method GrowOnlySet
-  [^GrowOnlySet gos ^java.io.Writer writer]
-  (.write writer "#crdt/gos ")
-  (print-method (.xs gos) writer))
+#?(:clj
+   (extend-type GrowOnlySet
+     juxt-nippy/IFreezable1
+     (-freeze-without-meta! [this out]
+       (nippy/freeze-to-out! out this))))
+
+#?(:clj
+   (defmethod print-method GrowOnlySet
+     [^GrowOnlySet gos ^java.io.Writer writer]
+     (.write writer "#crdt/gos ")
+     (print-method (.xs gos) writer)))
 
 (defn read-gos
   "Used by the reader like so:
@@ -339,7 +381,7 @@
   OpCRDT
   (-value [_]
     (->> xs
-         (filter (fn [[x lww]]
+         (filter (fn [[_x lww]]
                    (-value lww)))
          (map key)
          set))
@@ -347,17 +389,20 @@
     {:pre [(map? delta)
            (every? lww-instance? (vals delta))]}
     ;; delta is {x #crdt/lww #crdt/hlc boolean?}
-    (->LWWSet
+    (LWWSet.
      (reduce (fn [acc [x lww]]
                (update acc x -apply-delta lww))
              xs
              delta)))
   StateCRDT
   (-merge [this that]
-    (-apply-delta this (:xs that)))
-  juxt-nippy/IFreezable1
-  (-freeze-without-meta! [this out]
-    (nippy/freeze-to-out! out this)))
+    (-apply-delta this (:xs that))))
+
+#?(:clj
+   (extend-type LWWSet
+     juxt-nippy/IFreezable1
+     (-freeze-without-meta! [this out]
+       (nippy/freeze-to-out! out this))))
 
 (defn lww-set
   ([] (lww-set nil #{}))
@@ -365,8 +410,8 @@
   ;; {:pre [(or (nil? xs) (set? xs))]}
    (if (instance? LWWSet xs)
      xs
-     (let [inner (into {} (map (fn [x] [x (->LWW clock true)]) (or xs #{})))]
-       (->LWWSet inner)))))
+     (let [inner (into {} (map (fn [x] [x (LWW. clock true)]) (or xs #{})))]
+       (LWWSet. inner)))))
 
 (defn lww-set-delta
   ([clock s]
@@ -393,21 +438,18 @@
 (extend-protocol CRDTDelta
   nil
   (-init [_] nil)
-  Object
-  (-init [this] this)
   IPersistentMap
   (-init [_] {}))
+
+(extend-protocol CRDTDelta
+  #?(:clj Object :cljs object)
+  (-init [this] this))
 
 (extend-protocol OpCRDT
   nil
   (-value [_] nil)
   (-apply-delta [_ delta]
     (-apply-delta (-init delta) delta))
-  Object
-  (-value [this] this)
-  (-apply-delta [this delta]
-    (assert false (format "Applied a delta to a value that is not a CRDT: %s \n %s"
-                          (type this) (pr-str delta))))
   IPersistentMap
   (-value [this]
     (reduce (fn [m [k v]] (assoc m k (-value v))) {} this))
@@ -423,8 +465,15 @@
   (-merge [this that]
     (merge-with -merge this that)))
 
+(extend-protocol OpCRDT
+  #?(:clj Object :cljs object)
+  (-value [this] this)
+  (-apply-delta [this delta]
+    (assert false (str "Applied a delta to a value that is not a CRDT: %s \n %s"
+                       (type this) (pr-str delta)))))
+
 (defn clock? [x]
-  (instance? Comparable x))
+  (comparable? x))
 
 (defn ->lww-map
   "Recursively walks the map turning all its leaf nodes to LWW"
@@ -433,5 +482,5 @@
   (map-vals (fn [v]
               (if (map? v)
                 (->lww-map v clock)
-                (->LWW clock v)))
+                (LWW. clock v)))
             m))

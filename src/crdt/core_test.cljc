@@ -1,14 +1,16 @@
 (ns crdt.core-test
   (:require [clojure.test :refer [deftest testing is]]
-            [clojure.test.check :as tc]
-            [clojure.test.check.generators :as gen]
-            [clojure.test.check.properties :as prop]
-            [clojure.test.check.clojure-test :refer [defspec]]
+            #?(:clj [clojure.test.check :as tc])
+            #?(:clj [clojure.test.check.generators :as gen]
+               :cljs [clojure.test.check.generators :as gen])
+            #?(:clj [clojure.test.check.properties :as prop]
+               :cljs [clojure.test.check.properties :as prop])
+            #?(:clj [clojure.test.check.clojure-test :refer [defspec]]
+               :cljs [clojure.test.check.clojure-test :refer-macros [defspec]])
             [clojure.set :as set]
             [malli.core :as malli]
             [crdt.core :as crdt]
-            [taoensso.nippy :as nippy])
-  (:import [java.util Date]))
+            #?(:clj [taoensso.nippy :as nippy])))
 
 ;; ======================================================================
 ;; Exmaple usage of property testing
@@ -25,11 +27,19 @@
 ;; ======================================================================
 ;; Date Generator
 
+#?(:cljs (def Date js/Date))
+
 (def gen-date
   "Generates random dates between 1970 and 2100"
-  (gen/fmap #(Date. %)
-            (gen/large-integer* {:min (.getTime #inst "1970-01-01T00:00:00.000-00:00")
-                                 :max (.getTime #inst "2100-01-01T00:00:00.000-00:00")})))
+  #?(:clj
+     (gen/fmap #(Date. %)
+               (gen/large-integer* {:min (.getTime #inst "1970-01-01T00:00:00.000-00:00")
+                                    :max (.getTime #inst "2100-01-01T00:00:00.000-00:00")}))
+     :cljs
+     (gen/fmap #(Date. %)
+               (gen/large-integer* {:min (.getTime #inst "1970-01-01T00:00:00.000-00:00")
+                                    :max (.getTime #inst "2100-01-01T00:00:00.000-00:00")}))))
+
 
 ;; ======================================================================
 ;; MinWins
@@ -59,23 +69,25 @@
           initial (crdt/->MinWins (first instants))
           final (reduce crdt/-apply-delta initial values)]
       (is (= (crdt/-value final) (first instants)))))
-  (testing "can be serialized"
-    (is (= #crdt/min-wins 0 (nippy/thaw (nippy/freeze #crdt/min-wins 0))))
-    (is (= #crdt/min-wins 0 (read-string (pr-str #crdt/min-wins 0))))))
+  #?(:clj
+     (testing "can be serialized"
+       (is (= #crdt/min-wins 0 (nippy/thaw (nippy/freeze #crdt/min-wins 0))))
+       (is (= #crdt/min-wins 0 (read-string (pr-str #crdt/min-wins 0)))))))
 
 ;; Test that no matter the order in which we apply deltas, the result is the same
 
-(defspec min-wins-order-invariant 1000
-  (prop/for-all
-   [values (gen/not-empty (gen/one-of
-                           [(gen/vector gen/int)
-                            (gen/vector (gen/such-that #(not (Double/isNaN %)) gen/double))
-                            (gen/vector gen/ratio)]))]
-   (= (apply min values)
-      (crdt/-value
-       (reduce crdt/-apply-delta (crdt/->MinWins (first values)) values))
-      (crdt/-value
-       (reduce crdt/-apply-delta (crdt/->MinWins (first values)) (shuffle values))))))
+#?(:clj
+   (defspec min-wins-order-invariant 1000
+     (prop/for-all
+      [values (gen/not-empty (gen/one-of
+                              [(gen/vector gen/int)
+                               (gen/vector (gen/such-that #(not (Double/isNaN %)) gen/double))
+                               (gen/vector gen/ratio)]))]
+      (= (apply min values)
+         (crdt/-value
+          (reduce crdt/-apply-delta (crdt/->MinWins (first values)) values))
+         (crdt/-value
+          (reduce crdt/-apply-delta (crdt/->MinWins (first values)) (shuffle values)))))))
 
 
 (defspec min-wins-order-date-invariant 100
@@ -92,22 +104,25 @@
              (crdt/->MinWins (first values))
              (shuffle values))))))
 
-(defn compare-uuid [a b]
-  (or (< (.getMostSignificantBits a) (.getMostSignificantBits b))
-      (and (= (.getMostSignificantBits a) (.getMostSignificantBits b))
-           (< (.getLeastSignificantBits a) (.getLeastSignificantBits b)))))
+#?(:clj
+   (defn compare-uuid [a b]
+     (or (< (.getMostSignificantBits a) (.getMostSignificantBits b))
+         (and (= (.getMostSignificantBits a) (.getMostSignificantBits b))
+              (< (.getLeastSignificantBits a) (.getLeastSignificantBits b))))))
 
-(defspec min-wins-order-uuid-invariant 100
-  (prop/for-all
-   [values (gen/not-empty (gen/vector gen/uuid))]
-   (let [min-uuid (reduce (fn [a b] (if (compare-uuid a b) a b)) values)]
-     (= min-uuid
-        (crdt/-value
-         (reduce crdt/-apply-delta (crdt/->MinWins (first values))
-                 values))
-        (crdt/-value
-         (reduce crdt/-apply-delta (crdt/->MinWins (first values))
-                 (shuffle values)))))))
+
+#?(:clj
+   (defspec min-wins-order-uuid-invariant 100
+     (prop/for-all
+      [values (gen/not-empty (gen/vector gen/uuid))]
+      (let [min-uuid (reduce (fn [a b] (if (compare-uuid a b) a b)) values)]
+        (= min-uuid
+           (crdt/-value
+            (reduce crdt/-apply-delta (crdt/->MinWins (first values))
+                    values))
+           (crdt/-value
+            (reduce crdt/-apply-delta (crdt/->MinWins (first values))
+                    (shuffle values))))))))
 
 ;; ======================================================================
 ;; MaxWins
@@ -137,53 +152,54 @@
           initial (crdt/->MaxWins (first instants))
           final (reduce crdt/-apply-delta initial values)]
       (is (= (crdt/-value final) (last instants)))))
-  (testing "can be serialized"
-    (is (= #crdt/max-wins 0 (nippy/thaw (nippy/freeze #crdt/max-wins 0))))
-    (is (= #crdt/max-wins 0 (read-string (pr-str #crdt/max-wins 0))))))
+  #?(:clj
+     (testing "can be serialized"
+       (is (= #crdt/max-wins 0 (nippy/thaw (nippy/freeze #crdt/max-wins 0))))
+       (is (= #crdt/max-wins 0 (read-string (pr-str #crdt/max-wins 0)))))))
 
-(defspec max-wins-order-invariant 1000
-  (prop/for-all
-   [values (gen/not-empty (gen/one-of
-                           [(gen/vector gen/int)
-                            (gen/vector (gen/such-that #(not (Double/isNaN %)) gen/double))
-                            (gen/vector gen/ratio)]))]
-   (= (apply max values)
-      (crdt/-value
-       (reduce crdt/-apply-delta (crdt/->MaxWins (first values)) values))
-      (crdt/-value
-       (reduce crdt/-apply-delta (crdt/->MaxWins (first values)) (shuffle values))))))
+#?(:clj
+   (defspec max-wins-order-invariant 1000
+     (prop/for-all
+      [values (gen/not-empty (gen/one-of
+                              [(gen/vector gen/int)
+                               (gen/vector (gen/such-that #(not (Double/isNaN %)) gen/double))
+                               (gen/vector gen/ratio)]))]
+      (= (apply max values)
+         (crdt/-value
+          (reduce crdt/-apply-delta (crdt/->MaxWins (first values)) values))
+         (crdt/-value
+          (reduce crdt/-apply-delta (crdt/->MaxWins (first values)) (shuffle values)))))))
 
 (defspec max-wins-order-date-invariant 100
   (prop/for-all
    [values (gen/not-empty (gen/vector gen-date))]
-   (=
-    (Date. (apply max (map #(.getTime %) values)))
-    (crdt/-value
-     (reduce crdt/-apply-delta
-             (crdt/->MaxWins (first values))
-             values))
-    (crdt/-value
-     (reduce crdt/-apply-delta
-             (crdt/->MaxWins (first values))
-             (shuffle values))))))
+   (= (Date. (apply max (map #(.getTime %) values)))
+      (crdt/-value (reduce crdt/-apply-delta
+                           (crdt/->MaxWins (first values))
+                           values))
+      (crdt/-value (reduce crdt/-apply-delta
+                           (crdt/->MaxWins (first values))
+                           (shuffle values))))))
 
-(defspec max-wins-order-uuid-invariant 100
-  (prop/for-all
-   [values (gen/not-empty (gen/vector gen/uuid))]
-   (let [max-uuid (reduce (fn [a b] (if (compare-uuid b a) a b)) values)]
-     (= max-uuid
-        (crdt/-value
-         (reduce crdt/-apply-delta (crdt/->MaxWins (first values))
-                 values))
-        (crdt/-value
-         (reduce crdt/-apply-delta (crdt/->MaxWins (first values))
-                 (shuffle values)))))))
+#?(:clj
+   (defspec max-wins-order-uuid-invariant 100
+     (prop/for-all
+      [values (gen/not-empty (gen/vector gen/uuid))]
+      (let [max-uuid (reduce (fn [a b] (if (compare-uuid b a) a b)) values)]
+        (= max-uuid
+           (crdt/-value
+            (reduce crdt/-apply-delta (crdt/->MaxWins (first values))
+                    values))
+           (crdt/-value
+            (reduce crdt/-apply-delta (crdt/->MaxWins (first values))
+                    (shuffle values))))))))
 
 (deftest hlc
-  (testing "you can serialize the clocks"
-    (let [clock #crdt/hlc [#inst "2024-04-30T06:32:48.978-00:00" 1 #uuid "08f711cd-1d4d-4f61-b157-c36a8be8ef95"]]
-      (is (= clock (nippy/thaw (nippy/freeze clock))))
-      (is (= clock (read-string (pr-str clock))))))
+  #?(:clj
+     (testing "you can serialize the clocks"
+       (let [clock #crdt/hlc [#inst "2024-04-30T06:32:48.978-00:00" 1 #uuid "08f711cd-1d4d-4f61-b157-c36a8be8ef95"]]
+         (is (= clock (nippy/thaw (nippy/freeze clock))))
+         (is (= clock (read-string (pr-str clock)))))))
   (testing "you can check the schema"
     (is (malli/validate crdt/hlc-schema #crdt/hlc [])))
   (testing "You can generate HLCs"
@@ -260,7 +276,10 @@
         (is (= (last values) (crdt/-value final)))))
     (testing "with date clocks"
       (let [initial (crdt/->LWW (Date.) 0)
-            clocks (take 9 (repeatedly #(do (Thread/sleep 1) (Date.))))
+            clocks (reduce (fn [acc _]
+                             (conj acc (crdt/inc-time (last acc))))
+                           [(Date.)]
+                           (range 8))
             values (shuffle (range 1 10))
             deltas (map #(crdt/->LWW %1 %2) clocks values)
             final (reduce crdt/-apply-delta initial (shuffle deltas))]
@@ -268,7 +287,10 @@
         (is (= (last values) (crdt/-value final)))))
     (testing "merge is the same as -apply-delta"
       (let [initial (crdt/->LWW (Date.) 0)
-            clocks (take 9 (repeatedly #(do (Thread/sleep 1) (Date.))))
+            clocks (reduce (fn [acc _]
+                             (conj acc (crdt/inc-time (last acc))))
+                           [(Date.)]
+                           (range 8))
             values (shuffle (range 1 10))
             deltas (map #(crdt/->LWW %1 %2) clocks values)
             final (reduce crdt/-merge initial (shuffle deltas))]
@@ -287,17 +309,19 @@
             final (reduce crdt/-apply-delta initial (shuffle deltas))]
         (is (= 0 (crdt/-value initial)))
         (is (= (last values) (crdt/-value final)))
-        (testing "which can be serialized"
-          (is (every? #(= % (nippy/thaw (nippy/freeze %))) values)))))
+        #?(:clj
+           (testing "which can be serialized"
+             (is (every? #(= % (nippy/thaw (nippy/freeze %))) values))))))
     (testing "with nil"
       (let [initial #crdt/lww [0 1]
             delta   #crdt/lww [1 nil]
             final (crdt/-apply-delta initial delta)]
         (is (= 1 (crdt/-value initial)))
         (is (= nil (crdt/-value final)))))
-    (testing "can be serialized"
-      (is (= #crdt/lww [0 0] (read-string (pr-str #crdt/lww [0 0]))))
-      (is (= #crdt/lww [0 0] (nippy/thaw (nippy/freeze #crdt/lww [0 0])))))))
+    #?(:clj
+       (testing "can be serialized"
+         (is (= #crdt/lww [0 0] (read-string (pr-str #crdt/lww [0 0]))))
+         (is (= #crdt/lww [0 0] (nippy/thaw (nippy/freeze #crdt/lww [0 0]))))))))
 
 (def gen-client-clock
   (gen/fmap (fn [[event-number ts uid cid]]
@@ -382,11 +406,12 @@
           b #crdt/gos #{3 4 5}]
       (is (= #{1 2 3 4 5} (crdt/-value (crdt/-merge a b))))
       (is (= #{1 2 3 4 5} (crdt/-value (crdt/-merge b a))))))
-  (testing "can be serialized"
-    (is (= #crdt/gos #{1 2 3}
-           (read-string (pr-str #crdt/gos #{1 2 3}))))
-    (is (= #crdt/gos #{1 2 3}
-           (nippy/thaw (nippy/freeze #crdt/gos #{1 2 3}))))))
+  #?(:clj
+     (testing "can be serialized"
+       (is (= #crdt/gos #{1 2 3}
+              (read-string (pr-str #crdt/gos #{1 2 3}))))
+       (is (= #crdt/gos #{1 2 3}
+              (nippy/thaw (nippy/freeze #crdt/gos #{1 2 3})))))))
 
 ;; Property-based tests for GrowOnlySet
 
@@ -589,9 +614,10 @@
 ;; PersistentMap of CRDT leaves
 
 (deftest persistent-map
-  (testing "can be serialized"
-    (let [init {:a (crdt/->MaxWins 0) :b (crdt/->LWW 0 0) :c (crdt/->GrowOnlySet #{1 2 3})}]
-      (is (= init (nippy/thaw (nippy/freeze init))))))
+  #?(:clj
+     (testing "can be serialized"
+       (let [init {:a (crdt/->MaxWins 0) :b (crdt/->LWW 0 0) :c (crdt/->GrowOnlySet #{1 2 3})}]
+         (is (= init (nippy/thaw (nippy/freeze init)))))))
   (testing "you can apply deltas to a map"
     (let [initial {:a 1 :b (crdt/->MaxWins 0) :c (crdt/->LWW 0 0)}
           deltas (shuffle (map (fn [x]
