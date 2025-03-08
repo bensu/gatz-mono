@@ -1,6 +1,7 @@
 (ns crdt.core
   {:clojure.tools.namespace.repl/load false}
   (:require [clojure.set :as set]
+            #?(:cljs [cljs.reader :as reader])
             #?(:clj [crdt.ulid :as ulid])
             ;; [malli.core :as malli]
             [medley.core :refer [map-vals]]
@@ -87,6 +88,13 @@
      (.write writer "#crdt/min-wins ")
      (print-method (.value min-wins) writer)))
 
+#?(:cljs
+   (extend-protocol IPrintWithWriter
+     MinWins
+     (-pr-writer [obj writer _]
+       (let [tagged-value (tagged-literal 'crdt/min-wins (.-value obj))]
+         (-write writer (pr-str tagged-value))))))
+
 (defn read-min-wins
   "Used by the reader like so:
 
@@ -96,6 +104,9 @@
    #crdt/min-wins #uuid \"08f711cd-1d4d-4f61-b157-c36a8be8ef95\""
   [value]
   (->MinWins value))
+
+#?(:cljs
+   (reader/register-tag-parser! 'crdt/min-wins read-min-wins))
 
 (defn min-wins-instance? [x]
   (instance? MinWins x))
@@ -137,6 +148,13 @@
      (.write writer "#crdt/max-wins ")
      (print-method (.value max-wins) writer)))
 
+#?(:cljs
+   (extend-protocol IPrintWithWriter
+     MaxWins
+     (-pr-writer [obj writer _]
+       (let [tagged-value (tagged-literal 'crdt/max-wins (.-value obj))]
+         (-write writer (pr-str tagged-value))))))
+
 (defn read-max-wins
   "Used by the reader like so:
 
@@ -146,6 +164,9 @@
    #crdt/max-wins #uuid \"08f711cd-1d4d-4f61-b157-c36a8be8ef95\""
   [value]
   (->MaxWins value))
+
+#?(:cljs
+   (reader/register-tag-parser! 'crdt/max-wins read-max-wins))
 
 (defn max-wins-instance? [x]
   (instance? MaxWins x))
@@ -188,8 +209,7 @@
         -1 (HLC. (:ts remote) (inc (:counter remote)) node)
         0 (HLC. ts (inc (max counter (:counter remote))) node)
         1 (HLC. ts (inc counter) node))))
-  #?(:clj  Comparable
-     :cljs IComparable)
+  #?(:clj  Comparable :cljs IComparable)
   #?(:clj
      (compareTo [this that]
                 (stagger-compare [:ts :counter :node] this that))
@@ -220,6 +240,13 @@
      (.write writer "#crdt/hlc ")
      (print-method [(.ts hlc) (.counter hlc) (.node hlc)] writer)))
 
+#?(:cljs
+   (extend-protocol IPrintWithWriter
+     HLC
+     (-pr-writer [obj writer _]
+       (let [tagged-value (tagged-literal 'crdt/hlc [(.-ts obj) (.-counter obj) (.-node obj)])]
+         (-write writer (pr-str tagged-value))))))
+
 (defn new-hlc
   ([node] (new-hlc node (now)))
   ([node now] (HLC. now 0 node)))
@@ -239,6 +266,9 @@
     1 (->HLC (now) 0 (first value))
     2 (->HLC (now) (first value) (second value))
     3 (->HLC (first value) (second value) (nth value 2))))
+
+#?(:cljs
+   (reader/register-tag-parser! 'crdt/hlc read-hlc))
 
 (defn hlc-instance? [x]
   (instance? HLC x))
@@ -322,6 +352,13 @@
      (.write writer "#crdt/lww ")
      (print-method [(.clock lww) (.value lww)] writer)))
 
+#?(:cljs
+   (extend-protocol IPrintWithWriter
+     LWW
+     (-pr-writer [obj writer _]
+       (let [tagged-value (tagged-literal 'crdt/lww [(.-clock obj) (.-value obj)])]
+         (-write writer (pr-str tagged-value))))))
+
 (defn read-lww
   "Used by the reader like so:
 
@@ -334,6 +371,9 @@
   (assert (vector? value) "LWW must be a vector")
   (assert (= (count value) 2) "LWW must have 2 elements")
   (->LWW (first value) (second value)))
+
+#?(:cljs
+   (reader/register-tag-parser! 'crdt/lww read-lww))
 
 (defn lww-instance? [x]
   (instance? LWW x))
@@ -374,6 +414,13 @@
      (.write writer "#crdt/gos ")
      (print-method (.xs gos) writer)))
 
+#?(:cljs
+   (extend-protocol IPrintWithWriter
+     GrowOnlySet
+     (-pr-writer [obj writer _]
+       (let [tagged-value (tagged-literal 'crdt/gos (.-xs obj))]
+         (-write writer (pr-str tagged-value))))))
+
 (defn read-gos
   "Used by the reader like so:
 
@@ -381,6 +428,9 @@
   [xs]
   (assert (set? xs) "GrowOnlySet must be a set")
   (->GrowOnlySet xs))
+
+#?(:cljs
+   (reader/register-tag-parser! 'crdt/gos read-gos))
 
 (defn grow-only-set-instance? [x]
   (instance? GrowOnlySet x))

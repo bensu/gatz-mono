@@ -2,8 +2,13 @@
   (:require [clojure.test :refer [deftest testing is]]
             [malli.core :as malli]
             [crdt.core :as crdt]
+            #?(:cljs [cljs.reader :as reader])
             #?(:clj [taoensso.nippy :as nippy]))
   #?(:clj (:import [java.util Date])))
+
+#?(:cljs
+   (defn read-string [s]
+     (reader/read-string s)))
 
 ;; ======================================================================
 ;; Date Generator
@@ -43,10 +48,9 @@
           initial (crdt/->MinWins (first instants))
           final (reduce crdt/-apply-delta initial values)]
       (is (= (crdt/-value final) (first instants)))))
-  #?(:clj
-     (testing "can be serialized"
-       (is (= #crdt/min-wins 0 (nippy/thaw (nippy/freeze #crdt/min-wins 0))))
-       (is (= #crdt/min-wins 0 (read-string (pr-str #crdt/min-wins 0)))))))
+  (testing "can be serialized"
+    #?(:clj (is (= #crdt/min-wins 0 (nippy/thaw (nippy/freeze #crdt/min-wins 0)))))
+    (is (= #crdt/min-wins 0 (read-string (pr-str #crdt/min-wins 0))))))
 
 ;; ======================================================================
 ;; MaxWins
@@ -76,17 +80,15 @@
           initial (crdt/->MaxWins (first instants))
           final (reduce crdt/-apply-delta initial values)]
       (is (= (crdt/-value final) (last instants)))))
-  #?(:clj
-     (testing "can be serialized"
-       (is (= #crdt/max-wins 0 (nippy/thaw (nippy/freeze #crdt/max-wins 0))))
-       (is (= #crdt/max-wins 0 (read-string (pr-str #crdt/max-wins 0)))))))
+  (testing "can be serialized"
+    #?(:clj (is (= #crdt/max-wins 0 (nippy/thaw (nippy/freeze #crdt/max-wins 0)))))
+    (is (= #crdt/max-wins 0 (read-string (pr-str #crdt/max-wins 0))))))
 
 (deftest hlc
-  #?(:clj
-     (testing "you can serialize the clocks"
-       (let [clock #crdt/hlc [#inst "2024-04-30T06:32:48.978-00:00" 1 #uuid "08f711cd-1d4d-4f61-b157-c36a8be8ef95"]]
-         (is (= clock (nippy/thaw (nippy/freeze clock))))
-         (is (= clock (read-string (pr-str clock)))))))
+  (testing "you can serialize the clocks"
+    (let [clock #crdt/hlc [#inst "2024-04-30T06:32:48.978-00:00" 1 #uuid "08f711cd-1d4d-4f61-b157-c36a8be8ef95"]]
+      #?(:clj (is (= clock (nippy/thaw (nippy/freeze clock)))))
+      (is (= clock (read-string (pr-str clock))))))
   (testing "you can check the schema"
     (is (malli/validate crdt/hlc-schema #crdt/hlc [])))
   (testing "You can generate HLCs"
@@ -196,18 +198,18 @@
             final (reduce crdt/-apply-delta initial (shuffle deltas))]
         (is (= 0 (crdt/-value initial)))
         (is (= (last values) (crdt/-value final)))
-        #?(:clj
-           (testing "which can be serialized"
-             (is (every? #(= % (nippy/thaw (nippy/freeze %))) values))))))
+        (testing "which can be serialized"
+          #?(:clj (is (every? #(= % (nippy/thaw (nippy/freeze %))) values)))
+          (is (every? #(= % (read-string (pr-str %))) values)))))
     (testing "with nil"
       (let [initial #crdt/lww [0 1]
             delta   #crdt/lww [1 nil]
             final (crdt/-apply-delta initial delta)]
         (is (= 1 (crdt/-value initial)))
         (is (= nil (crdt/-value final)))))
-    #?(:clj
-       (testing "can be serialized"
-         (is (= #crdt/lww [0 0] (read-string (pr-str #crdt/lww [0 0]))))
+    (testing "can be serialized"
+      (is (= #crdt/lww [0 0] (read-string (pr-str #crdt/lww [0 0]))))
+      #?(:clj
          (is (= #crdt/lww [0 0] (nippy/thaw (nippy/freeze #crdt/lww [0 0]))))))))
 
 ;; =========================================================
@@ -229,10 +231,10 @@
           b #crdt/gos #{3 4 5}]
       (is (= #{1 2 3 4 5} (crdt/-value (crdt/-merge a b))))
       (is (= #{1 2 3 4 5} (crdt/-value (crdt/-merge b a))))))
-  #?(:clj
-     (testing "can be serialized"
-       (is (= #crdt/gos #{1 2 3}
-              (read-string (pr-str #crdt/gos #{1 2 3}))))
+  (testing "can be serialized"
+    (is (= #crdt/gos #{1 2 3}
+           (read-string (pr-str #crdt/gos #{1 2 3}))))
+    #?(:clj
        (is (= #crdt/gos #{1 2 3}
               (nippy/thaw (nippy/freeze #crdt/gos #{1 2 3})))))))
 
@@ -284,10 +286,10 @@
 ;; PersistentMap of CRDT leaves
 
 (deftest persistent-map
-  #?(:clj
-     (testing "can be serialized"
-       (let [init {:a (crdt/->MaxWins 0) :b (crdt/->LWW 0 0) :c (crdt/->GrowOnlySet #{1 2 3})}]
-         (is (= init (nippy/thaw (nippy/freeze init)))))))
+  (testing "can be serialized"
+    (let [init {:a (crdt/->MaxWins 0) :b (crdt/->LWW 0 0) :c (crdt/->GrowOnlySet #{1 2 3})}]
+      #?(:clj (is (= init (nippy/thaw (nippy/freeze init)))))
+      (is (= init (read-string (pr-str init))))))
   (testing "you can apply deltas to a map"
     (let [initial {:a 1 :b (crdt/->MaxWins 0) :c (crdt/->LWW 0 0)}
           deltas (shuffle (map (fn [x]
