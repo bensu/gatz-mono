@@ -1,0 +1,3 @@
+[submodule "vendor/shared"]
+	path = vendor/shared
+	url = https://github.com/bensu/gatz-shared
