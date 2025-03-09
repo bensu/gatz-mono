@@ -18,3 +18,4 @@ logs/
 **/.calva/repl.calva-repl
 dumps/*
 .shadow-cljs/
+npm-package/dist/
