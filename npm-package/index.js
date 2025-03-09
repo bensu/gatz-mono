@@ -1,1 +1,0 @@
-module.exports = require('./dist/gatz.expo.core.js'); 
