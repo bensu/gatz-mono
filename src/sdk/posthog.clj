@@ -31,7 +31,7 @@
         (update :biff/stop conj (fn [] (.shutdown posthog))))))
 
 (def events
-  #{"user.sign_in" "user.sign_up" "user.delete_account" "user.block" "user.update_urls"
+  #{"user.sign_in" "user.sign_up" "user.delete_account" "user.block" "user.update_urls" "user.update_profile"
     "notifications.disable" "notifications.add_push_token" "notifications.update"
     "discussion.archive" "discussion.subscribe" "discussion.unsubscribe"
     "discussion.read" "discussion.new" "discussion.mark_seen"
