@@ -1,6 +1,7 @@
 (ns gatz.api.user
   (:require [clojure.data.json :as json]
             [clojure.string :as str]
+            [gatz.http :as http]
             [gatz.auth :as auth]
             [gatz.crdt.user :as crdt.user]
             [gatz.db :as db]
@@ -58,11 +59,20 @@
                                   db.contacts/->contact))))
         contact_requests (pending-contact-requests db user-id)]
     (posthog/identify! ctx user)
-    (json-response {:user (crdt.user/->value user)
-                    :groups groups
-                    :contacts contacts
-                    :contact_requests contact_requests
-                    :flags flags})))
+    (http/ok ctx {:user (crdt.user/->value user)
+                  :groups groups
+                  :contacts contacts
+                  :contact_requests contact_requests
+                  :flags flags})))
+
+(defn get-me-crdt [{:keys [auth/user] :as ctx}]
+  (posthog/identify! ctx user)
+  (http/ok ctx {:user user}))
+
+(defn post-me-crdt [{:keys [body-params] :as ctx}]
+  (let [action (:action body-params)
+        {:keys [user]} (db.user/apply-action! ctx action)]
+    (http/ok ctx {:user user})))
 
 (defn get-user
   [{:keys [params biff/db] :as _ctx}]

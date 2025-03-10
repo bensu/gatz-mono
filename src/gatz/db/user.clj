@@ -1,5 +1,6 @@
 (ns gatz.db.user
   (:require [com.biffweb :as biff :refer [q]]
+            [clojure.pprint :as pp]
             [crdt.core :as crdt]
             [gatz.crdt.user :as crdt.user]
             [gatz.db.contacts :as db.contacts]
@@ -233,16 +234,15 @@
                              :evt/uid user-id
                              :evt/cid cid
                              :evt/data action})]
-    (if (true? (malli/validate schema/UserEvent evt))
-      (let [txs [[:xtdb.api/fn :gatz.db.user/apply-delta {:evt evt}]]]
-        ;; Try the transaction before submitting it
-        (if-let [db-after (xtdb.api/with-tx db txs)]
-          (do
-            (biff/submit-tx (assoc ctx :biff.xtdb/retry false) txs)
-            {:evt (xtdb.api/entity db-after (:xt/id evt))
-             :user (by-id db-after user-id)})
-          (assert false "Transaction would've failed")))
-      (assert false "Invaild event"))))
+    (assert (true? (malli/validate schema/UserEvent evt))
+            (str "Invalid event: " (pp/pprint (malli/explain schema/UserEvent evt))))
+    (let [txs [[:xtdb.api/fn :gatz.db.user/apply-delta {:evt evt}]]
+          ;; Try the transaction before submitting it
+          db-after (xtdb.api/with-tx db txs)]
+      (assert (some? db-after) "Transaction would've failed")
+      (biff/submit-tx (assoc ctx :biff.xtdb/retry false) txs)
+      {:evt (xtdb.api/entity db-after (:xt/id evt))
+       :user (by-id db-after user-id)})))
 
 (defn update-avatar!
   ([ctx avatar–url]

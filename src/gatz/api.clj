@@ -110,15 +110,16 @@
                         (:evt/type evt)))
 
 (defn propagate-user-delta-to-user!
-  [{:keys [conns-state] :as _ctx} u delta]
+  [{:keys [conns-state] :as _ctx} u action]
   (let [uid (:xt/id u)
-        evt {:event/type (:gatz.crdt.user/action delta)
-             :event/data {:user (crdt.user/->value u)
-                          :delta (crdt/-value delta)}}]
+        evt {:event/type :gatz.crdt.user/delta
+             :event/data {:user u
+                          :delta (:gatz.crdt.user/delta action)}}
+        evt-str (pr-str evt)]
     ;; 1. Connections for the same user want to hear everything
     (log/info "sending user delta to connected clients for" uid)
     (doseq [ws (conns/user-wss @conns-state uid)]
-      (jetty/send! ws (json/write-str evt)))))
+      (jetty/send! ws evt-str))))
 
 (def user-deltas-for-friends
   #{:gatz.crdt.user/update-avatar})
@@ -139,12 +140,10 @@
 
 (defmethod handle-evt! :gatz.crdt.user/delta
   [{:keys [biff.xtdb/node] :as ctx} evt]
-  (comment
-    (let [db (xtdb/db node)
-          u (db.user/by-id db (:evt/uid evt))]
-      (propagate-user-delta-to-user! ctx u (:evt/data evt))
-      (propagate-user-delta-to-friends! ctx u (:evt/data evt))))
-  nil)
+  (let [db (xtdb/db node)
+        u (db.user/by-id db (:evt/uid evt))]
+    #_(propagate-user-delta-to-friends! ctx u (:evt/data evt))
+    (propagate-user-delta-to-user! ctx u (:evt/data evt))))
 
 (defmethod handle-evt! :message.crdt/delta
   [{:keys [biff.xtdb/node] :as ctx} evt]
@@ -273,6 +272,9 @@
                  ["/user/block" {:post api.user/block!}]
                  ["/user/settings/urls" {:post api.user/update-urls!}]
                  ["/user/settings/profile" {:post api.user/update-profile!}]
+
+                 ["/me/crdt" {:get api.user/get-me-crdt
+                              :post api.user/post-me-crdt}]
 
 
                  ["/file/presign" {:post api.media/presigned-url!}]
