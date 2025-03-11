@@ -3,6 +3,9 @@
             [com.biffweb :as biff :refer [q]])
   (:import [java.util Date]))
 
+(defn new-feed-item-id []
+  (ulid/random-time-uuid))
+
 (def ref-type->validation-fn
   {:gatz/contact uuid?
    :gatz/contact_request uuid?
@@ -35,7 +38,7 @@
          (validate-item-ref? opts)]}
   (let [now (or now (Date.))
         {:keys [ref_type ref feed_type]} opts]
-    {:xt/id (or id (ulid/random-time-uuid))
+    {:xt/id (or id (new-feed-item-id))
      :db/type :gatz/feed_item
      :db/version 1
      :feed/created_at now
@@ -71,8 +74,19 @@
                :ref_type :gatz/contact
                :ref to})))
 
-;; TODO: this should have the contact_request
+(defn added-to-group [id now {:keys [members group added_by]}]
+  {:pre [(set? members) (every? uuid? members)
+         (uuid? id) (inst? now) (uuid? added_by)]}
+  (new-item {:id id
+             :uids members
+             :now now
+             :feed_type :feed.type/added_to_group
+             :ref_type :gatz/group
+             :contact_id added_by
+             :group_id (:xt/id group)
+             :ref (:xt/id group)}))
 
+;; TODO: this should have the contact_request
 (defn for-user-with-ts
   ([db user-id]
    (for-user-with-ts db user-id {}))

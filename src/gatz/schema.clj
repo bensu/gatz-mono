@@ -861,9 +861,9 @@
    [:feed/ref_type RefType]
    [:feed/ref [:or uuid? ulid?]]
 
-   [:feed/group GroupId]
-   [:feed/contact UserId]
-   [:feed/contact_request uuid?]])
+   [:feed/group [:maybe GroupId]]
+   [:feed/contact [:maybe UserId]]
+   [:feed/contact_request [:maybe uuid?]]])
 
 ;; ======================================================================
 ;; Final schema

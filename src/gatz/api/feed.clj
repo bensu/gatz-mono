@@ -54,6 +54,16 @@
                               (db.contacts/->contact)
                               (assoc :contact/in_common in-common)))))
 
+(defmethod hydrate-item :feed.type/added_to_group
+  [{:keys [biff/db auth/user-id] :as _ctx} item]
+  (let [group (:feed/ref item)
+        friends (:contacts/ids (db.contacts/by-uid db user-id))
+        members (:group/members group)
+        in-common (set/intersection friends members)]
+    (assoc item :feed/ref (-> group
+                              (assoc :group/added_by (:feed/contact item))
+                              (assoc :group/in_common {:group.in_common/contacts in-common})))))
+
 ;; ================================
 ;; API
 
@@ -131,6 +141,7 @@
                                                     :contact_id contact_id
                                                     :group_id group_id})
         items (keep (partial hydrate-item ctx) items)
+        ;; TODO: get the groups from those items
 
         ;; What are the groups and users in those contact requests?
         ;; c-group-ids (reduce set/union (map (comp :groups :in_common) crs))
@@ -138,9 +149,9 @@
 
         ;; TODO: not only send the gruop-ids from the discussions,
         ;; also from the contact request
-        groups (conj (mapv (partial db.group/by-id db)
-                           (set/union #_c-group-ids d-group-ids))
-                     group)
+        groups (cond-> (mapv (partial db.group/by-id db)
+                             (set/union #_c-group-ids d-group-ids))
+                 group (conj group))
 
         ;; TODO: only send the users that are in the discussions
         ;; and in the contact requests

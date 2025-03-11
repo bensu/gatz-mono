@@ -5,6 +5,7 @@
             [com.biffweb :as biff]
             [crdt.core :as crdt]
             [gatz.db.contacts :as db.contacts]
+            [gatz.db.feed :as db.feed]
             [gatz.db.group :as db.group]
             [gatz.db.user :as db.user]
             [gatz.crdt.user :as crdt.user]
@@ -167,9 +168,11 @@
       (err-resp "invalid_params" "Invalid parameters")
       (let [now (Date.)
             group (db.group/by-id db id)
+            feed-item-id (db.feed/new-feed-item-id)
             full-action {:xt/id id
                          :group/by_uid user-id
                          :group/action action
+                         :group/feed_item_id feed-item-id
                          :group/delta (assoc delta :group/updated_at now)}]
         (if-not (m/validate db.group/Action full-action)
           (err-resp "invalid_params" "Invalid parameters")

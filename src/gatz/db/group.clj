@@ -3,6 +3,7 @@
             [crdt.core :as crdt]
             [clojure.set :as set]
             [gatz.db.discussion :as db.discussion]
+            [gatz.db.feed :as db.feed]
             [gatz.schema :as schema]
             [malli.util :as mu]
             [malli.core :as m]
@@ -197,57 +198,60 @@
    UnArchiveDelta])
 
 (def Action
-
   [:or
    [:map
     [:xt/id schema/GroupId]
     [:group/by_uid schema/UserId]
     [:group/action [:enum :group/archive]]
+    [:group/feed_item_id {:optional true} schema/FeedItemId]
     [:group/delta ArchiveDelta]]
    [:map
     [:xt/id schema/GroupId]
     [:group/by_uid schema/UserId]
     [:group/action [:enum :group/unarchive]]
+    [:group/feed_item_id {:optional true} schema/FeedItemId]
     [:group/delta UnArchiveDelta]]
-
    [:map
     [:xt/id schema/GroupId]
     [:group/by_uid schema/UserId]
     [:group/action [:enum :group/update-attrs]]
+    [:group/feed_item_id {:optional true} schema/FeedItemId]
     [:group/delta UpdateAttrsDelta]]
-
    [:map
     [:xt/id schema/GroupId]
     [:group/by_uid schema/UserId]
     [:group/action [:enum :group/add-member]]
+    [:group/feed_item_id {:optional true} schema/FeedItemId]
     [:group/delta AddMemberDelta]]
    [:map
     [:xt/id schema/GroupId]
     [:group/by_uid schema/UserId]
     [:group/action [:enum :group/remove-member]]
+    [:group/feed_item_id {:optional true} schema/FeedItemId]
     [:group/delta RemoveMemberDelta]]
-
    [:map
     [:xt/id schema/GroupId]
     [:group/by_uid schema/UserId]
     [:group/action [:enum :group/leave]]
+    [:group/feed_item_id {:optional true} schema/FeedItemId]
     [:group/delta LeaveDelta]]
-
    [:map
     [:xt/id schema/GroupId]
     [:group/by_uid schema/UserId]
     [:group/action [:enum :group/add-admin]]
+    [:group/feed_item_id {:optional true} schema/FeedItemId]
     [:group/delta AddAdminDelta]]
    [:map
     [:xt/id schema/GroupId]
     [:group/by_uid schema/UserId]
     [:group/action [:enum :group/remove-admin]]
+    [:group/feed_item_id {:optional true} schema/FeedItemId]
     [:group/delta RemoveAdminDelta]]
-
    [:map
     [:xt/id schema/GroupId]
     [:group/by_uid schema/UserId]
     [:group/action [:enum :group/transfer-ownership]]
+    [:group/feed_item_id {:optional true} schema/FeedItemId]
     [:group/delta TransferOwnershipDelta]]])
 
 (defmulti apply-action
@@ -427,6 +431,12 @@
       (vec
        (concat
         [[:xtdb.api/fn :gatz.db.group/apply-action {:action action}]]
+        (when-let [feed_item_id (:group/feed_item_id action)]
+          [[:xtdb.api/put (db.feed/added-to-group feed_item_id
+                                                  updated_at
+                                                  {:group group
+                                                   :members members
+                                                   :added_by by_uid})]])
         (db.discussion/add-member-to-group-txn xtdb-ctx
                                                {:gid gid :now updated_at
                                                 :by-uid by_uid :members members}))))))
