@@ -15,8 +15,7 @@
   {:feed.type/new_request :gatz/contact_request
    :feed.type/new_friend :gatz/contact
    :feed.type/new_friend_of_friend :gatz/contact
-   :feed.type/added_to_group :gatz/group
-   :feed.type/new_group :gatz/group})
+   :feed.type/added_to_group :gatz/group})
 
 (def feed-types (set (keys feed-type->ref-type)))
 

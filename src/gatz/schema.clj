@@ -835,8 +835,7 @@
    :feed.type/new_request
    :feed.type/new_friend
    :feed.type/new_friend_of_friend
-   :feed.type/added_to_group
-   :feed.type/new_group])
+   :feed.type/added_to_group])
 
 (def RefType
   [:enum :gatz/contact :gatz/contact_request :gatz/group])
