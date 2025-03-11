@@ -57,50 +57,46 @@
   (let [params (parse-contact-params (:params ctx))]
     (if-let [id (:id params)]
       (let [viewed-user (db.user/by-id db id)]
+        (posthog/capture! ctx "contact.viewed" {:contact_id id :by user-id})
         (if (db.user/mutually-blocked? viewed-user user)
-          (do
-            (posthog/capture! ctx "contact.viewed" {:contact_id id :by user-id})
-            (json-response
-             {:contact (-> viewed-user crdt.user/->value db.contacts/->contact)
-              :contact_request_state :contact_request/viewer_awaits_response
-              :their_contacts []
-              :in_common {:contacts  []}}))
+          (json-response
+           {:contact (-> viewed-user crdt.user/->value db.contacts/->contact)
+            :contact_request_state :contact_request/viewer_awaits_response
+            :their_contacts []
+            :in_common {:contacts  []}})
           (let [their-contacts (db.contacts/by-uid db id)
                 their-contacts-ids (:contacts/ids their-contacts)
                 in-common-uids (db.contacts/get-in-common db user-id id)
                 hidden-by-me? (contains? (:contacts/hidden_me their-contacts) user-id)
                 already-my-contact? (contains? their-contacts-ids user-id)
-                their-contacts (->> their-contacts-ids
-                                    (remove (partial contains? in-common-uids))
-                                    (remove (partial = user-id))
-                                    (mapv (partial db.user/by-id db)))
                 contacts-in-common (->> in-common-uids
                                         (mapv (partial db.user/by-id db)))
+                any-in-common? (not (empty? in-common-uids))
                 contact-request-state (if already-my-contact?
                                         :contact_request/accepted
                                         (-> (db.contacts/current-request-between db user-id id)
-                                            (db.contacts/state-for user-id)))]
-            (posthog/capture! ctx "contact.viewed" {:contact_id id :by user-id})
-            (if (empty? in-common-uids)
-              (json-response
-               {:contact (-> viewed-user
-                             crdt.user/->value
-                             db.contacts/->contact
-                             (assoc :user/profile empty-profile))
-                :contact_request_state contact-request-state
-                :settings {:posts_hidden hidden-by-me?}
-                :their_contacts []
-                :in_common {:contacts []}})
-              (json-response
-               {:contact (-> viewed-user crdt.user/->value db.contacts/->contact)
-                :contact_request_state contact-request-state
-                :settings {:posts_hidden hidden-by-me?}
+                                            (db.contacts/state-for user-id)))
                 ;; we hide their friends not in common if we are not already friends
-                :their_contacts (if already-my-contact?
-                                  (mapv #(-> % crdt.user/->value db.contacts/->contact) their-contacts)
-                                  [])
-                :in_common {:contacts (->> contacts-in-common
-                                           (mapv #(-> % crdt.user/->value db.contacts/->contact)))}})))))
+                their-contacts (if (or already-my-contact? any-in-common?)
+                                 (->> their-contacts-ids
+                                      (remove (partial contains? in-common-uids))
+                                      (remove (partial = user-id))
+                                      (map (partial db.user/by-id db))
+                                      (mapv #(-> % crdt.user/->value db.contacts/->contact)))
+                                 [])
+                contacts-in-common (->> contacts-in-common
+                                        (mapv #(-> % crdt.user/->value db.contacts/->contact)))
+                hide-profile? (and (not already-my-contact?)
+                                   (not any-in-common?))]
+            (json-response
+             {:contact (cond-> (-> viewed-user
+                                   crdt.user/->value
+                                   db.contacts/->contact)
+                         hide-profile? (assoc :user/profile empty-profile))
+              :contact_request_state contact-request-state
+              :settings {:posts_hidden hidden-by-me?}
+              :their_contacts their-contacts
+              :in_common {:contacts contacts-in-common}}))))
 
       (err-resp "invalid_params" "Invalid params"))))
 
