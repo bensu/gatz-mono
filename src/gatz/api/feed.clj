@@ -26,6 +26,15 @@
 
 (defmethod hydrate-item :default [_ctx item] item)
 
+(defmulti collect-group-ids :feed/feed_type)
+
+(defmethod collect-group-ids :default [_item] #{})
+
+(defmulti collect-contact-ids :feed/feed_type)
+
+(defmethod collect-contact-ids :default [_item] #{})
+
+
 (def show-contact-request-item?
   #{:contact_request/response_pending_from_viewer
     :contact_request/accepted})
@@ -43,6 +52,18 @@
                         (assoc :contact_request/in_common in-common))]
         (assoc item :feed/ref new-ref)))))
 
+(defmethod collect-group-ids :feed.type/new_request
+  [hydrated-item]
+  (let [cr (:feed/ref hydrated-item)]
+    (get-in cr [:contact_request/in_common :contact_request.in_common/groups])))
+
+(defmethod collect-contact-ids :feed.type/new_request
+  [hydrated-item]
+  (let [cr (:feed/ref hydrated-item)]
+    (-> cr
+        (get-in [:contact_request/in_common :contact_request.in_common/contacts])
+        (conj (:contact_request/from cr)))))
+
 (defmethod hydrate-item :feed.type/new_friend
   [{:keys [biff/db auth/user-id] :as _ctx} item]
   (let [contact (:feed/ref item)
@@ -54,6 +75,18 @@
                               (db.contacts/->contact)
                               (assoc :contact/in_common in-common)))))
 
+(defmethod collect-group-ids :feed.type/new_friend
+  [hydrated-item]
+  (let [contact (:feed/ref hydrated-item)]
+    (get-in contact [:contact/in_common :contact.in_common/groups])))
+
+(defmethod collect-contact-ids :feed.type/new_friend
+  [hydrated-item]
+  (let [contact (:feed/ref hydrated-item)]
+    (-> contact
+        (get-in [:contact/in_common :contact.in_common/contacts])
+        (conj (:xt/id contact)))))
+
 (defmethod hydrate-item :feed.type/added_to_group
   [{:keys [biff/db auth/user-id] :as _ctx} item]
   (let [group (:feed/ref item)
@@ -63,6 +96,17 @@
     (assoc item :feed/ref (-> group
                               (assoc :group/added_by (:feed/contact item))
                               (assoc :group/in_common {:group.in_common/contacts in-common})))))
+
+(defmethod collect-group-ids :feed.type/added_to_group
+  [hydrated-item]
+  #{(:xt/id (:feed/ref hydrated-item))})
+
+(defmethod collect-contact-ids :feed.type/added_to_group
+  [hydrated-item]
+  (let [group (:feed/ref hydrated-item)]
+    (-> group
+        (get-in [:group/in_common :group.in_common/contacts])
+        (conj (:group/added_by group)))))
 
 ;; ================================
 ;; API
@@ -141,31 +185,25 @@
                                                     :contact_id contact_id
                                                     :group_id group_id})
         items (keep (partial hydrate-item ctx) items)
-        ;; TODO: get the groups from those items
 
-        ;; What are the groups and users in those contact requests?
-        ;; c-group-ids (reduce set/union (map (comp :groups :in_common) crs))
-        ;; c-user-ids  (reduce set/union (map (comp :contacts :in_common) crs))
-
-        ;; TODO: not only send the gruop-ids from the discussions,
-        ;; also from the contact request
-        groups (cond-> (mapv (partial db.group/by-id db)
-                             (set/union #_c-group-ids d-group-ids))
+        fi-group-ids (reduce set/union (map collect-group-ids items))
+        groups (cond-> (map (partial db.group/by-id db)
+                            (set/union d-group-ids fi-group-ids))
                  group (conj group))
 
-        ;; TODO: only send the users that are in the discussions
-        ;; and in the contact requests
-        users (or (db.user/all-users db)
-                  (mapv (partial db.user/by-id db)
-                        (set/union d-user-ids #_c-user-ids)))]
+        fi-user-ids (reduce set/union (map collect-contact-ids items))
+        users (->> (set/union d-user-ids fi-user-ids)
+                   (map (partial db.user/by-id db))
+                   (map (comp db.contacts/->contact crdt.user/->value)))
+        drs (->> ds
+                 (sort-by (comp :discussion/created_at :discussion))
+                 (map (fn [dr]
+                        (update dr :discussion #(-> %
+                                                    (crdt.discussion/->value)
+                                                    (db.discussion/->external user-id))))))]
     (http/json-response
-     {:discussions (->> ds
-                        (sort-by (comp :discussion/created_at :discussion))
-                        (mapv (fn [dr]
-                                (update dr :discussion #(-> %
-                                                            (crdt.discussion/->value)
-                                                            (db.discussion/->external user-id))))))
-      :users (mapv (comp db.contacts/->contact crdt.user/->value) users)
+     {:discussions drs
+      :users users
       :groups groups
       :items items
       :current false
