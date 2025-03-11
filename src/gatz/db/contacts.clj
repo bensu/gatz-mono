@@ -2,8 +2,10 @@
   (:require [clojure.set :as set]
             [com.biffweb :as biff :refer [q]]
             [gatz.db.discussion :as db.discussion]
+            [gatz.db.feed :as feed]
             [gatz.schema :as schema]
             [gatz.db.util :as db.util]
+            [crdt.ulid :as ulid]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
@@ -78,6 +80,7 @@
   {:pre [(uuid? a-uid) (uuid? b-uid)]}
   (let [a-contacts (by-uid db a-uid)
         b-contacts (by-uid db b-uid)]
+    (assert (and a-contacts b-contacts))
     (-> (in-common a-contacts b-contacts)
         (disj a-uid b-uid))))
 
@@ -353,7 +356,7 @@
 
 (defn new-contact-request-txn [ctx {:keys [args]}]
   (let [db (xtdb.api/db ctx)
-        {:keys [from to id now]} args
+        {:keys [from to id now feed_item_id]} args
         contact-request (new-contact-request args)
         current-requests (->> (concat
                                (requests-from-to db from to)
@@ -364,8 +367,9 @@
     ;; Here we could be smarter and:
     ;; - If the requester has a pending request for them,
     ;;   then it means both sides want to be contacts
-    [[:xtdb.api/put (-> contact-request
-                        (assoc :db/doc-type :gatz/contact_request))]]))
+    (cond-> [[:xtdb.api/put (-> contact-request
+                                (assoc :db/doc-type :gatz/contact_request))]]
+      feed_item_id (conj [:xtdb.api/put (feed/new-cr-item feed_item_id contact-request)]))))
 
 (def new-contact-request-expr
   '(fn new-contact-request-fn [ctx args]
@@ -373,12 +377,13 @@
 
 (defn transition-to-txn [ctx {:keys [args]}]
   (let [db (xtdb.api/db ctx)
-        {:keys [by to from state now]} args]
+        {:keys [by to from state now feed_item_id]} args]
     (assert (uuid? by))
     (assert (uuid? to))
     (assert (uuid? from))
     (assert (inst? now))
     (assert (some? state))
+    (assert (or (nil? feed_item_id) (uuid? feed_item_id)))
     (if-let [current-request (if (= :contact_request/removed state)
                                ;; removed doesn't care who is who
                                (current-request-between db from to)
@@ -393,8 +398,9 @@
                                       (assoc :db/doc-type :gatz/contact_request))]
           (cond
             (= state :contact_request/accepted)
-            [[:xtdb.api/put new-contact-request]
-             [:xtdb.api/fn :gatz.db.contacts/add-contacts {:args {:from from :to to :now now}}]]
+            (cond-> [[:xtdb.api/put new-contact-request]
+                     [:xtdb.api/fn :gatz.db.contacts/add-contacts {:args {:from from :to to :now now}}]]
+              feed_item_id (conj [:xtdb.api/put (feed/accepted-cr-item feed_item_id now new-contact-request)]))
 
             (= state :contact_request/removed)
             [[:xtdb.api/put new-contact-request]
@@ -409,7 +415,7 @@
   '(fn transition-to-fn [ctx args]
      (gatz.db.contacts/transition-to-txn ctx args)))
 
-(defn accept-pending-requests-between-txn [xtdb-ctx {:keys [aid bid now]}]
+(defn accept-pending-requests-between-txn [xtdb-ctx {:keys [aid bid now feed_item_id]}]
   {:pre [(inst? now) (uuid? aid) (uuid? bid)]}
   (let [db (xtdb.api/db xtdb-ctx)
         current-reqs (->> (concat
@@ -429,13 +435,19 @@
 ;; Functions for the API
 
 (defn request-contact! [ctx {:keys [from to]}]
-  (let [args {:id (random-uuid) :from from :to to :now (Date.)}]
+  (let [args {:id (random-uuid)
+              :from from
+              :to to
+              :now (Date.)
+              :feed_item_id (ulid/random-time-uuid)}]
     (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.contacts/new-request {:args args}]])))
 
 (defn accept-request! [ctx {:keys [by from to] :as params}]
   {:pre [(uuid? from) (uuid? to) (uuid? by)]}
   (let [now (Date.)
-        args {:from from :to to :by by :now now :state :contact_request/accepted}]
+        args {:from from :to to :by by :now now
+              :state :contact_request/accepted
+              :feed_item_id (ulid/random-time-uuid)}]
     (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.contacts/transition-to {:args args}]
                          [:xtdb.api/fn :gatz.db.contacts/add-to-open-discussions {:by-uid from :to-uid to :now now}]
                          [:xtdb.api/fn :gatz.db.contacts/add-to-open-discussions {:by-uid to :to-uid from :now now}]])))

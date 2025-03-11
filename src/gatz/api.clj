@@ -8,6 +8,7 @@
             [gatz.auth :as auth]
             [gatz.api.contacts :as api.contacts]
             [gatz.api.discussion :as api.discussion]
+            [gatz.api.feed :as api.feed]
             [gatz.api.group :as api.group]
             [gatz.api.invite-link :as api.invite-link]
             [gatz.api.search :as api.search]
@@ -291,6 +292,8 @@
 
                  ["/feed/posts" {:get api.discussion/feed}]
                  ["/feed/active" {:get api.discussion/active}]
+
+                 ["/feed/items" {:get api.feed/feed}]
 
                  ["/search" {:get api.search/search-term}]
 

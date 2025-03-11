@@ -1045,3 +1045,16 @@
 
   (add-full-name-to-users! -ctx))
 
+
+;; ======================================================================
+;; Delete all feed items
+
+(defn delete-all-feed-items! [ctx]
+  (let [db (xtdb.api/db (:biff.xtdb/node ctx))
+        ids (map first (q db '{:find [id]
+                               :where [[id :db/type :gatz/feed_item]]}))
+        txns (mapv (fn [id]
+                     [:xtdb.api/delete id])
+                   ids)]
+    (println txns)
+    (biff/submit-tx ctx txns)))
