@@ -378,11 +378,15 @@
     (some? (:group_id params))   (update :group_id crdt/parse-ulid)
     (some? (:last_did params))   (update :last_did strict-str->uuid)))
 
-(defn feed
+(def limit 20)
+
+;; The last app version to use this was v1.1.15 (inclusive)
+(defn ^:deprecated feed
   [{:keys [params biff.xtdb/node biff/db auth/user auth/user-id] :as ctx}]
 
   ;; TODO: specify what kind of feed it is
   (posthog/capture! ctx "discussion.feed")
+  (posthog/capture! ctx "discussion.old_feed")
 
   ;; TODO: return early depending on latest-tx
   ;; TODO: should be using the latest-tx from the _db_ not the node
@@ -413,7 +417,7 @@
                   (reverse)
                   (map first)
                   (distinct)
-                  (take 20))
+                  (take limit))
 
         blocked-uids (:user/blocked_uids (crdt.user/->value user))
         poster-blocked? (fn [{:keys [discussion]}]
@@ -423,53 +427,38 @@
                 (map (partial db/discussion-by-id db))
                 (remove poster-blocked?))
 
-        ;; TODO: pass older-than, contact_id, group_id
-        ;; TODO: I need the message as well
-        ;; mentioned-ds (->> mentioned-dids
-        ;;                   (map (partial db/discussion-by-id db))
-        ;;                   (remove poster-blocked?)
-        ;;                   (keep (fn [{:discussion/keys [mentions] :as dr}]
-        ;;                           (let [mentions (crdt/-value mentions)]
-        ;;                             (when-let [mention (some->> (get mentions user-id)
-        ;;                                                         (sort-by :mention/ts)
-        ;;                                                         (last))]
-        ;;                               (-> dr
-        ;;                                   (assoc :message_id (:mention/mid mention)
-        ;;                                          :by_user_id (:mention/by_uid mention))))))))
-
         ;; What are the groups and users in those discussions?
         d-group-ids (set (keep (comp :discussion/group_id :discussion) ds))
         d-user-ids  (reduce set/union (map :user_ids ds))
 
         ;; Any contact requests that are visible to the user?
+        ;; TODO: only fetch the ones that are in a similar time range as the discussions
+        ;; I can't take the min of Date. because it's not a number
         contact-requests (db.contacts/visible-requests-to db user-id)
-        crs (mapv (fn [{:contact_request/keys [from] :as cr}]
-                    {:contact_request cr
-                     :in_common {:contacts (db.contacts/get-in-common db user-id from)
-                                 :groups (db.group/ids-with-members-in-common db user-id from)}})
-                  contact-requests)
+        crs (map (fn [{:contact_request/keys [from] :as cr}]
+                   {:contact_request cr
+                    :in_common {:contacts (db.contacts/get-in-common db user-id from)
+                                :groups (db.group/ids-with-members-in-common db user-id from)}})
+                 contact-requests)
         ;; What are the groups and users in those contact requests?
-        c-group-ids (reduce set/union (map (comp :groups :in_common) crs))
-        c-user-ids  (reduce set/union (map (comp :contacts :in_common) crs))
+        cr-group-ids (reduce set/union (map (comp :groups :in_common) crs))
+        cr-user-ids  (reduce set/union (map (comp :contacts :in_common) crs))
 
-        ;; TODO: not only send the gruop-ids from the discussions,
-        ;; also from the contact request
-        groups (conj (mapv (partial db.group/by-id db)
-                           (set/union c-group-ids d-group-ids))
+        ;; TODO: is there a public representation of groups?
+        groups (conj (map (partial db.group/by-id db)
+                          (set/union d-group-ids cr-group-ids))
                      group)
-
-        ;; TODO: only send the users that are in the discussions
-        ;; and in the contact requests
-        users (or (db.user/all-users db)
-                  (mapv (partial db.user/by-id db)
-                        (set/union d-user-ids c-user-ids)))]
-    (json-response {:discussions (->> ds
-                                      (sort-by (comp :discussion/created_at :discussion))
-                                      (mapv (fn [dr]
-                                              (update dr :discussion #(-> %
-                                                                          (crdt.discussion/->value)
-                                                                          (db.discussion/->external user-id))))))
-                    :users (mapv (comp db.contacts/->contact crdt.user/->value) users)
+        users (->> (set/union d-user-ids cr-user-ids)
+                   (map (partial db.user/by-id db))
+                   (map (comp db.contacts/->contact crdt.user/->value)))
+        drs (->> ds
+                 (sort-by (comp :discussion/created_at :discussion))
+                 (map (fn [dr]
+                        (update dr :discussion #(-> %
+                                                    (crdt.discussion/->value)
+                                                    (db.discussion/->external user-id))))))]
+    (json-response {:discussions drs
+                    :users users
                     :groups groups
                     :contact_requests crs
                     ;; TODO: remove this
