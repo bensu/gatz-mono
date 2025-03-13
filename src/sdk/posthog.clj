@@ -35,7 +35,7 @@
     "notifications.disable" "notifications.add_push_token" "notifications.update"
     "discussion.archive" "discussion.subscribe" "discussion.unsubscribe"
     "discussion.read" "discussion.new" "discussion.mark_seen"
-    "discussion.feed" "discussion.active"
+    "discussion.feed" "discussion.active" "discussion.old_feed"
     "message.new" "message.delete" "message.react" "message.undo_react" "message.edit" "message.flag"
     "media.new"
     "contact.viewed" "contact.requested" "contact.accepted" "contact.ignored" "contact.removed"
