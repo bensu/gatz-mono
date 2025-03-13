@@ -181,7 +181,14 @@
         d-group-ids (set (keep (comp :discussion/group_id :discussion) ds))
         d-user-ids  (reduce set/union (map :user_ids ds))
 
+        earliest-ts (->> ds
+                         (map (comp :discussion/created_at :discussion))
+                         (sort-by #(.getTime %))
+                         (first))
+
+        ;; TODO: only fetch the ones that are in a similar time range as the discussions
         items (db.feed/for-user-with-ts db user-id {:older-than-ts older-than
+                                                    :younger-than-ts earliest-ts
                                                     :contact_id contact_id
                                                     :group_id group_id})
         items (keep (partial hydrate-item ctx) items)

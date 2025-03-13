@@ -89,15 +89,16 @@
 (defn for-user-with-ts
   ([db user-id]
    (for-user-with-ts db user-id {}))
-  ([db user-id {:keys [older-than-ts contact_id group_id limit]}]
+  ([db user-id {:keys [older-than-ts younger-than-ts contact_id group_id limit]}]
    {:pre [(uuid? user-id)
           (or (nil? limit) (pos-int? limit))
           (or (nil? older-than-ts) (inst? older-than-ts))
+          (or (nil? younger-than-ts) (inst? younger-than-ts))
           (or (nil? contact_id) (uuid? contact_id))
           (or (nil? group_id) (ulid/ulid? group_id))]}
    (let [limit (or limit 20)]
      (->> (q db {:find '[created-at (pull id [*]) (pull ref [*])]
-                 :in '[uid older-than-ts cid gid]
+                 :in '[uid cid gid older-than-ts younger-than-ts]
                  :limit limit
                  :order-by '[[created-at :desc]]
                  :where (cond-> '[[id :db/type :gatz/feed_item]
@@ -106,8 +107,9 @@
                                   [id :feed/ref ref]]
                           contact_id (conj '[id :feed/contact cid])
                           group_id (conj '[id :feed/group gid])
-                          older-than-ts (conj '[(< created-at older-than-ts)]))}
-             user-id older-than-ts contact_id group_id)
+                          older-than-ts (conj '[(< created-at older-than-ts)])
+                          younger-than-ts (conj '[(< younger-than-ts created-at)]))}
+             user-id contact_id group_id older-than-ts younger-than-ts)
           (map (fn [[_created-at item ref]]
                  (if ref
                    (assoc item :feed/ref ref)

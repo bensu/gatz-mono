@@ -434,12 +434,12 @@
 ;; ======================================================================
 ;; Functions for the API
 
-(defn request-contact! [ctx {:keys [from to]}]
+(defn request-contact! [ctx {:keys [from to feed_item_id]}]
   (let [args {:id (random-uuid)
               :from from
               :to to
               :now (Date.)
-              :feed_item_id (ulid/random-time-uuid)}]
+              :feed_item_id (or feed_item_id (ulid/random-time-uuid))}]
     (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.contacts/new-request {:args args}]])))
 
 (defn accept-request! [ctx {:keys [by from to] :as params}]
@@ -475,10 +475,10 @@
 (defmulti ^:private -apply-request! (fn [_ctx {:keys [action]}] action))
 
 (defmethod -apply-request! :contact_request/requested
-  [{:keys [auth/user-id biff.xtdb/node] :as ctx} {:keys [them]}]
+  [{:keys [auth/user-id biff.xtdb/node] :as ctx} {:keys [them feed_item_id]}]
   (let [from user-id
         to them
-        txn (request-contact! ctx {:from from :to to})
+        txn (request-contact! ctx {:from from :to to :feed_item_id feed_item_id})
         request (current-request-from-to (xtdb/db node) from to)]
     {:txn txn :request request}))
 
