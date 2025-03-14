@@ -298,6 +298,7 @@
 
                  ["/feed/items" {:get api.feed/feed}]
                  ["/feed/dismiss" {:post api.feed/dismiss!}]
+                 ["/feed/mark-seen" {:post api.feed/mark-many-seen!}]
 
                  ["/search" {:get api.search/search-term}]
 

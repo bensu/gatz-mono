@@ -53,6 +53,7 @@
      :feed/dismissed_by #{}
      :feed/hidden_for #{}
      :feed/feed_type feed_type
+     :feed/seen_at {}
      :feed/mid mid
      :feed/ref_type ref_type
      :feed/ref ref
@@ -216,10 +217,35 @@
     (biff/submit-tx ctx txns)
     {:item (by-id db-after id)}))
 
+(defn max-date [^Date a ^Date b]
+  (if (.after a b) a b))
+
+(defn mark-seen-txn-fn [xtdb-ctx {:keys [ids uid now]}]
+  (let [db (xtdb/db xtdb-ctx)]
+    (->> ids
+         (map (partial by-id db))
+         (mapv (fn [item]
+                 [:xtdb.api/put (-> item
+                                    (assoc :feed/updated_at now)
+                                    (update :feed/seen_at #(update (or % {}) uid (fn [d]
+                                                                                   (if d
+                                                                                     (max-date d now)
+                                                                                     now))))
+                                    (assoc :db/op :update))])))))
+
+(def ^{:doc "This function will be stored in the db which is why it is an expression"}
+  mark-seen-expr
+  '(fn mark-seen-fn [xtdb-ctx args]
+     (gatz.db.feed/mark-seen-txn-fn xtdb-ctx args)))
+
+(defn mark-many-seen! [ctx uid ids now]
+  {:pre [(uuid? uid) (set? ids) (every? uuid? ids)]}
+  (let [args {:ids ids :uid uid :now now}]
+    (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.feed/mark-seen args]])))
+
 (def tx-fns
   {:gatz.db.feed/dismiss-item dismiss-item-expr
-  ;; :gatz.db.feed/add-mention add-mention-expr
-   })
+   :gatz.db.feed/mark-seen mark-seen-expr})
 
 ;; ======================================================================
 ;; Queries

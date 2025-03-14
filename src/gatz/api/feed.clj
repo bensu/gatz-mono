@@ -7,15 +7,14 @@
             [gatz.crdt.message :as crdt.message]
             [gatz.util :as util]
             [gatz.db.message :as db.message]
-            [gatz.db :as db]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.discussion :as db.discussion]
             [gatz.db.feed :as db.feed]
             [gatz.db.group :as db.group]
             [gatz.db.user :as db.user]
             [gatz.schema :as schema]
-            [sdk.posthog :as posthog]
-            [xtdb.api :as xt]))
+            [sdk.posthog :as posthog])
+  (:import [java.util Date]))
 
 ;; ================================
 ;; Enrich feed items
@@ -291,3 +290,11 @@
       (let [{:keys [item]} (db.feed/dismiss! ctx user-id id)]
         (http/json-response {:item item}))
       (http/err-resp "invalid_params" "Invalid parameters"))))
+
+(defn mark-many-seen! [{:keys [auth/user-id params] :as ctx}]
+  {:pre [(uuid? user-id)]}
+  (let [ids (set (keep util/parse-uuid (:ids params)))]
+    (posthog/capture! ctx "feed_items.mark_seen")
+    (db.feed/mark-many-seen! ctx user-id ids (Date.))
+    (http/json-response {:status "ok"})))
+

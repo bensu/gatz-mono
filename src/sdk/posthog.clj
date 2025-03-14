@@ -36,6 +36,7 @@
     "discussion.archive" "discussion.subscribe" "discussion.unsubscribe"
     "discussion.read" "discussion.new" "discussion.mark_seen"
     "discussion.feed" "discussion.active" "discussion.old_feed"
+    "feed_items.mark_seen"
     "message.new" "message.delete" "message.react" "message.undo_react" "message.edit" "message.flag"
     "media.new"
     "contact.viewed" "contact.requested" "contact.accepted" "contact.ignored" "contact.removed"

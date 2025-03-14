@@ -859,6 +859,8 @@
    ;; Is there a separate way to remove them from the feed? (possibly remove the user from uids)
    [:feed/hidden_for [:set uuid?]]
 
+   [:feed/seen_at [:map-of #'UserId inst?]]
+
    [:feed/mid [:maybe #'MessageId]]
 
    [:feed/feed_type FeedType]
