@@ -143,6 +143,23 @@
   {:pre [(uuid? id)]}
   (xtdb/entity db id))
 
+(defn all-by-did [db did]
+  {:pre [(uuid? did)]}
+  (q db '{:find [feed-item created-at]
+          :in [did]
+          :where [[feed-item :db/type :gatz/feed_item]
+                  [feed-item :feed/ref did]
+                  [feed-item :feed/created_at created-at]
+                  [feed-item :feed/ref_type :gatz/discussion]]}
+     did))
+
+(defn last-by-did [db did]
+  {:pre [(uuid? did)]}
+  (when-let [fi-id (some->> (all-by-did db did)
+                            (sort-by (comp #(.getTime %) second))
+                            (last)
+                            (first))]
+    (by-id db fi-id)))
 
 (comment
   (defn by-uid-did [db uid did]

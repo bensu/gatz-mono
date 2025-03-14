@@ -21,6 +21,7 @@
             [gatz.crdt.user :as crdt.user]
             [gatz.db :as db]
             [gatz.db.discussion :as db.discussion]
+            [gatz.db.feed :as db.feed]
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
             [gatz.settings :as settings]
@@ -175,9 +176,11 @@
   [{:keys [conns-state biff.xtdb/node] :as _ctx} did]
   (let [db (xtdb/db node)
         {:keys [discussion messages user_ids]} (db/discussion-by-id db did)
+        feed-item (db.feed/last-by-did db did)
         members (:discussion/members discussion)
         msg {:event/type :event/new_discussion
              :event/data {:discussion (crdt.discussion/->value discussion)
+                          :item feed-item
                           :messages (mapv crdt.message/->value messages)
                           :users (mapv (comp crdt.user/->value
                                              (partial db.user/by-id db))

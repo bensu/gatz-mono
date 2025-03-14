@@ -370,16 +370,12 @@
                              :in_common [:contacts [:vec schema/Contact]
                                          :groups [:vec schema/Group]]]]]])
 
-(defn strict-str->uuid [s]
-  (let [out (util/parse-uuid s)]
-    (if (uuid? out) out nil)))
-
-(defn parse-feed-params [params]
-  (cond-> params
-    (some? (:contact_id params)) (update :contact_id strict-str->uuid)
-    (some? (:group_id params))   (update :group_id crdt/parse-ulid)
-    (some? (:last_did params))   (update :last_id strict-str->uuid)
-    (some? (:last_id params))   (update :last_id strict-str->uuid)))
+(defn parse-feed-params [{:keys [contact_id group_id last_did last_id]}]
+  (cond-> {}
+    (some? contact_id) (assoc :contact_id (util/parse-uuid contact_id))
+    (some? group_id)   (assoc :group_id (crdt/parse-ulid group_id))
+    (some? last_did)   (assoc :last_id (util/parse-uuid last_did))
+    (some? last_id)    (assoc :last_id (util/parse-uuid last_id))))
 
 (def limit 20)
 
@@ -398,6 +394,7 @@
 
         older-than (some->> (or (:last_id params) (:last_did params))
                             (db.discussion/by-id db)
+                            crdt.discussion/->value
                             :discussion/created_at)
 
         ;; Is this a contact's feed?
@@ -483,7 +480,8 @@
         latest-tx (xt/latest-completed-tx node)
         older-than (some->> (or (:last_id params) (:last_did params))
                             (db.discussion/by-id db)
-                            :discussion/created_at)
+                            crdt.discussion/->value
+                            :discussion/latest_activity_ts)
         contact_id (some->> (:contact_id params)
                             (db.user/by-id db)
                             :xt/id)
@@ -495,15 +493,18 @@
                                              :contact_id contact_id
                                              :group_id group_id})
         ds (map (partial db/discussion-by-id db) dids)
+        user-ids  (reduce set/union (map :user_ids ds))
         group-ids (set (keep (comp :discussion/group_id :discussion) ds))
         groups (mapv (partial db.group/by-id db) group-ids)
-        users (db.user/all-users db)]
+        users (->> user-ids
+                   (map (partial db.user/by-id db))
+                   (map (comp db.contacts/->contact crdt.user/->value)))]
     (json-response {:discussions (->> ds
                                       (mapv (fn [dr]
                                               (update dr :discussion #(-> %
                                                                           (crdt.discussion/->value)
                                                                           (db.discussion/->external user-id))))))
-                    :users (mapv (comp db.contacts/->contact crdt.user/->value) users)
+                    :users users
                     :groups groups
                     :contact_requests []
                     ;; TODO: remove this
