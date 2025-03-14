@@ -211,6 +211,7 @@
                                             :by user-id
                                             :contact_id to}))
         (json-response {:status "success"
+                        :id (:xt/id request)
                         :state contact-request-state})))))
 
 ;; ======================================================================

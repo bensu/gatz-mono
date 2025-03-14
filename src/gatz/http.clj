@@ -35,6 +35,11 @@
     :headers {"Content-Type" "application/json"}
     :body (json/write-str body)}))
 
+(defn err-resp [code msg]
+  {:status 400
+   :headers {"Content-Type" "application/json"}
+   :body (json/write-str {:error code :message msg})})
+
 (defn edn-response
   ([body] (edn-response body 200))
   ([body status]

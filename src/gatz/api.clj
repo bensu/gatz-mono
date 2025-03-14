@@ -294,6 +294,7 @@
                  ["/feed/active" {:get api.discussion/active}]
 
                  ["/feed/items" {:get api.feed/feed}]
+                 ["/feed/dismiss" {:post api.feed/dismiss!}]
 
                  ["/search" {:get api.search/search-term}]
 

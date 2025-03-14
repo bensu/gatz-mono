@@ -2,7 +2,7 @@
   (:require [clojure.set :as set]
             [com.biffweb :as biff :refer [q]]
             [gatz.db.discussion :as db.discussion]
-            [gatz.db.feed :as feed]
+            [gatz.db.feed :as db.feed]
             [gatz.schema :as schema]
             [gatz.db.util :as db.util]
             [crdt.ulid :as ulid]
@@ -74,14 +74,17 @@
   (set/intersection (:contacts/ids a-contacts)
                     (:contacts/ids b-contacts)))
 
+(defn get-ids-in-common [a-contacts b-contacts]
+  (assert (and a-contacts b-contacts))
+  (in-common a-contacts b-contacts))
+
 (defn get-in-common
   "Finds the common contacts between two users. Returns [:set uuid?]"
   [db a-uid b-uid]
   {:pre [(uuid? a-uid) (uuid? b-uid)]}
   (let [a-contacts (by-uid db a-uid)
         b-contacts (by-uid db b-uid)]
-    (assert (and a-contacts b-contacts))
-    (-> (in-common a-contacts b-contacts)
+    (-> (get-ids-in-common a-contacts b-contacts)
         (disj a-uid b-uid))))
 
 ;; We can only do two things to Contacts, we can add or remove them
@@ -369,11 +372,29 @@
     ;;   then it means both sides want to be contacts
     (cond-> [[:xtdb.api/put (-> contact-request
                                 (assoc :db/doc-type :gatz/contact_request))]]
-      feed_item_id (conj [:xtdb.api/put (feed/new-cr-item feed_item_id contact-request)]))))
+      feed_item_id (conj [:xtdb.api/put (db.feed/new-cr-item feed_item_id contact-request)]))))
 
 (def new-contact-request-expr
   '(fn new-contact-request-fn [ctx args]
      (gatz.db.contacts/new-contact-request-txn ctx args)))
+
+(defn new-user-item-txn [xtdb-ctx {:keys [feed_item_id now uid invited_by_uid]}]
+  {:pre [(uuid? feed_item_id) (uuid? uid) (uuid? invited_by_uid)]}
+  (let [db (xtdb/db xtdb-ctx)
+        contact-ids (:contacts/ids (by-uid db invited_by_uid))
+        members (-> contact-ids
+                    (disj invited_by_uid)
+                    (disj uid))
+        feed-item (db.feed/new-user-item
+                   feed_item_id now
+                   {:members members
+                    :uid uid
+                    :invited_by_uid invited_by_uid})]
+    [[:xtdb.api/put feed-item]]))
+
+(def new-user-item-expr
+  '(fn new-user-item-fn [xtdb-ctx args]
+     (gatz.db.contacts/new-user-item-txn xtdb-ctx args)))
 
 (defn transition-to-txn [ctx {:keys [args]}]
   (let [db (xtdb.api/db ctx)
@@ -400,7 +421,7 @@
             (= state :contact_request/accepted)
             (cond-> [[:xtdb.api/put new-contact-request]
                      [:xtdb.api/fn :gatz.db.contacts/add-contacts {:args {:from from :to to :now now}}]]
-              feed_item_id (conj [:xtdb.api/put (feed/accepted-cr-item feed_item_id now new-contact-request)]))
+              feed_item_id (conj [:xtdb.api/put (db.feed/accepted-cr-item feed_item_id now new-contact-request)]))
 
             (= state :contact_request/removed)
             [[:xtdb.api/put new-contact-request]
@@ -415,7 +436,7 @@
   '(fn transition-to-fn [ctx args]
      (gatz.db.contacts/transition-to-txn ctx args)))
 
-(defn accept-pending-requests-between-txn [xtdb-ctx {:keys [aid bid now feed_item_id]}]
+(defn accept-pending-requests-between-txn [xtdb-ctx {:keys [aid bid now]}]
   {:pre [(inst? now) (uuid? aid) (uuid? bid)]}
   (let [db (xtdb.api/db xtdb-ctx)
         current-reqs (->> (concat
@@ -582,4 +603,5 @@
    :gatz.db.contacts/invite-contact invite-contact-expr
    :gatz.db.contacts/add-to-open-discussions add-to-open-discussions-expr
    :gatz.db.contacts/hide-contact hide-contact-expr
-   :gatz.db.contacts/unhide-contact unhide-contact-expr})
+   :gatz.db.contacts/unhide-contact unhide-contact-expr
+   :gatz.db.feed/new-user-item new-user-item-expr})

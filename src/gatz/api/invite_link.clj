@@ -4,6 +4,7 @@
             [crdt.core :as crdt]
             [com.biffweb :as biff]
             [gatz.db.contacts :as db.contacts]
+            [gatz.db.feed :as db.feed]
             [gatz.db.group :as db.group]
             [gatz.db.invite-link :as db.invite-link]
             [gatz.db.user :as db.user]
@@ -282,7 +283,12 @@
                        :to-uid user-id
                        :now now}
          invite-link-args {:id (:xt/id invite-link) :user-id user-id :now now}
+         feed-item-args {:feed_item_id (db.feed/new-feed-item-id)
+                         :now now
+                         :uid user-id
+                         :invited_by_uid by-uid}
          txns (cond-> [[:xtdb.api/fn :gatz.db.contacts/invite-contact {:args contact-args}]
+                       [:xtdb.api/fn :gatz.db.feed/new-user-item feed-item-args]
                        [:xtdb.api/fn :gatz.db.invite-links/mark-used {:args invite-link-args}]]
                 make-friends-with-contacts?
                 (concat (make-friends-with-my-contacts-txn db cid user-id now)))]
@@ -320,6 +326,12 @@
                         (:group/members group)
                         (conj (:invite_link/used_by invite-link) by-uid))
          invite-link-args {:id (:xt/id invite-link) :user-id user-id :now now}
+
+         feed-item-args {:feed_item_id (db.feed/new-feed-item-id)
+                         :now now
+                         :uid user-id
+                         :invited_by_uid by-uid}
+
          txns (concat
                [[:xtdb.api/fn :gatz.db.contacts/invite-contact {:args contact-args}]
                 [:xtdb.api/fn :gatz.db.invite-links/mark-used {:args invite-link-args}]]
@@ -330,7 +342,7 @@
 
                (if group
                  [[:xtdb.api/fn :gatz.db.group/add-to-group-and-discussions {:action group-action}]]
-                 [])
+                 [[:xtdb.api/fn :gatz.db.feed/new-user-item feed-item-args]])
                (make-contacts-with-txn user-id crew-members now))]
 
      ;; (assert (= by-uid cid))

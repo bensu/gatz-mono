@@ -6,6 +6,7 @@
             [gatz.db :as db]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.discussion :as db.discussion]
+            [gatz.db.feed :as db.feed]
             [gatz.db.group :as db.group]
             [gatz.db.invite-link :as db.invite-link]
             [gatz.db.mention :as db.mention]
@@ -84,7 +85,8 @@
 (def tx-fns
   (merge biff/tx-fns
          db/tx-fns
-         db.discussion/tx-fns db.message/tx-fns db.invite-link/tx-fns
+         db.discussion/tx-fns db.message/tx-fns
+         db.invite-link/tx-fns db.feed/tx-fns
          db.user/tx-fns db.contacts/tx-fns db.group/tx-fns db.mention/tx-fns))
 
 (def initial-system

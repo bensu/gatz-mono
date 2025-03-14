@@ -1,6 +1,7 @@
 (ns gatz.db.feed
   (:require [crdt.ulid :as ulid]
-            [com.biffweb :as biff :refer [q]])
+            [com.biffweb :as biff :refer [q]]
+            [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
 (defn new-feed-item-id []
@@ -9,12 +10,14 @@
 (def ref-type->validation-fn
   {:gatz/contact uuid?
    :gatz/contact_request uuid?
-   :gatz/group ulid/ulid?})
+   :gatz/group ulid/ulid?
+   :gatz/user uuid?})
 
 (def feed-type->ref-type
   {:feed.type/new_request :gatz/contact_request
    :feed.type/new_friend :gatz/contact
    :feed.type/new_friend_of_friend :gatz/contact
+   :feed.type/new_user_invited_by_friend :gatz/user
    :feed.type/added_to_group :gatz/group})
 
 (def feed-types (set (keys feed-type->ref-type)))
@@ -84,6 +87,54 @@
              :contact_id added_by
              :group_id (:xt/id group)
              :ref (:xt/id group)}))
+
+(defn new-user-item [id now {:keys [members uid invited_by_uid]}]
+  {:pre [(set? members) (every? uuid? members)
+         (uuid? id) (inst? now)
+         (uuid? uid) (uuid? invited_by_uid)]}
+  (new-item {:id id
+             :uids (-> members
+                       (disj uid)
+                       (disj invited_by_uid))
+             :now now
+             :feed_type :feed.type/new_user_invited_by_friend
+             :ref_type :gatz/user
+             :contact_id invited_by_uid
+             :ref uid}))
+
+;; ======================================================================
+;; Transactions
+
+(defn by-id [db id]
+  {:pre [(uuid? id)]}
+  (xtdb/entity db id))
+
+(defn dismiss-item-txn-fn [xtdb-ctx {:keys [id uid now]}]
+  (let [db (xtdb/db xtdb-ctx)]
+    (when-let [item (by-id db id)]
+      [[:xtdb.api/put (-> item
+                          (assoc :feed/updated_at now)
+                          (update :feed/dismissed_by conj uid)
+                          (assoc :db/op :update))]])))
+
+(def dismiss-item-expr
+  '(fn dismiss-item-fn [xtdb-ctx args]
+     (gatz.db.feed/dismiss-item-txn-fn xtdb-ctx args)))
+
+(defn dismiss! [{:keys [biff/db] :as ctx} uid id]
+  {:pre [(uuid? uid) (uuid? id)]}
+  (let [args {:id id :uid uid :now (Date.)}
+        txns  [[:xtdb.api/fn :gatz.db.feed/dismiss-item args]]
+        db-after (xtdb/with-tx db txns)]
+    (assert (some? db-after) "Transaction would've failed")
+    (biff/submit-tx ctx txns)
+    {:item (by-id db-after id)}))
+
+(def tx-fns
+  {:gatz.db.feed/dismiss-item dismiss-item-expr})
+
+;; ======================================================================
+;; Queries
 
 ;; TODO: this should have the contact_request
 (defn for-user-with-ts

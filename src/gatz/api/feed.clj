@@ -34,7 +34,6 @@
 
 (defmethod collect-contact-ids :default [_item] #{})
 
-
 (def show-contact-request-item?
   #{:contact_request/response_pending_from_viewer
     :contact_request/accepted})
@@ -107,6 +106,42 @@
     (-> group
         (get-in [:group/in_common :group.in_common/contacts])
         (conj (:group/added_by group)))))
+
+
+(defmethod hydrate-item :feed.type/new_user_invited_by_friend
+  [{:keys [biff/db auth/user-id] :as _ctx} item]
+  (let [contact (-> (:feed/ref item)
+                    (crdt.user/->value)
+                    (db.contacts/->contact))
+        cid (:xt/id contact)
+        cid-contacts (db.contacts/by-uid db cid)
+        uid-contacts (db.contacts/by-uid db user-id)
+        contact-request (db.contacts/current-request-between db cid user-id)
+        already-friends? (or (contains? (:contacts/ids cid-contacts) user-id)
+                             (= :contact_request/accepted
+                                (db.contacts/state-for contact-request user-id)))
+        in-common {:user.in_common/contacts (-> (db.contacts/get-ids-in-common cid-contacts uid-contacts)
+                                                (disj cid user-id))
+                   :user.in_common/groups (db.group/ids-with-members-in-common db user-id cid)}]
+    (when-not already-friends?
+      (assoc item :feed/ref (assoc contact
+                                   :user/contact_request (:xt/id contact-request)
+                                   :user/invited_by (:feed/contact item)
+                                   :user/in_common in-common)))))
+
+(defmethod collect-group-ids :feed.type/new_user_invited_by_friend
+  [hydrated-item]
+  (let [user (:feed/ref hydrated-item)]
+    (get-in user [:user/in_common :user.in_common/groups])))
+
+(defmethod collect-contact-ids :feed.type/new_user_invited_by_friend
+  [hydrated-item]
+  (let [user (:feed/ref hydrated-item)]
+    (cond-> (-> user
+                (get-in [:user/in_common :user.in_common/contacts])
+                (conj (:xt/id user)))
+      (:user/invited_by user)
+      (conj (:user/invited_by user)))))
 
 ;; ================================
 ;; API
@@ -216,3 +251,19 @@
       :current false
       :latest_tx {:id (::xt/tx-id latest-tx)
                   :ts (::xt/tx-time latest-tx)}})))
+
+
+(def dismiss-params
+  [:map
+   [:id uuid?]])
+
+(defn parse-dismiss-params [params]
+  (cond-> params
+    (some? (:id params)) (update :id util/parse-uuid)))
+
+(defn dismiss! [{:keys [auth/user-id params] :as ctx}]
+  (let [{:keys [id]} (parse-dismiss-params params)]
+    (if id
+      (let [{:keys [item]} (db.feed/dismiss! ctx user-id id)]
+        (http/json-response {:item item}))
+      (http/err-resp "invalid_params" "Invalid parameters"))))
