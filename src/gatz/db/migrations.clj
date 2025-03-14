@@ -11,6 +11,7 @@
             [gatz.db :refer :all]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.discussion :as db.discussion]
+            [gatz.db.feed :as db.feed]
             [gatz.db.group :as db.group]
             [gatz.db.message :as db.message]
             [gatz.db.invite-link :as db.invite-link]
@@ -21,8 +22,7 @@
             [gatz.system :as gatz.system]
             [malli.core :as malli]
             [com.biffweb :as biff :refer [q]]
-            [xtdb.api :as xtdb]
-            [gatz.db :as db])
+            [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
 (def good-users
@@ -1058,3 +1058,70 @@
                    ids)]
     (println txns)
     (biff/submit-tx ctx txns)))
+
+
+;; ======================================================================
+;; Add feed items for all discussions
+
+(def did->fi-id (atom {}))
+(def mention->fi-id (atom {}))
+;; TODO: generate the fi-ids at the same as the discussions are created
+(defn get-fi-id! [did]
+  (let [r (swap! did->fi-id (fn [m]
+                              (update m did #(or % (db.feed/new-feed-item-id)))))]
+    (get r did)))
+
+(defn get-mention-fi-id! [mid]
+  (let [r (swap! mention->fi-id (fn [m]
+                                  (update m mid #(or % (db.feed/new-feed-item-id)))))]
+    (get r mid)))
+
+(defn get-all-dids [db]
+  (map first
+       (q db
+          '{:find [did]
+            :where [[did :db/type :gatz/discussion]]})))
+
+;; TODO: generate the feed items for all the mentions
+(defn add-feed-items-for-discussions! [ctx]
+  (let [db (xtdb.api/db (:biff.xtdb/node ctx))
+        txns
+        (->> (get-all-dids db)
+             (map (comp crdt.discussion/->value (partial db.discussion/by-id db)))
+             (mapcat (fn [{:xt/keys [id]
+                           :discussion/keys [created_at members created_by group_id mentions]
+                           :as d}]
+                       (try
+                         (let [post-fi (db.feed/new-post
+                                        (get-fi-id! id)
+                                        created_at
+                                        {:members members
+                                         :cid created_by
+                                         :gid group_id
+                                         :did id})]
+                           (if mentions
+                             (let [mention-fis (->> mentions
+                                                    (mapcat (fn [[_k mentions]]
+                                                              mentions))
+                                                    (mapv (fn [{:mention/keys [to_uid by_uid mid ts]}]
+                                                            (db.feed/new-mention
+                                                             (get-mention-fi-id! mid)
+                                                             ts
+                                                             {:by_uid by_uid
+                                                              :to_uid to_uid
+                                                              :did id
+                                                              :mid mid
+                                                              :gid group_id}))))]
+                               (conj mention-fis post-fi))
+                             [post-fi]))
+                         (catch Throwable e
+                           (def -d d)
+                           (throw e)))))
+                  ;; remove previously created feed items
+             (remove (fn [fi]
+                       (some? (db.feed/by-id db (:xt/id fi)))))
+             (map (fn [fi]
+                    [:xtdb.api/put (assoc fi :db/op :create)])))]
+    (doseq [txn-batch (partition 100 txns)]
+      (biff/submit-tx ctx txn-batch))))
+

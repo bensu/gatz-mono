@@ -4,7 +4,9 @@
             [gatz.http :as http]
             [gatz.crdt.user :as crdt.user]
             [gatz.crdt.discussion :as crdt.discussion]
+            [gatz.crdt.message :as crdt.message]
             [gatz.util :as util]
+            [gatz.db.message :as db.message]
             [gatz.db :as db]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.discussion :as db.discussion]
@@ -143,6 +145,54 @@
       (:user/invited_by user)
       (conj (:user/invited_by user)))))
 
+
+(defn hydrate-discussion
+  [{:keys [biff/db auth/user-id auth/user] :as _ctx} item]
+  (let [blocked-uids (:user/blocked_uids (crdt.user/->value user))
+        did (:xt/id (:feed/ref item))
+        d (-> (db.discussion/by-id db did)
+              (crdt.discussion/->value))]
+    (when-not (contains? blocked-uids (:discussion/created_by d))
+      ;; TODO: this shouldn't be two loads
+      (let [messages (map crdt.message/->value (db.message/by-did db did))]
+        (assoc item :feed/ref (-> d
+                                  (db.discussion/->external user-id)
+                                  (assoc :discussion/messages messages)))))))
+
+(defmethod hydrate-item :feed.type/mentioned_in_discussion
+  [ctx item]
+  (hydrate-discussion ctx item))
+
+(defmethod hydrate-item :feed.type/new_post
+  [ctx item]
+  (hydrate-discussion ctx item))
+
+(defn collect-discussion-group-ids [hydrated-item]
+  (if-let [gid (:discussion/group_id (:feed/ref hydrated-item))]
+    #{gid}
+    #{}))
+
+(defn collect-discussion-contact-ids [hydrated-item]
+  (let [d (:feed/ref hydrated-item)]
+    (conj (:discussion/members d)
+          (:discussion/created_by d))))
+
+(defmethod collect-group-ids :feed.type/mentioned_in_discussion
+  [hydrated-item]
+  (collect-discussion-group-ids hydrated-item))
+
+(defmethod collect-contact-ids :feed.type/mentioned_in_discussion
+  [hydrated-item]
+  (collect-discussion-contact-ids hydrated-item))
+
+(defmethod collect-group-ids :feed.type/new_post
+  [hydrated-item]
+  (collect-discussion-group-ids hydrated-item))
+
+(defmethod collect-contact-ids :feed.type/new_post
+  [hydrated-item]
+  (collect-discussion-contact-ids hydrated-item))
+
 ;; ================================
 ;; API
 
@@ -150,7 +200,7 @@
   [:map
    [:group_id {:optional true} crdt/ulid?]
    [:contact_id {:optional true} uuid?]
-   [:last_did {:optional true} uuid?]])
+   [:last_id {:optional true} uuid?]])
 
 (def feed-response
   [:map
@@ -166,21 +216,21 @@
   (cond-> params
     (some? (:contact_id params)) (update :contact_id util/parse-uuid)
     (some? (:group_id params))   (update :group_id crdt/parse-ulid)
-    (some? (:last_did params))   (update :last_did util/parse-uuid)))
+    (some? (:last_id params))    (update :last_id util/parse-uuid)))
 
 (defn feed
-  [{:keys [params biff.xtdb/node biff/db auth/user auth/user-id] :as ctx}]
+  [{:keys [params biff/db auth/user auth/user-id] :as ctx}]
 
   (posthog/capture! ctx "discussion.feed")
 
   ;; TODO: return early depending on latest-tx
   ;; TODO: should be using the latest-tx from the _db_ not the node
   (let [params (parse-feed-params params)
-        latest-tx (xt/latest-completed-tx node)
 
-        older-than (some->> (:last_did params)
-                            (db.discussion/by-id db)
-                            :discussion/created_at)
+        older-than (some->> (:last_id params)
+                            (db.feed/by-id db)
+                            :feed/created_at)
+        _ (println "older-than" older-than)
 
         ;; Is this a contact's feed?
         contact (some->> (:contact_id params) (db.user/by-id db))
@@ -194,63 +244,78 @@
         feed-query {:older-than-ts older-than
                     :contact_id contact_id
                     :group_id group_id}
-        dids-ts (db.discussion/posts-for-user-with-ts db user-id feed-query)
-        mentioned-dids-ts (db.discussion/mentions-for-user-with-ts db user-id feed-query)
 
-        dids (->> (concat dids-ts mentioned-dids-ts)
-                  (sort-by (fn [[_ tsa]] tsa))
-                  (reverse)
-                  (map first)
-                  (distinct)
-                  (take 20))
+        ;; I want to get the mentions from the feed
+        ;; dids-ts (db.discussion/posts-for-user-with-ts db user-id feed-query)
+        ;; mentioned-dids-ts (db.discussion/mentions-for-user-with-ts db user-id feed-query)
 
-        blocked-uids (:user/blocked_uids (crdt.user/->value user))
-        poster-blocked? (fn [{:keys [discussion]}]
-                          (contains? blocked-uids (:discussion/created_by discussion)))
+        ;; dids (->> (concat dids-ts mentioned-dids-ts)
+        ;;           (sort-by (fn [[_ tsa]] tsa))
+        ;;           (reverse)
+        ;;           (map first)
+        ;;           (distinct)
+        ;;           (take 20))
 
-        ds (->> (set/union (set dids) (set dids))
-                (map (partial db/discussion-by-id db))
-                (remove poster-blocked?))
+        ;; blocked-uids (:user/blocked_uids (crdt.user/->value user))
+        ;; poster-blocked? (fn [{:keys [discussion]}]
+        ;;                   (contains? blocked-uids (:discussion/created_by discussion)))
 
-        ;; What are the groups and users in those discussions?
-        d-group-ids (set (keep (comp :discussion/group_id :discussion) ds))
-        d-user-ids  (reduce set/union (map :user_ids ds))
+        ;; ds (->> (set/union (set dids) (set dids))
+        ;;         (map (partial db/discussion-by-id db))
+        ;;         (remove poster-blocked?))
 
-        earliest-ts (->> ds
-                         (map (comp :discussion/created_at :discussion))
-                         (sort-by #(.getTime %))
-                         (first))
+        ;; ;; What are the groups and users in those discussions?
+        ;; d-group-ids (set (keep (comp :discussion/group_id :discussion) ds))
+        ;; d-user-ids  (reduce set/union (map :user_ids ds))
+
+        ;; earliest-ts (->> ds
+        ;;                  (map (comp :discussion/created_at :discussion))
+        ;;                  (sort-by #(.getTime %))
+        ;;                  (first))
 
         ;; TODO: only fetch the ones that are in a similar time range as the discussions
-        items (db.feed/for-user-with-ts db user-id {:older-than-ts older-than
-                                                    :younger-than-ts earliest-ts
-                                                    :contact_id contact_id
-                                                    :group_id group_id})
+        items (db.feed/for-user-with-ts db user-id feed-query)
+
+        shown-entities (atom {:gatz/discussions #{}
+                              :gatz/contacts #{}
+                              :gatz/contact_requests #{}})
+        items (reduce (fn [acc {:keys [feed/ref_type feed/ref] :as item}]
+                        (if (= :gatz/discussion ref_type)
+                          (let [dids (:gatz/discussions @shown-entities)
+                                did (:xt/id ref)]
+                            (if (contains? dids did)
+                              acc
+                              (do
+                                (swap! shown-entities update :gatz/discussions conj did)
+                                (conj acc item))))
+                          (conj acc item)))
+                      []
+                      items)
+        _ (def -ctx ctx)
+        _ (def -items items)
         items (keep (partial hydrate-item ctx) items)
 
         fi-group-ids (reduce set/union (map collect-group-ids items))
-        groups (cond-> (map (partial db.group/by-id db)
-                            (set/union d-group-ids fi-group-ids))
-                 group (conj group))
+        groups (cond-> fi-group-ids
+                 (some? group_id) (conj group_id))
+        ;; groups (cond-> (map (partial db.group/by-id db)
+        ;;                     (set/union d-group-ids fi-group-ids))
+        ;;          group (conj group))
 
         fi-user-ids (reduce set/union (map collect-contact-ids items))
-        users (->> (set/union d-user-ids fi-user-ids)
+        user-ids (cond-> fi-user-ids
+                   (some? contact_id) (conj contact_id))
+        users (->> user-ids
                    (map (partial db.user/by-id db))
-                   (map (comp db.contacts/->contact crdt.user/->value)))
-        drs (->> ds
-                 (sort-by (comp :discussion/created_at :discussion))
-                 (map (fn [dr]
-                        (update dr :discussion #(-> %
-                                                    (crdt.discussion/->value)
-                                                    (db.discussion/->external user-id))))))]
-    (http/json-response
-     {:discussions drs
-      :users users
-      :groups groups
-      :items items
-      :current false
-      :latest_tx {:id (::xt/tx-id latest-tx)
-                  :ts (::xt/tx-time latest-tx)}})))
+                   (map (comp db.contacts/->contact crdt.user/->value)))]
+        ;; drs (->> ds
+        ;;          (sort-by (comp :discussion/created_at :discussion))
+        ;;          (map (fn [dr]
+        ;;                 (update dr :discussion #(-> %
+        ;;                                             (crdt.discussion/->value)
+        ;;                                             (db.discussion/->external user-id))))))
+
+    (http/json-response {:users users :groups groups :items items})))
 
 
 (def dismiss-params

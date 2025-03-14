@@ -222,7 +222,7 @@
                               :mid mid
                               :gid group_id})))
                      (map (fn [item]
-                            [:xtdb.api/fn :gatz.db.feed/add-mention {:feed_item item}])))
+                            [:xtdb.api/put (assoc item :db/op :create)])))
 
         ;; We continue to store mentions in the database
         ;; until the old clients are retired
@@ -252,6 +252,11 @@
             :archived-uids archived-uids}
            {:now now})
 
+        post-fi (db.feed/new-post (db.feed/new-feed-item-id) now
+                                  {:members member-uids
+                                   :cid user-id
+                                   :gid group_id
+                                   :did did})
         member-mode
         (if group
           (let [group-mode (get-in group [:group/settings :discussion/member_mode])]
@@ -312,6 +317,7 @@
                  [:xtdb.api/fn :gatz.db.message/apply-delta {:evt original-msg-evt}])]
               mentions-txns
               fi-txns
+              [[:xtdb.api/put (assoc post-fi :db/op :create)]]
               updated-medias)]
     (biff/submit-tx ctx (vec (remove nil? txns)))
     {:discussion d :message msg :txns txns}))
@@ -330,10 +336,11 @@
 
 (defn discussion-by-id [db did]
   {:pre [(uuid? did)]}
-  (when-let [discussion (db.discussion/by-id db did)]
+  (when-let [discussion (some-> (db.discussion/by-id db did)
+                                crdt.discussion/->value)]
     (let [messages (db.message/by-did db did)]
-      {:discussion (crdt.discussion/->value discussion)
-       :user_ids (crdt/-value (:discussion/members discussion))
+      {:discussion discussion
+       :user_ids (:discussion/members discussion)
        :messages (mapv crdt.message/->value messages)})))
 
 ;; TODO: add a max limit
@@ -454,7 +461,7 @@
                               :mid mid
                               :gid (:discussion/group_id d)})))
                      (map (fn [feed-item]
-                            [:xtdb.api/fn :gatz.db.feed/add-mention {:feed_item feed-item}])))
+                            [:xtdb.api/put (assoc feed-item :db/op :create)])))
 
         ;; We continue to store mentions in the database
         ;; until the old clients are retired
@@ -525,8 +532,7 @@
               mentions-txns
               fi-txns
               (or updated-medias []))]
-    (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
-                    (vec (remove nil? txns)))
+    (biff/submit-tx ctx (vec (remove nil? txns)))
     msg))
 
 

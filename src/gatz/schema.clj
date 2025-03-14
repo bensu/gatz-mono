@@ -837,6 +837,7 @@
    :feed.type/new_friend_of_friend
    :feed.type/new_user_invited_by_friend
    :feed.type/added_to_group
+   :feed.type/new_post
    :feed.type/mentioned_in_discussion])
 
 (def RefType

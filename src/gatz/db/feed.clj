@@ -17,10 +17,11 @@
 (def feed-type->ref-type
   {:feed.type/new_request :gatz/contact_request
    :feed.type/new_friend :gatz/contact
-   :feed.type/mentioned_in_discussion :gatz/discussion
    :feed.type/new_friend_of_friend :gatz/contact
    :feed.type/new_user_invited_by_friend :gatz/user
-   :feed.type/added_to_group :gatz/group})
+   :feed.type/added_to_group :gatz/group
+   :feed.type/new_post :gatz/discussion
+   :feed.type/mentioned_in_discussion :gatz/discussion})
 
 (def feed-types (set (keys feed-type->ref-type)))
 
@@ -106,11 +107,25 @@
              :contact_id invited_by_uid
              :ref uid}))
 
+(defn new-post [id now {:keys [members cid gid did] :as opts}]
+  {:pre [(set? members) (every? uuid? members)
+         (uuid? id) (inst? now)
+         (uuid? cid) (or (nil? gid) (ulid/ulid? gid))
+         (uuid? did)]}
+  (new-item {:id id
+             :uids (conj members cid)
+             :now now
+             :group_id gid
+             :contact_id cid
+             :ref did
+             :ref_type :gatz/discussion
+             :feed_type :feed.type/new_post}))
+
 (defn new-mention [id now {:keys [by_uid to_uid did gid mid]}]
   {:pre [(uuid? id)
          (inst? now)
          (uuid? by_uid) (uuid? to_uid)
-         (uuid? did) (ulid/ulid? gid)]}
+         (uuid? did) (or (nil? gid) (ulid/ulid? gid))]}
   (new-item {:id id
              :uids #{to_uid}
              :now now
@@ -129,34 +144,38 @@
   (xtdb/entity db id))
 
 
-(defn by-uid-did [db uid did]
-  {:pre [(uuid? uid) (uuid? did)]}
-  (first
-   (q db '{:find feed-item
-           :in [user-id did]
-           :where [[feed-item :db/type :gatz/feed_item]
-                   [feed-item :feed/uids user-id]
-                   [feed-item :feed/mid mid]
-                   [feed-item :feed/ref_type :gatz/discussion]
-                   [feed-item :feed/ref did]]}
-      uid did)))
+(comment
+  (defn by-uid-did [db uid did]
+    {:pre [(uuid? uid) (uuid? did)]}
+    (first
+     (q db '{:find feed-item
+             :in [user-id did]
+             :where [[feed-item :db/type :gatz/feed_item]
+                     [feed-item :feed/uids user-id]
+                     [feed-item :feed/mid mid]
+                     [feed-item :feed/ref_type :gatz/discussion]
+                     [feed-item :feed/ref did]]}
+        uid did)))
 
-(defn add-mention-txn-fn
-  [xtdb-ctx {:keys [feed_item] :as _args}]
-  (let [db (xtdb.api/db xtdb-ctx)
-        {:feed/keys [uids ref]} feed_item
+
+  (defn add-mention-txn-fn
+    [xtdb-ctx {:keys [feed_item] :as _args}]
+    (let [db (xtdb.api/db xtdb-ctx)
+          {:feed/keys [uids ref]} feed_item
         ;; we only support one to_uid for mentions
-        to_uid (first uids)
-        existing-mention (by-uid-did db to_uid ref)]
+          to_uid (first uids)
+          existing-mention (by-uid-did db to_uid ref)]
     ;; This means that if multiple people mention me in a discussion,
     ;; only the first one counts as mentioning me
-    (when-not (some? existing-mention)
-      [[:xtdb.api/put (assoc feed_item :db/op :create)]])))
+      (when-not (some? existing-mention)
+        [[:xtdb.api/put (assoc feed_item :db/op :create)]])))
 
-(def ^{:doc "This function will be stored in the db which is why it is an expression"}
-  add-mention-expr
-  '(fn add-mention-fn [ctx args]
-     (gatz.db.feed/add-mention-txn-fn ctx args)))
+
+  (def ^{:doc "This function will be stored in the db which is why it is an expression"}
+    add-mention-expr
+    '(fn add-mention-fn [ctx args]
+       (gatz.db.feed/add-mention-txn-fn ctx args))))
+
 
 (defn dismiss-item-txn-fn [xtdb-ctx {:keys [id uid now]}]
   (let [db (xtdb/db xtdb-ctx)]
@@ -165,6 +184,7 @@
                           (assoc :feed/updated_at now)
                           (update :feed/dismissed_by conj uid)
                           (assoc :db/op :update))]])))
+
 
 (def dismiss-item-expr
   '(fn dismiss-item-fn [xtdb-ctx args]
@@ -181,7 +201,8 @@
 
 (def tx-fns
   {:gatz.db.feed/dismiss-item dismiss-item-expr
-   :gatz.db.feed/add-mention add-mention-expr})
+  ;; :gatz.db.feed/add-mention add-mention-expr
+   })
 
 ;; ======================================================================
 ;; Queries
