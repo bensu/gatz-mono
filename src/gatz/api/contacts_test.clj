@@ -458,8 +458,8 @@
           (is (= "Friend of Friend" (:full_name profile)))
           (is (= "https://example.com/fof" (:avatar contact)))
           (is (= #{(str cid)} (set (map :id (:contacts in_common)))))
-          (testing "but not their friends not in common"
-            (is (empty? their_contacts)))))
+          (testing "including their friends if we have someone in common"
+            (is (= 1 (count their_contacts))))))
 
       (testing "can only see limited profile of stranger"
         (let [{:keys [status body]} (api.contacts/get-contact
