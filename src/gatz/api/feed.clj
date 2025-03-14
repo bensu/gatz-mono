@@ -223,14 +223,11 @@
 
   (posthog/capture! ctx "discussion.feed")
 
-  ;; TODO: return early depending on latest-tx
-  ;; TODO: should be using the latest-tx from the _db_ not the node
   (let [params (parse-feed-params params)
 
         older-than (some->> (:last_id params)
                             (db.feed/by-id db)
                             :feed/created_at)
-        _ (println "older-than" older-than)
 
         ;; Is this a contact's feed?
         contact (some->> (:contact_id params) (db.user/by-id db))
@@ -245,35 +242,6 @@
                     :contact_id contact_id
                     :group_id group_id}
 
-        ;; I want to get the mentions from the feed
-        ;; dids-ts (db.discussion/posts-for-user-with-ts db user-id feed-query)
-        ;; mentioned-dids-ts (db.discussion/mentions-for-user-with-ts db user-id feed-query)
-
-        ;; dids (->> (concat dids-ts mentioned-dids-ts)
-        ;;           (sort-by (fn [[_ tsa]] tsa))
-        ;;           (reverse)
-        ;;           (map first)
-        ;;           (distinct)
-        ;;           (take 20))
-
-        ;; blocked-uids (:user/blocked_uids (crdt.user/->value user))
-        ;; poster-blocked? (fn [{:keys [discussion]}]
-        ;;                   (contains? blocked-uids (:discussion/created_by discussion)))
-
-        ;; ds (->> (set/union (set dids) (set dids))
-        ;;         (map (partial db/discussion-by-id db))
-        ;;         (remove poster-blocked?))
-
-        ;; ;; What are the groups and users in those discussions?
-        ;; d-group-ids (set (keep (comp :discussion/group_id :discussion) ds))
-        ;; d-user-ids  (reduce set/union (map :user_ids ds))
-
-        ;; earliest-ts (->> ds
-        ;;                  (map (comp :discussion/created_at :discussion))
-        ;;                  (sort-by #(.getTime %))
-        ;;                  (first))
-
-        ;; TODO: only fetch the ones that are in a similar time range as the discussions
         items (db.feed/for-user-with-ts db user-id feed-query)
 
         shown-entities (atom {:gatz/discussions #{}
@@ -296,11 +264,9 @@
         items (keep (partial hydrate-item ctx) items)
 
         fi-group-ids (reduce set/union (map collect-group-ids items))
-        groups (cond-> fi-group-ids
-                 (some? group_id) (conj group_id))
-        ;; groups (cond-> (map (partial db.group/by-id db)
-        ;;                     (set/union d-group-ids fi-group-ids))
-        ;;          group (conj group))
+        group-ids (cond-> fi-group-ids
+                    (some? group_id) (conj group_id))
+        groups (map (partial db.group/by-id db) group-ids)
 
         fi-user-ids (reduce set/union (map collect-contact-ids items))
         user-ids (cond-> fi-user-ids
@@ -308,13 +274,6 @@
         users (->> user-ids
                    (map (partial db.user/by-id db))
                    (map (comp db.contacts/->contact crdt.user/->value)))]
-        ;; drs (->> ds
-        ;;          (sort-by (comp :discussion/created_at :discussion))
-        ;;          (map (fn [dr]
-        ;;                 (update dr :discussion #(-> %
-        ;;                                             (crdt.discussion/->value)
-        ;;                                             (db.discussion/->external user-id))))))
-
     (http/json-response {:users users :groups groups :items items})))
 
 

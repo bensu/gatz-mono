@@ -270,7 +270,8 @@
       (json-response {:current true
                       :latest_tx {:id (::xt/tx-id latest-tx)
                                   :ts (::xt/tx-time latest-tx)}})
-      (let [dis (if-let [older-than-ts (some->> (:last_did params)
+      (let [dis (if-let [older-than-ts (some->> (or (:last_id params)
+                                                    (:last_did params))
                                                 util/parse-uuid
                                                 (db/discussion-by-id db)
                                                 :discussion
@@ -356,7 +357,8 @@
   [:map
    [:group_id {:optional true} crdt/ulid?]
    [:contact_id {:optional true} uuid?]
-   [:last_did {:optional true} uuid?]])
+   [:last_did {:optional true} uuid?]
+   [:last_id {:optional true} uuid?]])
 
 (def feed-response
   [:map
@@ -376,7 +378,8 @@
   (cond-> params
     (some? (:contact_id params)) (update :contact_id strict-str->uuid)
     (some? (:group_id params))   (update :group_id crdt/parse-ulid)
-    (some? (:last_did params))   (update :last_did strict-str->uuid)))
+    (some? (:last_did params))   (update :last_id strict-str->uuid)
+    (some? (:last_id params))   (update :last_id strict-str->uuid)))
 
 (def limit 20)
 
@@ -393,7 +396,7 @@
   (let [params (parse-feed-params params)
         latest-tx (xt/latest-completed-tx node)
 
-        older-than (some->> (:last_did params)
+        older-than (some->> (or (:last_id params) (:last_did params))
                             (db.discussion/by-id db)
                             :discussion/created_at)
 
@@ -478,7 +481,7 @@
   ;; TODO: should be using the latest-tx from the _db_ not the node
   (let [params (parse-active-params params)
         latest-tx (xt/latest-completed-tx node)
-        older-than (some->> (:last_did params)
+        older-than (some->> (or (:last_id params) (:last_did params))
                             (db.discussion/by-id db)
                             :discussion/created_at)
         contact_id (some->> (:contact_id params)
