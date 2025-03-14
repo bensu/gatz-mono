@@ -10,6 +10,7 @@
             [gatz.db.contacts :as db.contacts]
             [gatz.db.discussion :as db.discussion]
             [gatz.db.evt :as db.evt]
+            [gatz.db.feed :as db.feed]
             [gatz.db.group :as db.group]
             [gatz.db.media :as db.media]
             [gatz.db.message :as db.message]
@@ -37,6 +38,14 @@
 
 ;; ======================================================================
 ;; Discussion
+
+(defn get-mentioned-users [db user-id members text]
+  (->> (db.message/extract-mentions text)
+       set
+       (keep (partial db.user/by-name db))
+       (filter (fn [{:keys [xt/id]}]
+                 (and (not= user-id id)
+                      (contains? members id))))))
 
 (defn sort-feed [user-id discussions]
   (let [seen-discussions (group-by (partial db.discussion/seen-by-user? user-id) discussions)]
@@ -200,30 +209,38 @@
         dm? (and (not group)
                  (= 1 (count (disj member-uids user-id))))
 
-        possible-mentions (db.message/extract-mentions text)
-        mentions (if-not (empty? possible-mentions)
-                   (->> possible-mentions
-                        set
-                        (keep (partial db.user/by-name db))
-                        (filter (fn [{:keys [xt/id]}]
-                                  (and (not= user-id id)
-                                       (contains? member-uids id))))
-                        (mapv (fn [u]
-                                {:xt/id (crdt/rand-uuid)
-                                 :db/type :gatz/mention
-                                 :db/version 1
-                                 :mention/by_uid user-id
-                                 :mention/to_uid (:xt/id u)
-                                 :mention/did did
-                                 :mention/mid mid
-                                 :mention/ts now})))
-                   [])
+        mentioned-users (get-mentioned-users db user-id member-uids text)
+
+        fi-txns (->> mentioned-users
+                     (map (fn [u]
+                            (db.feed/new-mention
+                             (db.feed/new-feed-item-id)
+                             now
+                             {:by_uid user-id
+                              :to_uid (:xt/id u)
+                              :did did
+                              :mid mid
+                              :gid group_id})))
+                     (map (fn [item]
+                            [:xtdb.api/fn :gatz.db.feed/add-mention {:feed_item item}])))
+
+        ;; We continue to store mentions in the database
+        ;; until the old clients are retired
+        mentions (map (fn [u]
+                        {:xt/id (crdt/rand-uuid)
+                         :db/type :gatz/mention
+                         :db/version 1
+                         :mention/by_uid user-id
+                         :mention/to_uid (:xt/id u)
+                         :mention/did did
+                         :mention/mid mid
+                         :mention/ts now})
+                      mentioned-users)
+        mentions-txns (map (fn [mention]
+                             [:xtdb.api/fn :gatz.db.mention/add {:mention mention}])
+                           mentions)
         uid->mentions (zipmap (map :mention/to_uid mentions)
                               (map (fn [m] (crdt/gos #{m})) mentions))
-        mentions-txns (map (fn [m]
-                             [:xtdb.api/fn :gatz.db.mention/add {:mention m}])
-                           mentions)
-
         ;; TODO: get real connection id
         clock (crdt/new-hlc user-id now)
         ;; TODO: embed msg in discussion
@@ -294,6 +311,7 @@
                (when original-msg-evt
                  [:xtdb.api/fn :gatz.db.message/apply-delta {:evt original-msg-evt}])]
               mentions-txns
+              fi-txns
               updated-medias)]
     (biff/submit-tx ctx (vec (remove nil? txns)))
     {:discussion d :message msg :txns txns}))
@@ -424,30 +442,37 @@
               (assert reply-to)
               (assert (= did (:message/did reply-to)))))
 
-        possible-mentions (db.message/extract-mentions text)
-        mentions (if-not (empty? possible-mentions)
-                   (->> possible-mentions
-                        set
-                        (keep (partial db.user/by-name db))
-                        (filter (fn [{:keys [xt/id]}]
-                                  (and (not= user-id id)
-                                       (contains? members id))))
-                        (mapv (fn [u]
-                                {:xt/id (crdt/rand-uuid)
-                                 :db/type :gatz/mention
-                                 :db/version 1
-                                 :mention/by_uid user-id
-                                 :mention/to_uid (:xt/id u)
-                                 :mention/did did
-                                 :mention/mid mid
-                                 :mention/ts now})))
-                   [])
+        mentioned-users (get-mentioned-users db user-id members text)
+        fi-txns (->> mentioned-users
+                     (map (fn [u]
+                            (db.feed/new-mention
+                             (db.feed/new-feed-item-id)
+                             now
+                             {:by_uid user-id
+                              :to_uid (:xt/id u)
+                              :did did
+                              :mid mid
+                              :gid (:discussion/group_id d)})))
+                     (map (fn [feed-item]
+                            [:xtdb.api/fn :gatz.db.feed/add-mention {:feed_item feed-item}])))
+
+        ;; We continue to store mentions in the database
+        ;; until the old clients are retired
+        mentions (map (fn [u]
+                        {:xt/id (crdt/rand-uuid)
+                         :db/type :gatz/mention
+                         :db/version 1
+                         :mention/by_uid user-id
+                         :mention/to_uid (:xt/id u)
+                         :mention/did did
+                         :mention/mid mid
+                         :mention/ts now})
+                      mentioned-users)
+        mentions-txns (map (fn [mention]
+                             [:xtdb.api/fn :gatz.db.mention/add {:mention mention}])
+                           mentions)
         uid->mentions (zipmap (map :mention/to_uid mentions)
                               (map (fn [m] (crdt/gos #{m})) mentions))
-        mentions-txns (map (fn [m]
-                             [:xtdb.api/fn :gatz.db.mention/add {:mention m}])
-                           mentions)
-
         subscribe? (get-in user [:user/settings
                                  :settings/notifications
                                  :settings.notification/subscribe_on_comment]
@@ -498,6 +523,7 @@
                    (assoc :db/doc-type :gatz.doc/message :db/op :create))
                [:xtdb.api/fn :gatz.db.discussion/apply-delta {:evt evt}]]
               mentions-txns
+              fi-txns
               (or updated-medias []))]
     (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
                     (vec (remove nil? txns)))

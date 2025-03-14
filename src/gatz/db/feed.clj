@@ -11,11 +11,13 @@
   {:gatz/contact uuid?
    :gatz/contact_request uuid?
    :gatz/group ulid/ulid?
+   :gatz/discussion uuid?
    :gatz/user uuid?})
 
 (def feed-type->ref-type
   {:feed.type/new_request :gatz/contact_request
    :feed.type/new_friend :gatz/contact
+   :feed.type/mentioned_in_discussion :gatz/discussion
    :feed.type/new_friend_of_friend :gatz/contact
    :feed.type/new_user_invited_by_friend :gatz/user
    :feed.type/added_to_group :gatz/group})
@@ -32,9 +34,10 @@
           (= ref_type expected-ref-type)))))
 
 (defn new-item
-  [{:keys [id now uids group_id contact_id contact_request_id feed_type] :as opts}]
+  [{:keys [id now uids group_id contact_id contact_request_id feed_type mid] :as opts}]
   {:pre [(or (nil? id) (uuid? id))
          (or (nil? now) (inst? now))
+         (or (nil? mid) (uuid? mid))
          (set? uids) (every? uuid? uids)
          (contains? feed-types feed_type)
          (validate-item-ref? opts)]}
@@ -49,6 +52,7 @@
      :feed/dismissed_by #{}
      :feed/hidden_for #{}
      :feed/feed_type feed_type
+     :feed/mid mid
      :feed/ref_type ref_type
      :feed/ref ref
      :feed/group group_id
@@ -102,12 +106,57 @@
              :contact_id invited_by_uid
              :ref uid}))
 
+(defn new-mention [id now {:keys [by_uid to_uid did gid mid]}]
+  {:pre [(uuid? id)
+         (inst? now)
+         (uuid? by_uid) (uuid? to_uid)
+         (uuid? did) (ulid/ulid? gid)]}
+  (new-item {:id id
+             :uids #{to_uid}
+             :now now
+             :contact_id by_uid
+             :mid mid
+             :group_id gid
+             :feed_type :feed.type/mentioned_in_discussion
+             :ref_type :gatz/discussion
+             :ref did}))
+
 ;; ======================================================================
 ;; Transactions
 
 (defn by-id [db id]
   {:pre [(uuid? id)]}
   (xtdb/entity db id))
+
+
+(defn by-uid-did [db uid did]
+  {:pre [(uuid? uid) (uuid? did)]}
+  (first
+   (q db '{:find feed-item
+           :in [user-id did]
+           :where [[feed-item :db/type :gatz/feed_item]
+                   [feed-item :feed/uids user-id]
+                   [feed-item :feed/mid mid]
+                   [feed-item :feed/ref_type :gatz/discussion]
+                   [feed-item :feed/ref did]]}
+      uid did)))
+
+(defn add-mention-txn-fn
+  [xtdb-ctx {:keys [feed_item] :as _args}]
+  (let [db (xtdb.api/db xtdb-ctx)
+        {:feed/keys [uids ref]} feed_item
+        ;; we only support one to_uid for mentions
+        to_uid (first uids)
+        existing-mention (by-uid-did db to_uid ref)]
+    ;; This means that if multiple people mention me in a discussion,
+    ;; only the first one counts as mentioning me
+    (when-not (some? existing-mention)
+      [[:xtdb.api/put (assoc feed_item :db/op :create)]])))
+
+(def ^{:doc "This function will be stored in the db which is why it is an expression"}
+  add-mention-expr
+  '(fn add-mention-fn [ctx args]
+     (gatz.db.feed/add-mention-txn-fn ctx args)))
 
 (defn dismiss-item-txn-fn [xtdb-ctx {:keys [id uid now]}]
   (let [db (xtdb/db xtdb-ctx)]
@@ -131,7 +180,8 @@
     {:item (by-id db-after id)}))
 
 (def tx-fns
-  {:gatz.db.feed/dismiss-item dismiss-item-expr})
+  {:gatz.db.feed/dismiss-item dismiss-item-expr
+   :gatz.db.feed/add-mention add-mention-expr})
 
 ;; ======================================================================
 ;; Queries

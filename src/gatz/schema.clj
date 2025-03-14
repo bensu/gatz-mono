@@ -836,10 +836,11 @@
    :feed.type/new_friend
    :feed.type/new_friend_of_friend
    :feed.type/new_user_invited_by_friend
-   :feed.type/added_to_group])
+   :feed.type/added_to_group
+   :feed.type/mentioned_in_discussion])
 
 (def RefType
-  [:enum :gatz/contact :gatz/contact_request :gatz/group :gatz/user])
+  [:enum :gatz/contact :gatz/contact_request :gatz/group :gatz/user :gatz/discussion])
 
 (def FeedItem
   [:map
@@ -856,6 +857,8 @@
    [:feed/dismissed_by [:set uuid?]]
    ;; Is there a separate way to remove them from the feed? (possibly remove the user from uids)
    [:feed/hidden_for [:set uuid?]]
+
+   [:feed/mid [:maybe #'MessageId]]
 
    [:feed/feed_type FeedType]
    [:feed/ref_type RefType]
