@@ -258,8 +258,6 @@
                           (conj acc item)))
                       []
                       items)
-        _ (def -ctx ctx)
-        _ (def -items items)
         items (keep (partial hydrate-item ctx) items)
 
         fi-group-ids (reduce set/union (map collect-group-ids items))
