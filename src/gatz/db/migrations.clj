@@ -7,6 +7,7 @@
             [clojure.tools.logging :as log]
             [clojure.data.csv :as csv]
             [crdt.core :as crdt]
+            [crdt.ulid :as ulid]
             [gatz.api.invite-link :as api.invite-link]
             [gatz.db :refer :all]
             [gatz.db.contacts :as db.contacts]
@@ -1065,15 +1066,18 @@
 
 (def did->fi-id (atom {}))
 (def mention->fi-id (atom {}))
+
 ;; TODO: generate the fi-ids at the same as the discussions are created
-(defn get-fi-id! [did]
+(defn get-fi-id! [now did]
+  {:pre [(inst? now) (uuid? did)]}
   (let [r (swap! did->fi-id (fn [m]
-                              (update m did #(or % (db.feed/new-feed-item-id)))))]
+                              (update m did #(or % (ulid/random-time-uuid now)))))]
     (get r did)))
 
-(defn get-mention-fi-id! [mid]
+(defn get-mention-fi-id! [now mid]
+  {:pre [(inst? now) (uuid? mid)]}
   (let [r (swap! mention->fi-id (fn [m]
-                                  (update m mid #(or % (db.feed/new-feed-item-id)))))]
+                                  (update m mid #(or % (ulid/random-time-uuid now)))))]
     (get r mid)))
 
 (defn get-all-dids [db]
@@ -1093,7 +1097,7 @@
                            :as d}]
                        (try
                          (let [post-fi (db.feed/new-post
-                                        (get-fi-id! id)
+                                        (get-fi-id! created_at id)
                                         created_at
                                         {:members members
                                          :cid created_by
@@ -1105,7 +1109,7 @@
                                                               mentions))
                                                     (mapv (fn [{:mention/keys [to_uid by_uid mid ts]}]
                                                             (db.feed/new-mention
-                                                             (get-mention-fi-id! mid)
+                                                             (get-mention-fi-id! ts mid)
                                                              ts
                                                              {:by_uid by_uid
                                                               :to_uid to_uid
