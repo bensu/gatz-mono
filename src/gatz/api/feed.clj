@@ -13,7 +13,8 @@
             [gatz.db.group :as db.group]
             [gatz.db.user :as db.user]
             [gatz.schema :as schema]
-            [sdk.posthog :as posthog])
+            [sdk.posthog :as posthog]
+            [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
 ;; ================================
@@ -22,10 +23,18 @@
 ;; Each feed item might need more data from the database
 ;; that what we get from the db.feed/for-user-with-ts query
 
-(defmulti hydrate-item (fn [_ctx item]
-                         (:feed/feed_type item)))
+(defmulti -hydrate-item (fn [_ctx item]
+                          (:feed/feed_type item)))
 
-(defmethod hydrate-item :default [_ctx item] item)
+(defn hydrate-item [{:keys [biff/db] :as ctx} item]
+  (let [ref (:feed/ref item)
+        ref (if (coll? ref)
+              ref
+              (xtdb/entity db ref))
+        full-feed-item (assoc item :feed/ref ref)]
+    (-hydrate-item ctx full-feed-item)))
+
+(defmethod -hydrate-item :default [_ctx item] item)
 
 (defmulti collect-group-ids :feed/feed_type)
 
@@ -39,7 +48,7 @@
   #{:contact_request/response_pending_from_viewer
     :contact_request/accepted})
 
-(defmethod hydrate-item :feed.type/new_request
+(defmethod -hydrate-item :feed.type/new_request
   [{:keys [biff/db auth/user-id] :as _ctx} item]
   (let [cr (:feed/ref item)
         state-for (db.contacts/state-for cr user-id)]
@@ -64,7 +73,7 @@
         (get-in [:contact_request/in_common :contact_request.in_common/contacts])
         (conj (:contact_request/from cr)))))
 
-(defmethod hydrate-item :feed.type/new_friend
+(defmethod -hydrate-item :feed.type/new_friend
   [{:keys [biff/db auth/user-id] :as _ctx} item]
   (let [contact (:feed/ref item)
         cid (:xt/id contact)
@@ -87,7 +96,7 @@
         (get-in [:contact/in_common :contact.in_common/contacts])
         (conj (:xt/id contact)))))
 
-(defmethod hydrate-item :feed.type/added_to_group
+(defmethod -hydrate-item :feed.type/added_to_group
   [{:keys [biff/db auth/user-id] :as _ctx} item]
   (let [group (:feed/ref item)
         friends (:contacts/ids (db.contacts/by-uid db user-id))
@@ -109,7 +118,7 @@
         (conj (:group/added_by group)))))
 
 
-(defmethod hydrate-item :feed.type/new_user_invited_by_friend
+(defmethod -hydrate-item :feed.type/new_user_invited_by_friend
   [{:keys [biff/db auth/user-id] :as _ctx} item]
   (let [contact (-> (:feed/ref item)
                     (crdt.user/->value)
@@ -158,11 +167,11 @@
                                   (db.discussion/->external user-id)
                                   (assoc :discussion/messages messages)))))))
 
-(defmethod hydrate-item :feed.type/mentioned_in_discussion
+(defmethod -hydrate-item :feed.type/mentioned_in_discussion
   [ctx item]
   (hydrate-discussion ctx item))
 
-(defmethod hydrate-item :feed.type/new_post
+(defmethod -hydrate-item :feed.type/new_post
   [ctx item]
   (hydrate-discussion ctx item))
 

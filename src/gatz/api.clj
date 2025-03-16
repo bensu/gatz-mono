@@ -22,6 +22,8 @@
             [gatz.db :as db]
             [gatz.db.discussion :as db.discussion]
             [gatz.db.feed :as db.feed]
+            [gatz.db.contacts :as db.contacts]
+            [gatz.db.group :as db.group]
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
             [gatz.settings :as settings]
@@ -205,6 +207,30 @@
             m (gatz.db.message/by-id db mid)]
         (propagate-new-message! ctx did (crdt.message/->value m))))))
 
+(defn handle-feed-item! [{:keys [biff.xtdb/node conns-state] :as ctx} feed-item]
+  (let [conns @conns-state]
+    (doseq [uid (:feed/uids feed-item)
+            ws (conns/uids->wss conns #{uid})]
+      (let [db (xtdb/db node)
+            user (db.user/by-id db uid)
+            ctx (assoc ctx
+                       :biff/db db
+                       :auth/user-id uid
+                       :auth/user user)
+            hfi (api.feed/hydrate-item ctx feed-item)
+            group-ids (api.feed/collect-group-ids hfi)
+            groups (map (partial db.group/by-id db) group-ids)
+            contact-ids (api.feed/collect-contact-ids hfi)
+            contacts (map (comp db.contacts/->contact
+                                crdt.user/->value
+                                (partial db.user/by-id db))
+                          contact-ids)
+            evt {:event/type :event/new_feed_item
+                 :event/data {:feed_item hfi
+                              :groups groups
+                              :contacts contacts}}]
+        (jetty/send! ws (json/write-str evt))))))
+
 (defn flatten-tx-ops
   "Returns a sequence of 'final' tx-ops without nesting"
   [tx]
@@ -221,11 +247,16 @@
   (doseq [[op & args] (flatten-tx-ops tx)]
     (when (= op ::xtdb/put)
       (let [[evt] args]
-        (when (= :gatz/evt (:db/type evt))
-          (try
-            (handle-evt! ctx evt)
-            (catch Throwable t
-              (sentry/send-event-error! t evt))))))))
+        (case (:db/type evt)
+          :gatz/evt (try
+                      (handle-evt! ctx evt)
+                      (catch Throwable t
+                        (sentry/send-event-error! t evt)))
+          :gatz/feed_item (try
+                            (handle-feed-item! ctx evt)
+                            (catch Throwable t
+                              (sentry/send-event-error! t evt)))
+          nil)))))
 
 ;; TODO: if one of these throws an exception, the rest of the on-tx should still run
 (defn on-tx [ctx tx]
