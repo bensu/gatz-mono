@@ -98,15 +98,15 @@
   [{:keys [conns-state] :as _ctx} d m]
   (let [did (:xt/id d)
         mid (:xt/id m)
-        ;; did and mid no longer needed as of v1.1.18
-        evt {:event/type :event/message_edited
-             :event/data {:did did :mid mid
-                          :message m :discussion d}}
         conns @conns-state]
     (doseq [uid (conns/discussion-users conns did)
+            :let [d (db.discussion/->external d uid)]
             ws (conns/user-wss conns uid)]
       (log/info "sending message delta to connected clients for" uid)
-      (jetty/send! ws (json/write-str evt)))))
+      ;; did and mid no longer needed as of v1.1.18
+      (jetty/send! ws (json/write-str {:event/type :event/message_edited
+                                       :event/data {:did did :mid mid
+                                                    :message m :discussion d}})))))
 
 (defmulti handle-evt! (fn [_ctx evt]
                         (:evt/type evt)))
@@ -163,13 +163,10 @@
         {:keys [discussion messages user_ids]} (db/discussion-by-id db did)
         feed-item (db.feed/last-by-did db did)
         members (:discussion/members discussion)
-        msg {:event/type :event/new_discussion
-             :event/data {:discussion (crdt.discussion/->value discussion)
-                          :item feed-item
-                          :messages (mapv crdt.message/->value messages)
-                          :users (mapv (comp crdt.user/->value
-                                             (partial db.user/by-id db))
-                                       user_ids)}}
+        messages (map crdt.message/->value messages)
+        users (map (comp crdt.user/->value
+                         (partial db.user/by-id db))
+                   user_ids)
         conns @conns-state]
     ;; register these users to listen to the discussion
     (swap! conns-state conns/add-users-to-d {:did did :user-ids members})
@@ -177,9 +174,17 @@
     ;; because they are now listening to feed items
     ;; as of v1.1.18
     (doseq [uid members
+            :let [d (-> discussion
+                        (crdt.discussion/->value)
+                        (db.discussion/->external uid))]
             ws (conns/user-wss conns uid)]
       (log/info "sending new discussion to connected clients for" uid)
-      (jetty/send! ws (json/write-str msg)))))
+      (jetty/send! ws (json/write-str
+                       {:event/type :event/new_discussion
+                        :event/data {:discussion d
+                                     :item feed-item
+                                     :messages messages
+                                     :users users}})))))
 
 (defmethod handle-evt! :discussion.crdt/delta
   [ctx evt]
