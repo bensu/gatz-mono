@@ -285,14 +285,6 @@
               :media updated-medias
               :link_previews link-previews}
              {:now now :cid user-id :clock clock})
-        evt-data {:discussion.crdt/action :discussion.crdt/new
-                  :discussion.crdt/delta (assoc d :discussion/messages {mid msg})}
-        evt (db.evt/new-evt {:evt/type :discussion.crdt/delta
-                             :evt/uid user-id
-                             :evt/did did
-                             :evt/mid mid
-                             :evt/cid cid
-                             :evt/data evt-data})
         original-msg-evt (when originally-from
                            (db.evt/new-evt
                             {:evt/type :message.crdt/delta
@@ -311,7 +303,6 @@
                (-> msg
                    (db.message/crdt->doc)
                    (assoc :db/doc-type :gatz.doc/message :db/op :create))
-               (assoc evt :db/doct-type :gatz/evt :db/op :create)
                ;; TODO: update original discussion, not just message for it
                (when original-msg-evt
                  [:xtdb.api/fn :gatz.db.message/apply-delta {:evt original-msg-evt}])]

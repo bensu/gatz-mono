@@ -94,14 +94,12 @@
                       (jetty/send! ws (json/write-str {:conn-id conn-id :user-id user-id :echo text :state @conns-state}))))}))
       {:status 400 :body "Invalid user"})))
 
-(defn propagate-message-delta!
-  [{:keys [conns-state] :as _ctx} d m delta]
+(defn propagate-message!
+  [{:keys [conns-state] :as _ctx} d m]
   (let [did (:xt/id d)
         mid (:xt/id m)
-        evt-type (case (:message.crdt/action delta)
-                   :message.crdt/delete :event/delete_message
-                   :event/message_edited)
-        evt {:event/type evt-type
+        ;; did and mid no longer needed as of v1.1.18
+        evt {:event/type :event/message_edited
              :event/data {:did did :mid mid
                           :message m :discussion d}}
         conns @conns-state]
@@ -156,23 +154,8 @@
         mid (:evt/mid evt)
         d (crdt.discussion/->value (db.discussion/by-id db did))
         m (crdt.message/->value (db.message/by-id db mid))]
-    (propagate-message-delta! ctx d m (:evt/data evt))
+    (propagate-message! ctx d m)
     (api.message/handle-message-evt! ctx d m evt)))
-
-(defn propagate-new-message!
-  [{:keys [conns-state biff.xtdb/node] :as _ctx} did m]
-  (let [db (xtdb/db node)
-        d (db.discussion/by-id db did)
-        evt {:event/type :event/new_message
-             :event/data {:message m
-                          :discussion (crdt.discussion/->value d)
-                          :did did
-                          :mid (:xt/id m)}}
-        conns @conns-state]
-    (doseq [uid (conns/discussion-users conns did)
-            ws (conns/user-wss conns uid)]
-      (log/info "sending new message to connected clients for" uid)
-      (jetty/send! ws (json/write-str evt)))))
 
 (defn register-new-discussion!
   [{:keys [conns-state biff.xtdb/node] :as _ctx} did]
@@ -190,6 +173,9 @@
         conns @conns-state]
     ;; register these users to listen to the discussion
     (swap! conns-state conns/add-users-to-d {:did did :user-ids members})
+    ;; Sending this to the members is not necessary 
+    ;; because they are now listening to feed items
+    ;; as of v1.1.18
     (doseq [uid members
             ws (conns/user-wss conns uid)]
       (log/info "sending new discussion to connected clients for" uid)
@@ -198,17 +184,18 @@
 (defmethod handle-evt! :discussion.crdt/delta
   [ctx evt]
   (let [action-type (get-in evt [:evt/data :discussion.crdt/action])]
-    (when (= :discussion.crdt/new action-type)
-      (register-new-discussion! ctx (:evt/did evt)))
     (when (= :discussion.crdt/append-message action-type)
       (let [db (xtdb/db (:biff.xtdb/node ctx))
             did (:evt/did evt)
             mid (:evt/mid evt)
-            m (gatz.db.message/by-id db mid)]
-        (propagate-new-message! ctx did (crdt.message/->value m))))))
+            d (crdt.discussion/->value (db.discussion/by-id db did))
+            m (crdt.message/->value (gatz.db.message/by-id db mid))]
+        (propagate-message! ctx d m)))))
 
 (defn handle-feed-item! [{:keys [biff.xtdb/node conns-state] :as ctx} feed-item]
   (let [conns @conns-state]
+    (when (= :feed.type/new_post (:feed/feed_type feed-item))
+      (register-new-discussion! ctx (:feed/ref feed-item)))
     (doseq [uid (:feed/uids feed-item)
             ws (conns/uids->wss conns #{uid})]
       (let [db (xtdb/db node)
