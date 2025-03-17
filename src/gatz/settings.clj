@@ -6,7 +6,7 @@
 (def min-app-version "1.1.12")
 
 (def ios-app-store-url "https://apps.apple.com/us/app/gatz-chat/id6476069960")
-(def android-play-store-url "https://play.google.com/store/apps/details?id=com.gatz.chat")
+(def android-play-store-url "https://play.google.com/apps/internaltest/4701234533605084026")
 
 (def manifest
   {:app {:min_version min-app-version
