@@ -130,7 +130,6 @@
         req-browser-info (parse-browser-info (:browser_info params))
         path (when-let [pending-link (some-> ip get-link)]
                (when (match? (:browser_info pending-link) req-browser-info)
-                 (remove-link! ip)
                  (:path pending-link)))]
     {:status 200
      :headers {"content-type" "application/json"}
