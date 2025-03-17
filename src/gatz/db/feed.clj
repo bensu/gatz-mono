@@ -1,5 +1,6 @@
 (ns gatz.db.feed
   (:require [crdt.ulid :as ulid]
+            [clojure.set :as set]
             [com.biffweb :as biff :refer [q]]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
@@ -162,6 +163,17 @@
                             (first))]
     (by-id db fi-id)))
 
+(defn by-new-post [db did]
+  {:pre [(uuid? did)]}
+  (first
+   (q db '{:find feed-item
+           :in [did]
+           :where [[feed-item :db/type :gatz/feed_item]
+                   [feed-item :feed/ref did]
+                   [feed-item :feed/feed_type :feed.type/new_post]
+                   [feed-item :feed/ref_type :gatz/discussion]]}
+      did)))
+
 (comment
   (defn by-uid-did [db uid did]
     {:pre [(uuid? uid) (uuid? did)]}
@@ -243,8 +255,31 @@
   (let [args {:ids ids :uid uid :now now}]
     (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.feed/mark-seen args]])))
 
+(defn add-uids-txn [xtdb-ctx {:keys [id uids]}]
+  {:pre [(uuid? id) (set? uids) (every? uuid? uids)]}
+  (let [db (xtdb/db xtdb-ctx)
+        item (by-id db id)]
+    [:xtdb.api/put (-> item
+                       (update :feed/uids set/union uids)
+                       (assoc :db/op :update))]))
+
+(defn add-uids-to-dids-items-txn [xtdb-ctx {:keys [dids uids] :as _args}]
+  {:pre [(set? dids) (every? uuid? dids)
+         (set? uids) (every? uuid? uids)]}
+  (let [db (xtdb/db xtdb-ctx)]
+    (->> dids
+         (keep (fn [did]
+                 (when-let [fi-id (by-new-post db did)]
+                   (add-uids-txn xtdb-ctx {:id fi-id :uids uids}))))
+         vec)))
+
+(def add-uids-to-dids-items-expr
+  '(fn add-uids-to-dids-items-fn [xtdb-ctx args]
+     (gatz.db.feed/add-uids-to-dids-items-txn xtdb-ctx args)))
+
 (def tx-fns
   {:gatz.db.feed/dismiss-item dismiss-item-expr
+   :gatz.db.feed/add-uids-to-dids add-uids-to-dids-items-expr
    :gatz.db.feed/mark-seen mark-seen-expr})
 
 ;; ======================================================================

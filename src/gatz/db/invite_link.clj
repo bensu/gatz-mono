@@ -14,9 +14,7 @@
 
 (defn make-url [ctx id]
   {:pre [(crdt/ulid? id)] :post [(string? %)]}
-  (format "%s/invite?id=%s"
-          (:gatz/host ctx)
-          (str id)))
+  (format "%s/invite/%s" (:gatz.api/host ctx) (str id)))
 
 (defn valid? [{:keys [] :as invite-link}]
   (and (nil? (:invite_link/used_at invite-link))

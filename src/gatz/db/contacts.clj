@@ -574,9 +574,10 @@
 (defn add-to-open-discussions-txn [xtdb-ctx {:keys [by-uid to-uid now]}]
   {:pre [(uuid? by-uid) (uuid? to-uid) (inst? now)]}
   (let [db (xtdb/db xtdb-ctx)
-        dids (db.discussion/open-for-contact db by-uid)]
-    (db.discussion/add-member-to-dids-txn
-     db {:now now :by-uid by-uid :members #{to-uid} :dids dids})))
+        dids (db.discussion/open-for-contact db by-uid)
+        d-txns (db.discussion/add-member-to-dids-txn
+                db {:now now :by-uid by-uid :members #{to-uid} :dids dids})]
+    (conj d-txns [:xtdb.api/fn :gatz.db.feed/add-uids-to-dids {:dids dids :uids #{to-uid}}])))
 
 (def add-to-open-discussions-expr
   '(fn add-to-open-discussions-fn [xtdb-ctx args]
