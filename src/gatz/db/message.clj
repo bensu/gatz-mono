@@ -94,25 +94,25 @@
   [{:from 0 :to 1 :transform v0->v1}
    {:from 1 :to 2 :transform v1->v2}])
 
-(defn- entity->msg [doc]
-  (merge crdt.message/message-defaults
-         (db.util/->latest-version (doc->crdt doc) all-migrations)))
-
 (defn by-id [db mid]
   {:pre [(uuid? mid)]}
-  (some->> (xtdb/entity db mid) (entity->msg)))
+  (when-let [raw-msg (xtdb/entity db mid)]
+    ;; This could be any version of the message
+    (merge crdt.message/message-defaults
+           (db.util/->latest-version (doc->crdt raw-msg) all-migrations))))
 
 (defn by-did [db did]
   {:pre [(uuid? did)]}
-  (->> (q db '{:find [(pull m [*])]
+  (->> (q db '{:find m
                :in [did]
                :where [[m :message/did did]
                        [m :db/type :gatz/message]]}
           did)
-       (keep (comp entity->msg first))
+       (map (partial by-id db))
        (remove (comp :message/deleted_at crdt/-value))
        (sort-by :message/created_at)
        vec))
+
 
 ;; ====================================================================== 
 ;; Events
