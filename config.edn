@@ -21,7 +21,9 @@
 
         :gatz.auth/signup-disabled? false
 
-        :gatz/host "https://gatz.chat"
+        :gatz.site/host "https://gatz.chat"
+        :gatz.api/host "https://api.gatz.chat"
+        :gatz.app/host "https://app.gatz.chat"
 
         :posthog/api_key "phc_abqkICUI7qZDw1rNLR53fB8uC41kOOjKWfE54NfoHus"
         :posthog/host "https://us.i.posthog.com"
@@ -71,6 +73,9 @@
        :biff.middleware/secure false
 
        :gatz.db.user/make-friends-with-everybody? false
+       :gatz.site/host "http://localhost:3000"
+       :gatz.api/host "http://localhost:8080"
+       :gatz.app/host "http://localhost:8081"
 
        :expo/enabled? false
 

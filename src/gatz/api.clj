@@ -276,12 +276,13 @@
    :api-routes [["/ws" {:middleware [auth/wrap-api-auth]}
                  ["/connect" {:get start-connection}]]
                  ;; unauthenticated
+                ["/invite/:code" {:get ddl.api/register-and-redirect!}]
                 ["/api"
                  ["/manifest" {:get get-manifest}]
                  ["/signin" {:post api.user/sign-in!}]
                  ["/signup" {:post api.user/sign-up!}]
 
-                 ["/ddl/register" {:post ddl.api/register-link!}]
+                 ["/ddl/pending" {:post ddl.api/pending-links!}]
 
                  ["/verify/start" {:post api.user/verify-phone!}]
                  ["/verify/code" {:post api.user/verify-code!}]
@@ -342,8 +343,6 @@
                  ["/invite-link" {:get api.invite-link/get-invite-link}]
                  ["/invite-link/join" {:post api.invite-link/post-join-invite-link}]
                  ["/invite-link/crew-share-link" {:post api.invite-link/post-crew-invite-link}]
-
-                 ["/ddl/pending" {:post ddl.api/pending-links!}]
 
                  ["/discussions" {:get  api.discussion/get-full-discussions
                                   :post api.discussion/create-discussion!}]

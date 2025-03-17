@@ -24,7 +24,9 @@
      {:biff.xtdb/node node
       :biff/db (xtdb/db node)
       :posthog/enabled? false
-      :gatz/host "http://localhost:3000"
+      :gatz.site/host "http://localhost:3000"
+      :gatz.app/host "http://localhost:3000"
+      :gatz.api/host "http://localhost:8080"
       :biff/malli-opts #'gatz.system/malli-opts})))
 
 (defn json-params [m]
