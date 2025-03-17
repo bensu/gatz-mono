@@ -62,7 +62,18 @@
      :feed/contact contact_id
      :feed/contact_request contact_request_id}))
 
-(defn new-cr-item [id contact-request]
+(defn new-evt [feed-item]
+  {:pre [(uuid? (:xt/id feed-item))]
+   :post [(uuid? (:xt/id %))]}
+  {:xt/id (new-feed-item-id)
+   :db/type :gatz/evt
+   :db/version 1
+   :evt/uid (:feed/contact feed-item)
+   :evt/ts (:feed/created_at feed-item)
+   :evt/feed_item (:xt/id feed-item)
+   :evt/type :feed_item/new})
+
+(defn- new-cr-item [id contact-request]
   {:pre [(uuid? id)]}
   (let [{:contact_request/keys [to from created_at]} contact-request]
     (new-item {:id id
@@ -73,7 +84,12 @@
                :ref_type :gatz/contact_request
                :ref (:xt/id contact-request)})))
 
-(defn accepted-cr-item [id now contact-request]
+(defn new-cr-item-txn [id contact-request]
+  (let [cr-item (new-cr-item id contact-request)]
+    [[:xtdb.api/put (-> cr-item (assoc :db/op :create))]
+     [:xtdb.api/put (-> (new-evt cr-item) (assoc :db/op :create))]]))
+
+(defn- accepted-cr-item [id now contact-request]
   (let [{:contact_request/keys [to from]} contact-request]
     (new-item {:id id
                :uids #{from} ;; visible to the requester
@@ -83,7 +99,12 @@
                :ref_type :gatz/contact
                :ref to})))
 
-(defn added-to-group [id now {:keys [members group added_by]}]
+(defn accepted-cr-item-txn [id now contact-request]
+  (let [cr-item (accepted-cr-item id now contact-request)]
+    [[:xtdb.api/put (-> cr-item (assoc :db/op :create))]
+     [:xtdb.api/put (-> (new-evt cr-item) (assoc :db/op :create))]]))
+
+(defn- added-to-group [id now {:keys [members group added_by]}]
   {:pre [(set? members) (every? uuid? members)
          (uuid? id) (inst? now) (uuid? added_by)]}
   (new-item {:id id
@@ -95,7 +116,12 @@
              :group_id (:xt/id group)
              :ref (:xt/id group)}))
 
-(defn new-user-item [id now {:keys [members uid invited_by_uid]}]
+(defn added-to-group-txn [id now {:keys [members group added_by]}]
+  (let [item (added-to-group id now {:members members :group group :added_by added_by})]
+    [[:xtdb.api/put (-> item (assoc :db/op :create))]
+     [:xtdb.api/put (-> (new-evt item) (assoc :db/op :create))]]))
+
+(defn- new-user-item [id now {:keys [members uid invited_by_uid]}]
   {:pre [(set? members) (every? uuid? members)
          (uuid? id) (inst? now)
          (uuid? uid) (uuid? invited_by_uid)]}
@@ -109,7 +135,12 @@
              :contact_id invited_by_uid
              :ref uid}))
 
-(defn new-post [id now {:keys [members cid gid did] :as opts}]
+(defn new-user-item-txn [id now {:keys [members uid invited_by_uid]}]
+  (let [item (new-user-item id now {:members members :uid uid :invited_by_uid invited_by_uid})]
+    [[:xtdb.api/put (-> item (assoc :db/op :create))]
+     [:xtdb.api/put (-> (new-evt item) (assoc :db/op :create))]]))
+
+(defn- new-post [id now {:keys [members cid gid did] :as _opts}]
   {:pre [(set? members) (every? uuid? members)
          (uuid? id) (inst? now)
          (uuid? cid) (or (nil? gid) (ulid/ulid? gid))
@@ -123,7 +154,12 @@
              :ref_type :gatz/discussion
              :feed_type :feed.type/new_post}))
 
-(defn new-mention [id now {:keys [by_uid to_uid did gid mid]}]
+(defn new-post-txn [id now opts]
+  (let [item (new-post id now opts)]
+    [[:xtdb.api/put (-> item (assoc :db/op :create))]
+     [:xtdb.api/put (-> (new-evt item) (assoc :db/op :create))]]))
+
+(defn- new-mention [id now {:keys [by_uid to_uid did gid mid]}]
   {:pre [(uuid? id)
          (inst? now)
          (uuid? by_uid) (uuid? to_uid)
@@ -137,6 +173,11 @@
              :feed_type :feed.type/mentioned_in_discussion
              :ref_type :gatz/discussion
              :ref did}))
+
+(defn new-mention-txn [id now {:keys [by_uid to_uid did gid mid]}]
+  (let [item (new-mention id now {:by_uid by_uid :to_uid to_uid :did did :gid gid :mid mid})]
+    [[:xtdb.api/put (-> item (assoc :db/op :create))]
+     [:xtdb.api/put (-> (new-evt item) (assoc :db/op :create))]]))
 
 ;; ======================================================================
 ;; Transactions

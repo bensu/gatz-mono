@@ -197,14 +197,17 @@
             m (crdt.message/->value (gatz.db.message/by-id db mid))]
         (propagate-message! ctx d m)))))
 
-(defn handle-feed-item! [{:keys [biff.xtdb/node conns-state] :as ctx} feed-item]
-  (let [conns @conns-state]
+(defmethod handle-evt! :feed_item/new
+  [{:keys [biff.xtdb/node conns-state] :as ctx} evt]
+  (let [db (xtdb/db node)
+        fi-id (:evt/feed_item evt)
+        feed-item (db.feed/by-id db fi-id)
+        conns @conns-state]
     (when (= :feed.type/new_post (:feed/feed_type feed-item))
       (register-new-discussion! ctx (:feed/ref feed-item)))
     (doseq [uid (:feed/uids feed-item)
             ws (conns/uids->wss conns #{uid})]
-      (let [db (xtdb/db node)
-            user (db.user/by-id db uid)
+      (let [user (db.user/by-id db uid)
             ctx (assoc ctx
                        :biff/db db
                        :auth/user-id uid
@@ -244,10 +247,6 @@
                       (handle-evt! ctx evt)
                       (catch Throwable t
                         (sentry/send-event-error! t evt)))
-          :gatz/feed_item (try
-                            (handle-feed-item! ctx evt)
-                            (catch Throwable t
-                              (sentry/send-event-error! t evt)))
           nil)))))
 
 ;; TODO: if one of these throws an exception, the rest of the on-tx should still run

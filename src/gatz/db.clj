@@ -212,17 +212,15 @@
         mentioned-users (get-mentioned-users db user-id member-uids text)
 
         fi-txns (->> mentioned-users
-                     (map (fn [u]
-                            (db.feed/new-mention
-                             (db.feed/new-feed-item-id)
-                             now
-                             {:by_uid user-id
-                              :to_uid (:xt/id u)
-                              :did did
-                              :mid mid
-                              :gid group_id})))
-                     (map (fn [item]
-                            [:xtdb.api/put (assoc item :db/op :create)])))
+                     (mapcat (fn [u]
+                               (db.feed/new-mention-txn
+                                (db.feed/new-feed-item-id)
+                                now
+                                {:by_uid user-id
+                                 :to_uid (:xt/id u)
+                                 :did did
+                                 :mid mid
+                                 :gid group_id}))))
 
         ;; We continue to store mentions in the database
         ;; until the old clients are retired
@@ -252,11 +250,11 @@
             :archived-uids archived-uids}
            {:now now})
 
-        post-fi (db.feed/new-post (db.feed/new-feed-item-id) now
-                                  {:members member-uids
-                                   :cid user-id
-                                   :gid group_id
-                                   :did did})
+        post-fi-txns (db.feed/new-post-txn (db.feed/new-feed-item-id) now
+                                           {:members member-uids
+                                            :cid user-id
+                                            :gid group_id
+                                            :did did})
         member-mode
         (if group
           (let [group-mode (get-in group [:group/settings :discussion/member_mode])]
@@ -308,7 +306,7 @@
                  [:xtdb.api/fn :gatz.db.message/apply-delta {:evt original-msg-evt}])]
               mentions-txns
               fi-txns
-              [[:xtdb.api/put (assoc post-fi :db/op :create)]]
+              post-fi-txns
               updated-medias)]
     (biff/submit-tx ctx (vec (remove nil? txns)))
     {:discussion d :message msg :txns txns}))
@@ -442,17 +440,15 @@
 
         mentioned-users (get-mentioned-users db user-id members text)
         fi-txns (->> mentioned-users
-                     (map (fn [u]
-                            (db.feed/new-mention
-                             (db.feed/new-feed-item-id)
-                             now
-                             {:by_uid user-id
-                              :to_uid (:xt/id u)
-                              :did did
-                              :mid mid
-                              :gid (:discussion/group_id d)})))
-                     (map (fn [feed-item]
-                            [:xtdb.api/put (assoc feed-item :db/op :create)])))
+                     (mapcat (fn [u]
+                               (db.feed/new-mention-txn
+                                (db.feed/new-feed-item-id)
+                                now
+                                {:by_uid user-id
+                                 :to_uid (:xt/id u)
+                                 :did did
+                                 :mid mid
+                                 :gid (:discussion/group_id d)}))))
 
         ;; We continue to store mentions in the database
         ;; until the old clients are retired

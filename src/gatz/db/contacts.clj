@@ -370,9 +370,11 @@
     ;; Here we could be smarter and:
     ;; - If the requester has a pending request for them,
     ;;   then it means both sides want to be contacts
-    (cond-> [[:xtdb.api/put (-> contact-request
-                                (assoc :db/doc-type :gatz/contact_request))]]
-      feed_item_id (conj [:xtdb.api/put (db.feed/new-cr-item feed_item_id contact-request)]))))
+    (concat
+     [[:xtdb.api/put (-> contact-request
+                         (assoc :db/doc-type :gatz/contact_request))]]
+     (when feed_item_id
+       (db.feed/new-cr-item-txn feed_item_id contact-request)))))
 
 (def new-contact-request-expr
   '(fn new-contact-request-fn [ctx args]
@@ -384,13 +386,11 @@
         contact-ids (:contacts/ids (by-uid db invited_by_uid))
         members (-> contact-ids
                     (disj invited_by_uid)
-                    (disj uid))
-        feed-item (db.feed/new-user-item
-                   feed_item_id now
-                   {:members members
-                    :uid uid
-                    :invited_by_uid invited_by_uid})]
-    [[:xtdb.api/put feed-item]]))
+                    (disj uid))]
+    (db.feed/new-user-item-txn feed_item_id now
+                               {:members members
+                                :uid uid
+                                :invited_by_uid invited_by_uid})))
 
 (def new-user-item-expr
   '(fn new-user-item-fn [xtdb-ctx args]
@@ -419,9 +419,11 @@
                                       (assoc :db/doc-type :gatz/contact_request))]
           (cond
             (= state :contact_request/accepted)
-            (cond-> [[:xtdb.api/put new-contact-request]
-                     [:xtdb.api/fn :gatz.db.contacts/add-contacts {:args {:from from :to to :now now}}]]
-              feed_item_id (conj [:xtdb.api/put (db.feed/accepted-cr-item feed_item_id now new-contact-request)]))
+            (concat
+             [[:xtdb.api/put new-contact-request]
+              [:xtdb.api/fn :gatz.db.contacts/add-contacts {:args {:from from :to to :now now}}]]
+             (when feed_item_id
+               (db.feed/accepted-cr-item-txn feed_item_id now new-contact-request)))
 
             (= state :contact_request/removed)
             [[:xtdb.api/put new-contact-request]

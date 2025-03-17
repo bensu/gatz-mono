@@ -432,11 +432,10 @@
        (concat
         [[:xtdb.api/fn :gatz.db.group/apply-action {:action action}]]
         (when-let [feed_item_id (:group/feed_item_id action)]
-          [[:xtdb.api/put (db.feed/added-to-group feed_item_id
-                                                  updated_at
-                                                  {:group group
-                                                   :members members
-                                                   :added_by by_uid})]])
+          (db.feed/added-to-group-txn feed_item_id updated_at
+                                      {:group group
+                                       :members members
+                                       :added_by by_uid}))
         (db.discussion/add-member-to-group-txn xtdb-ctx
                                                {:gid gid :now updated_at
                                                 :by-uid by_uid :members members}))))))

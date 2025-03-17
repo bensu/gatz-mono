@@ -1096,7 +1096,7 @@
                            :discussion/keys [created_at members created_by group_id mentions]
                            :as d}]
                        (try
-                         (let [post-fi (db.feed/new-post
+                         (let [post-fi (db.feed/new-post-txn
                                         (get-fi-id! created_at id)
                                         created_at
                                         {:members members
@@ -1107,16 +1107,16 @@
                              (let [mention-fis (->> mentions
                                                     (mapcat (fn [[_k mentions]]
                                                               mentions))
-                                                    (mapv (fn [{:mention/keys [to_uid by_uid mid ts]}]
-                                                            (db.feed/new-mention
-                                                             (get-mention-fi-id! ts mid)
-                                                             ts
-                                                             {:by_uid by_uid
-                                                              :to_uid to_uid
-                                                              :did id
-                                                              :mid mid
-                                                              :gid group_id}))))]
-                               (conj mention-fis post-fi))
+                                                    (mapcat (fn [{:mention/keys [to_uid by_uid mid ts]}]
+                                                              (db.feed/new-mention-txn
+                                                               (get-mention-fi-id! ts mid)
+                                                               ts
+                                                               {:by_uid by_uid
+                                                                :to_uid to_uid
+                                                                :did id
+                                                                :mid mid
+                                                                :gid group_id}))))]
+                               (concat mention-fis post-fi))
                              [post-fi]))
                          (catch Throwable e
                            (def -d d)
