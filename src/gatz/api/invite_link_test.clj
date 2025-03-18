@@ -20,6 +20,8 @@
       (update :feed/ref :xt/id)
       (select-keys [:feed/ref :feed/feed_type])))
 
+(defn parse-resp [resp]
+  (json/read-str (:body resp) {:key-fn keyword}))
 
 (deftest crew
   (testing "accepting a crew invite link makes you contacts with everyone"
@@ -98,7 +100,7 @@
         (let [params  (db.util-test/json-params {:group_id gid})
               ok-resp (api.invite-link/post-crew-invite-link
                        (assoc (get-ctx uid) :params params))
-              {:keys [url id]} (json/read-str (:body ok-resp) {:key-fn keyword})
+              {:keys [url id]} (parse-resp ok-resp)
               invite-link-id (crdt/parse-ulid id)]
 
           (is (= 200 (:status ok-resp)))
@@ -189,4 +191,55 @@
 
           (xtdb/sync node)
           (.close node))))))
+
+(deftest get-invite-by-code
+  (testing "getting an invite by code"
+    (let [gid (crdt/random-ulid)
+          [uid cid] (take 2 (repeatedly random-uuid))
+          now (Date.)
+          ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (-> ctx
+                        (assoc :biff/db (xtdb/db node))
+                        (assoc :auth/user-id uid)))]
+
+      ;; Create test users
+      (db.user/create-user!
+       ctx {:id uid :username "user_id" :phone "+14159499000" :now now})
+      (db.user/create-user!
+       ctx {:id cid :username "contact" :phone "+14159499001" :now now})
+
+      ;; Create a group
+      (db.group/create! ctx
+                        {:id gid
+                         :owner uid
+                         :now now
+                         :settings {:discussion/member_mode :discussion.member_mode/open}
+                         :name "test"
+                         :members #{}})
+
+      (xtdb/sync node)
+
+      (testing "creating and retrieving a crew invite link"
+        (let [params (db.util-test/json-params {:group_id gid})
+              create-resp (api.invite-link/post-crew-invite-link
+                           (assoc (get-ctx uid) :params params))
+              {:keys [id code]} (parse-resp create-resp)
+              get-params (db.util-test/json-params {:code code})
+              get-resp (api.invite-link/get-invite-by-code
+                        (assoc (get-ctx cid) :params get-params))
+              resp-body (parse-resp get-resp)]
+          (is (= 200 (:status get-resp)))
+          (is (= "crew" (:type resp-body)))
+          (is (= id (get-in resp-body [:invite_link :id])))))
+
+      (testing "trying any code gets you an empty response"
+        (let [non-existent-code "ABCDEF"
+              get-resp (api.invite-link/get-invite-by-code
+                        (assoc (get-ctx cid) :params (db.util-test/json-params {:code non-existent-code})))]
+          (is (= 200 (:status get-resp)))
+          (is (= {} (parse-resp get-resp)))))
+
+      (.close node))))
 

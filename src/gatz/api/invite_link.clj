@@ -3,6 +3,7 @@
             [clojure.set :as set]
             [crdt.core :as crdt]
             [com.biffweb :as biff]
+            [gatz.http :as http]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.feed :as db.feed]
             [gatz.db.group :as db.group]
@@ -14,11 +15,6 @@
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
-(defn json-response [body]
-  {:status 200
-   :headers {"Content-Type" "application/json"}
-   :body (json/write-str body)})
-
 (defn err-resp [err-type err-msg]
   {:status 400
    :headers {"Content-Type" "application/json"}
@@ -27,8 +23,15 @@
 ;; ======================================================================
 ;; Create invite link
 
+(defn ->out [ctx il]
+  {:id (:xt/id il)
+   :code (:invite_link/code il)
+   :url (db.invite-link/make-url ctx (:xt/id il))})
+
 (def post-invite-link-response
   [:map
+   [:id string?]
+   [:code string?]
    [:url string?]])
 
 (def post-group-invite-link-params
@@ -50,8 +53,7 @@
                                                  :type :invite_link/crew})
         link-id (:xt/id invite-link)]
     (posthog/capture! ctx "invite_link.new" invite-link)
-    (json-response {:id link-id
-                    :url (db.invite-link/make-url ctx link-id)})))
+    (http/ok ctx (->out ctx invite-link))))
 
 (defn post-contact-invite-link [{:keys [auth/user-id] :as ctx}]
   (assert user-id "The user should be authenticated by now")
@@ -59,8 +61,7 @@
                                                  :type :invite_link/contact})
         link-id (:xt/id invite-link)]
     (posthog/capture! ctx "invite_link.new" invite-link)
-    (json-response {:id link-id
-                    :url (db.invite-link/make-url ctx link-id)})))
+    (http/ok ctx (->out ctx invite-link))))
 
 (defn post-group-invite-link [{:keys [auth/user-id biff/db] :as ctx}]
   (let [now (Date.)
@@ -76,11 +77,10 @@
                 invite-link (db.invite-link/create!
                              ctx {:uid user-id
                                   :gid group-id
-                                  :type il-type                                  :now now})
-                link-id (:xt/id invite-link)]
+                                  :type il-type
+                                  :now now})]
             (posthog/capture! ctx "invite_link.new" invite-link)
-            (json-response {:id link-id
-                            :url (db.invite-link/make-url ctx link-id)}))
+            (http/ok ctx (->out ctx invite-link)))
           (err-resp "not_found" "Group not found"))
         (err-resp "not_found" "Group not found"))
       (err-resp "invalid_params" "Invalid params"))))
@@ -204,7 +204,7 @@
             (err-resp "expired" "Invite Link expired")
             (let [response (invite-link-response ctx invite-link)]
               (posthog/capture! ctx "invite_link.viewed" invite-link)
-              (json-response response)))
+              (http/ok ctx response)))
           (err-resp "link_not_found" "Link not found"))
         (err-resp "invalid_params" "Invalid params")))))
 
@@ -365,6 +365,24 @@
               :invite_link/group   (invite-to-group! ctx invite-link)
               :invite_link/contact (invite-to-contact! ctx invite-link))
             (posthog/capture! ctx "invite_link.joined" invite-link)
-            (json-response {:success "true"})))
+            (http/ok ctx {:success "true"})))
         (err-resp "not_found" "Invite Link not found"))
       (err-resp "invalid_params" "Invalid params"))))
+
+(def get-invite-by-code-params
+  [:map
+   [:code string?]])
+
+(defn get-invite-by-code [{:keys [auth/user-id biff/db] :as ctx}]
+  (if-not user-id
+    (err-resp "unauthenticated" "Must be authenticated")
+    (let [params (:params ctx)]
+      (if-let [code (:code params)]
+        (if-let [invite-link (db.invite-link/by-code db code)]
+          (if (db.invite-link/expired? invite-link)
+            (err-resp "expired" "Invite Link expired")
+            (let [response (invite-link-response ctx invite-link)]
+              (posthog/capture! ctx "invite_link.viewed" invite-link)
+              (http/ok ctx response)))
+          (http/ok ctx {}))
+        (err-resp "invalid_params" "Invalid params")))))
