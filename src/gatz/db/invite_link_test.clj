@@ -24,6 +24,7 @@
           _ (db.invite-link/mark-used! (get-ctx) id {:by-uid invitee
                                                      :now later})
           _ (xtdb/sync node)
+          db (xtdb/db node)
           final-il (db.invite-link/by-id (xtdb/db node) id)
           expected-il (assoc il
                              :invite_link/used_at {invitee later}
@@ -31,6 +32,7 @@
       (is (some? id))
       (is (= expected-il (db.invite-link/mark-used il {:by-uid invitee
                                                        :now later})))
+      (is (= final-il (db.invite-link/by-code db (:invite_link/code il))))
       (is (= expected-il final-il)))))
 
 
@@ -54,11 +56,35 @@
           _ (db.invite-link/mark-used! (get-ctx) id {:by-uid invitee
                                                      :now later})
           _ (xtdb/sync node)
-          final-il (db.invite-link/by-id (xtdb/db node) id)
+          db (xtdb/db node)
+          final-il (db.invite-link/by-id db id)
           expected-il (assoc il
                              :invite_link/used_at {invitee later}
                              :invite_link/used_by #{invitee})]
       (is (some? id))
       (is (= expected-il (db.invite-link/mark-used il {:by-uid invitee
                                                        :now later})))
+      (is (= final-il (db.invite-link/by-code db (:invite_link/code il))))
       (is (= expected-il final-il)))))
+
+(deftest unique-codes
+  (testing "invite links must have unique codes"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          uid (random-uuid)
+          il1 (with-redefs [db.invite-link/random-code (constantly "ABCDEF")]
+                (db.invite-link/create! ctx
+                                        {:type :invite_link/contact
+                                         :uid uid}))]
+      (xtdb/sync node)
+      (testing
+       "First invite link should be created successfully"
+        (is (some? (:xt/id il1)))
+        (is (= "ABCDEF" (:invite_link/code il1))))
+
+      (testing "teh second attempt with the same code fails"
+        (is (thrown? Exception
+                     (with-redefs [db.invite-link/random-code (constantly "ABCDEF")]
+                       (db.invite-link/create! ctx
+                                               {:type :invite_link/contact
+                                                :uid uid}))))))))

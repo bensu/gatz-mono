@@ -1,6 +1,6 @@
 (ns gatz.db.invite-link
   (:require [crdt.core :as crdt]
-            [com.biffweb :as biff]
+            [com.biffweb :as biff :refer [q]]
             [gatz.schema :as schema]
             [gatz.util :as util]
             [xtdb.api :as xtdb])
@@ -38,6 +38,12 @@
 #_(def default-settings
     {:invite_link/multi-user-mode :invite_link/crew})
 
+(defn random-code
+  "Generates a random code of 6 uppercase letters"
+  []
+  {:post [(string? %) (= 6 (count %))]}
+  (apply str (repeatedly 6 #(char (+ (rand-int 26) 65)))))
+
 (defn make [{:keys [type uid gid now id]}]
 
   {:pre [(uuid? uid)
@@ -59,16 +65,21 @@
      :invite_link/created_by uid
      :invite_link/created_at now
      :invite_link/expires_at (expires-on now)
+     :invite_link/code (random-code)
      ;; :invite_link/settings default-settings
      :invite_link/used_at {}
      :invite_link/used_by #{}}))
 
+(defn- as-unique [x] [:db/unique x])
+
 (defn create! [ctx opts]
   (let [invite-link (make opts)]
-    (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
-                    [(assoc invite-link
-                            :db/doc-type :gatz/invite_link
-                            :db/op :create)])
+    ;; You gotta wait to this operation because the transaction might fail
+    ;; if you don't have a unique code
+    (biff/submit-tx ctx [(-> invite-link
+                             (update :invite_link/code as-unique)
+                             (assoc :db/doc-type :gatz/invite_link
+                                    :db/op :create))])
     invite-link))
 
 (defn mark-used [invite-link {:keys [by-uid now]}]
@@ -80,18 +91,31 @@
 (def default-fields
   {:invite_link/contact_id nil})
 
+(defn- from-entity [e]
+  (when e
+    (merge default-fields e)))
+
 (defn by-id [db id]
   {:pre [(crdt/ulid? id)]}
   (when-let [e (xtdb/entity db id)]
-    (merge default-fields e)))
+    (from-entity e)))
+
+(defn by-code [db code]
+  {:pre [(string? code)]}
+  (when-let [e (first
+                (q db '{:find (pull ?id [*])
+                        :in [code]
+                        :where [[?id :invite_link/code code]
+                                [?id :db/type :gatz/invite_link]]}
+                   code))]
+    (from-entity e)))
 
 (defn mark-used!
   [{:keys [biff/db] :as ctx} id {:keys [by-uid now]}]
   (when-let [invite-link (by-id db id)]
     (let [now (or now (Date.))
           new-invite-link (mark-used invite-link {:by-uid by-uid :now now})]
-      (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
-                      [(assoc new-invite-link :db/doc-type :gatz/invite_link)])
+      (biff/submit-tx ctx [(assoc new-invite-link :db/doc-type :gatz/invite_link)])
       new-invite-link)))
 
 (defn mark-used-txn [xtdb-ctx {:keys [args]}]

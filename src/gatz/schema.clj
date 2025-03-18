@@ -205,6 +205,7 @@
    [:invite_link/expires_at inst?]
    [:invite_link/created_by #'UserId]
    [:invite_link/created_at inst?]
+   [:invite_link/code {:optional true} string?]
    [:invite_link/used_at [:map-of #'UserId inst?]]
    [:invite_link/used_by [:set #'UserId]]])
 
