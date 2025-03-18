@@ -274,14 +274,18 @@
 
    :api-routes [["/ws" {:middleware [auth/wrap-api-auth]}
                  ["/connect" {:get start-connection}]]
-                 ;; unauthenticated
+
+                ;; User visible, oustside of API
                 ["/invite/:code" {:get ddl.api/register-and-redirect!}]
+
+                ;; unauthenticated
                 ["/api"
                  ["/manifest" {:get get-manifest}]
                  ["/signin" {:post api.user/sign-in!}]
                  ["/signup" {:post api.user/sign-up!}]
 
-                 ["/ddl/pending" {:post ddl.api/pending-links!}]
+                 ["/ddl/pending" {:post ddl.api/post-pending-links}]
+                 ["/ddl/remove" {:post ddl.api/remove-pending-link!}]
 
                  ["/verify/start" {:post api.user/verify-phone!}]
                  ["/verify/code" {:post api.user/verify-code!}]

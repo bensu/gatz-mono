@@ -122,10 +122,9 @@
     (boolean? mobile) (assoc :ddl/mobile? mobile)
     (string? os)      (assoc :ddl/os (keyword "ddl" os))))
 
-(defn pending-links!
+(defn post-pending-links
   "Clears the link after returning it"
   [{:keys [params] :as request}]
-  (def -preq request)
   (let [ip (get-client-ip request)
         req-browser-info (parse-browser-info (:browser_info params))
         path (when-let [pending-link (some-> ip get-link)]
@@ -137,13 +136,17 @@
              (json/write-str {:path path})
              (json/write-str {}))}))
 
-
+(defn remove-pending-link! [request]
+  (let [ip (get-client-ip request)]
+    (remove-link! ip))
+  {:status 200
+   :headers {"content-type" "application/json"}
+   :body (json/write-str {:success :ok})})
 
 (defn make-path [code]
   (format "/invite-link/%s" code))
 
 (defn register-and-redirect! [request]
-  (def -request request)
   (let [code (get-in request [:path-params :code])
         ip (get-client-ip request)
         user-agent (get-in request [:headers "user-agent"])
