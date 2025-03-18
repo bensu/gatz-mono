@@ -49,14 +49,15 @@
     :body (pr-str body)}))
 
 (defn accepts-json? [request]
-  (let [accepts (get-in request [:headers "accept"])]
-    (or (nil? accepts)
-        (re-matches #"application/json.*" accepts))))
+  (boolean
+   (let [accepts (get-in request [:headers "accept"])]
+     (or (nil? accepts)
+         (re-matches #"application/json.*" accepts)))))
 
 (defn accepts-edn? [request]
-  (let [accepts (get-in request [:headers "accept"])]
-    (or (nil? accepts)
-        (re-matches #"application/edn.*" accepts))))
+  (boolean
+   (when-let [accepts (get-in request [:headers "accept"])]
+     (re-matches #"application/edn.*" accepts))))
 
 (defn ok [ctx data]
   (if (accepts-edn? ctx)
