@@ -102,6 +102,7 @@
          :biff.tasks/clj-args ["-J-XX:-OmitStackTraceInFastThrow"
                                "-J-XX:+CrashOnOutOfMemoryError"
                                "-J-Duser.timezone=UTC"
+                               "-J-Djdk.attach.allowAttachSelf"
                                "-M" "-m" "gatz.system"
                                "--port" "7888"
                                "--middleware" "[cider.nrepl/cider-middleware,refactor-nrepl.middleware/wrap-refactor]"]
