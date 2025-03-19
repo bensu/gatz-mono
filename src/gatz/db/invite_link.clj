@@ -146,7 +146,6 @@
   [:map
    [:invite_screen/is_global_invites_enabled boolean?]
    [:invite_screen/can_user_invite boolean?]
-  ;;  [:invite_screen/invites_left? integer?]
    [:invite_screen/current_number_of_friends integer?]
    [:invite_screen/total_friends_needed integer?]
    [:invite_screen/required_friends_remaining integer?]])
@@ -155,11 +154,16 @@
   (let [my-contacts (:contacts/ids (db.contacts/by-uid db user-id))
         current-number-of-friends (count my-contacts)
         required-friends-remaining (max 0 (- total-friends-needed current-number-of-friends))
-        globally-enabled? (:flags/global_invites_enabled? flags)]
+        globally-enabled? (:flags/global_invites_enabled flags)
+        only-users-with-friends-can-invite? (:flags/only_users_with_friends_can_invite flags)]
     {:invite_screen/is_global_invites_enabled globally-enabled?
-     :invite_screen/can_user_invite (boolean (and globally-enabled?
-                                                  (<= required-friends-remaining 0)))
+     :invite_screen/can_user_invite (boolean (if only-users-with-friends-can-invite?
+                                               (and globally-enabled?
+                                                    (<= required-friends-remaining 0))
+                                               globally-enabled?))
      :invite_screen/current_number_of_friends current-number-of-friends
      :invite_screen/total_friends_needed total-friends-needed
-     :invite_screen/required_friends_remaining required-friends-remaining}))
+     :invite_screen/required_friends_remaining (if only-users-with-friends-can-invite?
+                                                 required-friends-remaining
+                                                 0)}))
 
