@@ -1,6 +1,7 @@
 (ns gatz.db.invite-link
   (:require [crdt.core :as crdt]
             [com.biffweb :as biff :refer [q]]
+            [gatz.db.contacts :as db.contacts]
             [gatz.schema :as schema]
             [gatz.util :as util]
             [xtdb.api :as xtdb])
@@ -134,3 +135,31 @@
 
 (def tx-fns
   {:gatz.db.invite-links/mark-used mark-used-expr})
+
+
+;; ======================================================================
+;; Who can invite?
+
+(def total-friends-needed 10)
+
+(def invite-screen-schema
+  [:map
+   [:invite_screen/is_global_invites_enabled boolean?]
+   [:invite_screen/can_user_invite boolean?]
+  ;;  [:invite_screen/invites_left? integer?]
+   [:invite_screen/current_number_of_friends integer?]
+   [:invite_screen/total_friends_needed integer?]
+   [:invite_screen/required_friends_remaining integer?]])
+
+(defn get-screen [{:keys [flags/flags biff/db auth/user-id] :as _ctx}]
+  (let [my-contacts (:contacts/ids (db.contacts/by-uid db user-id))
+        current-number-of-friends (count my-contacts)
+        required-friends-remaining (max 0 (- total-friends-needed current-number-of-friends))
+        globally-enabled? (:flags/global_invites_enabled? flags)]
+    {:invite_screen/is_global_invites_enabled globally-enabled?
+     :invite_screen/can_user_invite (and globally-enabled?
+                                         (<= required-friends-remaining 0))
+     :invite_screen/current_number_of_friends current-number-of-friends
+     :invite_screen/total_friends_needed total-friends-needed
+     :invite_screen/required_friends_remaining required-friends-remaining}))
+

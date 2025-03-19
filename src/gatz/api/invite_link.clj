@@ -49,42 +49,50 @@
 (defn post-crew-invite-link [{:keys [auth/user-id params] :as ctx}]
   (assert user-id "The user should be authenticated by now")
   (let [{:keys [group_id]} (parse-group-invite-link-params params)
-        invite-link (db.invite-link/create! ctx {:uid user-id
-                                                 :gid group_id
-                                                 :type :invite_link/crew})
-        link-id (:xt/id invite-link)]
-    (posthog/capture! ctx "invite_link.new" invite-link)
-    (http/ok ctx (->out ctx invite-link))))
+        screen (db.invite-link/get-screen ctx)]
+    (if (:invite_screen/can_user_invite screen)
+      (let [invite-link (db.invite-link/create! ctx {:uid user-id
+                                                     :gid group_id
+                                                     :type :invite_link/crew})]
+
+        (posthog/capture! ctx "invite_link.new" invite-link)
+        (http/ok ctx (->out ctx invite-link)))
+      (err-resp "not_allowed" "You can't invite to a crew right now"))))
 
 (defn post-contact-invite-link [{:keys [auth/user-id] :as ctx}]
   (assert user-id "The user should be authenticated by now")
-  (let [invite-link (db.invite-link/create! ctx {:uid user-id
-                                                 :type :invite_link/contact})
-        link-id (:xt/id invite-link)]
-    (posthog/capture! ctx "invite_link.new" invite-link)
-    (http/ok ctx (->out ctx invite-link))))
+  (let [screen (db.invite-link/get-screen ctx)]
+    (if (:invite_screen/can_user_invite screen)
+      (let [invite-link (db.invite-link/create! ctx {:uid user-id
+                                                     :type :invite_link/contact})]
+        (posthog/capture! ctx "invite_link.new" invite-link)
+        (http/ok ctx (->out ctx invite-link)))
+      (err-resp "not_allowed" "You can't invite to a contact right now"))))
 
 (defn post-group-invite-link [{:keys [auth/user-id biff/db] :as ctx}]
   (let [now (Date.)
-        params (parse-group-invite-link-params (:params ctx))]
-    (if-let [group-id (:group_id params)]
-      (if-let [group (db.group/by-id db group-id)]
-        (if (contains? (:group/admins group) user-id)
-          (let [crew? (= :group.invites/crew
-                         (get-in group [:group/settings :invites/mode]))
-                il-type (if crew?
-                          :invite_link/crew
-                          :invite_link/group)
-                invite-link (db.invite-link/create!
-                             ctx {:uid user-id
-                                  :gid group-id
-                                  :type il-type
-                                  :now now})]
-            (posthog/capture! ctx "invite_link.new" invite-link)
-            (http/ok ctx (->out ctx invite-link)))
+        params (parse-group-invite-link-params (:params ctx))
+        screen (db.invite-link/get-screen ctx)]
+    (if (:invite_screen/can_user_invite screen)
+      (if-let [group-id (:group_id params)]
+        (if-let [group (db.group/by-id db group-id)]
+          (if (contains? (:group/admins group) user-id)
+            (let [crew? (= :group.invites/crew
+                           (get-in group [:group/settings :invites/mode]))
+                  il-type (if crew?
+                            :invite_link/crew
+                            :invite_link/group)
+                  invite-link (db.invite-link/create!
+                               ctx {:uid user-id
+                                    :gid group-id
+                                    :type il-type
+                                    :now now})]
+              (posthog/capture! ctx "invite_link.new" invite-link)
+              (http/ok ctx (->out ctx invite-link)))
+            (err-resp "not_found" "Group not found"))
           (err-resp "not_found" "Group not found"))
-        (err-resp "not_found" "Group not found"))
-      (err-resp "invalid_params" "Invalid params"))))
+        (err-resp "invalid_params" "Invalid params"))
+      (err-resp "not_allowed" "You can't invite to a group right now"))))
 
 ;; ======================================================================
 ;; Group Invite links
@@ -392,26 +400,8 @@
           (http/ok ctx {}))
         (err-resp "invalid_params" "Invalid params")))))
 
-(def invite-screen-schema
-  [:map
-   [:invite_screen/is_global_invites_enabled boolean?]
-   [:invite_screen/can_user_invite? boolean?]
-  ;;  [:invite_screen/invites_left? integer?]
-   [:invite_screen/total_friends_needed integer?]
-   [:invite_screen/required_friends_remaining integer?]])
 
-(def total-friends-needed 10)
-
-(defn get-invite-screen [{:keys [flags/flags auth/user-id biff/db] :as ctx}]
+(defn get-invite-screen [ctx]
   (let [me-data (api.user/get-me-data ctx)
-        flags (:flags/values flags)
-        my-contacts (:contacts/ids (db.contacts/by-uid db user-id))
-        current-number-of-friends (count my-contacts)
-        required-friends-remaining (max 0 (- total-friends-needed current-number-of-friends))
-        invite-screen {:invite_screen/is_global_invites_enabled (:flags/global_invites_enabled? flags)
-                       :invite_screen/can_user_invite? true
-                      ;;  :invite_screen/invites_left? 10
-                       :invite_screen/current_number_of_friends current-number-of-friends
-                       :invite_screen/total_friends_needed total-friends-needed
-                       :invite_screen/required_friends_remaining required-friends-remaining}]
+        invite-screen (db.invite-link/get-screen ctx)]
     (http/ok ctx (assoc me-data :invite_screen invite-screen))))
