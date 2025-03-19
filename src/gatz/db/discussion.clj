@@ -403,14 +403,10 @@
 ;; =======================================================================
 ;; Queries
 
-(def open-for-contact-opts
-  [:map
-   [:newer-than-ts inst?]])
-
-(defn open-for-contact
+(defn open-for-friend
 
   ([db cid]
-   (open-for-contact db cid {:now (Date.)}))
+   (open-for-friend db cid {:now (Date.)}))
 
   ([db cid {:keys [now]}]
 
@@ -422,7 +418,32 @@
              :in [cid now-ts]
              :where [[did :db/type :gatz/discussion]
                      [did :discussion/created_by cid]
-                     [did :discussion/member_mode :discussion.member_mode/open]
+                     (or
+                      [did :discussion/member_mode :discussion.member_mode/open]
+                      [did :discussion/member_mode :discussion.member_mode/friends_of_friends])
+                     [did :discussion/group_id nil]
+                     [did :discussion/open_until open-until]
+                     [(< now-ts open-until)]]}
+           cid now)
+        (map first)
+        set)))
+
+(defn open-for-friend-of-friend
+
+  ([db cid]
+   (open-for-friend-of-friend db cid {:now (Date.)}))
+
+  ([db cid {:keys [now]}]
+
+   {:pre [(uuid? cid) (inst? now)]
+    :post [(set? %) (every? uuid? %)]}
+
+   (->> (q db
+           '{:find [did]
+             :in [cid now-ts]
+             :where [[did :db/type :gatz/discussion]
+                     [did :discussion/created_by cid]
+                     [did :discussion/member_mode :discussion.member_mode/friends_of_friends]
                      [did :discussion/group_id nil]
                      [did :discussion/open_until open-until]
                      [(< now-ts open-until)]]}

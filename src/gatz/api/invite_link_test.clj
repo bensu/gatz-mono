@@ -255,3 +255,203 @@
 
       (.close node))))
 
+(deftest feed-visibility-rules
+  (testing "feed visibility rules when becoming friends"
+    (let [gid (crdt/random-ulid)
+          [uid cid cid2 cid3 cid4 sid did1 did2 did3 did4 did5 did6 did7 did8]
+          (take 14 (repeatedly random-uuid))
+          all-dids (set [did1 did2 did3 did4 did5 did6 did7 did8])
+          now (Date.)
+          ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (-> ctx
+                        (assoc :biff/db (xtdb/db node))
+                        (assoc :auth/user-id uid)))]
+
+      (db.user/create-user!
+       ctx {:id cid :username "myself" :phone "+14159499001" :now now})
+      (db.user/create-user!
+       ctx {:id uid :username "my_new_friend" :phone "+14159499000" :now now})
+      (db.user/create-user!
+       ctx {:id cid2 :username "their_friend" :phone "+14159499003" :now now})
+      (db.user/create-user!
+       ctx {:id cid3 :username "their_second_friend" :phone "+14159499004" :now now})
+      (db.user/create-user!
+       ctx {:id cid4 :username "their_fof" :phone "+14159499005" :now now})
+      (db.user/create-user!
+       ctx {:id sid :username "stranger" :phone "+14159499002" :now now})
+      (xtdb/sync node)
+
+      (db.contacts/force-contacts! ctx uid cid2)
+      (db.contacts/force-contacts! ctx uid cid3)
+      (db.contacts/force-contacts! ctx cid3 cid4)
+      (db.contacts/force-contacts! ctx cid2 cid4)
+      ;; importantly, cid is not friends with uid (to be done during invite)
+      ;; and cid is not friends with cid2
+
+      ;; Create a group
+      (db.group/create! ctx
+                        {:id gid
+                         :owner uid
+                         :now now
+                         :settings {:discussion/member_mode :discussion.member_mode/open}
+                         :name "test"
+                         :members #{cid2}})
+
+      (xtdb/sync node)
+
+      (testing "create discussions with different visibility rules"
+
+        ;; These should be visible to me:
+        (db/create-discussion-with-message!
+         (get-ctx uid)
+         {:did did1
+          :text "Discussion for friends"
+          :to_all_contacts true
+          :to_all_friends_of_friends false})
+
+        (db/create-discussion-with-message!
+         (get-ctx uid)
+         {:did did2
+          :text "Discussion for friends of friends, from a friend"
+          :to_all_contacts true
+          :to_all_friends_of_friends true})
+
+        (db/create-discussion-with-message!
+         (get-ctx cid2)
+         {:did did3
+          :text "Discussion for friends of friends, from a friend of friend"
+          :to_all_contacts true
+          :to_all_friends_of_friends true})
+
+        ;; These shouldn't be visible to me when I am friends with uid
+        ;; but they should be visible to me when I am friends with cid
+
+        (db/create-discussion-with-message!
+         (get-ctx cid2)
+         {:did did4
+          :text "Discussion for friends only, from a friend of friend"
+          :to_all_contacts true})
+
+        ;; These shouldn't be visible to me ever
+
+        (db/create-discussion-with-message!
+         (get-ctx uid)
+         {:did did5
+          :text "Discussion from a friend, meant to a select group"
+          :selected_users [cid2]})
+
+        (db/create-discussion-with-message!
+         (get-ctx cid2)
+         {:did did6
+          :text "Discussion from a friend, meant for a selection"
+          :selected_users [uid]})
+
+        (db/create-discussion-with-message!
+         (get-ctx uid)
+         {:did did7
+          :text "Discussion from a friend, in a group"
+          :to_all_contacts true
+          :group_id gid})
+
+        (db/create-discussion-with-message!
+         (get-ctx cid2)
+         {:did did8
+          :text "Discussion from a friend of friend, in a group"
+          :to_all_contacts true
+          :group_id gid})
+
+        (xtdb/sync node))
+
+      (testing "we are not friends yet"
+        (let [db (xtdb/db node)
+              my-contacts (db.contacts/by-uid db cid)
+              their-contacts (db.contacts/by-uid db uid)]
+          (is (not (contains? (:contacts/ids my-contacts) uid)))
+          (is (not (contains? (:contacts/ids their-contacts) cid)))))
+
+      (testing "before becoming friends, no discussions are visible"
+        (let [db (xtdb/db node)
+              feed-items (db.feed/for-user-with-ts db cid)]
+          (is (empty? feed-items))))
+
+      (testing "the discussions are open"
+        (let [db (xtdb/db node)]
+          (doseq [did [did1 did2 did3 did4 did7 did8]]
+            (is (contains? #{:discussion.member_mode/open :discussion.member_mode/friends_of_friends}
+                           (:discussion/member_mode
+                            (crdt.discussion/->value (db.discussion/by-id db did))))))))
+
+      (testing "they invite me and I accept"
+        (let [create-resp (api.invite-link/post-crew-invite-link
+                           (assoc (get-ctx uid) :params {}))
+              {:keys [id]} (parse-resp create-resp)
+              invite-link-id (crdt/parse-ulid id)
+              accept-resp (api.invite-link/post-join-invite-link
+                           (-> (get-ctx cid)
+                               (assoc :params (db.util-test/json-params {:id invite-link-id}))))]
+          (is (= 200 (:status create-resp)))
+          (is (= 200 (:status accept-resp)))
+          (xtdb/sync node)
+
+          (testing "checking it worked"
+            (let [db (xtdb/db node)
+                  my-contacts (db.contacts/by-uid db cid)
+                  their-contacts (db.contacts/by-uid db uid)]
+              (is (contains? (:contacts/ids my-contacts) uid))
+              (is (contains? (:contacts/ids their-contacts) cid))))))
+
+      (testing "after we become friends, I have access to many discussions but not all"
+        (let [db (xtdb/db node)
+              dids-included #{did1 did2 did3}
+              dids-excluded (set/difference all-dids dids-included)
+              feed-items (db.feed/for-user-with-ts db cid)
+              feed-item-refs (->> feed-items
+                                  (filter #(= :gatz/discussion (:feed/ref_type %)))
+                                  (map (comp :xt/id :feed/ref))
+                                  (set))]
+          (is (= dids-included feed-item-refs))
+          (is (every? #(not (contains? feed-item-refs %)) dids-excluded))
+
+          (doseq [did dids-included]
+            (let [d (crdt.discussion/->value (db.discussion/by-id db did))]
+              (is (contains? (:discussion/members d) cid))))
+          (doseq [did dids-excluded]
+            (let [d (crdt.discussion/->value (db.discussion/by-id db did))]
+              (is (not (contains? (:discussion/members d) cid)))))))
+
+      (testing "make friends with the second contact"
+        (let [params (db.util-test/json-params {:group_id gid})
+              create-resp (api.invite-link/post-crew-invite-link
+                           (assoc (get-ctx cid) :params params))
+              {:keys [id]} (parse-resp create-resp)
+              invite-link-id (crdt/parse-ulid id)
+              accept-resp (api.invite-link/post-join-invite-link
+                           (-> (get-ctx cid2)
+                               (assoc :params (db.util-test/json-params {:id invite-link-id}))))]
+          (is (= 200 (:status create-resp)))
+          (is (= 200 (:status accept-resp)))
+          (xtdb/sync node)))
+
+      (testing "after becoming friends with second contact, verify all discussions are visible"
+        (let [db (xtdb/db node)
+              feed-items (db.feed/for-user-with-ts db cid)
+              feed-item-refs (->> feed-items
+                                  (filter #(= :gatz/discussion (:feed/ref_type %)))
+                                  (map (comp :xt/id :feed/ref))
+                                  (set))
+              dids-included #{did1 did2 did3 did4}
+              dids-excluded (set/difference all-dids dids-included)]
+          (is (= dids-included feed-item-refs))
+          (is (every? #(not (contains? feed-item-refs %)) dids-excluded))
+
+          (doseq [did dids-included]
+            (let [d (crdt.discussion/->value (db.discussion/by-id db did))]
+              (is (contains? (:discussion/members d) cid))))
+          (doseq [did dids-excluded]
+            (let [d (crdt.discussion/->value (db.discussion/by-id db did))]
+              (is (not (contains? (:discussion/members d) cid)))))))
+
+      (xtdb/sync node))))
+

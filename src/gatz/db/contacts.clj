@@ -576,25 +576,47 @@
 (defn add-to-open-discussions-txn [xtdb-ctx {:keys [by-uid to-uid now]}]
   {:pre [(uuid? by-uid) (uuid? to-uid) (inst? now)]}
   (let [db (xtdb/db xtdb-ctx)
-        dids (db.discussion/open-for-contact db by-uid)
+        dids (db.discussion/open-for-friend db by-uid {:now now})
         d-txns (db.discussion/add-member-to-dids-txn
                 db {:now now :by-uid by-uid :members #{to-uid} :dids dids})]
-    (conj d-txns [:xtdb.api/fn :gatz.db.feed/add-uids-to-dids {:dids dids :uids #{to-uid}}])))
+    (if-not (empty? d-txns)
+      (conj d-txns [:xtdb.api/fn :gatz.db.feed/add-uids-to-dids {:dids dids :uids #{to-uid}}])
+      [])))
 
 (def add-to-open-discussions-expr
   '(fn add-to-open-discussions-fn [xtdb-ctx args]
      (gatz.db.contacts/add-to-open-discussions-txn xtdb-ctx args)))
 
+(defn add-to-fof-open-discussions-txn [xtdb-ctx {:keys [to-uid now] :as args}]
+  {:pre [(uuid? to-uid) (inst? now)]}
+  (let [db (xtdb/db xtdb-ctx)
+        by_uid (:by-uid args)
+        _ (assert (uuid? by_uid))
+        fof-uids (:contacts/ids (by-uid db by_uid))]
+    (mapcat
+     (fn [fof-uid]
+       (let [dids (db.discussion/open-for-friend-of-friend db fof-uid {:now now})
+             d-txns (db.discussion/add-member-to-dids-txn
+                     db {:now now :by-uid fof-uid :members #{to-uid} :dids dids})]
+         (if-not (empty? d-txns)
+           (conj d-txns [:xtdb.api/fn :gatz.db.feed/add-uids-to-dids {:dids dids :uids #{to-uid}}])
+           [])))
+     fof-uids)))
+
 (defn invite-contact-txn [xtdb-ctx {:keys [args]}]
   (let [{:keys [by-uid to-uid now invite_link_id accepted_invite_feed_item_id]} args
         db (xtdb/db xtdb-ctx)
         contact-txns (forced-contact-txn db by-uid to-uid {:now now})
-        d1-txns (add-to-open-discussions-txn xtdb-ctx {:by-uid by-uid :to-uid to-uid :now now})
-        d2-txns (add-to-open-discussions-txn xtdb-ctx {:by-uid to-uid :to-uid by-uid :now now})]
+        inviter-did-txns (add-to-open-discussions-txn xtdb-ctx {:by-uid by-uid :to-uid to-uid :now now})
+        inviter-fof-did-txns (add-to-fof-open-discussions-txn xtdb-ctx {:by-uid by-uid :to-uid to-uid :now now})
+        invitee-did-txns (add-to-open-discussions-txn xtdb-ctx {:by-uid to-uid :to-uid by-uid :now now})
+        invitee-fof-did-txns (add-to-fof-open-discussions-txn xtdb-ctx {:by-uid to-uid :to-uid by-uid :now now})]
     (vec
      (concat contact-txns
-             d1-txns
-             d2-txns
+             inviter-did-txns
+             inviter-fof-did-txns
+             invitee-did-txns
+             invitee-fof-did-txns
              (when (and invite_link_id accepted_invite_feed_item_id)
                (db.feed/accepted-invite-item-txn
                 accepted_invite_feed_item_id now

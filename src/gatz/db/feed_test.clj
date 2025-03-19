@@ -63,12 +63,11 @@
                                                :uid inviter-id
                                                :now now})
 
-          crew-invite-link (db.invite-link/create! ctx
+          crew-invite-link (db.invite-link/create! (get-ctx inviter-id)
                                                    {:type :invite_link/crew
                                                     :uid inviter-id
                                                     :now now})
           _ (xt/sync node)
-
 
           ;; Have new-user accept the invite
           _ (api.invite-link/invite-to-contact! (get-ctx new-user-id) invite-link)
@@ -80,41 +79,49 @@
           db (xt/db node)
 
           ;; Verify feed items were created correctly
-          feed-item-ks [:feed/uids :feed/ref_type :feed/ref :feed/feed_type :feed/contact_id]
+          feed-item-ks [:feed/uids :feed/ref_type :feed/ref :feed/feed_type :feed/contact]
           feed-item1 {:feed/uids #{friend1-id friend2-id}
                       :feed/feed_type :feed.type/new_user_invited_by_friend
                       :feed/ref_type :gatz/user
+                      :feed/contact inviter-id
                       :feed/ref {:xt/id new-user-id}}
           ;; by now new-user-id is already friend of inviter
           ;; so they should also get the next feed item for new-user-2-id
           feed-item2 {:feed/uids #{friend1-id friend2-id new-user-id}
                       :feed/feed_type :feed.type/new_user_invited_by_friend
                       :feed/ref_type :gatz/user
+                      :feed/contact inviter-id
                       :feed/ref {:xt/id new-user-2-id}}
-          accepted-invite-item {:feed/uids #{inviter-id}
-                                :feed/feed_type :feed.type/accepted_invite
-                                :feed/ref_type :gatz/invite_link
-                                :feed/contact_id new-user-id
-                                :feed/ref {:xt/id (:xt/id invite-link)}}]
+          accepted-invite-item1 {:feed/uids #{inviter-id}
+                                 :feed/feed_type :feed.type/accepted_invite
+                                 :feed/ref_type :gatz/invite_link
+                                 :feed/contact new-user-id
+                                 :feed/ref {:xt/id (:xt/id invite-link)}}
+          accepted-invite-item2 {:feed/uids #{inviter-id}
+                                 :feed/feed_type :feed.type/accepted_invite
+                                 :feed/ref_type :gatz/invite_link
+                                 :feed/contact new-user-2-id
+                                 :feed/ref {:xt/id (:xt/id crew-invite-link)}}]
 
       ;; Verify users exist and are friends
       (is (= #{friend1-id friend2-id new-user-id new-user-2-id}
              (:contacts/ids (db.contacts/by-uid db inviter-id))))
 
-      (is (= #{feed-item1 feed-item2}
-             (set (map (fn [fi]
-                         (-> fi
-                             (select-keys feed-item-ks)
-                             (update :feed/ref #(select-keys % [:xt/id]))))
-                       (db.feed/for-user-with-ts db friend1-id)))
-             (set (map (fn [fi]
-                         (->  fi
-                              (select-keys feed-item-ks)
-                              (update :feed/ref #(select-keys % [:xt/id]))))
-                       (db.feed/for-user-with-ts db friend2-id)))))
+      (is (= [feed-item2 feed-item1]
+             (map (fn [fi]
+                    (-> fi
+                        (select-keys feed-item-ks)
+                        (update :feed/ref #(select-keys % [:xt/id]))))
+                  (db.feed/for-user-with-ts db friend1-id))))
+      (is (= [feed-item2 feed-item1]
+             (map (fn [fi]
+                    (->  fi
+                         (select-keys feed-item-ks)
+                         (update :feed/ref #(select-keys % [:xt/id]))))
+                  (db.feed/for-user-with-ts db friend2-id))))
 
       ;; Verify accepted invite feed item
-      (is (= #{accepted-invite-item}
+      (is (= #{accepted-invite-item1 accepted-invite-item2}
              (->> (db.feed/for-user-with-ts db inviter-id)
                   (map (fn [fi]
                          (-> fi
