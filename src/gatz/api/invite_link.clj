@@ -337,7 +337,9 @@
                                        :group/members #{user-id}}})
          crew-members (if group
                         (:group/members group)
-                        (:invite_link/used_by invite-link))
+                        ;; in case the user has already been added to the crew
+                        (-> (:invite_link/used_by invite-link)
+                            (disj user-id)))
          invite-link-args {:id (:xt/id invite-link) :user-id user-id :now now}
 
          feed-item-args {:feed_item_id (db.feed/new-feed-item-id)

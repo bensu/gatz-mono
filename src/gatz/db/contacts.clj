@@ -592,7 +592,7 @@
   (let [db (xtdb/db xtdb-ctx)
         by_uid (:by-uid args)
         _ (assert (uuid? by_uid))
-        fof-uids (:contacts/ids (by-uid db by_uid))]
+        fof-uids (disj (:contacts/ids (by-uid db by_uid)) to-uid)]
     (mapcat
      (fn [fof-uid]
        (let [dids (db.discussion/open-for-friend-of-friend db fof-uid {:now now})
