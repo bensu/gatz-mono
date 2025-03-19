@@ -58,7 +58,7 @@
           _ (db.contacts/force-contacts! ctx inviter-id friend2-id)
 
           ;; Create an invite link from inviter
-          invite-link (db.invite-link/create! ctx
+          invite-link (db.invite-link/create! (get-ctx inviter-id)
                                               {:type :invite_link/contact
                                                :uid inviter-id
                                                :now now})
@@ -80,7 +80,7 @@
           db (xt/db node)
 
           ;; Verify feed items were created correctly
-          feed-item-ks [:feed/uids :feed/ref_type :feed/ref :feed/feed_type]
+          feed-item-ks [:feed/uids :feed/ref_type :feed/ref :feed/feed_type :feed/contact_id]
           feed-item1 {:feed/uids #{friend1-id friend2-id}
                       :feed/feed_type :feed.type/new_user_invited_by_friend
                       :feed/ref_type :gatz/user
@@ -90,7 +90,12 @@
           feed-item2 {:feed/uids #{friend1-id friend2-id new-user-id}
                       :feed/feed_type :feed.type/new_user_invited_by_friend
                       :feed/ref_type :gatz/user
-                      :feed/ref {:xt/id new-user-2-id}}]
+                      :feed/ref {:xt/id new-user-2-id}}
+          accepted-invite-item {:feed/uids #{inviter-id}
+                                :feed/feed_type :feed.type/accepted_invite
+                                :feed/ref_type :gatz/invite_link
+                                :feed/contact_id new-user-id
+                                :feed/ref {:xt/id (:xt/id invite-link)}}]
 
       ;; Verify users exist and are friends
       (is (= #{friend1-id friend2-id new-user-id new-user-2-id}
@@ -107,6 +112,15 @@
                               (select-keys feed-item-ks)
                               (update :feed/ref #(select-keys % [:xt/id]))))
                        (db.feed/for-user-with-ts db friend2-id)))))
+
+      ;; Verify accepted invite feed item
+      (is (= #{accepted-invite-item}
+             (->> (db.feed/for-user-with-ts db inviter-id)
+                  (map (fn [fi]
+                         (-> fi
+                             (select-keys feed-item-ks)
+                             (update :feed/ref #(select-keys % [:xt/id])))))
+                  (set))))
 
       ;; Clean up
       (.close node))))

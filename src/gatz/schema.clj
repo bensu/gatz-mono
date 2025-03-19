@@ -849,10 +849,17 @@
    :feed.type/new_user_invited_by_friend
    :feed.type/added_to_group
    :feed.type/new_post
+   :feed.type/accepted_invite
    :feed.type/mentioned_in_discussion])
 
 (def RefType
-  [:enum :gatz/contact :gatz/contact_request :gatz/group :gatz/user :gatz/discussion])
+  [:enum
+   :gatz/contact
+   :gatz/contact_request
+   :gatz/group
+   :gatz/user
+   :gatz/discussion
+   :gatz/invite_link])
 
 (def FeedItem
   [:map

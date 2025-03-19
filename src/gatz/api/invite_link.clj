@@ -281,6 +281,8 @@
          cid (:invite_link/contact_id invite-link)
          contact-args {:by-uid cid
                        :to-uid user-id
+                       :accepted_invite_feed_item_id (db.feed/new-feed-item-id)
+                       :invite_link_id (:xt/id invite-link)
                        :now now}
          invite-link-args {:id (:xt/id invite-link) :user-id user-id :now now}
          feed-item-args {:feed_item_id (db.feed/new-feed-item-id)
@@ -313,6 +315,8 @@
          now (Date.)
          contact-args {:by-uid by-uid
                        :to-uid user-id
+                       :accepted_invite_feed_item_id (db.feed/new-feed-item-id)
+                       :invite_link_id (:xt/id invite-link)
                        :now now}
          group (when-let [gid (:invite_link/group_id invite-link)]
                  (db.group/by-id db gid))

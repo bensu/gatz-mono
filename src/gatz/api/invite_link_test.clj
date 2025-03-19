@@ -1,5 +1,6 @@
 (ns gatz.api.invite-link-test
   (:require [clojure.data.json :as json]
+            [clojure.set :as set]
             [clojure.test :as t :refer [deftest testing is]]
             [crdt.core :as crdt]
             [gatz.api.invite-link :as api.invite-link]
@@ -18,7 +19,7 @@
 (defn- select-feed-item [feed-item]
   (-> feed-item
       (update :feed/ref :xt/id)
-      (select-keys [:feed/ref :feed/feed_type])))
+      (select-keys [:feed/ref :feed/feed_type :feed/contact])))
 
 (defn parse-resp [resp]
   (json/read-str (:body resp) {:key-fn keyword}))
@@ -139,6 +140,7 @@
               (testing "Contact should have feed items for the open discussions after accepting invite"
                 (let [feed-items (db.feed/for-user-with-ts db cid)]
                   (is (= [{:feed/ref did2
+                           :feed/contact uid
                            :feed/feed_type :feed.type/new_post}]
                          (map select-feed-item feed-items)))))))
 
@@ -178,15 +180,25 @@
 
               (testing "and they all have the right feed items"
                 (let [expected #{{:feed/ref did2
+                                  :feed/contact uid
                                   :feed/feed_type :feed.type/new_post}
                                  {:feed/ref did3
+                                  :feed/contact cid2
                                   :feed/feed_type :feed.type/new_post}}]
                   (is (= expected
                          (set (map select-feed-item (db.feed/for-user-with-ts db cid)))
                          (set (map select-feed-item (db.feed/for-user-with-ts db cid2)))))
                   (testing "one of the users has an additional feed item"
-                    (is (= (conj expected {:feed/ref did
-                                           :feed/feed_type :feed.type/new_post})
+                    (is (= (set/union expected
+                                      #{{:feed/ref did
+                                         :feed/contact uid
+                                         :feed/feed_type :feed.type/new_post}
+                                        {:feed/ref invite-link-id
+                                         :feed/contact cid
+                                         :feed/feed_type :feed.type/accepted_invite}
+                                        {:feed/ref invite-link-id
+                                         :feed/contact cid2
+                                         :feed/feed_type :feed.type/accepted_invite}})
                            (set (map select-feed-item (db.feed/for-user-with-ts db uid))))))))))
 
           (xtdb/sync node)

@@ -73,6 +73,39 @@
         (get-in [:contact_request/in_common :contact_request.in_common/contacts])
         (conj (:contact_request/from cr)))))
 
+(def hydrated-invite-link-schema
+  [:map
+   schema/InviteLink
+   [:invite_link/contact schema/Contact]
+   [:invite_link/in_common [:map
+                            [:invite_link.in_common/contacts [:set uuid?]]
+                            [:invite_link.in_common/groups [:set crdt/ulid?]]]]])
+
+(defmethod -hydrate-item :feed.type/accepted_invite
+  [{:keys [biff/db auth/user-id] :as _ctx} item]
+  ;; {:pre [(m/valid? hydrated-invite-link-schema (:feed/ref item))]}
+  (let [invite-link (:feed/ref item)
+        cid (:feed/contact item)
+        contact (db.contacts/->contact (crdt.user/->value (db.user/by-id db cid)))
+        in-common {:invite_link.in_common/contacts (db.contacts/get-in-common db user-id cid)
+                   :invite_link.in_common/groups (db.group/ids-with-members-in-common db user-id cid)}]
+    (assoc item :feed/ref (-> invite-link
+                              (assoc :invite_link/contact contact)
+                              (assoc :invite_link/in_common in-common)))))
+
+(defmethod collect-group-ids :feed.type/new_friend
+  [hydrated-item]
+  (let [il (:feed/ref hydrated-item)]
+    (get-in il [:invite_link/in_common :invite_link.in_common/groups])))
+
+(defmethod collect-contact-ids :feed.type/new_friend
+  [hydrated-item]
+  (let [il (:feed/ref hydrated-item)]
+    (-> il
+        (get-in [:invite_link/in_common :invite_link.in_common/contacts])
+        (conj (:invite_link/contact_id il)))))
+
+
 (defmethod -hydrate-item :feed.type/new_friend
   [{:keys [biff/db auth/user-id] :as _ctx} item]
   (let [contact (:feed/ref item)

@@ -13,7 +13,8 @@
    :gatz/contact_request uuid?
    :gatz/group ulid/ulid?
    :gatz/discussion uuid?
-   :gatz/user uuid?})
+   :gatz/user uuid?
+   :gatz/invite_link ulid/ulid?})
 
 (def feed-type->ref-type
   {:feed.type/new_request :gatz/contact_request
@@ -22,7 +23,8 @@
    :feed.type/new_user_invited_by_friend :gatz/user
    :feed.type/added_to_group :gatz/group
    :feed.type/new_post :gatz/discussion
-   :feed.type/mentioned_in_discussion :gatz/discussion})
+   :feed.type/mentioned_in_discussion :gatz/discussion
+   :feed.type/accepted_invite :gatz/invite_link})
 
 (def feed-types (set (keys feed-type->ref-type)))
 
@@ -173,6 +175,25 @@
              :feed_type :feed.type/mentioned_in_discussion
              :ref_type :gatz/discussion
              :ref did}))
+
+(defn- accepted-invite-item [id now {:keys [uid invite_link_id contact_id]}]
+  {:pre [(uuid? id)
+         (inst? now)
+         (uuid? uid)
+         (ulid/ulid? invite_link_id)
+         (uuid? contact_id)]}
+  (new-item {:id id
+             :uids #{uid}
+             :now now
+             :contact_id contact_id
+             :feed_type :feed.type/accepted_invite
+             :ref_type :gatz/invite_link
+             :ref invite_link_id}))
+
+(defn accepted-invite-item-txn [id now {:keys [uid invite_link_id contact_id]}]
+  (let [item (accepted-invite-item id now {:uid uid :invite_link_id invite_link_id :contact_id contact_id})]
+    [[:xtdb.api/put (-> item (assoc :db/op :create))]
+     [:xtdb.api/put (-> (new-evt item) (assoc :db/op :create))]]))
 
 (defn new-mention-txn [id now {:keys [by_uid to_uid did gid mid]}]
   (let [item (new-mention id now {:by_uid by_uid :to_uid to_uid :did did :gid gid :mid mid})]

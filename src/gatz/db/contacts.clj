@@ -586,12 +586,19 @@
      (gatz.db.contacts/add-to-open-discussions-txn xtdb-ctx args)))
 
 (defn invite-contact-txn [xtdb-ctx {:keys [args]}]
-  (let [{:keys [by-uid to-uid now]} args
+  (let [{:keys [by-uid to-uid now invite_link_id accepted_invite_feed_item_id]} args
         db (xtdb/db xtdb-ctx)
         contact-txns (forced-contact-txn db by-uid to-uid {:now now})
         d1-txns (add-to-open-discussions-txn xtdb-ctx {:by-uid by-uid :to-uid to-uid :now now})
         d2-txns (add-to-open-discussions-txn xtdb-ctx {:by-uid to-uid :to-uid by-uid :now now})]
-    (vec (concat contact-txns d1-txns d2-txns))))
+    (vec
+     (concat contact-txns
+             d1-txns
+             d2-txns
+             (when (and invite_link_id accepted_invite_feed_item_id)
+               (db.feed/accepted-invite-item-txn
+                accepted_invite_feed_item_id now
+                {:uid by-uid :invite_link_id invite_link_id  :contact_id to-uid}))))))
 
 (def invite-contact-expr
   '(fn invite-contact-fn [xtdb-ctx args]
