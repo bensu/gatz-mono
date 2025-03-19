@@ -289,15 +289,26 @@
                               :gatz/contacts #{}
                               :gatz/contact_requests #{}})
         items (reduce (fn [acc {:keys [feed/ref_type feed/ref] :as item}]
-                        (if (= :gatz/discussion ref_type)
-                          (let [dids (:gatz/discussions @shown-entities)
-                                did (:xt/id ref)]
-                            (if (contains? dids did)
+                        (cond
+                          (contains? #{:gatz/discussion :gatz/contacts} ref_type)
+                          (let [ref-ids (get @shown-entities ref_type)
+                                ref-id (:xt/id ref)]
+                            (if (contains? (set ref-ids) ref-id)
                               acc
                               (do
-                                (swap! shown-entities update :gatz/discussions conj did)
+                                (swap! shown-entities update ref_type conj ref-id)
                                 (conj acc item))))
-                          (conj acc item)))
+
+                          (= ref_type :gatz/invite_link)
+                          (let [ref-ids (get @shown-entities :gatz/contacts)
+                                ref-id (:feed/contact ref)]
+                            (if (contains? (set ref-ids) ref-id)
+                              acc
+                              (do
+                                (swap! shown-entities update :gatz/contacts conj ref-id)
+                                (conj acc item))))
+
+                          :else (conj acc item)))
                       []
                       items)
         items (keep (partial hydrate-item ctx) items)
