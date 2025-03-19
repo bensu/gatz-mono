@@ -300,7 +300,7 @@
                                                       false
                                                       true)))
             _ (when (:to_all_friends_of_friends params)
-                (assert (get-in flags [:flags/values :flags/post_to_friends_of_friends])
+                (assert (:flags/post_to_friends_of_friends flags)
                         "Posting to friends of friends is not enabled"))
             {:keys [discussion message]} (db/create-discussion-with-message! ctx params)
             d (crdt.discussion/->value discussion)]

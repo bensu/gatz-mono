@@ -62,7 +62,7 @@
      :groups groups
      :contacts contacts
      :contact_requests contact_requests
-     :flags flags}))
+     :flags {:flags/values flags}}))
 
 (defn get-me [{:keys [auth/user] :as ctx}]
   (posthog/identify! ctx user)

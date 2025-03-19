@@ -155,7 +155,7 @@
   (let [my-contacts (:contacts/ids (db.contacts/by-uid db user-id))
         current-number-of-friends (count my-contacts)
         required-friends-remaining (max 0 (- total-friends-needed current-number-of-friends))
-        globally-enabled? (:flags/global_invites_enabled? (:flags/values flags))]
+        globally-enabled? (:flags/global_invites_enabled? flags)]
     {:invite_screen/is_global_invites_enabled globally-enabled?
      :invite_screen/can_user_invite (boolean (and globally-enabled?
                                                   (<= required-friends-remaining 0)))

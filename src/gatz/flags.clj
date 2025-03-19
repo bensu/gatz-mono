@@ -19,5 +19,5 @@
 (defn use-flags [ctx]
   (let [flags (merge current-values *flags*)]
     (log/info "Initializing flags:" flags)
-    (assoc ctx :flags/flags {:flags/values flags})))
+    (assoc ctx :flags/flags flags)))
 
