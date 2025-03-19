@@ -343,6 +343,7 @@
                  ["/group/request" {:post api.group/handle-request!}]
                  ["/group/share-link" {:post api.invite-link/post-group-invite-link}]
 
+                 ["/invite-link/screen" {:get api.invite-link/get-invite-screen}]
                  ["/invite-link" {:get api.invite-link/get-invite-link}]
                  ["/invite-link/join" {:post api.invite-link/post-join-invite-link}]
                  ["/invite-link/crew-share-link" {:post api.invite-link/post-crew-invite-link}]

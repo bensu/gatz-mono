@@ -3,10 +3,12 @@
 
 (def values-schema
   [:map
-   [:flags/post_to_friends_of_friends boolean?]])
+   [:flags/post_to_friends_of_friends boolean?]
+   [:flags/global_invites_enabled? boolean?]])
 
 (def current-values
-  {:flags/post_to_friends_of_friends false})
+  {:flags/post_to_friends_of_friends false
+   :flags/global_invites_enabled? true})
 
 (def ^:dynamic *flags* current-values)
 

@@ -4,6 +4,7 @@
             [crdt.core :as crdt]
             [com.biffweb :as biff]
             [gatz.http :as http]
+            [gatz.api.user :as api.user]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.feed :as db.feed]
             [gatz.db.group :as db.group]
@@ -390,3 +391,27 @@
               (http/ok ctx response)))
           (http/ok ctx {}))
         (err-resp "invalid_params" "Invalid params")))))
+
+(def invite-screen-schema
+  [:map
+   [:invite_screen/is_global_invites_enabled boolean?]
+   [:invite_screen/can_user_invite? boolean?]
+  ;;  [:invite_screen/invites_left? integer?]
+   [:invite_screen/total_friends_needed integer?]
+   [:invite_screen/required_friends_remaining integer?]])
+
+(def total-friends-needed 10)
+
+(defn get-invite-screen [{:keys [flags/flags auth/user-id biff/db] :as ctx}]
+  (let [me-data (api.user/get-me-data ctx)
+        flags (:flags/values flags)
+        my-contacts (:contacts/ids (db.contacts/by-uid db user-id))
+        current-number-of-friends (count my-contacts)
+        required-friends-remaining (max 0 (- total-friends-needed current-number-of-friends))
+        invite-screen {:invite_screen/is_global_invites_enabled (:flags/global_invites_enabled? flags)
+                       :invite_screen/can_user_invite? true
+                      ;;  :invite_screen/invites_left? 10
+                       :invite_screen/current_number_of_friends current-number-of-friends
+                       :invite_screen/total_friends_needed total-friends-needed
+                       :invite_screen/required_friends_remaining required-friends-remaining}]
+    (http/ok ctx (assoc me-data :invite_screen invite-screen))))

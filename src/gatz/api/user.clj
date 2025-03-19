@@ -48,7 +48,7 @@
                              crdt.user/->value
                              db.contacts/->contact)}))))
 
-(defn get-me [{:keys [auth/user auth/user-id biff/db flags/flags] :as ctx}]
+(defn get-me-data [{:keys [auth/user auth/user-id biff/db flags/flags] :as _ctx}]
   (let [my-contacts (db.contacts/by-uid db user-id)
         groups (db.group/by-member-uid db user-id)
         contacts (->> (:contacts/ids my-contacts)
@@ -58,12 +58,15 @@
                                   crdt.user/->value
                                   db.contacts/->contact))))
         contact_requests (pending-contact-requests db user-id)]
-    (posthog/identify! ctx user)
-    (http/ok ctx {:user (crdt.user/->value user)
-                  :groups groups
-                  :contacts contacts
-                  :contact_requests contact_requests
-                  :flags flags})))
+    {:user (crdt.user/->value user)
+     :groups groups
+     :contacts contacts
+     :contact_requests contact_requests
+     :flags flags}))
+
+(defn get-me [{:keys [auth/user] :as ctx}]
+  (posthog/identify! ctx user)
+  (http/ok ctx (get-me-data ctx)))
 
 (defn get-me-crdt [{:keys [auth/user] :as ctx}]
   (posthog/identify! ctx user)
