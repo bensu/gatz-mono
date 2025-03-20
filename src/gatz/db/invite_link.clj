@@ -13,9 +13,9 @@
   "https://gatz.chat/invite-link/1234567890abcdef"
   "chat.gatz://invite-link/1234567890abcdef")
 
-(defn make-url [ctx id]
-  {:pre [(crdt/ulid? id)] :post [(string? %)]}
-  (format "%s/invite/%s" (:gatz.api/host ctx) (str id)))
+(defn make-url [ctx code]
+  {:pre [(string? code)] :post [(string? %)]}
+  (format "%s/invite/%s" (:gatz.api/host ctx) code))
 
 (defn valid? [{:keys [] :as invite-link}]
   (and (nil? (:invite_link/used_at invite-link))

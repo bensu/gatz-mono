@@ -27,7 +27,7 @@
 (defn ->out [ctx il]
   {:id (:xt/id il)
    :code (:invite_link/code il)
-   :url (db.invite-link/make-url ctx (:xt/id il))})
+   :url (db.invite-link/make-url ctx (:invite_link/code il))})
 
 (def post-invite-link-response
   [:map

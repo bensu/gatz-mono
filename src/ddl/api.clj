@@ -146,10 +146,10 @@
 (def google-play-form-url "https://forms.gle/NHmyTPPXDM88ZTn88")
 
 (defn make-path [code]
-  (format "/invite-link/%s" code))
+  (format "/invite/%s" code))
 
-(defn register-and-redirect! [request]
-  (let [code (get-in request [:path-params :code])
+(defn register-and-redirect! [{:keys [gatz.app/host path-params] :as request}]
+  (let [code (get path-params :code)
         ip (get-client-ip request)
         user-agent (get-in request [:headers "user-agent"])
         browser-matcher (parse-user-agent user-agent)
@@ -169,7 +169,7 @@
       (redirect-to google-play-form-url)
 
       ;; Desktop or other device
-      (redirect-to "https://app.gatz.chat"))))
+      (redirect-to (str host "/invite/" code)))))
 
 ;; ======================================================================
 ;; Deprecated: Client side matcher
