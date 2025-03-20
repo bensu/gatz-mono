@@ -143,6 +143,8 @@
    :headers {"content-type" "application/json"}
    :body (json/write-str {:success :ok})})
 
+(def google-play-form-url "https://forms.gle/NHmyTPPXDM88ZTn88")
+
 (defn make-path [code]
   (format "/invite-link/%s" code))
 
@@ -164,7 +166,7 @@
 
       ;; Android device
       :ddl/android
-      (redirect-to gatz.settings/android-play-store-url)
+      (redirect-to google-play-form-url)
 
       ;; Desktop or other device
       (redirect-to "https://app.gatz.chat"))))
