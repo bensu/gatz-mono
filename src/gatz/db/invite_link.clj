@@ -21,7 +21,7 @@
   (and (nil? (:invite_link/used_at invite-link))
        (nil? (:invite_link/used_by invite-link))))
 
-(def default-open-duration (Duration/ofDays 7))
+(def default-open-duration (Duration/ofDays 90))
 
 (defn expires-on ^Date [^Date created-at]
   (Date. (+ (.getTime created-at) (.toMillis default-open-duration))))

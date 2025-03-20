@@ -88,3 +88,24 @@
                        (db.invite-link/create! ctx
                                                {:type :invite_link/contact
                                                 :uid uid}))))))))
+
+(deftest expiration
+  (testing "invite links can expire"
+    (let [ctx (db.util-test/test-system)
+          uid (random-uuid)
+          now (Date.)
+          il (binding [db.invite-link/*test-current-ts* now]
+               (db.invite-link/create! ctx
+                                       {:type :invite_link/contact
+                                        :uid uid
+                                        :now now}))
+          ;; one day after expiration
+          future-date (Date. (+ (.getTime now)
+                                (.toMillis db.invite-link/default-open-duration)
+                                (* 24 60 60 1000)))]
+      (is (not (db.invite-link/expired? il {:now now}))
+          "Invite link should not be expired when first created")
+
+      (binding [db.invite-link/*test-current-ts* future-date]
+        (is (db.invite-link/expired? il {:now future-date})
+            "Invite link should be expired after the expiration date")))))
