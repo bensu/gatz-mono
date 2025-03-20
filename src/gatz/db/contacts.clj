@@ -225,8 +225,7 @@
 ;; :contact_request/requested -> :contact_request/ignored
 
 ;; 3. :contact_request/remove
-;; :contact_request/accepted -> :contact_request/removed
-;; :contact_request/ignored  -> :contact_request/removed
+;; :contact_request/requested -> :contact_request/removed
 
 (def contact-request-states
   #{:contact_request/requested
@@ -234,19 +233,23 @@
     :contact_request/ignored
     :contact_request/removed})
 
+(def final-states
+  #{:contact_request/accepted :contact_request/removed :contact_request/ignored})
+
 (defn can-transition? [contact-request {:keys [by state]}]
   {:pre [(some? contact-request)
          (uuid? by)
          (contains? contact-request-states state)]
    :post [(boolean? %)]}
-  (let [from-actor? (= by (:contact_request/from contact-request))]
-    (case (:contact_request/state contact-request)
-      :contact_request/requested (if from-actor?
-                                   false
-                                   (contains? #{:contact_request/accepted :contact_request/ignored} state))
-      :contact_request/accepted (contains? #{:contact_request/removed} state)
-      :contact_request/ignored  (contains? #{:contact_request/removed} state)
-      :contact_request/removed  false)))
+  (let [from-actor? (= by (:contact_request/from contact-request))
+        current-state (:contact_request/state contact-request)]
+    (if (contains? final-states current-state)
+      false
+      (case current-state
+        :contact_request/requested (if from-actor?
+                                     false
+                                     (contains? final-states state))
+        false))))
 
 (defn transition-to [contact-request {:keys [by now state] :as action}]
   {:pre [(uuid? by) (inst? now)]}
@@ -297,6 +300,11 @@
         :contact_request/ignored :contact_request/none
         :contact_request/removed  :contact_request/none))))
 
+(defn- entity->cr
+  "Dummy in case we need migrations later"
+  [entity]
+  entity)
+
 (defn pending-requests-to [db to]
   {:pre [(uuid? to)]}
   (let [entities (q db '{:find (pull cr [*])
@@ -306,8 +314,7 @@
                                  [cr :contact_request/state :contact_request/requested]]}
                     to)]
     (->> entities
-         (keep (fn [entity]
-                 (some-> entity (db.util/->latest-version all-migrations))))
+         (keep entity->cr)
          vec)))
 
 (defn visible-requests-to [db to]
@@ -320,8 +327,7 @@
                                  [(contains? #{:contact_request/requested :contact_request/accepted} state)]]}
                     to)]
     (->> entities
-         (keep (fn [entity]
-                 (some-> entity (db.util/->latest-version all-migrations))))
+         (keep entity->cr)
          vec)))
 
 (defn requests-from-to [db from to]
@@ -333,11 +339,8 @@
                                  [cr :contact_request/from from]]}
                     to from)]
     (->> entities
-         (keep (fn [entity]
-                 (some-> entity (db.util/->latest-version all-migrations))))
+         (keep entity->cr)
          vec)))
-
-(def final-states #{:contact_request/removed :contact_request/ignored})
 
 (defn current? [cr]
   (not (contains? final-states (:contact_request/state cr))))

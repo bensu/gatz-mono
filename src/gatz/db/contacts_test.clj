@@ -33,10 +33,10 @@
       (is (= :contact_request/accepted (db.contacts/state-for bs-accepted-request aid)))
       (is (= :contact_request/accepted (db.contacts/state-for bs-accepted-request bid)))
 
-      (is (true? (db.contacts/can-transition? bs-accepted-request
-                                              {:by aid :state :contact_request/removed})))
-      (is (true? (db.contacts/can-transition? bs-accepted-request
-                                              {:by bid :state :contact_request/removed})))
+      (is (false? (db.contacts/can-transition? bs-accepted-request
+                                               {:by aid :state :contact_request/removed})))
+      (is (false? (db.contacts/can-transition? bs-accepted-request
+                                               {:by bid :state :contact_request/removed})))
       (is (false? (db.contacts/can-transition? bs-accepted-request
                                                {:by aid :state :contact_request/ignored})))
       (is (false? (db.contacts/can-transition? bs-accepted-request
@@ -55,8 +55,8 @@
       (is (= :contact_request/viewer_awaits_response
              (db.contacts/state-for bs-pending-request bid)))
 
-      (is (false? (db.contacts/can-transition? bs-pending-request
-                                               {:by aid :state :contact_request/removed})))
+      (is (true? (db.contacts/can-transition? bs-pending-request
+                                              {:by aid :state :contact_request/removed})))
       (is (false? (db.contacts/can-transition? bs-pending-request
                                                {:by bid :state :contact_request/removed})))
       (is (true? (db.contacts/can-transition? bs-pending-request
@@ -78,10 +78,10 @@
              (db.contacts/state-for bs-ignored-request bid))
           "Even when they've been ignored, it still looks like they await the response")
 
-      (is (true? (db.contacts/can-transition? bs-ignored-request
-                                              {:by aid :state :contact_request/removed})))
-      (is (true? (db.contacts/can-transition? bs-ignored-request
-                                              {:by bid :state :contact_request/removed})))
+      (is (false? (db.contacts/can-transition? bs-ignored-request
+                                               {:by aid :state :contact_request/removed})))
+      (is (false? (db.contacts/can-transition? bs-ignored-request
+                                               {:by bid :state :contact_request/removed})))
       (is (false? (db.contacts/can-transition? bs-ignored-request
                                                {:by aid :state :contact_request/ignored})))
       (is (false? (db.contacts/can-transition? bs-ignored-request
@@ -539,9 +539,10 @@
                             (map #(select-keys % contact-request-ks))
                             set)))
 
-                (testing "it does nothing if you accept again"
-                  (db.contacts/apply-request! (get-ctx accepter-id)
-                                              {:them requester-id :action :contact_request/accepted})
+                (testing "it throws an error if you try again"
+                  (is (thrown? Throwable
+                               (db.contacts/apply-request! (get-ctx accepter-id)
+                                                           {:them requester-id :action :contact_request/accepted})))
                   (is (thrown? clojure.lang.ExceptionInfo
                                (db.contacts/apply-request! (get-ctx denier-id)
                                                            {:them requester-id :action :contact_request/ignored})))
@@ -606,50 +607,6 @@
              (for [from [accepter-id]
                    to [requester-id denier-id]]
                (is (empty? (db.contacts/requests-from-to db from to)))))))
-        (testing "and they can remove contacts"
-          (let [{:keys [request]}
-                ;; accepter -> denier -> dummy1, dummy2
-                (db.contacts/apply-request!
-                 (get-ctx accepter-id) {:them requester-id :action :contact_request/removed})
-                _ (xtdb/sync node)
-                db (xtdb/db node)
-                ks [:contacts/user_id :contacts/ids :contacts/removed]
-                r-contacts (db.contacts/by-uid db requester-id)
-                a-contacts (db.contacts/by-uid db accepter-id)
-                ;; d-contacts (db.contacts/by-uid db denier-id)
-                removed-requests (db.contacts/requests-from-to db requester-id accepter-id)
-                removed-request  (first removed-requests)]
-
-            (is-equal request removed-request)
-
-            (is (= 1 (count removed-requests)))
-            (is (= :contact_request/none
-                   (db.contacts/state-for removed-request requester-id)))
-            (is (= :contact_request/none
-                   (db.contacts/state-for removed-request accepter-id)))
-
-            (is-equal {:contact_request/from requester-id
-                       :contact_request/to accepter-id
-                       :contact_request/state :contact_request/removed}
-                      (select-keys removed-request contact-request-ks))
-
-            (is-equal {:contacts/user_id requester-id :contacts/ids #{dummy-id dummy-id2}}
-                      (select-keys r-contacts ks))
-            (is-equal {:contacts/user_id accepter-id :contacts/ids #{denier-id}}
-                      (select-keys a-contacts ks))
-
-            (is (empty? (db.contacts/get-in-common db requester-id accepter-id)))
-            (is (= #{dummy-id dummy-id2} (db.contacts/get-in-common db requester-id denier-id)))
-            (is (empty? (db.contacts/get-in-common db accepter-id denier-id)))
-
-            (is (= #{dummy-id dummy-id2 dummy-id3 denier-id requester-id} (db.contacts/friends-of-friends db requester-id)))
-            (is (= #{dummy-id dummy-id2 dummy-id3 denier-id requester-id accepter-id} (db.contacts/friends-of-friends db denier-id)))
-            (is (= #{dummy-id dummy-id2 denier-id accepter-id} (db.contacts/friends-of-friends db accepter-id)))
-
-            (testing "and removing again works"
-              (db.contacts/apply-request! (get-ctx accepter-id)
-                                          {:them requester-id
-                                           :action :contact_request/removed}))))
 
         (xtdb/sync node))
 
