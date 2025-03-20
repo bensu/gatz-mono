@@ -161,7 +161,7 @@
   {:pre [(string? bucket)]}
   (log/info "checkpointing from S3" bucket)
   {:xtdb/module 'xtdb.checkpoint/->checkpointer
-   :approx-frequency (Duration/ofHours 12)
+   :approx-frequency (Duration/ofHours 6)
    :retention-policy {:retain-at-least 5 :retain-newer-than (Duration/ofDays 3)}
    :store {:xtdb/module 'xtdb.s3.checkpoint/->cp-store :bucket bucket}})
 
@@ -172,7 +172,7 @@
   {:pre [(string? path)]}
   (log/info "checkpointing from file" path)
   {:xtdb/module 'xtdb.checkpoint/->checkpointer
-   :approx-frequency (Duration/ofHours 12)
+   :approx-frequency (Duration/ofHours 6)
    :retention-policy {:retain-at-least 5 :retain-newer-than (Duration/ofDays 3)}
    :store {:path path :xtdb/module 'xtdb.checkpoint/->filesystem-checkpoint-store}})
 
