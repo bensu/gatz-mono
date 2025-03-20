@@ -42,7 +42,7 @@
 
 (defn pending-contact-requests [db user-id]
   (->> (db.contacts/pending-requests-to db user-id)
-       (mapv (fn [{:contact_request/keys [from id]}]
+       (mapv (fn [{:xt/keys [id] :contact_request/keys [from]}]
                {:id id
                 :contact (-> (db.user/by-id db from)
                              crdt.user/->value
