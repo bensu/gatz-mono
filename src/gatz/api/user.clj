@@ -136,8 +136,9 @@
     (boolean? enabled) (assoc :settings.location/enabled enabled)))
 
 (defn update-location-settings! [{:keys [params] :as ctx}]
-  (let [location-settings (params->location-settings params)]
-    (db.user/update-location-settings! ctx location-settings)))
+  (let [location-settings (params->location-settings params)
+        {:keys [user]} (db.user/update-location-settings! ctx location-settings)]
+    (json-response {:user (crdt.user/->value user)})))
 
 ;; ====================================================================== 
 ;; Auth
