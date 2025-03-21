@@ -109,13 +109,14 @@
     (let [current-location (some->> (db.user/activity-by-uid db user-id)
                                     (crdt/-value)
                                     :user_activity/last_location)]
-      (db.user/mark-location! ctx {:location_id (:location/id new-location) :now (Date.)})
-      (posthog/capture! ctx "user.mark_location")
       (if (= (:location/id current-location) (:location/id new-location))
         (json-response {})
-        (json-response {:location new-location
-                        :in_common {:friends []
-                                    :friends_of_friends []}})))
+        (do
+          (db.user/mark-location! ctx {:location_id (:location/id new-location) :now (Date.)})
+          (posthog/capture! ctx "user.mark_location")
+          (json-response {:location new-location
+                          :in_common {:friends []
+                                      :friends_of_friends []}}))))
     (json-response {})))
 
 (defn disable-push! [ctx]
