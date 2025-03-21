@@ -372,7 +372,7 @@
   ([ctx]
    (mark-location! ctx {:now (Date.)}))
   ([{:keys [auth/user-id] :as ctx} {:keys [location_id now]}]
-   {:pre [(uuid? user-id)]}
+   {:pre [(uuid? user-id) (string? location_id)]}
    (let [args {:uid user-id :location_id location_id :now now}]
      (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
                      [[:xtdb.api/fn :gatz.db.user/mark-location {:args args}]]))))

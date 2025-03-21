@@ -1,6 +1,7 @@
 (ns gatz.api.user
   (:require [clojure.data.json :as json]
             [clojure.string :as str]
+            [crdt.core :as crdt]
             [gatz.http :as http]
             [gatz.auth :as auth]
             [gatz.crdt.user :as crdt.user]
@@ -103,11 +104,19 @@
   [:map
    [:location_id uuid?]])
 
-(defn mark-location! [{:keys [params] :as ctx}]
-  (when-let [location (db.location/params->location (:location params))]
-    (posthog/capture! ctx "user.mark_location")
-    (db.user/mark-location! ctx {:location (:location/id location) :now (Date.)}))
-  (json-response {:status "success"}))
+(defn mark-location! [{:keys [params auth/user-id biff/db] :as ctx}]
+  (if-let [new-location (db.location/params->location (:location params))]
+    (let [current-location (some->> (db.user/activity-by-uid db user-id)
+                                    (crdt/-value)
+                                    :user_activity/last_location)]
+      (db.user/mark-location! ctx {:location_id (:location/id new-location) :now (Date.)})
+      (posthog/capture! ctx "user.mark_location")
+      (if (= (:location/id current-location) (:location/id new-location))
+        (json-response {})
+        (json-response {:location new-location
+                        :in_common {:friends []
+                                    :friends_of_friends []}})))
+    (json-response {})))
 
 (defn disable-push! [ctx]
   (let [{:keys [user]} (db.user/turn-off-notifications! ctx)]
