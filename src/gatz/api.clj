@@ -299,10 +299,12 @@
                  ["/user/disable-push" {:post api.user/disable-push!}]
                  ["/user/avatar" {:post api.user/update-avatar!}]
                  ["/user/settings/notifications" {:post api.user/update-notification-settings!}]
+                 ["/user/settings/location" {:post api.user/update-location-settings!}]
                  ["/user/delete" {:post api.user/delete-account!}]
                  ["/user/block" {:post api.user/block!}]
                  ["/user/settings/urls" {:post api.user/update-urls!}]
                  ["/user/settings/profile" {:post api.user/update-profile!}]
+                 ["/user/location" {:post api.user/mark-location!}]
 
                  ["/me/crdt" {:get api.user/get-me-crdt
                               :post api.user/post-me-crdt}]

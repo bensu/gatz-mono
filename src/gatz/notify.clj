@@ -2,6 +2,7 @@
   (:require [clojure.tools.logging :as log]
             [com.biffweb :as biff]
             [chime.core :as chime]
+            [crdt.core :as crdt]
             [gatz.crdt.discussion :as crdt.discussion]
             [gatz.crdt.message :as crdt.message]
             [gatz.crdt.user :as crdt.user]
@@ -399,7 +400,8 @@
   ([db uid {:keys [since-ts]}]
    (let [to-user (crdt.user/->value (db.user/by-id db uid))
          settings (get-in to-user [:user/settings :settings/notifications])
-         to-user-activity (db.user/activity-by-uid db uid)
+         to-user-activity (some-> (db.user/activity-by-uid db uid)
+                                  crdt/-value)
          last-active (or *last-active-ts* (:user_activity/last_active to-user-activity))
          not-active-in-last-24-hours? (or (nil? last-active)
                                           (util/before? last-active since-ts))

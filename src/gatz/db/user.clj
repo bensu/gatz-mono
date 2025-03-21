@@ -67,42 +67,73 @@
 ;; so that the user document doesn't get updated every time the user
 ;; visits the app.
 
+(defn activity-v0->v1 [data]
+  (let [clock (crdt/new-hlc migration-client-id)]
+    (-> data
+        (assoc :db/version 2 :crdt/clock clock)
+        (assoc :user_activity/last_location (crdt/lww clock nil))
+        (update :user_activity/last_active #(crdt/->MaxWins %)))))
+
+(def activity-migrations
+  [{:from 0 :to 1 :transform identity}
+   {:from 1 :to 2 :transform activity-v0->v1}])
+
 (defn new-activity-doc [{:keys [uid now id]}]
-  (let [doc {:db/doc-type :gatz/user_activity
-             :db/op :create
-             :db/type :gatz/user_activity
-             :db/version 1
-             :xt/id (or id (random-uuid))
-             :user_activity/user_id uid
-             :user_activity/last_active now}]
-    (update doc :user_activity/user_id as-unique)))
+  (let [clock (crdt/new-hlc uid now)]
+    {:db/doc-type :gatz/user_activity
+     :xt/id (or id (random-uuid))
+     :db/op :create
+     :db/type :gatz/user_activity
+     :db/version 2
+     :user_activity/user_id uid
+     :crdt/clock clock
+     :user_activity/last_active (crdt/->MaxWins now)
+     :user_activity/last_location (crdt/lww clock nil)}))
 
 (defn activity-by-uid [db uid]
   {:pre [(uuid? uid)]}
-  (first
-   (q db
-      '{:find (pull a [*])
-        :in [uid]
-        :where [[a :db/type :gatz/user_activity]
-                [a :user_activity/user_id uid]]}
-      uid)))
+  (some-> (first
+           (q db
+              '{:find (pull a [*])
+                :in [uid]
+                :where [[a :db/type :gatz/user_activity]
+                        [a :user_activity/user_id uid]]}
+              uid))
+          (db.util/->latest-version activity-migrations)))
 
-
-(defn max-date [^Date a ^Date b]
-  (if (.after a b) a b))
 
 (defn mark-active-txn [xtdb-ctx {:keys [args]}]
   (let [db (xtdb.api/db xtdb-ctx)
-        {:keys [uid now]} args]
-    (when-let [activity-doc (activity-by-uid db uid)]
-      (let [new-doc (-> activity-doc
-                        (assoc :db/doc-type :gatz/user_activity)
-                        (update :user_activity/last_active #(max-date % now)))]
-        [[:xtdb.api/put new-doc]]))))
+        {:keys [uid now]} args
+        clock (crdt/new-hlc uid now)
+        delta {:crdt/clock clock
+               :user_activity/last_active now}
+        doc (or (activity-by-uid db uid)
+                (new-activity-doc {:uid uid :now now}))]
+    [[:xtdb.api/put (-> doc
+                        (crdt/-apply-delta delta)
+                        (assoc :db/doc-type :gatz/user_activity))]]))
 
 (def mark-active-expr
   '(fn mark-active-fn [ctx args]
      (gatz.db.user/mark-active-txn ctx args)))
+
+(defn mark-location-txn [xtdb-ctx {:keys [args]}]
+  (let [db (xtdb.api/db xtdb-ctx)
+        {:keys [location_id uid now]} args
+        clock (crdt/new-hlc uid now)
+        lww (crdt/lww clock {:location/id location_id :location/ts now})
+        delta {:crdt/clock clock
+               :user_activity/last_location lww}
+        doc (or (activity-by-uid db uid)
+                (new-activity-doc {:uid uid :now now}))]
+    [[:xtdb.api/put (-> doc
+                        (crdt/-apply-delta delta)
+                        (assoc :db/doc-type :gatz/user_activity))]]))
+
+(def mark-location-expr
+  '(fn mark-location-fn [ctx args]
+     (gatz.db.user/mark-location-txn ctx args)))
 
 ;; ====================================================================== 
 ;; User
@@ -337,6 +368,34 @@
      (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
                      [[:xtdb.api/fn :gatz.db.user/mark-active {:args args}]]))))
 
+(defn mark-location!
+  ([ctx]
+   (mark-location! ctx {:now (Date.)}))
+  ([{:keys [auth/user-id] :as ctx} {:keys [location_id now]}]
+   {:pre [(uuid? user-id)]}
+   (let [args {:uid user-id :location_id location_id :now now}]
+     (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
+                     [[:xtdb.api/fn :gatz.db.user/mark-location {:args args}]]))))
+
+(defn update-location-settings!
+
+  ([ctx location-settings]
+   (update-location-settings! ctx location-settings {:now (Date.)}))
+
+  ([{:keys [auth/user-id] :as ctx} location-settings {:keys [now]}]
+
+   {:pre [(uuid? user-id)
+          (malli/validate (mu/optional-keys schema/LocationPreferences)
+                          location-settings)]}
+
+   (let [clock (crdt/new-hlc user-id now)
+         delta {:crdt/clock clock
+                :user/updated_at now
+                :user/settings {:settings/location (crdt/->lww-map location-settings clock)}}
+         action {:gatz.crdt.user/action :gatz.crdt.user/update-location-settings
+                 :gatz.crdt.user/delta delta}]
+     (apply-action! ctx action))))
+
 (defn deleted? [user]
   (boolean (:user/deleted_at (crdt.user/->value user))))
 
@@ -420,7 +479,8 @@
 (def tx-fns
   {:gatz.db.user/apply-delta user-apply-delta-expr
    :gatz.db.user/block-user block-user-expr
-   :gatz.db.user/mark-active mark-active-expr})
+   :gatz.db.user/mark-active mark-active-expr
+   :gatz.db.user/mark-location mark-location-expr})
 
 
 (defn all-users [db]

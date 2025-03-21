@@ -149,6 +149,7 @@
                          :auth/user-id uid
                          :auth/cid uid)
               node (:biff.xtdb/node system)
+              activity-keys [:user_activity/user_id :user_activity/last_active :user_activity/last_location]
               get-ctx (fn [uid]
                         (assoc ctx :biff/db (xtdb/db node) :auth/user-id uid))]
           (create-user! ctx {:id uid
@@ -162,19 +163,33 @@
           (xtdb/sync node)
 
           (let [db (xtdb/db node)
-                activity-doc (activity-by-uid db uid)]
+                activity-doc (crdt/-value (activity-by-uid db uid))]
             (is-equal {:user_activity/user_id uid
+                       :user_activity/last_location nil
                        :user_activity/last_active now}
-                      (select-keys activity-doc [:user_activity/user_id :user_activity/last_active])))
+                      (select-keys activity-doc activity-keys)))
 
           (let [later (crdt/inc-time now)]
             (mark-active! (assoc ctx :auth/user-id uid) {:now later})
             (xtdb/sync node)
             (let [db (xtdb/db node)
-                  activity-doc (activity-by-uid db uid)]
+                  activity-doc (crdt/-value (activity-by-uid db uid))]
               (is-equal {:user_activity/user_id uid
+                         :user_activity/last_location nil
                          :user_activity/last_active later}
-                        (select-keys activity-doc [:user_activity/user_id :user_activity/last_active]))))
+                        (select-keys activity-doc activity-keys))))
+
+          (let [later (crdt/inc-time now)
+                location-id (random-uuid)]
+            (mark-location! (assoc ctx :auth/user-id uid) {:location_id location-id :now later})
+            (xtdb/sync node)
+            (let [db (xtdb/db node)
+                  activity-doc (crdt/-value (activity-by-uid db uid))]
+              (is-equal {:user_activity/user_id uid
+                         :user_activity/last_location {:location/id location-id
+                                                       :location/ts later}
+                         :user_activity/last_active later}
+                        (select-keys activity-doc activity-keys))))
 
           (doseq [action actions]
             (apply-action! (get-ctx uid) action))

@@ -7,13 +7,15 @@
             [gatz.db :as db]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.group :as db.group]
+            [gatz.db.location :as db.location]
             [gatz.db.user :as db.user]
             [gatz.flags :as flags]
             [gatz.schema :as schema]
             [gatz.util :as util]
             [medley.core :refer [map-keys]]
             [sdk.posthog :as posthog]
-            [sdk.twilio :as twilio]))
+            [sdk.twilio :as twilio])
+  (:import [java.util Date]))
 
 (defn json-response
   ([body] (json-response body 200))
@@ -89,12 +91,23 @@
   (if-let [push-token (:push_token params)]
     (let [new-token {:push/service :push/expo
                      :push/token push-token
-                     :push/created_at (java.util.Date.)}
+                     :push/created_at (Date.)}
           {:keys [user]} (db.user/add-push-token! ctx {:push-token {:push/expo new-token}})]
       (posthog/capture! ctx "notifications.add_push_token")
       (json-response {:status "success"
                       :user (crdt.user/->value user)}))
     (err-resp "push_token_missing" "Missing push token parameter")))
+
+;; TODO: this is not it
+(def mark-location-params
+  [:map
+   [:location_id uuid?]])
+
+(defn mark-location! [{:keys [params] :as ctx}]
+  (when-let [location (db.location/params->location (:location params))]
+    (posthog/capture! ctx "user.mark_location")
+    (db.user/mark-location! ctx {:location (:location/id location) :now (Date.)}))
+  (json-response {:status "success"}))
 
 (defn disable-push! [ctx]
   (let [{:keys [user]} (db.user/turn-off-notifications! ctx)]
@@ -117,6 +130,14 @@
       (json-response {:status "success"
                       :user (crdt.user/->value user)}))
     (err-resp "invalid_params" "Invalid parameters")))
+
+(defn params->location-settings [{:keys [enabled]}]
+  (cond-> {}
+    (boolean? enabled) (assoc :settings.location/enabled enabled)))
+
+(defn update-location-settings! [{:keys [params] :as ctx}]
+  (let [location-settings (params->location-settings params)]
+    (db.user/update-location-settings! ctx location-settings)))
 
 ;; ====================================================================== 
 ;; Auth
