@@ -180,7 +180,7 @@
                         (select-keys activity-doc activity-keys))))
 
           (let [later (crdt/inc-time now)
-                location-id (random-uuid)]
+                location-id "Miami"]
             (mark-location! (assoc ctx :auth/user-id uid) {:location_id location-id :now later})
             (xtdb/sync node)
             (let [db (xtdb/db node)
