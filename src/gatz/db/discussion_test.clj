@@ -300,7 +300,7 @@
           final-expected {:xt/id did
                           :crdt/clock c3
                           :db/type :gatz/discussion
-                          :db/version 3
+                          :db/version 4
                           :discussion/did did
                           :discussion/name nil
                           :discussion/created_at now
@@ -311,7 +311,8 @@
                           :discussion/open_until nil
                           :discussion/member_mode :discussion.member_mode/open
                           :discussion/public_mode :discussion.public_mode/hidden
-
+                          :discussion/location_id nil
+                          :discussion/location nil
                           :discussion/active_members #{poster-uid}
                           :discussion/members #{poster-uid commenter-uid}
                           :discussion/latest_message mid
@@ -327,7 +328,7 @@
         (is-equal {:xt/id did
                    :crdt/clock cnow
                    :db/type :gatz/discussion
-                   :db/version 3
+                   :db/version 4
                    :discussion/did did
                    :discussion/name nil
                    :discussion/group_id nil
@@ -338,6 +339,8 @@
                    :discussion/open_until nil
                    :discussion/member_mode :discussion.member_mode/open
                    :discussion/public_mode :discussion.public_mode/hidden
+                   :discussion/location_id nil
+                   :discussion/location nil
                    :discussion/members #{poster-uid commenter-uid}
                    :discussion/subscribers #{poster-uid}
                    :discussion/active_members #{poster-uid}
@@ -396,6 +399,8 @@
                                                 :discussion/active_members
                                                 :discussion/archived_uids
                                                 :discussion/last_message_read
+                                                :discussion/location_id
+                                                :discussion/location
                                                 :discussion/created_at
                                                 :discussion/created_by]))]
             (is (= (:discussion/members final-expected)

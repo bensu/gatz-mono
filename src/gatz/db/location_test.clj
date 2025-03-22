@@ -20,14 +20,7 @@
     :mocked false, :timestamp 1742577315288}})
 
 
-(def miami-location
-  (let [[lat long] (get location/name->lat-long "Miami")]
-    {:location/id "Miami"
-     :location/slug "Miami"
-     :location/metro_region "Miami"
-     :location/lat lat
-     :location/lng long
-     :location/radius_km 50}))
+(def miami-location (get location/name->metro "Miami"))
 
 (deftest test-params->location
   (testing "iOS location params returns Miami location"

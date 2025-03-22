@@ -64,9 +64,14 @@
    ["Greater Tampa" [27.9506 -82.4572] 50]
    ["Greater Orlando" [28.5383 -81.3792] 50]])
 
-(def name->lat-long
-  (reduce (fn [acc [name [lat lng]]]
-            (assoc acc name [lat lng]))
+(def name->metro
+  (reduce (fn [acc [name [lat lng] radius]]
+            (assoc acc name {:location/id name
+                             :location/slug name
+                             :location/metro_region name
+                             :location/lat lat
+                             :location/lng lng
+                             :location/radius_km radius}))
           {}
           metro-regions))
 
@@ -104,17 +109,20 @@
     (when (<= (:distance_km closest) (:radius_km closest))
       (select-keys closest [:name :lat :lng :radius_km]))))
 
+(defn metro->location [metro]
+  {:location/id (:name metro)
+   :location/slug (:name metro)
+   :location/metro_region (:name metro)
+   :location/lat (:lat metro)
+   :location/lng (:lng metro)
+   :location/radius_km (:radius_km metro)})
+
 (defn create-location
   "Create a new Location entity with the given coordinates.
    Returns nil if no metro region is found."
   [lat lng]
   (when-let [metro (find-metro-region lat lng)]
-    {:location/id (:name metro)
-     :location/slug (:name metro)
-     :location/metro_region (:name metro)
-     :location/lat (:lat metro)
-     :location/lng (:lng metro)
-     :location/radius_km (:radius_km metro)}))
+    (metro->location metro)))
 
 (defn location-changed-significantly?
   "Check if the new location is significantly different from the old one.
@@ -137,3 +145,6 @@
   (let [{:keys [latitude longitude]} (:coords location)]
     (create-location latitude longitude)))
 
+
+(defn by-id [location-id]
+  (get name->metro location-id))

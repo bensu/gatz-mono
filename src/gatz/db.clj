@@ -12,6 +12,7 @@
             [gatz.db.evt :as db.evt]
             [gatz.db.feed :as db.feed]
             [gatz.db.group :as db.group]
+            [gatz.db.location :as db.location]
             [gatz.db.media :as db.media]
             [gatz.db.message :as db.message]
             [gatz.db.user :as db.user]
@@ -64,6 +65,7 @@
    [:selected_users {:optional true} [:vec uuid?]]
    [:to_all_contacts {:optional true} boolean?]
    [:to_all_friends_of_friends {:optional true} boolean?]
+   [:location_id {:optional true} string?]
    [:originally_from {:optional true} [:map
                                        [:did uuid?]
                                        [:mid uuid?]]]])
@@ -80,11 +82,13 @@
            media_id media_ids
            link_previews
            originally_from selected_users
-           to_all_friends_of_friends]}]
+           to_all_friends_of_friends
+           location_id]}]
   {:pre [(or (nil? name)
              (and (string? name) (not (empty? name)))
              (or (old-valid-post? text media_id)
                  (valid-post? text media_ids)))
+         (or (nil? location_id) (string? location_id))
          (or (boolean? to_all_contacts)
              (some? selected_users))
          (or (nil? to_all_friends_of_friends)
@@ -105,6 +109,7 @@
     (some? originally_from)       (assoc :originally_from (parse-originally-from originally_from))
     (some? selected_users)        (assoc :selected_users (set (keep util/parse-uuid selected_users)))
     (boolean? to_all_contacts)    (assoc :to_all_contacts to_all_contacts)
+    (string? location_id)         (assoc :location_id location_id)
 
     (boolean? to_all_friends_of_friends) (assoc :to_all_friends_of_friends to_all_friends_of_friends)
     (nil? to_all_friends_of_friends)     (assoc :to_all_friends_of_friends false)))
@@ -120,7 +125,8 @@
   (let [{:keys [selected_users group_id to_all_contacts
                 text originally_from
                 to_all_friends_of_friends
-                media_ids link_previews]}
+                media_ids link_previews
+                location_id]}
         (parse-create-params init-params)
 
         _ (when to_all_friends_of_friends
@@ -133,6 +139,12 @@
 
         user (db.user/by-id db user-id)
         _ (assert user)
+
+        location (when location_id
+                   (db.location/by-id location_id))
+
+        _ (when location_id
+            (assert location "The location_id provided doesn't exist"))
 
         link-previews (mapv #(link-preview/by-id db %) (or link_previews []))
         updated-medias (some->> media_ids
@@ -247,7 +259,8 @@
             :originally-from originally-from
             :mentions uid->mentions
             :member-uids member-uids :group-id group_id
-            :archived-uids archived-uids}
+            :archived-uids archived-uids
+            :location location}
            {:now now})
 
         post-fi-txns (db.feed/new-post-txn (db.feed/new-feed-item-id) now

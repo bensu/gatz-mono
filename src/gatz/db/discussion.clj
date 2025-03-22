@@ -90,10 +90,17 @@
                :db/doc-type :gatz.crdt/discussion
                :db/type :gatz/discussion))))
 
+(defn v3->v4 [data]
+  (-> data
+      (assoc :discussion/location_id (:discussion/location_id data))
+      (assoc :discussion/location (:discussion/location data))
+      (assoc :db/version 4)))
+
 (def all-migrations
   [{:from 0 :to 1 :transform v0->v1}
    {:from 1 :to 2 :transform v1->v2}
-   {:from 2 :to 3 :transform v2->v3}])
+   {:from 2 :to 3 :transform v2->v3}
+   {:from 3 :to 4 :transform v3->v4}])
 
 (defn by-id [db did]
   (-> (xtdb/entity db did)
