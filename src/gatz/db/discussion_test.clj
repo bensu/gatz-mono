@@ -1597,3 +1597,43 @@
               "Only the poster that hid the poster has archived the post")))
 
       (.close node))))
+
+(deftest location-validation
+  (testing "location validation in discussion creation"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          uid (random-uuid)
+          t0 (Date.)
+          valid-location "Miami"  ; Known valid location from metro-regions
+          invalid-location "Invalid City"  ; Location that doesn't exist
+          base-params {:text "Test message"
+                       :media_ids []
+                       :link_previews []
+                       :to_all_contacts true}
+          get-ctx (fn [uid]
+                    (assoc ctx
+                           :biff/db (xtdb/db node)
+                           :auth/user-id uid
+                           :auth/cid uid))]
+
+      (db.user/create-user!
+       ctx {:id uid :username "poster" :phone "+14159499000" :now t0})
+      (xtdb/sync node)
+
+      ;; Test with valid location
+      (let [params (assoc base-params
+                          :location_id valid-location
+                          :did (random-uuid)
+                          :now (Date.))
+            result (db/create-discussion-with-message! (get-ctx uid) params)]
+        (is (some? result))
+        (is (= valid-location (get-in result [:discussion :discussion/location :location/id]))))
+
+      ;; Test with invalid location
+      (let [params (assoc base-params
+                          :location_id invalid-location
+                          :did (random-uuid)
+                          :now (Date.))]
+        (is (thrown-with-msg? AssertionError
+                              #"The location_id provided doesn't exist"
+                              (db/create-discussion-with-message! (get-ctx uid) params)))))))
