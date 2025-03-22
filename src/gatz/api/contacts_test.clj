@@ -221,9 +221,9 @@
       (testing "inviting through an expired link fails"
         (let [now (Date.)
               before-expiry-ts (Date. (+ (.getTime now)
-                                         (.toMillis (Duration/ofDays 6))))
+                                         (.toMillis (Duration/ofDays 89))))
               after-expiry-ts (Date. (+ (.getTime now)
-                                        (.toMillis (Duration/ofDays 8))))
+                                        (.toMillis (Duration/ofDays 91))))
               ok-resp (api.invite-link/post-contact-invite-link (get-ctx uid))
               {:keys [url id]} (json/read-str (:body ok-resp) {:key-fn keyword})]
 

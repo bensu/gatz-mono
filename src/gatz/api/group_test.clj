@@ -197,9 +197,9 @@
 
       (testing "inviting through an expired link fails"
         (let [before-expiry-ts (Date. (+ (.getTime now)
-                                         (.toMillis (Duration/ofDays 6))))
+                                         (.toMillis (Duration/ofDays 89))))
               after-expiry-ts (Date. (+ (.getTime now)
-                                        (.toMillis (Duration/ofDays 8))))
+                                        (.toMillis (Duration/ofDays 91))))
               params (db.util-test/json-params {:group_id gid})
               ok-resp (api.invite-link/post-group-invite-link
                        (-> (get-ctx uid)
