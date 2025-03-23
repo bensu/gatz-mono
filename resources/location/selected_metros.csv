@@ -1,0 +1,117 @@
+id,name
+AR/BUE,Buenos Aires
+AT/VIE,Vienna
+BE/BRU,Brussels
+BG/SOF,Sofia
+BR/BHZ,Belo Horizonte
+BR/BSB,Brasília
+BR/CPS,Campinas
+BR/CWB,Curitiba
+BR/FOR,Fortaleza
+BR/POA,Porto Alegre
+BR/REC,Recife
+BR/RIO,Rio de Janeiro
+BR/SAO,São Paulo
+BR/SSA,Salvador
+BY/MSQ,Minsk
+CL/SCL,Santiago
+CO/BOG,Bogotá
+CO/CLO,Cali
+CO/MDE,Medellín
+CZ/PRG,Prague
+DE/BER,Berlin
+DE/CGN,Cologne
+DE/FRA,Frankfurt
+DE/HAM,Hamburg
+DE/MUC,Munich
+DE/STR,Stuttgart
+DK/CPH,Copenhagen
+EC/GYE,Guayaquil
+EC/UIO,Quito
+ES/BCN,Barcelona
+ES/MAD,Madrid
+FI/HEL,Helsinki
+FR/LYS,Lyon
+FR/MRS,Marseille
+FR/PAR,Paris
+GB/BHX,Birmingham
+GB/GLW,Glasgow
+GB/LBA,Leeds
+GB/LON,London
+GB/MNC,Manchester
+GR/ATH,Athens
+HU/BUD,Budapest
+IE/DUB,Dublin
+IT/MIL,Milan
+IT/NAP,Naples
+IT/ROM,Rome
+IT/TRO,Turin
+NL/RTM,Rotterdam
+PE/LIM,Lima
+PL/KTW,Katowice-Gliwice-Tychy
+PL/WAW,Warsaw
+PT/LIS,Lisbon
+PT/OPO,Porto
+RO/BUH,Bucharest
+RS/BJL,Belgrade
+RU/GOJ,Nizhny Novgorod
+RU/KUF,Samara
+RU/KZN,Kazan
+RU/LED,Saint Petersburg
+RU/MOW,Moscow
+RU/OMS,Omsk
+RU/OVB,Novosibirsk
+SE/STO,Stockholm
+UA/IEV,Kiev
+US/ATL,Atlanta
+US/AUS,Austin
+US/BNA,Nashville
+US/BNO,New Orleans
+US/BOS,Boston
+US/BWI,Baltimore
+US/CHI,Chicago
+US/CIN,Cincinnati
+US/CLE,Cleveland
+US/CLT,Charlotte
+US/COS,Columbus
+US/DAL,Dallas-Fort Worth
+US/DEN,Denver
+US/DET,Detroit
+US/HFD,Hartford
+US/HOU,Houston
+US/IND,Indianapolis
+US/JAX,Jacksonville
+US/LAS,Las Vegas
+US/LAX,Los Angeles
+US/LOU,Louisville
+US/MKC,Kansas City
+US/MEM,Memphis
+US/MFE,McAllen
+US/MIA,Miami
+US/MKE,Milwaukee
+US/MSP,Minneapolis
+US/NYC,New York City
+US/OKC,Oklahoma City
+US/ONT,Riverside-San Bernardino
+US/ORL,Orlando
+US/PDX,Portland
+US/PHE,Phoenix
+US/PHL,Philadelphia
+US/PIT,Pittsburgh
+US/PVD,Providence
+US/RDU,Raleigh
+US/RIC,Richmond
+US/SAC,Sacramento
+US/SAN,San Diego
+US/SAT,San Antonio
+US/SEA,Seattle
+US/SFO,San Francisco
+US/SJC,San Jose
+US/SLC,Salt Lake City
+US/STL,Saint Louis
+US/TPA,Tampa
+US/TUS,Tucson
+US/VAB,Virginia Beach
+US/WAS,Washington, D.C.
+VE/CCS,Caracas
+VE/MCB,Maracaibo
