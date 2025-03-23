@@ -127,7 +127,7 @@
                         query-point)]
     (assoc metro :distance-km (* dist DistanceUtils/DEG_TO_KM))))
 
-(def default-radius-km 100.0)
+(def default-radius-km 50.0)
 
 (def spatial-index
   (build-spatial-index (io/resource "location/metro_regions.csv")))
@@ -162,8 +162,9 @@
 
 (defn params->location [location]
   (let [{:keys [latitude longitude]} (:coords location)]
-    (some-> (find-metro-region latitude longitude)
-            metro->location)))
+    (when (and latitude longitude)
+      (some-> (find-metro-region latitude longitude)
+              metro->location))))
 
 (defn by-id [location-id]
   (get (:id->metro spatial-index) location-id))
