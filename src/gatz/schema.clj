@@ -23,12 +23,9 @@
 (def Location
   [:map
    [:location/id #'LocationId]
-   [:location/slug string?]
-   [:location/metro_region string?]  ;; e.g. "New York City", "San Francisco Bay Area"
+   [:location/name string?]
    [:location/lat float?]
-   [:location/lng float?]
-    ;; radius of the metro region in kilometers
-   [:location/radius_km number?]])
+   [:location/lng float?]])
 
 ;; ======================================================================
 ;; User & Contacts

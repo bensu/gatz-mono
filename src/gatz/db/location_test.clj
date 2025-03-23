@@ -3,15 +3,16 @@
             [gatz.db.location :as location]))
 
 (def ios-location-params
-  {:location {:geocode {:timezone "America/New_York",
-                        :name "912 Euclid Ave", :city "Miami Beach", :streetNumber "912", :street "Euclid Ave", :region "FL", :isoCountryCode "US", :subregion "Miami-Dade County", :postalCode "33139", :country "United States", :district "Flamingo/Lummus"},
-              :coords {:speed -1, :accuracy 9.325018494930474,
-                       :longitude -80.13539058392104,
-                       :latitude 25.779686681100475,
-                       :altitude 1.9367790603383135,
-                       :altitudeAccuracy 30,
-                       :heading -1},
-              :timestamp 1.742577047766304E12}})
+  {:location
+   {:geocode {:timezone "America/New_York",
+              :name "912 Euclid Ave", :city "Miami Beach", :streetNumber "912", :street "Euclid Ave", :region "FL", :isoCountryCode "US", :subregion "Miami-Dade County", :postalCode "33139", :country "United States", :district "Flamingo/Lummus"},
+    :coords {:speed -1, :accuracy 9.325018494930474,
+             :longitude -80.13539058392104,
+             :latitude 25.779686681100475,
+             :altitude 1.9367790603383135,
+             :altitudeAccuracy 30,
+             :heading -1},
+    :timestamp 1.742577047766304E12}})
 
 (def android-location-params
   {:location
@@ -20,7 +21,11 @@
     :mocked false, :timestamp 1742577315288}})
 
 
-(def miami-location (get location/name->metro "Miami"))
+(def miami-location
+  {:location/id "US/IYH"
+   :location/name "Miami Beach"
+   :location/lat 25.783333
+   :location/lng -80.13333129882812})
 
 (deftest test-params->location
   (testing "iOS location params returns Miami location"

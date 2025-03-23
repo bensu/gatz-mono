@@ -66,6 +66,11 @@
         ring/ring-defaults             {:mvn/version "0.3.4"}
         rum/rum                        {:mvn/version "0.12.8"
                                         :exclusions [cljsjs/react cljsjs/react-dom]}
+
+        ;; Location
+        org.locationtech.spatial4j/spatial4j {:mvn/version "0.8"}
+        com.github.davidmoten/rtree {:mvn/version "0.12"}
+
         ;; deprecated
         hawk/hawk                      {:mvn/version "0.2.11"}
 

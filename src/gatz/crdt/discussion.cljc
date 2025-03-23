@@ -44,7 +44,7 @@
          (set? member-uids) (every? uuid? member-uids)
          (or (nil? location) (and (map? location)
                                   (string? (:location/id location))
-                                  (string? (:location/metro_region location))))
+                                  (string? (:location/name location))))
          (or (nil? mentions)
              (and (map? mentions)
                   (every? uuid? (keys mentions))))

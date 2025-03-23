@@ -1,6 +1,14 @@
-(ns gatz.db.location)
-
-;; TODO: check it these are real
+(ns gatz.db.location
+  (:require [clojure.data.csv :as csv]
+            [clojure.java.io :as io]
+            [clojure.string :as str])
+  (:import [org.locationtech.spatial4j.shape.impl PointImpl]
+           [org.locationtech.spatial4j.context SpatialContext]
+           [org.locationtech.spatial4j.distance DistanceUtils]
+           [com.github.davidmoten.rtree RTree Entry Entries]
+           [com.github.davidmoten.rtree.geometry Geometries Point]
+           [rx Observable]
+           [java.util Iterator]))
 
 ;; Major metro regions with their approximate centers and radii
 ;; Format: [name [lat lng] radius_km]
@@ -64,87 +72,149 @@
    ["Greater Tampa" [27.9506 -82.4572] 50]
    ["Greater Orlando" [28.5383 -81.3792] 50]])
 
-(def name->metro
-  (reduce (fn [acc [name [lat lng] radius]]
-            (assoc acc name {:location/id name
-                             :location/slug name
-                             :location/metro_region name
-                             :location/lat lat
-                             :location/lng lng
-                             :location/radius_km radius}))
-          {}
-          metro-regions))
+;; ====================================================================================
+;; Create db with the UNLOCODE data
 
-(defn distance-km
-  "Calculate the distance between two points in kilometers using the Haversine formula"
-  [[lat1 lon1] [lat2 lon2]]
-  (let [r 6371  ;; Earth's radius in kilometers
-        dlat (Math/toRadians (- lat2 lat1))
-        dlon (Math/toRadians (- lon2 lon1))
-        a (+ (* (Math/sin (/ dlat 2)) (Math/sin (/ dlat 2)))
-             (* (Math/cos (Math/toRadians lat1))
-                (Math/cos (Math/toRadians lat2))
-                (Math/sin (/ dlon 2))
-                (Math/sin (/ dlon 2))))
-        c (* 2 (Math/atan2 (Math/sqrt a) (Math/sqrt (- 1 a))))]
-    (* r c)))
+;; id,metro_region,lat,long
+;; AD/ALV,Andorra la Vella,42.5,1.5166667
+
+(def csv-schema
+  [:map
+   [:id string?]
+   [:metro_region string?]
+   [:lat float?]
+   [:long float?]])
+
+(defn parse-coordinates
+  "Convert DDMMN DDDMME format to decimal degrees"
+  [coord-str]
+  (when (and coord-str (not= coord-str ""))
+    (try
+      (let [[lat-str lon-str] (str/split coord-str #" ")
+            lat-deg (Integer/parseInt (subs lat-str 0 2))
+            lat-min (Integer/parseInt (subs lat-str 2 4))
+            lat-dir (subs lat-str 4 5)
+            lon-deg (Integer/parseInt (subs lon-str 0 3))
+            lon-min (Integer/parseInt (subs lon-str 3 5))
+            lon-dir (subs lon-str 5 6)
+            lat-decimal (float (+ lat-deg (/ lat-min 60.0)))
+            lon-decimal (float (+ lon-deg (/ lon-min 60.0)))
+            lat-final (if (= lat-dir "S") (- lat-decimal) lat-decimal)
+            lon-final (if (= lon-dir "W") (- lon-decimal) lon-decimal)]
+        [lat-final lon-final])
+      (catch Exception _e
+        (println "Error parsing coordinates:" coord-str)
+        [nil nil]))))
+
+(defn transform-data
+  "Transform UN/LOCODE CSV to id,metro_region,lat,long format"
+  [input-file writer]
+  (with-open [reader (io/reader input-file)]
+    (doseq [[country-code location-code location-name _ coordinates] (csv/read-csv reader)]
+      (let [id (str country-code "/" location-code)
+            [lat lon] (parse-coordinates coordinates)]
+        (when (and lat lon)
+          (csv/write-csv writer [[id location-name (str lat) (str lon)]]))))))
+
+;; Execute the transformation
+(comment
+
+  (with-open [writer (io/writer (io/file "resources/location/metro_regions.csv"))]
+
+    (csv/write-csv writer [["id" "metro_region" "lat" "long"]])
+
+    (let [input-file (io/file "resources/location/unlocode/2024-2_UNLOCODE_CodeListPart1.csv")]
+      (println "Transforming" input-file "to" writer)
+      (transform-data input-file writer)
+      (println "Transformation complete. Output written to" writer))
+    (let [input-file (io/file "resources/location/unlocode/2024-2_UNLOCODE_CodeListPart2.csv")]
+      (println "Transforming" input-file "to" writer)
+      (transform-data input-file writer)
+      (println "Transformation complete. Output written to" writer))
+    (let [input-file (io/file "resources/location/unlocode/2024-2_UNLOCODE_CodeListPart3.csv")]
+      (println "Transforming" input-file "to" writer)
+      (transform-data input-file writer)
+      (println "Transformation complete. Output written to" writer))))
+
+
+;; ====================================================================================
+;; Create spatial index
+
+(defrecord Metro [^String id ^String name ^double lat ^double lon])
+
+(defn parse-metro-row [row]
+  (let [[id metro-name lat-str lon-str] row]
+    (Metro. id metro-name (Double/parseDouble lat-str) (Double/parseDouble lon-str))))
+
+(defn build-spatial-index
+  "Build a spatial index using Spatial4j and RTree for metro regions"
+  [csv-file]
+  (let [context (SpatialContext/GEO)
+        base-tree (.create (.maxChildren (RTree/star) 10))]  ; Start with empty RTree
+    (with-open [reader (io/reader csv-file)]
+      (loop [tree base-tree
+             id->metro (transient {})
+             rows (rest (csv/read-csv reader))]
+        (if-let [row (first rows)]
+          (let [^Metro metro (parse-metro-row row)
+                lon (.lon metro)
+                lat (.lat metro)
+                ^Point point (Geometries/point lon lat)
+                ^Entry entry (Entries/entry metro point)]
+            (recur (.add tree entry)
+                   (assoc! id->metro (.id metro) metro)
+                   (rest rows)))
+          {:context context
+           :rtree tree
+           :id->metro (persistent! id->metro)})))))
+
+(defn entry->distance
+  [^SpatialContext context ^Point query-point ^Entry entry]
+  (let [^Metro metro (.value entry)
+        metro-point (PointImpl. (:lon metro) (:lat metro) context)
+        dist (.distance (.getDistCalc context)
+                        metro-point
+                        query-point)]
+    (assoc metro :distance-km (* dist DistanceUtils/DEG_TO_KM))))
+
+(def default-radius-km 100.0)
 
 (defn find-metro-region
-  "Find the closest metro region to the given coordinates.
-   Returns a map with :name, :lat, :lng, and :radius_km, or nil if no region is found."
-  [lat lng]
-  (let [point [lat lng]
-        regions (map (fn [[name center radius]]
-                       {:name name
-                        :lat (first center)
-                        :lng (second center)
-                        :radius_km radius})
-                     metro-regions)
-        distances (map (fn [region]
-                         (assoc region
-                                :distance_km
-                                (distance-km point [(:lat region) (:lng region)])))
-                       regions)
-        closest (apply min-key :distance_km distances)]
-    (when (<= (:distance_km closest) (:radius_km closest))
-      (select-keys closest [:name :lat :lng :radius_km]))))
+  "Find the metro region that contains the given coordinates"
+  [spatial-index ^double lat ^double lon]
+  (let [^SpatialContext context (:context spatial-index)
+        ^double radius-km default-radius-km
+        ^RTree rtree (:rtree spatial-index)
+        ^Point point (Geometries/point lon lat)
+        radius-deg (/ radius-km 111.0)
+        ;; Query the RTree for potential matches
+        ^Observable results-observable (.search rtree point radius-deg)
+        ;; metros (iterator-seq (.iterator matches))
+        ^Iterator it (.getIterator (.toBlocking results-observable))
+        ^Point query-point (PointImpl. lon lat context)]
+    ;; Calculate distances and return the closest match
+    (->> (iterator-seq it)
+         (map (partial entry->distance context query-point))
+         (sort-by :distance-km)
+         (first))))
 
-(defn metro->location [metro]
-  {:location/id (:name metro)
-   :location/slug (:name metro)
-   :location/metro_region (:name metro)
+(def spatial-index
+  (build-spatial-index (io/resource "location/metro_regions.csv")))
+
+;; ====================================================================================
+;; API
+
+(defn metro->location [^Metro metro]
+  {:location/id (:id metro)
+   :location/name (:name metro)
    :location/lat (:lat metro)
-   :location/lng (:lng metro)
-   :location/radius_km (:radius_km metro)})
-
-(defn create-location
-  "Create a new Location entity with the given coordinates.
-   Returns nil if no metro region is found."
-  [lat lng]
-  (when-let [metro (find-metro-region lat lng)]
-    (metro->location metro)))
-
-(defn location-changed-significantly?
-  "Check if the new location is significantly different from the old one.
-   Returns true if:
-   1. The old location is nil (first time)
-   2. The new location is in a different metro region
-   3. The distance between old and new is greater than the radius of either region"
-  [old-loc new-loc]
-  (or (nil? old-loc)
-      (not= (:location/metro_region old-loc)
-            (:location/metro_region new-loc))
-      (> (distance-km [(:location/lat old-loc) (:location/lng old-loc)]
-                      [(:location/lat new-loc) (:location/lng new-loc)])
-         (max (:location/radius_km old-loc)
-              (:location/radius_km new-loc)))))
-
-;; Example of a location object from iOS
+   :location/lng (:lon metro)})
 
 (defn params->location [location]
   (let [{:keys [latitude longitude]} (:coords location)]
-    (create-location latitude longitude)))
-
+    (some-> (find-metro-region spatial-index latitude longitude)
+            metro->location)))
 
 (defn by-id [location-id]
-  (get name->metro location-id))
+  (get (:id->metro spatial-index) location-id))
+
