@@ -10,67 +10,13 @@
            [rx Observable]
            [java.util Iterator]))
 
-;; Major metro regions with their approximate centers and radii
-;; Format: [name [lat lng] radius_km]
-(def metro-regions
-  [["New York City" [40.7128 -74.0060] 50]
-   ["Los Angeles" [34.0522 -118.2437] 60]
-   ["Chicago" [41.8781 -87.6298] 45]
-   ["Houston" [29.7604 -95.3698] 50]
-   ["Phoenix" [33.4484 -112.0740] 40]
-   ["Miami" [25.7617 -80.1918] 50]
-   ["Philadelphia" [39.9526 -75.1652] 40]
-   ["San Antonio" [29.4241 -98.4936] 40]
-   ["San Diego" [32.7157 -117.1611] 40]
-   ["Dallas" [32.7767 -96.7970] 45]
-   ["San Jose" [37.3382 -121.8863] 40]
-   ["Atlanta" [33.7490 -84.3880] 45]
-   ["Boston" [42.3601 -71.0589] 40]
-   ["San Francisco" [37.7749 -122.4194] 40]
-   ["Detroit" [42.3314 -83.0458] 40]
-   ["Seattle" [47.6062 -122.3321] 40]
-   ["Minneapolis" [44.9778 -93.2650] 40]
-   ["Denver" [39.7392 -104.9903] 40]
-   ["Portland" [45.5155 -122.6789] 40]
-   ["Las Vegas" [36.1699 -115.1398] 40]
-   ["Austin" [30.2672 -97.7431] 40]
-   ["Nashville" [36.1627 -86.7816] 40]
-   ["New Orleans" [29.9511 -90.0715] 40]
-   ["Cleveland" [41.4993 -81.6944] 40]
-   ["Pittsburgh" [40.4406 -79.9959] 40]
-   ["Cincinnati" [39.1031 -84.5120] 40]
-   ["Kansas City" [39.0997 -94.5786] 40]
-   ["St. Louis" [38.6270 -90.1994] 40]
-   ["Indianapolis" [39.7684 -86.1581] 40]
-   ["Columbus" [39.9612 -82.9988] 40]
-   ["Charlotte" [35.2271 -80.8431] 40]
-   ["Tampa" [27.9506 -82.4572] 40]
-   ["Orlando" [28.5383 -81.3792] 40]
-   ["San Francisco Bay Area" [37.7749 -122.4194] 60]
-   ["Greater Los Angeles" [34.0522 -118.2437] 80]
-   ["Greater Chicago" [41.8781 -87.6298] 70]
-   ["Greater Houston" [29.7604 -95.3698] 70]
-   ["Greater Dallas-Fort Worth" [32.7767 -96.7970] 70]
-   ["Greater Washington DC" [38.9072 -77.0369] 50]
-   ["Greater Boston" [42.3601 -71.0589] 50]
-   ["Greater Atlanta" [33.7490 -84.3880] 60]
-   ["Greater Seattle" [47.6062 -122.3321] 50]
-   ["Greater Denver" [39.7392 -104.9903] 50]
-   ["Greater Portland" [45.5155 -122.6789] 50]
-   ["Greater Las Vegas" [36.1699 -115.1398] 50]
-   ["Greater Austin" [30.2672 -97.7431] 50]
-   ["Greater Nashville" [36.1627 -86.7816] 50]
-   ["Greater New Orleans" [29.9511 -90.0715] 50]
-   ["Greater Cleveland" [41.4993 -81.6944] 50]
-   ["Greater Pittsburgh" [40.4406 -79.9959] 50]
-   ["Greater Cincinnati" [39.1031 -84.5120] 50]
-   ["Greater Kansas City" [39.0997 -94.5786] 50]
-   ["Greater St. Louis" [38.6270 -90.1994] 50]
-   ["Greater Indianapolis" [39.7684 -86.1581] 50]
-   ["Greater Columbus" [39.9612 -82.9988] 50]
-   ["Greater Charlotte" [35.2271 -80.8431] 50]
-   ["Greater Tampa" [27.9506 -82.4572] 50]
-   ["Greater Orlando" [28.5383 -81.3792] 50]])
+;; To add a new metro, add it to this CSV and check that 
+;; it has a corresponding entry in the UNLOCODE CSV
+(defn load-selected-metro-ids []
+  (with-open [reader (io/reader (io/resource "location/selected_metros.csv"))]
+    (set (map first (rest (csv/read-csv reader))))))
+
+(def selected-metro-ids (load-selected-metro-ids))
 
 ;; ====================================================================================
 ;; Create db with the UNLOCODE data
@@ -136,7 +82,6 @@
       (transform-data input-file writer)
       (println "Transformation complete. Output written to" writer))))
 
-
 ;; ====================================================================================
 ;; Create spatial index
 
@@ -146,6 +91,8 @@
   (let [[id metro-name lat-str lon-str] row]
     (Metro. id metro-name (Double/parseDouble lat-str) (Double/parseDouble lon-str))))
 
+;; TODO: Filter only the large metro regions so that there are fewer matches
+;; and it is always the same ones
 (defn build-spatial-index
   "Build a spatial index using Spatial4j and RTree for metro regions"
   [csv-file]
@@ -161,9 +108,12 @@
                 lat (.lat metro)
                 ^Point point (Geometries/point lon lat)
                 ^Entry entry (Entries/entry metro point)]
-            (recur (.add tree entry)
-                   (assoc! id->metro (.id metro) metro)
-                   (rest rows)))
+            ;; We only keep the selected metros
+            (if (contains? selected-metro-ids (.id metro))
+              (recur (.add tree entry)
+                     (assoc! id->metro (.id metro) metro)
+                     (rest rows))
+              (recur tree id->metro (rest rows))))
           {:context context
            :rtree tree
            :id->metro (persistent! id->metro)})))))
@@ -179,9 +129,12 @@
 
 (def default-radius-km 100.0)
 
+(def spatial-index
+  (build-spatial-index (io/resource "location/metro_regions.csv")))
+
 (defn find-metro-region
   "Find the metro region that contains the given coordinates"
-  [spatial-index ^double lat ^double lon]
+  [^double lat ^double lon]
   (let [^SpatialContext context (:context spatial-index)
         ^double radius-km default-radius-km
         ^RTree rtree (:rtree spatial-index)
@@ -198,9 +151,6 @@
          (sort-by :distance-km)
          (first))))
 
-(def spatial-index
-  (build-spatial-index (io/resource "location/metro_regions.csv")))
-
 ;; ====================================================================================
 ;; API
 
@@ -212,7 +162,7 @@
 
 (defn params->location [location]
   (let [{:keys [latitude longitude]} (:coords location)]
-    (some-> (find-metro-region spatial-index latitude longitude)
+    (some-> (find-metro-region latitude longitude)
             metro->location)))
 
 (defn by-id [location-id]
