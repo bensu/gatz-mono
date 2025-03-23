@@ -54,7 +54,7 @@
 
 
 ;; ====================================================================================
-;; Monument
+;; Monument and airports
 
 (defn load-monument-data []
   (with-open [reader (io/reader (io/resource "location/test_monuments.csv"))]
@@ -70,5 +70,25 @@
     (doseq [monument (load-monument-data)]
       (let [location (some-> (location/find-metro-region (:lat monument) (:lon monument))
                              (location/metro->location))]
-        (is (= (:id monument) (:location/id location))
+        (is (and (some? location) (= (:id monument) (:location/id location)))
             (str "Monument " (:id monument) " not found in " (:location/name location)))))))
+
+
+(defn load-airport-data []
+  (with-open [reader (io/reader (io/resource "location/test_airports.csv"))]
+    (->> (rest (csv/read-csv reader))
+         (mapv (fn [[id name airport-code latitude longitude]]
+                 {:id id
+                  :city name
+                  :airport-code airport-code
+                  :lat (Double/parseDouble latitude)
+                  :lon (Double/parseDouble longitude)})))))
+
+(deftest test-find-airport
+  (testing "The airport is found in its expected city"
+    (doseq [airport (load-airport-data)]
+      (let [location (some-> (location/find-metro-region (:lat airport) (:lon airport))
+                             (location/metro->location))]
+        (is (and (some? location) (= (:id airport) (:location/id location)))
+            (str "Airport " (:id airport) " not found in " (:location/name location)))))))
+
