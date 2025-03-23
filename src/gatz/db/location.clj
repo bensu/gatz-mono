@@ -1,6 +1,7 @@
 (ns gatz.db.location
   (:require [clojure.data.csv :as csv]
             [clojure.java.io :as io]
+            [clojure.data.json :as json]
             [clojure.string :as str])
   (:import [org.locationtech.spatial4j.shape.impl PointImpl]
            [org.locationtech.spatial4j.context SpatialContext]
@@ -12,11 +13,20 @@
 
 ;; To add a new metro, add it to this CSV and check that 
 ;; it has a corresponding entry in the UNLOCODE CSV
-(defn load-selected-metro-ids []
+(defn load-selected-metros []
   (with-open [reader (io/reader (io/resource "location/selected_metros.csv"))]
-    (set (map first (rest (csv/read-csv reader))))))
+    (doall (rest (csv/read-csv reader)))))
 
-(def selected-metro-ids (load-selected-metro-ids))
+(def selected-metro-ids (set (map first (load-selected-metros))))
+
+;; Make a JSON file with the selected metro ids for the frontend
+
+(defn make-frontend-file []
+  (let [selected-metros (load-selected-metros)]
+    (with-open [writer (io/writer (io/file "resources/location/selected_metros.json"))]
+      (json/write (zipmap (map first selected-metros)
+                          (map second selected-metros))
+                  writer))))
 
 ;; ====================================================================================
 ;; Create db with the UNLOCODE data
@@ -167,5 +177,7 @@
               metro->location))))
 
 (defn by-id [location-id]
-  (get (:id->metro spatial-index) location-id))
+  (some-> (:id->metro spatial-index)
+          (get location-id)
+          (metro->location)))
 
