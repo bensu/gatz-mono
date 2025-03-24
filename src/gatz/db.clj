@@ -233,6 +233,7 @@
                                  :to_uid (:xt/id u)
                                  :did did
                                  :mid mid
+                                 :location_id location_id
                                  :gid group_id}))))
 
         ;; We continue to store mentions in the database
@@ -268,6 +269,7 @@
                                            {:members member-uids
                                             :cid user-id
                                             :gid group_id
+                                            :location_id location_id
                                             :did did})
         member-mode
         (if group

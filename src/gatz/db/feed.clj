@@ -38,10 +38,13 @@
           (= ref_type expected-ref-type)))))
 
 (defn new-item
-  [{:keys [id now uids group_id contact_id contact_request_id feed_type mid] :as opts}]
+  [{:keys [id now uids group_id contact_id contact_request_id feed_type mid location_id] :as opts}]
   {:pre [(or (nil? id) (uuid? id))
          (or (nil? now) (inst? now))
          (or (nil? mid) (uuid? mid))
+         (or (nil? location_id) (string? location_id))
+         (or (nil? group_id) (ulid/ulid? group_id))
+         (or (nil? contact_id) (uuid? contact_id))
          (set? uids) (every? uuid? uids)
          (contains? feed-types feed_type)
          (validate-item-ref? opts)]}
@@ -62,6 +65,7 @@
      :feed/ref ref
      :feed/group group_id
      :feed/contact contact_id
+     :feed/location_id location_id
      :feed/contact_request contact_request_id}))
 
 (defn new-evt [feed-item]
@@ -142,9 +146,10 @@
     [[:xtdb.api/put (-> item (assoc :db/op :create))]
      [:xtdb.api/put (-> (new-evt item) (assoc :db/op :create))]]))
 
-(defn- new-post [id now {:keys [members cid gid did] :as _opts}]
+(defn- new-post [id now {:keys [members cid gid did location_id] :as _opts}]
   {:pre [(set? members) (every? uuid? members)
          (uuid? id) (inst? now)
+         (or (nil? location_id) (string? location_id))
          (uuid? cid) (or (nil? gid) (ulid/ulid? gid))
          (uuid? did)]}
   (new-item {:id id
@@ -152,6 +157,7 @@
              :now now
              :group_id gid
              :contact_id cid
+             :location_id location_id
              :ref did
              :ref_type :gatz/discussion
              :feed_type :feed.type/new_post}))
@@ -161,17 +167,19 @@
     [[:xtdb.api/put (-> item (assoc :db/op :create))]
      [:xtdb.api/put (-> (new-evt item) (assoc :db/op :create))]]))
 
-(defn- new-mention [id now {:keys [by_uid to_uid did gid mid]}]
+(defn- new-mention [id now {:keys [by_uid to_uid did gid mid location_id]}]
   {:pre [(uuid? id)
          (inst? now)
          (uuid? by_uid) (uuid? to_uid)
-         (uuid? did) (or (nil? gid) (ulid/ulid? gid))]}
+         (uuid? did) (or (nil? gid) (ulid/ulid? gid))
+         (or (nil? location_id) (string? location_id))]}
   (new-item {:id id
              :uids #{to_uid}
              :now now
              :contact_id by_uid
              :mid mid
              :group_id gid
+             :location_id location_id
              :feed_type :feed.type/mentioned_in_discussion
              :ref_type :gatz/discussion
              :ref did}))
@@ -195,8 +203,11 @@
     [[:xtdb.api/put (-> item (assoc :db/op :create))]
      [:xtdb.api/put (-> (new-evt item) (assoc :db/op :create))]]))
 
-(defn new-mention-txn [id now {:keys [by_uid to_uid did gid mid]}]
-  (let [item (new-mention id now {:by_uid by_uid :to_uid to_uid :did did :gid gid :mid mid})]
+(defn new-mention-txn [id now {:keys [by_uid to_uid did gid mid location_id]}]
+  (let [item (new-mention id now {:by_uid by_uid
+                                  :to_uid to_uid
+                                  :did did :gid gid :mid mid
+                                  :location_id location_id})]
     [[:xtdb.api/put (-> item (assoc :db/op :create))]
      [:xtdb.api/put (-> (new-evt item) (assoc :db/op :create))]]))
 
@@ -351,27 +362,29 @@
 (defn for-user-with-ts
   ([db user-id]
    (for-user-with-ts db user-id {}))
-  ([db user-id {:keys [older-than-ts younger-than-ts contact_id group_id limit]}]
+  ([db user-id {:keys [older-than-ts younger-than-ts contact_id group_id location_id limit]}]
    {:pre [(uuid? user-id)
           (or (nil? limit) (pos-int? limit))
           (or (nil? older-than-ts) (inst? older-than-ts))
           (or (nil? younger-than-ts) (inst? younger-than-ts))
           (or (nil? contact_id) (uuid? contact_id))
+          (or (nil? location_id) (string? location_id))
           (or (nil? group_id) (ulid/ulid? group_id))]}
    (let [limit (or limit 20)]
      (->> (q db {:find '[created-at (pull id [*]) (pull ref [*])]
-                 :in '[uid cid gid older-than-ts younger-than-ts]
+                 :in '[uid cid gid lid older-than-ts younger-than-ts]
                  :limit limit
                  :order-by '[[created-at :desc]]
                  :where (cond-> '[[id :db/type :gatz/feed_item]
                                   [id :feed/uids uid]
                                   [id :feed/created_at created-at]
                                   [id :feed/ref ref]]
+                          location_id (conj '[id :feed/location_id lid])
                           contact_id (conj '[id :feed/contact cid])
                           group_id (conj '[id :feed/group gid])
                           older-than-ts (conj '[(< created-at older-than-ts)])
                           younger-than-ts (conj '[(< younger-than-ts created-at)]))}
-             user-id contact_id group_id older-than-ts younger-than-ts)
+             user-id contact_id group_id location_id older-than-ts younger-than-ts)
           (map (fn [[_created-at item ref]]
                  (if ref
                    (assoc item :feed/ref ref)

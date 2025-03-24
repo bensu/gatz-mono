@@ -5,6 +5,7 @@
             [gatz.crdt.user :as crdt.user]
             [gatz.crdt.discussion :as crdt.discussion]
             [gatz.crdt.message :as crdt.message]
+            [gatz.db.location :as db.location]
             [gatz.util :as util]
             [gatz.db.message :as db.message]
             [gatz.db.contacts :as db.contacts]
@@ -253,22 +254,31 @@
                              :in_common [:contacts [:vec schema/Contact]
                                          :groups [:vec schema/Group]]]]]])
 
-(defn parse-feed-params [params]
-  (cond-> params
-    (some? (:contact_id params)) (update :contact_id util/parse-uuid)
-    (some? (:group_id params))   (update :group_id crdt/parse-ulid)
-    (some? (:last_id params))    (update :last_id util/parse-uuid)))
+(defn parse-feed-params [{:keys [contact_id group_id last_id location_id]}]
+  (cond-> {}
+    (string? location_id) (assoc :location_id location_id)
+    (some? contact_id)    (assoc :contact_id (util/parse-uuid contact_id))
+    (some? group_id)      (assoc :group_id (crdt/parse-ulid group_id))
+    (some? last_id)       (assoc :last_id (util/parse-uuid last_id))))
 
 (defn feed
   [{:keys [params biff/db auth/user auth/user-id] :as ctx}]
 
   (posthog/capture! ctx "discussion.feed")
 
+  (def -ctx ctx)
+
   (let [params (parse-feed-params params)
 
         older-than (some->> (:last_id params)
                             (db.feed/by-id db)
                             :feed/created_at)
+
+        ;; Is this a location feed?
+        location (some->> (:location_id params) (db.location/by-id))
+        location_id (:location/id location)
+        _ (when (:location_id params)
+            (assert location "The location_id provided doesn't exist"))
 
         ;; Is this a contact's feed?
         contact (some->> (:contact_id params) (db.user/by-id db))
@@ -280,6 +290,7 @@
         group (some->> (:group_id params) (db.group/by-id db))
         group_id (:xt/id group)
         feed-query {:older-than-ts older-than
+                    :location_id location_id
                     :contact_id contact_id
                     :group_id group_id}
 

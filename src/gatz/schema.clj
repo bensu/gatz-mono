@@ -938,7 +938,8 @@
 
    [:feed/group [:maybe GroupId]]
    [:feed/contact [:maybe UserId]]
-   [:feed/contact_request [:maybe uuid?]]])
+   [:feed/contact_request [:maybe uuid?]]
+   [:feed/location_id [:maybe #'LocationId]]])
 
 ;; ======================================================================
 ;; Final schema
