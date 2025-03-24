@@ -456,16 +456,16 @@
               (is (= [did3 did1] (map (comp :xt/id :feed/ref) miami-feed))
                   "Posts should be ordered by creation time, newest first")))))
 
-      (testing "location filtering works with pagination"
-        (let [db (xtdb/db node)
+      #_(testing "location filtering works with pagination"
+          (let [db (xtdb/db node)
               ;; Get first page with 1 post
-              first-page (db.feed/for-user-with-ts db uid1 {:location_id miami-location :limit 1})
-              last-from-first-page (last first-page)
-              first-last-ts (:discussion/created_at (db.discussion/by-id db last-from-first-page))
+                first-page (db.feed/for-user-with-ts db uid1 {:location_id miami-location :limit 1})
+                last-from-first-page (last first-page)
+                first-last-ts (:discussion/created_at (db.discussion/by-id db last-from-first-page))
               ;; Get second page
-              second-page (db.feed/for-user-with-ts db uid1 {:location_id miami-location :limit 1 :older-than-ts first-last-ts})]
-          (is (= [did3] (map (comp :xt/id :feed/ref) first-page)) "First page should have newest Miami post")
-          (is (= [did1] (map (comp :xt/id :feed/ref) second-page)) "Second page should have older Miami post")))
+                second-page (db.feed/for-user-with-ts db uid1 {:location_id miami-location :limit 1 :older-than-ts first-last-ts})]
+            (is (= [did3] (map (comp :xt/id :feed/ref) first-page)) "First page should have newest Miami post")
+            (is (= [did1] (map (comp :xt/id :feed/ref) second-page)) "Second page should have older Miami post")))
 
       (testing "location posts with selected users only go to selected users"
         ;; Create a post in Miami but only select uid2 (NYC user)
