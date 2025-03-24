@@ -111,7 +111,8 @@
      :user/blocked_uids (crdt/lww-set clock #{})
      :user/avatar (crdt/lww clock nil)
      :user/push_tokens (crdt/lww clock nil)
-     :user/settings {:settings/notifications (notifications-off-crdt clock)}
+     :user/settings {:settings/notifications (notifications-off-crdt clock)
+                     :settings/location {:settings.location/enabled (crdt/lww clock nil)}}
      :user/profile {:profile/full_name (crdt/lww clock nil)
                     :profile/urls {:profile.urls/website (crdt/lww clock nil)
                                    :profile.urls/twitter (crdt/lww clock nil)}}}))
@@ -181,7 +182,8 @@
               :user/profile {:profile/full_name nil
                              :profile/urls {:profile.urls/website nil
                                             :profile.urls/twitter nil}}
-              :user/settings {:settings/notifications notifications-off}}
+              :user/settings {:settings/notifications notifications-off
+                              :settings/location {:settings.location/enabled nil}}}
              (->value initial)))
       (is (= {:xt/id uid
               :db/type :gatz/user
@@ -200,6 +202,7 @@
               :user/profile {:profile/full_name nil
                              :profile/urls {:profile.urls/website nil
                                             :profile.urls/twitter nil}}
-              :user/settings {:settings/notifications (merge np-t4 np-t5)}}
+              :user/settings {:settings/notifications (merge np-t4 np-t5)
+                              :settings/location {:settings.location/enabled nil}}}
              (->value final)
              (->value (reduce apply-delta initial (shuffle (shuffle deltas)))))))))

@@ -220,7 +220,8 @@
                                                           :activity :settings.notification/daily,
                                                           :friend_accepted false,
                                                           :subscribe_on_comment false,
-                                                          :suggestions_from_gatz false}}}
+                                                          :suggestions_from_gatz false}
+                                  :location {:settings.location/enabled nil}}}
 
                       (crdt.user/->value final-user)))
 
@@ -261,7 +262,8 @@
                                                           :activity :settings.notification/daily,
                                                           :friend_accepted false,
                                                           :subscribe_on_comment false,
-                                                          :suggestions_from_gatz false}}}
+                                                          :suggestions_from_gatz false}
+                                  :location {:settings.location/enabled nil}}}
 
                       (crdt.user/->value deleted-user)))
 
@@ -348,7 +350,8 @@
                                                           :activity :settings.notification/daily,
                                                           :friend_accepted false,
                                                           :subscribe_on_comment false,
-                                                          :suggestions_from_gatz false}}}
+                                                          :suggestions_from_gatz false}
+                                  :location {:settings.location/enabled nil}}}
                       (crdt.user/->value final-user)))
 
           (mark-deleted! (get-ctx uid) {:now t8})
@@ -379,7 +382,8 @@
                                                           :activity :settings.notification/daily,
                                                           :friend_accepted false,
                                                           :subscribe_on_comment false,
-                                                          :suggestions_from_gatz false}}}
+                                                          :suggestions_from_gatz false}
+                                  :settings/location {:settings.location/enabled nil}}}
 
                       (crdt.user/->value deleted-user)))
 

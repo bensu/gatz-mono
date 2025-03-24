@@ -106,16 +106,19 @@
 
 (defn mark-location! [{:keys [params auth/user-id biff/db] :as ctx}]
   (if-let [new-location (db.location/params->location (:location params))]
-    (let [current-location (some->> (db.user/activity-by-uid db user-id)
-                                    (crdt/-value)
-                                    :user_activity/last_location)]
-      (db.user/mark-location! ctx {:location_id (:location/id new-location) :now (Date.)})
+    (let [last-location (some->> (db.user/activity-by-uid db user-id)
+                                 (crdt/-value)
+                                 :user_activity/last_location)]
+      (db.user/mark-location! ctx {:location_id (:location/id new-location)
+                                   :now (Date.)})
       (posthog/capture! ctx "user.mark_location")
-      (if (= (:location/id current-location) (:location/id new-location))
+      (if (nil? last-location)
         (json-response {})
-        (json-response {:location new-location
-                        :in_common {:friends []
-                                    :friends_of_friends []}})))
+        (if (= (:location/id last-location) (:location/id new-location))
+          (json-response {})
+          (json-response {:location new-location
+                          :in_common {:friends []
+                                      :friends_of_friends []}}))))
     (json-response {})))
 
 (defn disable-push! [ctx]

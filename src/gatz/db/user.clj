@@ -114,6 +114,19 @@
                         (crdt/-apply-delta delta)
                         (assoc :db/doc-type :gatz/user_activity))]]))
 
+(defn remove-location!
+  "Development time only"
+  [{:keys [biff.xtdb/node] :as ctx} {:keys [uid now]}]
+  {:pre [(uuid? uid) (inst? now)]}
+  (let [db (xtdb.api/db node)
+        clock (crdt/new-hlc uid now)
+        doc (activity-by-uid db uid)
+        lww (crdt/lww clock nil)]
+    (biff/submit-tx ctx
+                    [[:xtdb.api/put (assoc doc
+                                           :crdt/clock clock
+                                           :user_activity/last_location lww)]])))
+
 (def mark-active-expr
   '(fn mark-active-fn [ctx args]
      (gatz.db.user/mark-active-txn ctx args)))
@@ -283,7 +296,7 @@
    (let [clock (crdt/new-hlc user-id now)
          action {:gatz.crdt.user/action :gatz.crdt.user/update-avatar
                  :gatz.crdt.user/delta {:crdt/clock clock
-                                        :user/updated_at now
+                                        :user/updated_at (crdt/max-wins now)
                                         :user/avatar (crdt/->LWW clock avatar–url)}}]
      (apply-action! ctx action))))
 
@@ -300,7 +313,7 @@
                 (not (empty? full_name)) (assoc :profile/full_name (crdt/lww clock full_name)))
          action {:gatz.crdt.user/action :gatz.crdt.user/update-profile
                  :gatz.crdt.user/delta {:crdt/clock clock
-                                        :user/updated_at now
+                                        :user/updated_at (crdt/max-wins now)
                                         :user/profile crdt}}]
      (apply-action! ctx action))))
 
@@ -314,7 +327,7 @@
 
    (let [clock (crdt/new-hlc user-id now)
          delta {:crdt/clock clock
-                :user/updated_at now
+                :user/updated_at (crdt/max-wins now)
                 :user/push_tokens (crdt/->LWW clock push-token)
                 :user/settings {:settings/notifications (crdt.user/notifications-on-crdt clock)}}
          action {:gatz.crdt.user/action :gatz.crdt.user/add-push-token
@@ -330,7 +343,7 @@
 
    (let [clock (crdt/new-hlc user-id now)
          delta {:crdt/clock clock
-                :user/updated_at now
+                :user/updated_at (crdt/max-wins now)
                 :user/push_tokens (crdt/->LWW clock nil)
                 :user/settings {:settings/notifications (crdt.user/notifications-off-crdt clock)}}
          action {:gatz.crdt.user/action :gatz.crdt.user/remove-push-token
@@ -350,7 +363,7 @@
 
    (let [clock (crdt/new-hlc user-id now)
          delta {:crdt/clock clock
-                :user/updated_at now
+                :user/updated_at (crdt/max-wins now)
                 :user/settings {:settings/notifications (crdt/->lww-map notification-settings clock)}}
          action {:gatz.crdt.user/action :gatz.crdt.user/update-notifications
                  :gatz.crdt.user/delta delta}]
@@ -369,13 +382,11 @@
                      [[:xtdb.api/fn :gatz.db.user/mark-active {:args args}]]))))
 
 (defn mark-location!
-  ([ctx]
-   (mark-location! ctx {:now (Date.)}))
-  ([{:keys [auth/user-id] :as ctx} {:keys [location_id now]}]
-   {:pre [(uuid? user-id) (string? location_id)]}
-   (let [args {:uid user-id :location_id location_id :now now}]
-     (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
-                     [[:xtdb.api/fn :gatz.db.user/mark-location {:args args}]]))))
+  [{:keys [auth/user-id] :as ctx} {:keys [location_id now]}]
+  {:pre [(uuid? user-id) (string? location_id)]}
+  (let [args {:uid user-id :location_id location_id :now now}]
+    (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
+                    [[:xtdb.api/fn :gatz.db.user/mark-location {:args args}]])))
 
 (defn update-location-settings!
 
@@ -390,7 +401,7 @@
 
    (let [clock (crdt/new-hlc user-id now)
          delta {:crdt/clock clock
-                :user/updated_at now
+                :user/updated_at (crdt/max-wins now)
                 :user/settings {:settings/location (crdt/->lww-map location-settings clock)}}
          action {:gatz.crdt.user/action :gatz.crdt.user/update-location-settings
                  :gatz.crdt.user/delta delta}]
@@ -402,7 +413,7 @@
 (defn mark-delete-delta [uid now]
   (let [clock (crdt/new-hlc uid now)]
     {:crdt/clock clock
-     :user/updated_at now
+     :user/updated_at (crdt/max-wins now)
      :user/deleted_at now
      :user/profile {:profile/full_name (crdt/lww clock nil)
                     :profile/urls {:profile.urls/twitter (crdt/lww clock nil)
@@ -437,7 +448,7 @@
   {:pre [(uuid? eid) (uuid? from) (uuid? to) (not= from to) (inst? now)]}
   (let [clock (crdt/new-hlc from now)
         delta {:crdt/clock clock
-               :user/updated_at now
+               :user/updated_at (crdt/max-wins now)
                :user/blocked_uids (crdt/lww-set-delta clock #{to})}
         action {:gatz.crdt.user/action :gatz.crdt.user/block-another-user
                 :gatz.crdt.user/delta delta}]

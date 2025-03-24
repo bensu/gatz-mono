@@ -1604,7 +1604,7 @@
           node (:biff.xtdb/node ctx)
           uid (random-uuid)
           t0 (Date.)
-          valid-location "Miami"  ; Known valid location from metro-regions
+          valid-location "US/MIA"  ; Known valid location from metro-regions
           invalid-location "Invalid City"  ; Location that doesn't exist
           base-params {:text "Test message"
                        :media_ids []

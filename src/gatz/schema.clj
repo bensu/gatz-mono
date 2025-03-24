@@ -84,13 +84,11 @@
 
 (def LocationPreferencesCRDT
   [:map
-   [:settings.location/enabled (crdt/lww-schema boolean?)]
-   [:settings.location/asked_for_location_ts (crdt/max-wins-schema [:maybe inst?])]])
+   [:settings.location/enabled (crdt/lww-schema [:maybe boolean?])]])
 
 (def LocationPreferences
   [:map
-   [:settings.location/enabled boolean?]
-   [:settings.location/asked_for_location_ts [:maybe inst?]]])
+   [:settings.location/enabled [:maybe boolean?]]])
 
 (def User
   [:map
@@ -553,13 +551,13 @@
 (def UserUpdateAvatar
   [:map
    [:crdt/clock crdt/hlc-schema]
-   [:user/updated_at inst?]
+   [:user/updated_at [:or inst? (crdt/max-wins-schema inst?)]]
    [:user/avatar (crdt/lww-schema string?)]])
 
 (def UserAddPushToken
   [:map
    [:crdt/clock crdt/hlc-schema]
-   [:user/updated_at inst?]
+   [:user/updated_at [:or inst? (crdt/max-wins-schema inst?)]]
    [:user/settings
     [:map
      [:settings/notifications (mu/optional-keys NotificationPreferencesCRDT)]]]
@@ -568,7 +566,7 @@
 (def UserRemovePushToken
   [:map
    [:crdt/clock crdt/hlc-schema]
-   [:user/updated_at inst?]
+   [:user/updated_at [:or inst? (crdt/max-wins-schema inst?)]]
    [:user/settings
     [:map
      [:settings/notifications (mu/optional-keys NotificationPreferencesCRDT)]]]
@@ -577,7 +575,7 @@
 (def UserUpdateNotifications
   [:map
    [:crdt/clock crdt/hlc-schema]
-   [:user/updated_at inst?]
+   [:user/updated_at [:or inst? (crdt/max-wins-schema inst?)]]
    [:user/settings
     [:map
       ;; TODO: partial where all keys are optional
@@ -586,7 +584,7 @@
 (def UserUpdateLocationSettings
   [:map
    [:crdt/clock crdt/hlc-schema]
-   [:user/updated_at inst?]
+   [:user/updated_at [:or inst? (crdt/max-wins-schema inst?)]]
    [:user/settings
     [:map
      [:settings/location (mu/optional-keys LocationPreferencesCRDT)]]]])
@@ -594,7 +592,7 @@
 (def UserUpdateLinks
   [:map
    [:crdt/clock crdt/hlc-schema]
-   [:user/updated_at inst?]
+   [:user/updated_at [:or inst? (crdt/max-wins-schema inst?)]]
    [:user/profile
     [:map
      [:profile/urls (mu/optional-keys UserSettingsLinksCRDT)]]]])
@@ -602,7 +600,7 @@
 (def UserUpdateProfile
   [:map
    [:crdt/clock crdt/hlc-schema]
-   [:user/updated_at inst?]
+   [:user/updated_at [:or inst? (crdt/max-wins-schema inst?)]]
    [:user/profile
     [:map
      [:profile/full_name {:optional true} (crdt/lww-schema [:maybe string?])]
@@ -611,7 +609,7 @@
 (def UserMarkDeleted
   [:map
    [:crdt/clock crdt/hlc-schema]
-   [:user/updated_at inst?]
+   [:user/updated_at [:or inst? (crdt/max-wins-schema inst?)]]
    [:user/deleted_at inst?]
    [:user/profile {:optional true}
     [:map
@@ -621,7 +619,7 @@
 (def UserBlocksAnotherUser
   [:map
    [:crdt/clock crdt/hlc-schema]
-   [:user/updated_at inst?]
+   [:user/updated_at [:or inst? (crdt/max-wins-schema inst?)]]
    [:user/blocked_uids (crdt/lww-set-delta-schema #'UserId)]])
 
 (def UserAction
