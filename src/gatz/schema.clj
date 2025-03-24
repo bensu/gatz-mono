@@ -115,9 +115,7 @@
    [:user/profile [:map
                    [:profile/full_name [:maybe string?]]
                    [:profile/urls UserSettingsLinks]]]
-   [:user/push_tokens [:maybe PushTokens]]
-   ;; LWW
-   [:user/last_known_location [:maybe #'Location]]])
+   [:user/push_tokens [:maybe PushTokens]]])
 
 (def contact-ks [:xt/id :user/name :user/avatar :user/profile])
 
