@@ -1637,3 +1637,151 @@
         (is (thrown-with-msg? AssertionError
                               #"The location_id provided doesn't exist"
                               (db/create-discussion-with-message! (get-ctx uid) params)))))))
+
+(deftest location-feeds
+  (testing "posts are filtered by location in feeds"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (let [db (xtdb/db node)]
+                      (assoc ctx
+                             :biff/db db
+                             :auth/user-id uid
+                             :auth/user (db.user/by-id db uid)
+                             :auth/cid uid)))
+          now (Date.)
+          t1 (crdt/inc-time now)
+          t2 (crdt/inc-time t1)
+          t3 (crdt/inc-time t2)
+          t4 (crdt/inc-time t3)
+          [uid1 uid2 uid3] (take 3 (repeatedly random-uuid))
+          [did1 did2 did3 did4 did5] (take 5 (repeatedly random-uuid))
+          miami-location "US/MIA"
+          nyc-location "US/NYC"]
+
+      ;; Create users
+      (db.user/create-user!
+       ctx {:id uid1 :username "miami_user" :phone "+14159499000" :now now})
+      (db.user/create-user!
+       ctx {:id uid2 :username "nyc_user" :phone "+14159499001" :now now})
+      (db.user/create-user!
+       ctx {:id uid3 :username "other_user" :phone "+14159499002" :now now})
+      (xtdb/sync node)
+
+      ;; Set up contacts
+      (doseq [[from to] [[uid1 uid2]
+                         [uid1 uid3]
+                         [uid2 uid1]
+                         [uid2 uid3]
+                         [uid3 uid1]
+                         [uid3 uid2]]]
+        (db.contacts/force-contacts! ctx from to))
+      (xtdb/sync node)
+
+      (testing "posts from different locations are properly filtered"
+        ;; Create posts in different locations
+        (db/create-discussion-with-message!
+         (get-ctx uid1)
+         {:did did1
+          :location_id miami-location
+          :to_all_contacts true
+          :text "Hello from Miami"
+          :now t1})
+        (db/create-discussion-with-message!
+         (get-ctx uid2)
+         {:did did2
+          :location_id nyc-location
+          :to_all_contacts true
+          :text "Hello from NYC"
+          :now t2})
+        (db/create-discussion-with-message!
+         (get-ctx uid3)
+         {:did did3
+          :location_id miami-location
+          :to_all_contacts true
+          :text "Another Miami post"
+          :now t3})
+        (db/create-discussion-with-message!
+         (get-ctx uid1)
+         {:did did4
+          :to_all_contacts true
+          :text "No location post"
+          :now t4})
+        (xtdb/sync node)
+
+        (let [db (xtdb/db node)]
+          (testing "miami feed shows only miami posts"
+            (let [miami-feed (db.discussion/posts-for-user db uid1 {:location_id miami-location})]
+              (is (= [did3 did1] miami-feed)
+                  "Miami feed should only show posts from Miami")))
+
+          (testing "nyc feed shows only nyc posts"
+            (let [nyc-feed (db.discussion/posts-for-user db uid2 {:location_id nyc-location})]
+              (is (= [did2] nyc-feed)
+                  "NYC feed should only show posts from NYC")))
+
+          (testing "no location filter shows all posts"
+            (let [all-feed (db.discussion/posts-for-user db uid1)]
+              (is (= [did4 did3 did2 did1] all-feed)
+                  "Unfiltered feed should show all posts")))
+
+          (testing "all friends get these location posts"
+            (let [all-feed (db.discussion/posts-for-user db uid3)]
+              (is (= [did4 did3 did2 did1] all-feed)
+                  "Unfiltered feed should show all posts")))
+
+          (testing "posts are properly ordered by creation time"
+            (let [miami-feed (db.discussion/posts-for-user db uid1 {:location_id miami-location})]
+              (is (= [did3 did1] miami-feed)
+                  "Posts should be ordered by creation time, newest first")))))
+
+      (testing "location filtering works with pagination"
+        (let [db (xtdb/db node)
+              ;; Get first page with 1 post
+              first-page (db.discussion/posts-for-user db uid1 {:location_id miami-location :limit 1})
+              last-from-first-page (last first-page)
+              first-last-ts (:discussion/created_at (db.discussion/by-id db last-from-first-page))
+              ;; Get second page
+              second-page (db.discussion/posts-for-user db uid1 {:location_id miami-location :limit 1 :older-than-ts first-last-ts})]
+          (is (= [did3] first-page) "First page should have newest Miami post")
+          (is (= [did1] second-page) "Second page should have older Miami post")))
+
+      (testing "location posts with selected users only go to selected users"
+        ;; Create a post in Miami but only select uid2 (NYC user)
+        (db/create-discussion-with-message!
+         (get-ctx uid1)
+         {:did did5
+          :location_id miami-location
+          :selected_users [uid2]
+          :text "Miami post for NYC user"
+          :now (crdt/inc-time t4)})
+        (xtdb/sync node)
+
+        (let [db (xtdb/db node)]
+
+          ;; NYC user should see the post in their NYC feed
+          (let [nyc-feed (db.discussion/posts-for-user db uid2 {:location_id nyc-location})]
+            (is (= [did2] nyc-feed)
+                "NYC feed should only show NYC posts"))
+
+          ;; NYC user should see the post in their unfiltered feed
+          (let [all-feed (db.discussion/posts-for-user db uid2)]
+            (is (= [did5 did4 did3 did2 did1] all-feed)
+                "Unfiltered feed should only show posts they're selected for"))
+
+          ;; Miami user should not see the post in their Miami feed
+          (let [miami-feed (db.discussion/posts-for-user db uid1 {:location_id miami-location})]
+            (is (= [did5 did3 did1] miami-feed)
+                "Miami feed should not show posts they're not selected for"))
+
+          (testing "location respects selected users, did5 is not included"
+            (let [all-feed (db.discussion/posts-for-user db uid3)]
+              (is (= [did4 did3 did2 did1] all-feed)
+                  "Unfiltered feed should show all posts")))
+
+          ;; Miami user should see the post in their unfiltered feed
+          (let [all-feed (db.discussion/posts-for-user db uid1)]
+            (is (= [did5 did4 did3 did2 did1] all-feed)
+                "Unfiltered feed should show all posts"))))
+
+      (.close node))))
