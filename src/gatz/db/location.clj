@@ -30,7 +30,6 @@
 
 ;; ====================================================================================
 ;; Create db with the UNLOCODE data
-
 ;; id,metro_region,lat,long
 ;; AD/ALV,Andorra la Vella,42.5,1.5166667
 
