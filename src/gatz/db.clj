@@ -144,7 +144,8 @@
                    (db.location/by-id location_id))
 
         _ (when location_id
-            (assert location "The location_id provided doesn't exist"))
+            (assert location "The location_id provided doesn't exist")
+            (assert (nil? group_id) "Cannot create a discussion with both group and location"))
 
         link-previews (mapv #(link-preview/by-id db %) (or link_previews []))
         updated-medias (some->> media_ids

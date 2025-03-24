@@ -1784,4 +1784,26 @@
             (is (= [did5 did4 did3 did2 did1] all-feed)
                 "Unfiltered feed should show all posts"))))
 
+      (testing "cannot create a discussion with both group and location"
+        (let [gid (crdt/random-ulid)]
+          ;; Create a group first
+          (db.group/create! (get-ctx uid1)
+                            {:id gid :name "test group"
+                             :owner uid1
+                             :members #{uid2}
+                             :now now})
+          (xtdb/sync node)
+
+          ;; Try to create a discussion with both group and location
+          (is (thrown? java.lang.AssertionError
+                       (db/create-discussion-with-message!
+                        (get-ctx uid1)
+                        {:did (random-uuid)
+                         :group_id gid
+                         :location_id miami-location
+                         :to_all_contacts true
+                         :text "This should fail"
+                         :now (crdt/inc-time t4)}))
+              "Should not be able to create a discussion with both group and location")))
+
       (.close node))))
