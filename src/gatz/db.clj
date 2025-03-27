@@ -219,7 +219,9 @@
                             {:mid og-mid
                              :did og-did}))
 
+        ;; TODO: test that this works well when the use has one friend
         dm? (and (not group)
+                 (= 1 (count (disj selected_users user-id)))
                  (= 1 (count (disj member-uids user-id))))
 
         mentioned-users (get-mentioned-users db user-id member-uids text)

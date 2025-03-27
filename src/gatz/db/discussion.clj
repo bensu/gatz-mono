@@ -219,14 +219,17 @@
 ;; TODO: you can't add members after the time has passed
 (defmethod authorized-for-delta? :discussion.crdt/add-members
   [d evt]
-  (let [open? (contains? schema/open-member-modes (:discussion/member_mode d))
+  (let [for-friends? (= :discussion.member_mode/open (:discussion/member_mode d))
+        for-fof? (= :discussion.member_mode/friends_of_friends (:discussion/member_mode d))
         public? (= :discussion.public_mode/public (:discussion/public_mode d))
         group? (some? (:discussion/group_id d))
         uid (:evt/uid evt)]
     (cond
       public? true
-      group? open?
-      :else (and open? (= uid (:discussion/created_by d))))))
+      group? for-friends?
+      for-friends? (= uid (:discussion/created_by d))
+      for-fof? (contains? (:discussion/members d) uid)
+      :else false)))
 
 ;; TODO: group admins can remove people from discussions
 (defmethod authorized-for-delta? :discussion.crdt/remove-members
@@ -458,6 +461,35 @@
         (map first)
         set)))
 
+(defn open-from-my-friends-to-fofs
+
+  ([db inviter-id]
+   (open-from-my-friends-to-fofs db inviter-id {:now (Date.)}))
+
+  ([db inviter-id {:keys [now]}]
+
+   {:pre [(uuid? inviter-id) (inst? now)]
+    :post [(set? %) (every? uuid? %)]}
+
+   (->> (q db
+           '{:find [did]
+             :in [uid now-ts]
+             :where [[contact :db/type :gatz/contacts]
+                     [contact :contacts/user_id uid]
+                     ;; we have all the uids friends of friends
+                     [contact :contacts/ids fof-id]
+                     ;; we find all their discussions
+                     [did :db/type :gatz/discussion]
+                     [did :discussion/created_by fof-id]
+                     [did :discussion/member_mode :discussion.member_mode/friends_of_friends]
+                     [did :discussion/group_id nil]
+                     [did :discussion/open_until open-until]
+                     [(< now-ts open-until)]]}
+           inviter-id now)
+        (map first)
+        set)))
+
+
 (def open-for-group-opts
   [:map
    [:newer-than-ts inst?]])
@@ -670,7 +702,7 @@
               dids)]
     (biff/submit-tx (assoc ctx :biff.xtdb/retry false) txns)))
 
-(defn add-member-to-dids-txn
+(defn add-members-to-dids-txn
   "Adds a user to a set of discussions"
   [_xtdb-ctx {:keys [now by-uid members dids]}]
   {:pre [(inst? now) (uuid? by-uid)
@@ -697,11 +729,11 @@
   [xtdb-ctx {:keys [gid now by-uid members]}]
   (let [db (xtdb/db xtdb-ctx)
         dids (open-for-group db gid {:now now})]
-    (add-member-to-dids-txn xtdb-ctx
-                            {:now now
-                             :by-uid by-uid
-                             :members members
-                             :dids dids})))
+    (add-members-to-dids-txn xtdb-ctx
+                             {:now now
+                              :by-uid by-uid
+                              :members members
+                              :dids dids})))
 
 ;; ======================================================================
 ;; User deletion

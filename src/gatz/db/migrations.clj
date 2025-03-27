@@ -931,7 +931,7 @@
 (defn add-user-to-dids! [ctx dids by-uid user-id]
   {:pre [(set? dids) (every? uuid? dids) (uuid? user-id) (uuid? by-uid)]}
   (let [db (xtdb.api/db (:biff.xtdb/node ctx))
-        txn (db.discussion/add-member-to-dids-txn
+        txn (db.discussion/add-members-to-dids-txn
              ctx {:now (Date.) :by-uid user-id :members #{user-id} :dids dids})]
     (biff/submit-tx ctx txn)))
 

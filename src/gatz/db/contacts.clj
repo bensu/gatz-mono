@@ -562,6 +562,8 @@
      (assert (= (contains? (:contacts/ids a-contacts) bid)
                 (contains? (:contacts/ids b-contacts) aid))
              "There states are consistent. They either have each other or not")
+     ;; TODO: check if I want to return nil or []
+     ;; nil might mean "this failed" and [] might mean "no change"
      (when-not (contains? (:contacts/ids a-contacts) bid)
        (let [args {:from aid :to bid :now now}]
          [[:xtdb.api/fn :gatz.db.contacts/add-contacts {:args args}]])))))
@@ -580,7 +582,7 @@
   {:pre [(uuid? by-uid) (uuid? to-uid) (inst? now)]}
   (let [db (xtdb/db xtdb-ctx)
         dids (db.discussion/open-for-friend db by-uid {:now now})
-        d-txns (db.discussion/add-member-to-dids-txn
+        d-txns (db.discussion/add-members-to-dids-txn
                 db {:now now :by-uid by-uid :members #{to-uid} :dids dids})]
     (if-not (empty? d-txns)
       (conj d-txns [:xtdb.api/fn :gatz.db.feed/add-uids-to-dids {:dids dids :uids #{to-uid}}])
@@ -599,31 +601,87 @@
     (mapcat
      (fn [fof-uid]
        (let [dids (db.discussion/open-for-friend-of-friend db fof-uid {:now now})
-             d-txns (db.discussion/add-member-to-dids-txn
+             d-txns (db.discussion/add-members-to-dids-txn
                      db {:now now :by-uid fof-uid :members #{to-uid} :dids dids})]
          (if-not (empty? d-txns)
            (conj d-txns [:xtdb.api/fn :gatz.db.feed/add-uids-to-dids {:dids dids :uids #{to-uid}}])
            [])))
      fof-uids)))
 
-(defn invite-contact-txn [xtdb-ctx {:keys [args]}]
-  (let [{:keys [by-uid to-uid now invite_link_id accepted_invite_feed_item_id]} args
+(defn invite-contact-txn
+  "Invites a friend to Gatz, which adds them both to a lot of discussions.
+   
+   It is important that this transaction doesn't have a lot of recursion because
+   it can get out of hand when you have a lot of friends of friends."
+  [xtdb-ctx {:keys [args]}]
+  (let [{:keys [now invite_link_id accepted_invite_feed_item_id]} args
+        inviter-uid (:by-uid args)
+        invitee-uid (:to-uid args)
+
         db (xtdb/db xtdb-ctx)
-        contact-txns (forced-contact-txn db by-uid to-uid {:now now})
-        inviter-did-txns (add-to-open-discussions-txn xtdb-ctx {:by-uid by-uid :to-uid to-uid :now now})
-        inviter-fof-did-txns (add-to-fof-open-discussions-txn xtdb-ctx {:by-uid by-uid :to-uid to-uid :now now})
-        invitee-did-txns (add-to-open-discussions-txn xtdb-ctx {:by-uid to-uid :to-uid by-uid :now now})
-        invitee-fof-did-txns (add-to-fof-open-discussions-txn xtdb-ctx {:by-uid to-uid :to-uid by-uid :now now})]
+
+        ;; Make the two contacts friends with each other
+        contact-txns (forced-contact-txn db inviter-uid invitee-uid {:now now})
+
+        ;; Add the feed item 
+        feed-item-txn (when (and invite_link_id accepted_invite_feed_item_id)
+                        (db.feed/accepted-invite-item-txn
+                         accepted_invite_feed_item_id now
+                         {:uid inviter-uid :invite_link_id invite_link_id  :contact_id invitee-uid}))
+
+        ;; Find all the discussions the invitee should be added to
+        ;; 1. to_all_contacts from the inviter
+        ;; 2. to_all_friends_of_friends for the inviter's friends of friends
+        inviter-open-dids (db.discussion/open-for-friend db inviter-uid {:now now})
+        inviter-fof-open-dids (db.discussion/open-from-my-friends-to-fofs db inviter-uid {:now now})
+        add-invitee-to-open-dids-txn
+        (db.discussion/add-members-to-dids-txn
+         xtdb-ctx {:now now
+                   :by-uid inviter-uid ;; TODO: this will run into auth problems
+                   :members #{invitee-uid}
+                   :dids (set/union inviter-open-dids inviter-fof-open-dids)})
+
+        ;; Find all the discussions the inviter should be added to
+        ;; 1. to_all_contacts from the invitee
+        ;; 2. to_all_friends_of_friends for the invitee's friends of friends
+        invitee-open-dids (db.discussion/open-for-friend db invitee-uid {:now now})
+        invitee-fof-open-dids (db.discussion/open-from-my-friends-to-fofs db invitee-uid {:now now})
+        add-inviter-to-invitee-open-dids-txn
+        (db.discussion/add-members-to-dids-txn
+         xtdb-ctx {:now now
+                   :by-uid invitee-uid ;; TODO: this will run into auth problems
+                   :members #{inviter-uid}
+                   :dids (set/union invitee-open-dids invitee-fof-open-dids)})
+
+        ;; Find all the discussions the inviter's friends of friends should be added to
+        ;; 1. to_all_friends_of_friends for the invitee 
+        inviter-fof-uids (disj (:contacts/ids (by-uid db inviter-uid)) invitee-uid)
+        invitee-dids-for-fof-only (db.discussion/open-for-friend-of-friend db invitee-uid {:now now})
+        add-inviter-fof-to-invitee-open-dids-txn
+        (db.discussion/add-members-to-dids-txn
+         xtdb-ctx {:now now
+                   :by-uid invitee-uid
+                   :members inviter-fof-uids
+                   :dids invitee-dids-for-fof-only})
+
+
+        ;; Find all the discussions the invitee's friends of friends should be added to
+        ;; 1. to_all_friends_of_friends for the inviter
+        invitee-fof-uids (disj (:contacts/ids (by-uid db invitee-uid)) inviter-uid)
+        inviter-dids-for-fof-only (db.discussion/open-for-friend-of-friend db inviter-uid {:now now})
+        add-invitee-fof-to-inviter-open-dids-txn
+        (db.discussion/add-members-to-dids-txn
+         xtdb-ctx {:now now
+                   :by-uid inviter-uid
+                   :members invitee-fof-uids
+                   :dids inviter-dids-for-fof-only})]
     (vec
      (concat contact-txns
-             inviter-did-txns
-             inviter-fof-did-txns
-             invitee-did-txns
-             invitee-fof-did-txns
-             (when (and invite_link_id accepted_invite_feed_item_id)
-               (db.feed/accepted-invite-item-txn
-                accepted_invite_feed_item_id now
-                {:uid by-uid :invite_link_id invite_link_id  :contact_id to-uid}))))))
+             feed-item-txn
+             add-invitee-to-open-dids-txn
+             add-inviter-to-invitee-open-dids-txn
+             add-inviter-fof-to-invitee-open-dids-txn
+             add-invitee-fof-to-inviter-open-dids-txn))))
 
 (def invite-contact-expr
   '(fn invite-contact-fn [xtdb-ctx args]
