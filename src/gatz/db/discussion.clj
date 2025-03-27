@@ -481,6 +481,7 @@
                      ;; we find all their discussions
                      [did :db/type :gatz/discussion]
                      [did :discussion/created_by fof-id]
+                     [did :discussion/members uid] ;; I need to be in the discussion too!
                      [did :discussion/member_mode :discussion.member_mode/friends_of_friends]
                      [did :discussion/group_id nil]
                      [did :discussion/open_until open-until]

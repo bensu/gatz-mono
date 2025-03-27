@@ -267,10 +267,8 @@
           ;; Create invite links and mark them as used
           invite-link-id1 (crdt/random-ulid)
           invite-link-id2 (crdt/random-ulid)
-          invite-link-id3 (crdt/random-ulid)
           accepted_invite_feed_item_id1 (random-uuid)
           accepted_invite_feed_item_id2 (random-uuid)
-          accepted_invite_feed_item_id3 (random-uuid)
 
           ;; inviter <-> invitee1
           invitee1-args {:by-uid inviter
@@ -296,16 +294,18 @@
           _ (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.contacts/invite-contact {:args invitee2-args}]])
           _ (xtdb/sync node)
 
-          ;; Now invitee3 is invited by invitee1 (making them a friend of a friend)
-          ;; invitee1 <-> invitee3
-          invitee3-args {:by-uid invitee1
-                         :to-uid invitee3
-                         :now now
-                         :invite_link_id invite-link-id3
-                         :accepted_invite_feed_item_id accepted_invite_feed_item_id3}
-          invitee3-txn (db.contacts/invite-contact-txn node {:args invitee3-args})
+          ;; Now invitee1 sends a contact request to invitee3
+          _ (db.contacts/request-contact! (get-ctx invitee1) {:from invitee1
+                                                              :to invitee3
+                                                              :feed_item_id (random-uuid)})
+          _ (xtdb/sync node)
+          db (xtdb/db node)
+          cr (db.contacts/current-request-between db invitee1 invitee3)
+          _ (assert cr)
+          _ (db.contacts/accept-request! (get-ctx invitee3) {:by invitee3
+                                                             :from invitee1
+                                                             :to invitee3})
 
-          _ (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.contacts/invite-contact {:args invitee3-args}]])
           _ (xtdb/sync node)
 
           ;; Get the final state
@@ -346,17 +346,12 @@
 
       (testing "The discussions we think are open, are open"
 
-        (def -now now)
-        (def -inviter inviter)
-        (def -db db)
-
         (is (= #{inviter-did1 inviter-did2 inviter-did3}
                (db.discussion/open-for-friend db inviter {:now now})))
         (is (= #{invitee1-did1 invitee1-did2}
                (db.discussion/open-for-friend db invitee1 {:now now})))
         (is (= #{invitee2-did1 invitee2-did2}
                (db.discussion/open-for-friend db invitee2 {:now now})))
-        ;; TODO: all the discussions form invitee3 are interpreted as DMs
         (is (= #{invitee3-did1 invitee3-did2}
                (db.discussion/open-for-friend db invitee3 {:now now})))
         (is (= #{} (db.discussion/open-for-friend db invitee4 {:now now})))
@@ -416,16 +411,12 @@
         (is (= #{invitee4}
                (disj (:discussion/members invitee3-selected-users-discussion) invitee3))))
 
-
       (testing "check the transaction has the operations you expect"
-        (def -invitee1-txn invitee1-txn)
         (let [force-contact-txn [:xtdb.api/fn :gatz.db.contacts/add-contacts]
               expected-fi-txn [:xtdb.api/put {:db/type :gatz/feed_item}]
               expected-evt-txn [:xtdb.api/put {:db/type :gatz/evt}]
               expected-did-txn [:xtdb.api/fn :gatz.db.discussion/apply-delta]]
-          (doseq [[fc-txn fi-txn fi-evt & dids-txns] [invitee1-txn
-                                                      invitee2-txn
-                                                      invitee3-txn]]
+          (doseq [[fc-txn fi-txn fi-evt & dids-txns] [invitee1-txn invitee2-txn]]
             (is (same-operation? force-contact-txn fc-txn))
             (is (same-operation? expected-fi-txn fi-txn))
             (is (same-operation? expected-evt-txn fi-evt))

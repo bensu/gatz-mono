@@ -475,8 +475,7 @@
               :state :contact_request/accepted
               :feed_item_id (ulid/random-time-uuid)}]
     (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.contacts/transition-to {:args args}]
-                         [:xtdb.api/fn :gatz.db.contacts/add-to-open-discussions {:by-uid from :to-uid to :now now}]
-                         [:xtdb.api/fn :gatz.db.contacts/add-to-open-discussions {:by-uid to :to-uid from :now now}]])))
+                         [:xtdb.api/fn :gatz.db.contacts/invite-contact {:args {:by-uid from :to-uid to :now now}}]])))
 
 (defn ignore-request! [ctx {:keys [by from to]}]
   {:pre [(uuid? from) (uuid? to) (uuid? by)]}
@@ -578,14 +577,23 @@
   (let [args {:from aid :to bid :now (Date.)}]
     (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.contacts/remove-contacts {:args args}]])))
 
-(defn add-to-open-discussions-txn [xtdb-ctx {:keys [by-uid to-uid now]}]
-  {:pre [(uuid? by-uid) (uuid? to-uid) (inst? now)]}
+(defn add-to-open-discussions-txn [xtdb-ctx {:keys [now] :as args}]
+  {:pre [(uuid? (:by-uid args)) (uuid? (:to-uid args)) (inst? now)]}
   (let [db (xtdb/db xtdb-ctx)
-        dids (db.discussion/open-for-friend db by-uid {:now now})
+        inviter-uid (:by-uid args)
+        invitee-uid (:to-uid args)
+        my-open-dids (db.discussion/open-for-friend db inviter-uid {:now now})
+        my-friends-dids-for-fofs (db.discussion/open-from-my-friends-to-fofs db inviter-uid {:now now})
+        dids (set/union my-open-dids my-friends-dids-for-fofs)
         d-txns (db.discussion/add-members-to-dids-txn
-                db {:now now :by-uid by-uid :members #{to-uid} :dids dids})]
+                db {:now now
+                    :by-uid inviter-uid
+                    :members #{invitee-uid}
+                    :dids dids})]
     (if-not (empty? d-txns)
-      (conj d-txns [:xtdb.api/fn :gatz.db.feed/add-uids-to-dids {:dids dids :uids #{to-uid}}])
+      (conj d-txns [:xtdb.api/fn :gatz.db.feed/add-uids-to-dids
+                    {:dids dids
+                     :uids #{invitee-uid}}])
       [])))
 
 (def add-to-open-discussions-expr
