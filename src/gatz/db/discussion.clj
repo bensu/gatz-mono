@@ -3,6 +3,7 @@
             [crdt.core :as crdt]
             [gatz.crdt.discussion :as crdt.discussion]
             [gatz.db.evt :as db.evt]
+            [gatz.db.feed :as db.feed]
             [gatz.db.util :as db.util]
             [gatz.schema :as schema]
             [malli.core :as malli]
@@ -705,26 +706,38 @@
 
 (defn add-members-to-dids-txn
   "Adds a user to a set of discussions"
-  [_xtdb-ctx {:keys [now by-uid members dids]}]
+  [xtdb-ctx {:keys [now by-uid members dids]}]
   {:pre [(inst? now) (uuid? by-uid)
          (set? members) (every? uuid? members)
          (set? dids) (every? uuid? dids)]}
-  (let [clock (crdt/new-hlc by-uid now)
+  (let [db (xtdb/db xtdb-ctx)
+        clock (crdt/new-hlc by-uid now)
         delta {:crdt/clock clock
                :discussion/updated_at now
                :discussion/members (crdt/lww-set-delta clock members)}
         action {:discussion.crdt/action :discussion.crdt/add-members
                 :discussion.crdt/delta delta}]
-    (mapv (fn [did]
-            (let [evt (db.evt/new-evt
-                       {:evt/type :discussion.crdt/delta
-                        :evt/uid by-uid
-                        :evt/mid nil
-                        :evt/did did
-                        :evt/cid by-uid
-                        :evt/data action})]
-              [:xtdb.api/fn :gatz.db.discussion/apply-delta {:evt evt}]))
-          (set dids))))
+    (->> (set dids)
+         (mapcat (fn [did]
+                   (let [d (crdt.discussion/->value (by-id db did))
+                         fi-id (db.feed/new-feed-item-id) ;; TODO: not random
+                         fi-txns (db.feed/new-post-txn
+                                  fi-id
+                                  now
+                                  {:members members
+                                   :cid (:discussion/created_by d)
+                                   :gid (:discussion/group_id d)
+                                   :location_id (:discussion/location_id d)
+                                   :did did})
+                         evt (db.evt/new-evt
+                              {:evt/type :discussion.crdt/delta
+                               :evt/uid by-uid
+                               :evt/mid nil
+                               :evt/did did
+                               :evt/cid by-uid
+                               :evt/data action})]
+                     (vec (concat fi-txns [[:xtdb.api/fn :gatz.db.discussion/apply-delta {:evt evt}]])))))
+         vec)))
 
 (defn add-member-to-group-txn
   [xtdb-ctx {:keys [gid now by-uid members]}]

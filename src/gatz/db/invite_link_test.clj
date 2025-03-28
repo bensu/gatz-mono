@@ -3,6 +3,7 @@
             [clojure.set :as set]
             [com.biffweb :as biff]
             [clojure.test :as t :refer [deftest testing is]]
+            [gatz.db.feed :as db.feed]
             [gatz.db :as db]
             [gatz.db.contacts :as db.contacts]
             [gatz.db.discussion :as db.discussion]
@@ -361,10 +362,6 @@
                           #{invitee2-did1 invitee2-did2})
                (db.discussion/open-from-my-friends-to-fofs db inviter {:now now})))
 
-        ;; invitee1 is friends with inviter and invitee3
-        (is (= (set/union #{inviter-did2} #{invitee3-did1})
-               (db.discussion/open-from-my-friends-to-fofs db invitee1 {:now now})))
-
         ;; invitee2 is friends with inviter
         (is (= #{inviter-did2}
                (db.discussion/open-from-my-friends-to-fofs db invitee2 {:now now})))
@@ -411,15 +408,69 @@
         (is (= #{invitee4}
                (disj (:discussion/members invitee3-selected-users-discussion) invitee3))))
 
+      (testing "the feed items were created"
+
+        (let [->dids (fn [feed-items]
+                       (->> feed-items
+                            (filter #(and (= :gatz/discussion (:feed/ref_type %))
+                                          (= :feed.type/new_post (:feed/feed_type %))))
+                            (map (comp :xt/id :feed/ref))
+                            set))]
+          ;; inviter is friends with invitee1 and invitee2
+          ;; inviter is fof with invitee3
+          (is (= (set/union #{inviter-did1 inviter-did2 inviter-did3}
+                            #{invitee1-did1 invitee1-did2
+                              invitee2-did1 invitee2-did2}
+                            #{invitee3-did1})
+                 (->dids (db.feed/for-user-with-ts db inviter))))
+
+          ;; invitee1 is friends with inviter and invitee3
+          ;; invitee1 is fof with invitee2 and invitee4
+          (is (= (set/union #{invitee1-did1 invitee1-did2}
+                            #{inviter-did1 inviter-did2 inviter-did3}
+                            #{invitee2-did1 invitee2-did2}
+                            #{invitee3-did1 invitee3-did2})
+                 (->dids (db.feed/for-user-with-ts db invitee1))))
+
+          ;; invitee2 is friends with inviter
+          ;; invitee2 is fof with invitee1
+          (is (= (set/union #{invitee2-did1 invitee2-did2}
+                            #{inviter-did1 inviter-did2 inviter-did3}
+                            #{invitee1-did1 invitee1-did2})
+                 (->dids (db.feed/for-user-with-ts db invitee2))))
+
+          ;; invitee3 is friends with invitee1 and invitee4
+          ;; invitee3 is fof with inviter
+          (is (= (set/union #{invitee3-did1 invitee3-did2 invitee3-did3}
+                            #{invitee1-did1 invitee1-did2}
+                            #{inviter-did2})
+                 (->dids (db.feed/for-user-with-ts db invitee3))))
+
+          ;; invitee4 is friends with invitee3
+          ;; invitee4 is fof with invitee1
+          (is (= (set/union #{invitee3-did1 invitee3-did2 invitee3-did3}
+                            #{invitee1-did1 invitee1-did2})
+                 (->dids (db.feed/for-user-with-ts db invitee4))))))
+
       (testing "check the transaction has the operations you expect"
         (let [force-contact-txn [:xtdb.api/fn :gatz.db.contacts/add-contacts]
-              expected-fi-txn [:xtdb.api/put {:db/type :gatz/feed_item}]
-              expected-evt-txn [:xtdb.api/put {:db/type :gatz/evt}]
-              expected-did-txn [:xtdb.api/fn :gatz.db.discussion/apply-delta]]
-          (doseq [[fc-txn fi-txn fi-evt & dids-txns] [invitee1-txn invitee2-txn]]
+              expected-fi-txn [:xtdb.api/put {:db/type :gatz/feed_item
+                                              :feed/ref_type :gatz/invite_link
+                                              :feed/feed_type :feed.type/accepted_invite}]
+              expected-evt-txn [:xtdb.api/put {:db/type :gatz/evt
+                                               :evt/type :feed_item/new}]
+              expected-did-txn [:xtdb.api/fn :gatz.db.discussion/apply-delta]
+              expected-d-fi-txn [:xtdb.api/put {:db/type :gatz/feed_item
+                                                :feed/ref_type :gatz/discussion
+                                                :feed/feed_type :feed.type/new_post}]
+              expected-d-evt-txn [:xtdb.api/put {:db/type :gatz/evt
+                                                 :evt/type :feed_item/new}]]
+          (doseq [[fc-txn fi-txn fi-evt & rest-txns] [invitee1-txn invitee2-txn]]
             (is (same-operation? force-contact-txn fc-txn))
             (is (same-operation? expected-fi-txn fi-txn))
             (is (same-operation? expected-evt-txn fi-evt))
-            (doseq [did-txn dids-txns]
+            (doseq [[d-fi-txn fi-evt-txn did-txn] (partition 3 rest-txns)]
+              (is (same-operation? expected-d-fi-txn d-fi-txn))
+              (is (same-operation? expected-d-evt-txn fi-evt-txn))
               (is (same-operation? expected-did-txn did-txn)))))))))
 
