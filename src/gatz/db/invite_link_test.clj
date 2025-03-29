@@ -11,7 +11,8 @@
             [gatz.db.util-test :as db.util-test]
             [xtdb.api :as xtdb]
             [gatz.db.user :as db.user]
-            [gatz.crdt.discussion :as crdt.discussion])
+            [gatz.crdt.discussion :as crdt.discussion]
+            [gatz.api.invite-link :as api.invite-link])
   (:import [java.util Date]))
 
 (deftest roundtrip
@@ -145,6 +146,7 @@
           invitee2 #uuid "feced437-1e1d-4499-93e5-b905f35bb206"
           invitee3 #uuid "fde8361d-3ea4-4398-a6ae-b0af339db74f"
           invitee4 #uuid "3ab57e3e-e6db-45b2-8447-45d222bf4e3e"
+          invitee5 #uuid "47dab6fb-baab-48df-a240-f8005f2f475d"
           now (Date.)
           t1 (crdt/inc-time now)
           t2 (crdt/inc-time t1)
@@ -155,10 +157,11 @@
           _ (db.user/create-user! ctx {:id invitee2 :username "invitee2" :phone "+14159499002" :now now})
           _ (db.user/create-user! ctx {:id invitee3 :username "invitee3" :phone "+14159499003" :now now})
           _ (db.user/create-user! ctx {:id invitee4 :username "invitee4" :phone "+14159499004" :now now})
+          _ (db.user/create-user! ctx {:id invitee5 :username "invitee5" :phone "+14159499005" :now now})
           _ (xtdb/sync node)
 
           ;; final state should be:
-          ;; inviter -> invitee2, 
+          ;; inviter -> invitee2, invitee5
           ;;            invitee1 -> invitee3, 
           ;;                        invitee3 -> invitee4
           inviter-friends #{invitee1 invitee2}
@@ -268,8 +271,10 @@
           _ (xtdb/sync node)
 
           ;; Create invite links and mark them as used
-          invite-link-id1 (crdt/random-ulid)
-          invite-link-id2 (crdt/random-ulid)
+          invite-link1 (db.invite-link/create! (get-ctx inviter)
+                                               {:type :invite_link/crew
+                                                :uid inviter})
+          invite-link-id1 (:xt/id invite-link1)
           accepted_invite_feed_item_id1 (random-uuid)
           accepted_invite_feed_item_id2 (random-uuid)
 
@@ -281,20 +286,27 @@
                          :accepted_invite_feed_item_id accepted_invite_feed_item_id1}
           ;; we look at what the txn does
           invitee1-txn (db.contacts/invite-contact-txn node {:args invitee1-args})
-
-          ;; Execute the invite-contact transactions
-          _ (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.contacts/invite-contact {:args invitee1-args}]])
+          ;; but we actually put it through the API
+          ;; TODO: get the txn from the same function as what the API does
+          _ (api.invite-link/post-join-invite-link (assoc (get-ctx invitee1)
+                                                          :params {:id (str invite-link-id1)}))
           _ (xtdb/sync node)
 
           ;; inviter <-> invitee2
+          invite-link2 (db.invite-link/create! (get-ctx inviter)
+                                               {:type :invite_link/crew
+                                                :uid inviter})
+          invite-link-id2 (:xt/id invite-link2)
           invitee2-args {:by-uid inviter
                          :to-uid invitee2
                          :now t1
                          :invite_link_id invite-link-id2
                          :accepted_invite_feed_item_id accepted_invite_feed_item_id2}
+          ;; we look at what the txn does
           invitee2-txn (db.contacts/invite-contact-txn node {:args invitee2-args})
-
-          _ (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.contacts/invite-contact {:args invitee2-args}]])
+          ;; but we actually put it through the API
+          _ (api.invite-link/post-join-invite-link (assoc (get-ctx invitee2)
+                                                          :params {:id (str invite-link-id2)}))
           _ (xtdb/sync node)
 
           ;; Now invitee1 sends a contact request to invitee3
