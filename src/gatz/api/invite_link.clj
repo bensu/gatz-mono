@@ -322,11 +322,6 @@
    (let [db (xtdb/db node)
          by-uid (:invite_link/created_by invite-link)
          now (Date.)
-         contact-args {:by-uid by-uid
-                       :to-uid user-id
-                       :accepted_invite_feed_item_id (db.feed/new-feed-item-id)
-                       :invite_link_id (:xt/id invite-link)
-                       :now now}
          group (when-let [gid (:invite_link/group_id invite-link)]
                  (db.group/by-id db gid))
          group-action (when group
@@ -335,11 +330,24 @@
                          :group/action :group/add-member
                          :group/delta {:group/updated_at now
                                        :group/members #{user-id}}})
+
          crew-members (if group
                         (:group/members group)
                         ;; in case the user has already been added to the crew
                         (-> (:invite_link/used_by invite-link)
                             (disj user-id)))
+
+         crew-members (if (and (not group) make-friends-with-contacts?)
+                        (let [my-contacts (:contacts/ids (db.contacts/by-uid db by-uid))]
+                          (set/union crew-members my-contacts))
+                        crew-members)
+
+         contact-args {:by-uid by-uid
+                       :to-uid user-id
+                       :accepted_invite_feed_item_id (db.feed/new-feed-item-id)
+                       :invite_link_id (:xt/id invite-link)
+                       :now now}
+
          invite-link-args {:id (:xt/id invite-link) :user-id user-id :now now}
 
          feed-item-args {:feed_item_id (db.feed/new-feed-item-id)
@@ -350,10 +358,6 @@
          txns (concat
                [[:xtdb.api/fn :gatz.db.contacts/invite-contact {:args contact-args}]
                 [:xtdb.api/fn :gatz.db.invite-links/mark-used {:args invite-link-args}]]
-
-               (if make-friends-with-contacts?
-                 (make-friends-with-my-contacts-txn db by-uid user-id now)
-                 [])
 
                (if group
                  [[:xtdb.api/fn :gatz.db.group/add-to-group-and-discussions {:action group-action}]]
