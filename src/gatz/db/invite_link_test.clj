@@ -164,11 +164,11 @@
           ;; inviter -> invitee2, invitee5
           ;;            invitee1 -> invitee3, 
           ;;                        invitee3 -> invitee4
-          inviter-friends #{invitee1 invitee2}
+          inviter-friends #{invitee1 invitee2 invitee5}
           inviter-fofs #{invitee3}
           invitee1-friends #{inviter invitee3}
-          invitee1-fofs #{invitee2 invitee4}
-          invitee2-friends #{inviter}
+          invitee1-fofs #{invitee2 invitee4 invitee5}
+          invitee2-friends #{inviter invitee5}
           invitee2-fofs #{invitee1}
           invitee3-friends #{invitee1 invitee4}
           invitee3-fofs #{inviter}
@@ -324,6 +324,10 @@
 
           _ (xtdb/sync node)
 
+          _ (api.invite-link/post-join-invite-link (assoc (get-ctx invitee5)
+                                                          :params {:id (str invite-link-id2)}))
+          _ (xtdb/sync node)
+
           ;; Get the final state
           db (xtdb/db node)
           inviter-contacts (db.contacts/by-uid db inviter)
@@ -344,13 +348,13 @@
           inviter-d-friends (crdt.discussion/->value (db.discussion/by-id db inviter-did3))]
 
       (testing "people are each others contacts as expected"
-        (is (= #{invitee1 invitee2}
+        (is (= #{invitee1 invitee2 invitee5}
                inviter-friends
                (:contacts/ids inviter-contacts)))
         (is (= #{inviter invitee3}
                invitee1-friends
                (:contacts/ids invitee1-contacts)))
-        (is (= #{inviter}
+        (is (= #{inviter invitee5}
                invitee2-friends
                (:contacts/ids invitee2-contacts)))
         (is (= #{invitee1 invitee4}
