@@ -468,9 +468,9 @@
               :feed_item_id (or feed_item_id (ulid/random-time-uuid))}]
     (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.contacts/new-request {:args args}]])))
 
-(defn accept-request! [ctx {:keys [by from to] :as params}]
+(defn accept-request! [ctx {:keys [by from to now] :as params}]
   {:pre [(uuid? from) (uuid? to) (uuid? by)]}
-  (let [now (Date.)
+  (let [now (or now (Date.))
         args {:from from :to to :by by :now now
               :state :contact_request/accepted
               :feed_item_id (ulid/random-time-uuid)}]

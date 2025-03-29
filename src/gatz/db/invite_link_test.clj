@@ -146,6 +146,8 @@
           invitee3 #uuid "fde8361d-3ea4-4398-a6ae-b0af339db74f"
           invitee4 #uuid "3ab57e3e-e6db-45b2-8447-45d222bf4e3e"
           now (Date.)
+          t1 (crdt/inc-time now)
+          t2 (crdt/inc-time t1)
 
           ;; Create the users
           _ (db.user/create-user! ctx {:id inviter :username "inviter" :phone "+14159499000" :now now})
@@ -274,7 +276,7 @@
           ;; inviter <-> invitee1
           invitee1-args {:by-uid inviter
                          :to-uid invitee1
-                         :now now
+                         :now t1
                          :invite_link_id invite-link-id1
                          :accepted_invite_feed_item_id accepted_invite_feed_item_id1}
           ;; we look at what the txn does
@@ -287,7 +289,7 @@
           ;; inviter <-> invitee2
           invitee2-args {:by-uid inviter
                          :to-uid invitee2
-                         :now now
+                         :now t1
                          :invite_link_id invite-link-id2
                          :accepted_invite_feed_item_id accepted_invite_feed_item_id2}
           invitee2-txn (db.contacts/invite-contact-txn node {:args invitee2-args})
@@ -305,6 +307,7 @@
           _ (assert cr)
           _ (db.contacts/accept-request! (get-ctx invitee3) {:by invitee3
                                                              :from invitee1
+                                                             :now t2
                                                              :to invitee3})
 
           _ (xtdb/sync node)
@@ -415,42 +418,92 @@
                             (filter #(and (= :gatz/discussion (:feed/ref_type %))
                                           (= :feed.type/new_post (:feed/feed_type %))))
                             (map (comp :xt/id :feed/ref))
-                            set))]
+                            set))
+              group-txns-by-ref (fn [feed-items]
+                                  (->> feed-items
+                                       (group-by (comp :xt/id :feed/ref))))]
           ;; inviter is friends with invitee1 and invitee2
           ;; inviter is fof with invitee3
-          (is (= (set/union #{inviter-did1 inviter-did2 inviter-did3}
-                            #{invitee1-did1 invitee1-did2
-                              invitee2-did1 invitee2-did2}
-                            #{invitee3-did1})
-                 (->dids (db.feed/for-user-with-ts db inviter))))
+          (let [fis (db.feed/for-user-with-ts db inviter)]
+            (is (= (set/union #{inviter-did1 inviter-did2 inviter-did3}
+                              #{invitee1-did1 invitee1-did2
+                                invitee2-did1 invitee2-did2}
+                              #{invitee3-did1})
+                   (->dids fis)))
+            (doseq [txns (vals (group-txns-by-ref fis))]
+              (when-let [d (first (filter #(= :gatz/discussion (:db/type %))
+                                          (map :feed/ref txns)))]
+                (let [created-at (:discussion/created_at d)]
+                  (is (= now created-at))
+                  (is (some? d))
+                  (doseq [ts (map :feed/created_at txns)]
+                    (is (= created-at ts)))))))
+
+              ;; TODO: the ts for d-fi-txn should be the same as the discussions created_by
 
           ;; invitee1 is friends with inviter and invitee3
           ;; invitee1 is fof with invitee2 and invitee4
-          (is (= (set/union #{invitee1-did1 invitee1-did2}
-                            #{inviter-did1 inviter-did2 inviter-did3}
-                            #{invitee2-did1 invitee2-did2}
-                            #{invitee3-did1 invitee3-did2})
-                 (->dids (db.feed/for-user-with-ts db invitee1))))
+          (let [fis (db.feed/for-user-with-ts db invitee1)]
+            (is (= (set/union #{invitee1-did1 invitee1-did2}
+                              #{inviter-did1 inviter-did2 inviter-did3}
+                              #{invitee2-did1 invitee2-did2}
+                              #{invitee3-did1 invitee3-did2})
+                   (->dids fis)))
+            (doseq [txns (vals (group-txns-by-ref fis))]
+              (when-let [d (first (filter #(= :gatz/discussion (:db/type %))
+                                          (map :feed/ref txns)))]
+                (let [created-at (:discussion/created_at d)]
+                  (is (= now created-at))
+                  (is (some? d))
+                  (doseq [ts (map :feed/created_at txns)]
+                    (is (= created-at ts)))))))
 
           ;; invitee2 is friends with inviter
           ;; invitee2 is fof with invitee1
-          (is (= (set/union #{invitee2-did1 invitee2-did2}
-                            #{inviter-did1 inviter-did2 inviter-did3}
-                            #{invitee1-did1 invitee1-did2})
-                 (->dids (db.feed/for-user-with-ts db invitee2))))
+          (let [fis (db.feed/for-user-with-ts db invitee2)]
+            (is (= (set/union #{invitee2-did1 invitee2-did2}
+                              #{inviter-did1 inviter-did2 inviter-did3}
+                              #{invitee1-did1 invitee1-did2})
+                   (->dids fis)))
+            (doseq [txns (vals (group-txns-by-ref fis))]
+              (when-let [d (first (filter #(= :gatz/discussion (:db/type %))
+                                          (map :feed/ref txns)))]
+                (let [created-at (:discussion/created_at d)]
+                  (is (= now created-at))
+                  (is (some? d))
+                  (doseq [ts (map :feed/created_at txns)]
+                    (is (= created-at ts)))))))
 
           ;; invitee3 is friends with invitee1 and invitee4
           ;; invitee3 is fof with inviter
-          (is (= (set/union #{invitee3-did1 invitee3-did2 invitee3-did3}
-                            #{invitee1-did1 invitee1-did2}
-                            #{inviter-did2})
-                 (->dids (db.feed/for-user-with-ts db invitee3))))
+          (let [fis (db.feed/for-user-with-ts db invitee3)]
+            (is (= (set/union #{invitee3-did1 invitee3-did2 invitee3-did3}
+                              #{invitee1-did1 invitee1-did2}
+                              #{inviter-did2})
+                   (->dids fis)))
+            (doseq [txns (vals (group-txns-by-ref fis))]
+              (when-let [d (first (filter #(= :gatz/discussion (:db/type %))
+                                          (map :feed/ref txns)))]
+                (let [created-at (:discussion/created_at d)]
+                  (is (= now created-at))
+                  (is (some? d))
+                  (doseq [ts (map :feed/created_at txns)]
+                    (is (= created-at ts)))))))
 
           ;; invitee4 is friends with invitee3
           ;; invitee4 is fof with invitee1
-          (is (= (set/union #{invitee3-did1 invitee3-did2 invitee3-did3}
-                            #{invitee1-did1 invitee1-did2})
-                 (->dids (db.feed/for-user-with-ts db invitee4))))))
+          (let [fis (db.feed/for-user-with-ts db invitee4)]
+            (is (= (set/union #{invitee3-did1 invitee3-did2 invitee3-did3}
+                              #{invitee1-did1 invitee1-did2})
+                   (->dids fis)))
+            (doseq [txns (vals (group-txns-by-ref fis))]
+              (when-let [d (first (filter #(= :gatz/discussion (:db/type %))
+                                          (map :feed/ref txns)))]
+                (let [created-at (:discussion/created_at d)]
+                  (is (= now created-at))
+                  (is (some? d))
+                  (doseq [ts (map :feed/created_at txns)]
+                    (is (= created-at ts)))))))))
 
       (testing "check the transaction has the operations you expect"
         (let [force-contact-txn [:xtdb.api/fn :gatz.db.contacts/add-contacts]
@@ -494,7 +547,6 @@
             (is (same-operation? expected-fi-txn fi-txn))
             (is (same-operation? expected-evt-txn fi-evt))
             (doseq [[d-fi-txn fi-evt-txn did-txn] friend-did-txns]
-              ;; TODO: the ts for d-fi-txn should be the same as the discussions created_by
               (is (same-operation? expected-d-fi-txn d-fi-txn))
               (is (same-operation? expected-d-evt-txn fi-evt-txn))
               (is (same-operation? expected-did-txn did-txn)))

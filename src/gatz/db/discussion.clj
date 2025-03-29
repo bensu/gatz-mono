@@ -729,7 +729,7 @@
                          [fi-txn fi-evt-txn]
                          (db.feed/new-post-txn
                           fi-id
-                          now
+                          (:discussion/created_at d)
                           {:members members
                            :cid (:discussion/created_by d)
                            :gid (:discussion/group_id d)
