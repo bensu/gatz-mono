@@ -346,6 +346,7 @@
                        :to-uid user-id
                        :accepted_invite_feed_item_id (db.feed/new-feed-item-id)
                        :invite_link_id (:xt/id invite-link)
+                       :crew_members crew-members
                        :now now}
 
          invite-link-args {:id (:xt/id invite-link) :user-id user-id :now now}
@@ -361,9 +362,8 @@
 
                (if group
                  [[:xtdb.api/fn :gatz.db.group/add-to-group-and-discussions {:action group-action}]]
-                 [[:xtdb.api/fn :gatz.db.feed/new-user-item feed-item-args]])
+                 [[:xtdb.api/fn :gatz.db.feed/new-user-item feed-item-args]]))]
 
-               (make-contacts-with-txn user-id crew-members now))]
 
      ;; (assert (= by-uid cid))
      (biff/submit-tx ctx (vec txns)))))

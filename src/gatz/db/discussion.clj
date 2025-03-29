@@ -416,65 +416,67 @@
 
 (defn open-for-friend
 
-  ([db cid]
-   (open-for-friend db cid {:now (Date.)}))
+  ([db uids]
+   (open-for-friend db uids {:now (Date.)}))
 
-  ([db cid {:keys [now]}]
+  ([db uids {:keys [now]}]
 
-   {:pre [(uuid? cid) (inst? now)]
+   {:pre [(set? uids) (every? uuid? uids) (inst? now)]
     :post [(set? %) (every? uuid? %)]}
 
    (->> (q db
            '{:find [did]
-             :in [cid now-ts]
+             :in [now-ts [uid ...]]
              :where [[did :db/type :gatz/discussion]
-                     [did :discussion/created_by cid]
+                     [did :discussion/created_by uid]
                      (or
                       [did :discussion/member_mode :discussion.member_mode/open]
                       [did :discussion/member_mode :discussion.member_mode/friends_of_friends])
                      [did :discussion/group_id nil]
                      [did :discussion/open_until open-until]
                      [(< now-ts open-until)]]}
-           cid now)
+           now
+           uids)
         (map first)
         set)))
 
 (defn open-for-friend-of-friend
 
-  ([db cid]
-   (open-for-friend-of-friend db cid {:now (Date.)}))
+  ([db uids]
+   (open-for-friend-of-friend db uids {:now (Date.)}))
 
-  ([db cid {:keys [now]}]
+  ([db uids {:keys [now]}]
 
-   {:pre [(uuid? cid) (inst? now)]
+   {:pre [(set? uids) (every? uuid? uids) (inst? now)]
     :post [(set? %) (every? uuid? %)]}
 
    (->> (q db
            '{:find [did]
-             :in [cid now-ts]
+             :in [now-ts [uid ...]]
              :where [[did :db/type :gatz/discussion]
-                     [did :discussion/created_by cid]
+                     [did :discussion/created_by uid]
                      [did :discussion/member_mode :discussion.member_mode/friends_of_friends]
                      [did :discussion/group_id nil]
                      [did :discussion/open_until open-until]
                      [(< now-ts open-until)]]}
-           cid now)
+           now
+           uids)
         (map first)
         set)))
 
 (defn open-from-my-friends-to-fofs
 
-  ([db inviter-id]
-   (open-from-my-friends-to-fofs db inviter-id {:now (Date.)}))
+  ([db uids]
+   (open-from-my-friends-to-fofs db uids {:now (Date.)}))
 
-  ([db inviter-id {:keys [now]}]
+  ([db uids {:keys [now]}]
 
-   {:pre [(uuid? inviter-id) (inst? now)]
+   {:pre [(set? uids) (every? uuid? uids) (inst? now)]
     :post [(set? %) (every? uuid? %)]}
 
    (->> (q db
            '{:find [did]
-             :in [uid now-ts]
+             :in [now-ts [uid ...]]
              :where [[contact :db/type :gatz/contacts]
                      [contact :contacts/user_id uid]
                      ;; we have all the uids friends of friends
@@ -487,7 +489,8 @@
                      [did :discussion/group_id nil]
                      [did :discussion/open_until open-until]
                      [(< now-ts open-until)]]}
-           inviter-id now)
+           now
+           uids)
         (map first)
         set)))
 

@@ -138,7 +138,7 @@
                       (assoc ctx
                              :auth/user-id uid
                              :auth/user user
-                             :biff/db (xtdb/db node))))
+                             :biff/db db)))
 
           ;; Create users
           inviter #uuid "432204f5-772b-45c6-a4b8-37757e0d4684"
@@ -176,6 +176,7 @@
           invitee4-fofs #{invitee1}
 
           _ (db.contacts/force-contacts! ctx invitee3 invitee4)
+          _ (xtdb/sync node)
 
           inviter-did1 #uuid "5ca2de5c-0f2a-47bc-bb2d-d2224f088087"
           inviter-did2 #uuid "e1c7e2f9-5510-4915-98c7-ea5a91eb5e97"
@@ -274,6 +275,7 @@
           invite-link1 (db.invite-link/create! (get-ctx inviter)
                                                {:type :invite_link/crew
                                                 :uid inviter})
+          _ (xtdb/sync node)
           invite-link-id1 (:xt/id invite-link1)
           accepted_invite_feed_item_id1 (random-uuid)
           accepted_invite_feed_item_id2 (random-uuid)
@@ -296,6 +298,7 @@
           invite-link2 (db.invite-link/create! (get-ctx inviter)
                                                {:type :invite_link/crew
                                                 :uid inviter})
+          _ (xtdb/sync node)
           invite-link-id2 (:xt/id invite-link2)
           invitee2-args {:by-uid inviter
                          :to-uid invitee2
@@ -366,31 +369,34 @@
 
       (testing "The discussions we think are open, are open"
 
+        (def -db db)
+        (def -now now)
+        (def -inviter inviter)
         (is (= #{inviter-did1 inviter-did2 inviter-did3}
-               (db.discussion/open-for-friend db inviter {:now now})))
+               (db.discussion/open-for-friend db #{inviter} {:now now})))
         (is (= #{invitee1-did1 invitee1-did2}
-               (db.discussion/open-for-friend db invitee1 {:now now})))
+               (db.discussion/open-for-friend db #{invitee1} {:now now})))
         (is (= #{invitee2-did1 invitee2-did2}
-               (db.discussion/open-for-friend db invitee2 {:now now})))
+               (db.discussion/open-for-friend db #{invitee2} {:now now})))
         (is (= #{invitee3-did1 invitee3-did2}
-               (db.discussion/open-for-friend db invitee3 {:now now})))
-        (is (= #{} (db.discussion/open-for-friend db invitee4 {:now now})))
+               (db.discussion/open-for-friend db #{invitee3} {:now now})))
+        (is (= #{} (db.discussion/open-for-friend db #{invitee4} {:now now})))
 
         ;; inviter is friends with invitee1 and invitee2
         (is (= (set/union #{invitee1-did1 invitee1-did2}
                           #{invitee2-did1 invitee2-did2})
-               (db.discussion/open-from-my-friends-to-fofs db inviter {:now now})))
+               (db.discussion/open-from-my-friends-to-fofs db #{inviter} {:now now})))
 
         ;; invitee2 is friends with inviter
         (is (= #{inviter-did2}
-               (db.discussion/open-from-my-friends-to-fofs db invitee2 {:now now})))
+               (db.discussion/open-from-my-friends-to-fofs db #{invitee2} {:now now})))
 
          ;; invitee3 is friends with invitee1 and invitee4
         (is (= (set/union #{invitee1-did1 invitee1-did2} #{})
-               (db.discussion/open-from-my-friends-to-fofs db invitee3 {:now now})))
+               (db.discussion/open-from-my-friends-to-fofs db #{invitee3} {:now now})))
 
         ;; invitee4 is friends with invitee3
-        (is (= #{invitee3-did1} (db.discussion/open-from-my-friends-to-fofs db invitee4 {:now now}))))
+        (is (= #{invitee3-did1} (db.discussion/open-from-my-friends-to-fofs db #{invitee4} {:now now}))))
 
       ;; Test that discussions were shared
       (testing "the discussions have the right members"
@@ -459,7 +465,7 @@
 
           ;; invitee1 is friends with inviter and invitee3
           ;; invitee1 is fof with invitee2 and invitee4
-          (let [fis (db.feed/for-user-with-ts db invitee1)]
+          (let [fis (db.feed/for-user-with-ts db invitee1 {:limit 100})]
             (is (= (set/union #{invitee1-did1 invitee1-did2}
                               #{inviter-did1 inviter-did2 inviter-did3}
                               #{invitee2-did1 invitee2-did2}
@@ -476,7 +482,7 @@
 
           ;; invitee2 is friends with inviter
           ;; invitee2 is fof with invitee1
-          (let [fis (db.feed/for-user-with-ts db invitee2)]
+          (let [fis (db.feed/for-user-with-ts db invitee2 {:limit 100})]
             (is (= (set/union #{invitee2-did1 invitee2-did2}
                               #{inviter-did1 inviter-did2 inviter-did3}
                               #{invitee1-did1 invitee1-did2})
@@ -492,7 +498,7 @@
 
           ;; invitee3 is friends with invitee1 and invitee4
           ;; invitee3 is fof with inviter
-          (let [fis (db.feed/for-user-with-ts db invitee3)]
+          (let [fis (db.feed/for-user-with-ts db invitee3 {:limit 100})]
             (is (= (set/union #{invitee3-did1 invitee3-did2 invitee3-did3}
                               #{invitee1-did1 invitee1-did2}
                               #{inviter-did2})
@@ -508,7 +514,7 @@
 
           ;; invitee4 is friends with invitee3
           ;; invitee4 is fof with invitee1
-          (let [fis (db.feed/for-user-with-ts db invitee4)]
+          (let [fis (db.feed/for-user-with-ts db invitee4 {:limit 100})]
             (is (= (set/union #{invitee3-did1 invitee3-did2 invitee3-did3}
                               #{invitee1-did1 invitee1-did2})
                    (->dids fis)))
