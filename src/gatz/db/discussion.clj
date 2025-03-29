@@ -706,11 +706,15 @@
 
 (defn add-members-to-dids-txn
   "Adds a user to a set of discussions"
-  [xtdb-ctx {:keys [now by-uid members dids]}]
+  [xtdb-ctx {:keys [now by-uid members dids feed-item-event?]}]
   {:pre [(inst? now) (uuid? by-uid)
          (set? members) (every? uuid? members)
-         (set? dids) (every? uuid? dids)]}
+         (set? dids) (every? uuid? dids)
+         (or (nil? feed-item-event?) (boolean? feed-item-event?))]}
   (let [db (xtdb/db xtdb-ctx)
+        feed-item-event? (if (nil? feed-item-event?)
+                           true
+                           feed-item-event?)
         clock (crdt/new-hlc by-uid now)
         delta {:crdt/clock clock
                :discussion/updated_at now
@@ -720,15 +724,17 @@
     (->> (set dids)
          (mapcat (fn [did]
                    (let [d (crdt.discussion/->value (by-id db did))
-                         fi-id (db.feed/new-feed-item-id) ;; TODO: not random
-                         fi-txns (db.feed/new-post-txn
-                                  fi-id
-                                  now
-                                  {:members members
-                                   :cid (:discussion/created_by d)
-                                   :gid (:discussion/group_id d)
-                                   :location_id (:discussion/location_id d)
-                                   :did did})
+                         ;; TODO: not random
+                         fi-id (db.feed/new-feed-item-id)
+                         [fi-txn fi-evt-txn]
+                         (db.feed/new-post-txn
+                          fi-id
+                          now
+                          {:members members
+                           :cid (:discussion/created_by d)
+                           :gid (:discussion/group_id d)
+                           :location_id (:discussion/location_id d)
+                           :did did})
                          evt (db.evt/new-evt
                               {:evt/type :discussion.crdt/delta
                                :evt/uid by-uid
@@ -736,7 +742,10 @@
                                :evt/did did
                                :evt/cid by-uid
                                :evt/data action})]
-                     (vec (concat fi-txns [[:xtdb.api/fn :gatz.db.discussion/apply-delta {:evt evt}]])))))
+                     [fi-txn
+                      (when feed-item-event? fi-evt-txn)
+                      [:xtdb.api/fn :gatz.db.discussion/apply-delta {:evt evt}]])))
+         (remove nil?)
          vec)))
 
 (defn add-member-to-group-txn

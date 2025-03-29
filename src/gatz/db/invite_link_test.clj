@@ -465,12 +465,40 @@
                                                 :feed/feed_type :feed.type/new_post}]
               expected-d-evt-txn [:xtdb.api/put {:db/type :gatz/evt
                                                  :evt/type :feed_item/new}]]
-          (doseq [[fc-txn fi-txn fi-evt & rest-txns] [invitee1-txn invitee2-txn]]
+          (let [[fc-txn fi-txn fi-evt & rest-txns] invitee1-txn
+                ;; by the time that invitee1 accepted the inviter's invite, they could only access
+                ;; inviter's discussions
+                n-friend-access-txns (count (set/union #{inviter-did1 inviter-did2 inviter-did3}))
+                friend-did-txns (take n-friend-access-txns (partition 3 rest-txns))
+                fof-did-txns (partition 2 (drop (* 3 n-friend-access-txns) rest-txns))]
             (is (same-operation? force-contact-txn fc-txn))
             (is (same-operation? expected-fi-txn fi-txn))
             (is (same-operation? expected-evt-txn fi-evt))
-            (doseq [[d-fi-txn fi-evt-txn did-txn] (partition 3 rest-txns)]
+            (doseq [[d-fi-txn fi-evt-txn did-txn] friend-did-txns]
+              ;; TODO: the ts for d-fi-txn should be the same as the discussions created_by
               (is (same-operation? expected-d-fi-txn d-fi-txn))
               (is (same-operation? expected-d-evt-txn fi-evt-txn))
+              (is (same-operation? expected-did-txn did-txn)))
+            (doseq [[d-fi-txn did-txn] fof-did-txns]
+              (is (same-operation? expected-d-fi-txn d-fi-txn))
+              (is (same-operation? expected-did-txn did-txn))))
+
+          (let [[fc-txn fi-txn fi-evt & rest-txns] invitee2-txn
+                ;; by the time that invitee2 accepted the inviter's invite, they could access
+                ;; inviter's discussions and invitee1's discussions through fofs
+                n-friend-access-txns (count (set/union #{inviter-did1 inviter-did2 inviter-did3}
+                                                       #{invitee1-did1 invitee1-did2}))
+                friend-did-txns (take n-friend-access-txns (partition 3 rest-txns))
+                fof-did-txns (partition 2 (drop (* 3 n-friend-access-txns) rest-txns))]
+            (is (same-operation? force-contact-txn fc-txn))
+            (is (same-operation? expected-fi-txn fi-txn))
+            (is (same-operation? expected-evt-txn fi-evt))
+            (doseq [[d-fi-txn fi-evt-txn did-txn] friend-did-txns]
+              ;; TODO: the ts for d-fi-txn should be the same as the discussions created_by
+              (is (same-operation? expected-d-fi-txn d-fi-txn))
+              (is (same-operation? expected-d-evt-txn fi-evt-txn))
+              (is (same-operation? expected-did-txn did-txn)))
+            (doseq [[d-fi-txn did-txn] fof-did-txns]
+              (is (same-operation? expected-d-fi-txn d-fi-txn))
               (is (same-operation? expected-did-txn did-txn)))))))))
 

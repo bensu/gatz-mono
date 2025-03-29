@@ -631,7 +631,7 @@
         ;; Make the two contacts friends with each other
         contact-txns (forced-contact-txn db inviter-uid invitee-uid {:now now})
 
-        ;; Add the feed item 
+        ;; Add "accepted invite" feed item
         feed-item-txn (when (and invite_link_id accepted_invite_feed_item_id)
                         (db.feed/accepted-invite-item-txn
                          accepted_invite_feed_item_id now
@@ -640,6 +640,7 @@
         ;; Find all the discussions the invitee should be added to
         ;; 1. to_all_contacts from the inviter
         ;; 2. to_all_friends_of_friends for the inviter's friends of friends
+        ;; They should have feed items and events for those feed items
         inviter-open-dids (db.discussion/open-for-friend db inviter-uid {:now now})
         inviter-fof-open-dids (db.discussion/open-from-my-friends-to-fofs db inviter-uid {:now now})
         add-invitee-to-open-dids-txn
@@ -647,11 +648,13 @@
          xtdb-ctx {:now now
                    :by-uid inviter-uid ;; TODO: this will run into auth problems
                    :members #{invitee-uid}
+                   :feed-item-event? true
                    :dids (set/union inviter-open-dids inviter-fof-open-dids)})
 
         ;; Find all the discussions the inviter should be added to
         ;; 1. to_all_contacts from the invitee
         ;; 2. to_all_friends_of_friends for the invitee's friends of friends
+        ;; They should have feed items but not events for those feed items
         invitee-open-dids (db.discussion/open-for-friend db invitee-uid {:now now})
         invitee-fof-open-dids (db.discussion/open-from-my-friends-to-fofs db invitee-uid {:now now})
         add-inviter-to-invitee-open-dids-txn
@@ -659,10 +662,12 @@
          xtdb-ctx {:now now
                    :by-uid invitee-uid ;; TODO: this will run into auth problems
                    :members #{inviter-uid}
+                   :feed-item-event? false
                    :dids (set/union invitee-open-dids invitee-fof-open-dids)})
 
         ;; Find all the discussions the inviter's friends of friends should be added to
         ;; 1. to_all_friends_of_friends for the invitee 
+        ;; They should have feed items but not events for those feed items
         inviter-fof-uids (disj (:contacts/ids (by-uid db inviter-uid)) invitee-uid)
         invitee-dids-for-fof-only (db.discussion/open-for-friend-of-friend db invitee-uid {:now now})
         add-inviter-fof-to-invitee-open-dids-txn
@@ -670,11 +675,13 @@
          xtdb-ctx {:now now
                    :by-uid invitee-uid
                    :members inviter-fof-uids
+                   :feed-item-event? false
                    :dids invitee-dids-for-fof-only})
 
 
         ;; Find all the discussions the invitee's friends of friends should be added to
         ;; 1. to_all_friends_of_friends for the inviter
+        ;; They should have feed items but no events for those feed items
         invitee-fof-uids (disj (:contacts/ids (by-uid db invitee-uid)) inviter-uid)
         inviter-dids-for-fof-only (db.discussion/open-for-friend-of-friend db inviter-uid {:now now})
         add-invitee-fof-to-inviter-open-dids-txn
@@ -682,6 +689,7 @@
          xtdb-ctx {:now now
                    :by-uid inviter-uid
                    :members invitee-fof-uids
+                   :feed-item-event? false
                    :dids inviter-dids-for-fof-only})]
     (vec
      (concat contact-txns
