@@ -139,7 +139,7 @@
 ;; =======================================================================
 ;; Open discussions
 
-(def default-open-duration (Duration/ofDays 30))
+(def default-open-duration (Duration/ofDays 7))
 
 (def ^:dynamic *open-until-testing-date* nil)
 
