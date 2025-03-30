@@ -318,26 +318,16 @@
 
    (assert user-id)
    (assert (= :invite_link/crew (:invite_link/type invite-link)))
+   (assert (nil? (:invite_link/group_id invite-link)))
 
    (let [db (xtdb/db node)
          by-uid (:invite_link/created_by invite-link)
          now (Date.)
-         group (when-let [gid (:invite_link/group_id invite-link)]
-                 (db.group/by-id db gid))
-         group-action (when group
-                        {:xt/id (:xt/id group)
-                         :group/by_uid by-uid
-                         :group/action :group/add-member
-                         :group/delta {:group/updated_at now
-                                       :group/members #{user-id}}})
 
-         crew-members (if group
-                        (:group/members group)
-                        ;; in case the user has already been added to the crew
-                        (-> (:invite_link/used_by invite-link)
-                            (disj user-id)))
-
-         crew-members (if (and (not group) make-friends-with-contacts?)
+         ;; in case the user has already been added to the crew
+         crew-members (-> (:invite_link/used_by invite-link)
+                          (disj user-id))
+         crew-members (if make-friends-with-contacts?
                         (let [my-contacts (:contacts/ids (db.contacts/by-uid db by-uid))]
                           (set/union crew-members my-contacts))
                         crew-members)
@@ -356,16 +346,10 @@
                          :uid user-id
                          :invited_by_uid by-uid}
 
-         txns (concat
-               [[:xtdb.api/fn :gatz.db.contacts/invite-contact {:args contact-args}]
-                [:xtdb.api/fn :gatz.db.invite-links/mark-used {:args invite-link-args}]]
+         txns [[:xtdb.api/fn :gatz.db.contacts/invite-contact {:args contact-args}]
+               [:xtdb.api/fn :gatz.db.invite-links/mark-used {:args invite-link-args}]
+               [:xtdb.api/fn :gatz.db.feed/new-user-item feed-item-args]]]
 
-               (if group
-                 [[:xtdb.api/fn :gatz.db.group/add-to-group-and-discussions {:action group-action}]]
-                 [[:xtdb.api/fn :gatz.db.feed/new-user-item feed-item-args]]))]
-
-
-     ;; (assert (= by-uid cid))
      (biff/submit-tx ctx (vec txns)))))
 
 (defn post-join-invite-link
