@@ -13,6 +13,7 @@
             [gatz.db.invite-link :as db.invite-link]
             [gatz.db.user :as db.user]
             [gatz.db.util-test :as db.util-test]
+            [gatz.flags :as flags]
             [xtdb.api :as xtdb])
   (:import [java.util Date]
            [java.time Duration]))
@@ -94,164 +95,166 @@
 
 (deftest invite-contacts
   (testing "when inviting a contact, they see your open discussions"
-    (let [uid (random-uuid)
-          cid (random-uuid)
-          cid2 (random-uuid)
-          sid api.invite-link/test-special-contact
-          fid (random-uuid)
-          did (random-uuid)
-          did2 (random-uuid)
-          gid (crdt/random-ulid)
-          now (Date.)
-          ctx (db.util-test/test-system)
-          node (:biff.xtdb/node ctx)
-          get-ctx (fn [uid]
-                    (-> ctx
-                        (assoc :biff/db (xtdb/db node))
-                        (assoc :auth/user-id uid)))]
+    (flags/with-flags {:flags/global_invites_enabled true
+                       :flags/only_users_with_friends_can_invite false}
+      (let [uid (random-uuid)
+            cid (random-uuid)
+            cid2 (random-uuid)
+            sid api.invite-link/test-special-contact
+            fid (random-uuid)
+            did (random-uuid)
+            did2 (random-uuid)
+            gid (crdt/random-ulid)
+            now (Date.)
+            ctx (db.util-test/test-system)
+            node (:biff.xtdb/node ctx)
+            get-ctx (fn [uid]
+                      (-> ctx
+                          (assoc :biff/db (xtdb/db node))
+                          (assoc :auth/user-id uid)))]
 
-      (db.user/create-user!
-       ctx {:id uid :username "user_id" :phone "+14159499000" :now now})
-      (db.user/create-user!
-       ctx {:id cid :username "eventual_contact" :phone "+14159499001" :now now})
-      (db.user/create-user!
-       ctx {:id sid :username "first_contact" :phone "+14159499002" :now now})
-      (db.user/create-user!
-       ctx {:id cid2 :username "second_contact" :phone "+14159499003" :now now})
-      (db.user/create-user!
-       ctx {:id fid :username "friend_of_friend" :phone "+14159499004" :now now})
-      (xtdb/sync node)
+        (db.user/create-user!
+         ctx {:id uid :username "user_id" :phone "+14159499000" :now now})
+        (db.user/create-user!
+         ctx {:id cid :username "eventual_contact" :phone "+14159499001" :now now})
+        (db.user/create-user!
+         ctx {:id sid :username "first_contact" :phone "+14159499002" :now now})
+        (db.user/create-user!
+         ctx {:id cid2 :username "second_contact" :phone "+14159499003" :now now})
+        (db.user/create-user!
+         ctx {:id fid :username "friend_of_friend" :phone "+14159499004" :now now})
+        (xtdb/sync node)
 
-      (db.group/create! ctx
-                        {:id gid :owner uid :now now
-                         :settings {:discussion/member_mode :discussion.member_mode/open}
-                         :name "test" :members #{}})
-      (db.contacts/force-contacts! ctx uid sid)
-      (db.contacts/force-contacts! ctx uid cid2)
-      (db.contacts/force-contacts! ctx sid fid)
-      (xtdb/sync node)
+        (db.group/create! ctx
+                          {:id gid :owner uid :now now
+                           :settings {:discussion/member_mode :discussion.member_mode/open}
+                           :name "test" :members #{}})
+        (db.contacts/force-contacts! ctx uid sid)
+        (db.contacts/force-contacts! ctx uid cid2)
+        (db.contacts/force-contacts! ctx sid fid)
+        (xtdb/sync node)
 
-      (db/create-discussion-with-message!
-       (get-ctx uid)
-       {:did did
-        :to_all_contacts true
-        :text "Open discussion that contact can join"})
-      (db/create-discussion-with-message!
-       (get-ctx uid)
-       {:did did2
-        :to_all_contacts true
-        :group_id gid
-        :text "Open discussion _in a group_ contact can not join"})
+        (db/create-discussion-with-message!
+         (get-ctx uid)
+         {:did did
+          :to_all_contacts true
+          :text "Open discussion that contact can join"})
+        (db/create-discussion-with-message!
+         (get-ctx uid)
+         {:did did2
+          :to_all_contacts true
+          :group_id gid
+          :text "Open discussion _in a group_ contact can not join"})
 
-      (xtdb/sync node)
+        (xtdb/sync node)
 
-      (let [db (xtdb/db node)
-            d (crdt.discussion/->value (db.discussion/by-id db did))]
-        (is (= #{sid cid2 uid} (:discussion/members d)))
-        (is (= :discussion.member_mode/open (:discussion/member_mode d))))
+        (let [db (xtdb/db node)
+              d (crdt.discussion/->value (db.discussion/by-id db did))]
+          (is (= #{sid cid2 uid} (:discussion/members d)))
+          (is (= :discussion.member_mode/open (:discussion/member_mode d))))
 
-      (testing "inviting through a contact link, makes you contacts and gives you access to posts"
-        (let [ok-resp (api.invite-link/post-contact-invite-link (get-ctx uid))
-              {:keys [url id]} (json/read-str (:body ok-resp) {:key-fn keyword})]
+        (testing "inviting through a contact link, makes you contacts and gives you access to posts"
+          (let [ok-resp (api.invite-link/post-contact-invite-link (get-ctx uid))
+                {:keys [url id]} (json/read-str (:body ok-resp) {:key-fn keyword})]
 
-          (is (= 200 (:status ok-resp)))
-          (is (string? url))
-          (is (crdt/ulid? (crdt/parse-ulid id)))
+            (is (= 200 (:status ok-resp)))
+            (is (string? url))
+            (is (crdt/ulid? (crdt/parse-ulid id)))
 
-          (xtdb/sync node)
+            (xtdb/sync node)
 
-          (let [params  (json/read-str (json/write-str {:id id}) {:key-fn keyword})
-                ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
-                                                                   (assoc :params params)))]
-            (is (= 200 (:status ok-resp))))
-
-          (xtdb/sync node)
-
-          (testing "you can do this multiple times"
             (let [params  (json/read-str (json/write-str {:id id}) {:key-fn keyword})
-                  {:keys [status]} (api.invite-link/post-join-invite-link (-> (get-ctx cid)
-                                                                              (assoc :params params)))]
-              (is (= 200 status))))))
-      (xtdb/sync node)
+                  ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
+                                                                     (assoc :params params)))]
+              (is (= 200 (:status ok-resp))))
 
-      (let [db (xtdb/db node)
-            d (crdt.discussion/->value (db.discussion/by-id db did))
-            d2 (crdt.discussion/->value (db.discussion/by-id db did2))
-            uid-contacts (db.contacts/by-uid db uid)
-            cid-contacts (db.contacts/by-uid db cid)
-            posts (db.discussion/posts-for-user db cid)]
+            (xtdb/sync node)
 
-        (testing "they are now contacts with each other"
-          (is (contains? (:contacts/ids uid-contacts) cid))
-          (is (contains? (:contacts/ids cid-contacts) uid))
-          (testing "but not with each others contacts"
-            (is (contains? (:contacts/ids uid-contacts) sid))
-            (is (not (contains? (:contacts/ids cid-contacts) sid)))))
-        (testing "the new contact can see personal posts but not group posts"
-          (is (= [did] posts))
-          (is (= #{sid cid uid cid2} (:discussion/members d)))
-          (is (= #{uid} (:discussion/members d2)))))
+            (testing "you can do this multiple times"
+              (let [params  (json/read-str (json/write-str {:id id}) {:key-fn keyword})
+                    {:keys [status]} (api.invite-link/post-join-invite-link (-> (get-ctx cid)
+                                                                                (assoc :params params)))]
+                (is (= 200 status))))))
+        (xtdb/sync node)
 
-      (testing "some special people, can invite and make you contact of their contacts"
-        (let [ok-resp (api.invite-link/post-contact-invite-link (get-ctx sid))
-              {:keys [url id]} (json/read-str (:body ok-resp) {:key-fn keyword})]
+        (let [db (xtdb/db node)
+              d (crdt.discussion/->value (db.discussion/by-id db did))
+              d2 (crdt.discussion/->value (db.discussion/by-id db did2))
+              uid-contacts (db.contacts/by-uid db uid)
+              cid-contacts (db.contacts/by-uid db cid)
+              posts (db.discussion/posts-for-user db cid)]
 
-          (is (= 200 (:status ok-resp)))
-          (is (string? url))
-          (is (crdt/ulid? (crdt/parse-ulid id)))
-
-          (xtdb/sync node)
-
-          (let [params  (json/read-str (json/write-str {:id id}) {:key-fn keyword})
-                ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
-                                                                   (assoc :params params)))]
-            (is (= 200 (:status ok-resp))))
-
-          (xtdb/sync node)
           (testing "they are now contacts with each other"
-            (let [db (xtdb/db node)
-                  sid-contacts (db.contacts/by-uid db sid)
-                  cid-contacts (db.contacts/by-uid db cid)]
-              (is (contains? (:contacts/ids sid-contacts) cid))
-              (is (contains? (:contacts/ids cid-contacts) sid))
-              (testing "and each others contacts"
-                (is (contains? (:contacts/ids sid-contacts) fid))
-                (is (contains? (:contacts/ids cid-contacts) fid)))))))
+            (is (contains? (:contacts/ids uid-contacts) cid))
+            (is (contains? (:contacts/ids cid-contacts) uid))
+            (testing "but not with each others contacts"
+              (is (contains? (:contacts/ids uid-contacts) sid))
+              (is (not (contains? (:contacts/ids cid-contacts) sid)))))
+          (testing "the new contact can see personal posts but not group posts"
+            (is (= [did] posts))
+            (is (= #{sid cid uid cid2} (:discussion/members d)))
+            (is (= #{uid} (:discussion/members d2)))))
 
-      (testing "inviting through an expired link fails"
-        (let [now (Date.)
-              before-expiry-ts (Date. (+ (.getTime now)
-                                         (.toMillis (Duration/ofDays 89))))
-              after-expiry-ts (Date. (+ (.getTime now)
-                                        (.toMillis (Duration/ofDays 91))))
-              ok-resp (api.invite-link/post-contact-invite-link (get-ctx uid))
-              {:keys [url id]} (json/read-str (:body ok-resp) {:key-fn keyword})]
+        (testing "some special people, can invite and make you contact of their contacts"
+          (let [ok-resp (api.invite-link/post-contact-invite-link (get-ctx sid))
+                {:keys [url id]} (json/read-str (:body ok-resp) {:key-fn keyword})]
 
-          (is (= 200 (:status ok-resp)))
-          (is (string? url))
-          (is (crdt/ulid? (crdt/parse-ulid id)))
+            (is (= 200 (:status ok-resp)))
+            (is (string? url))
+            (is (crdt/ulid? (crdt/parse-ulid id)))
 
-          (xtdb/sync node)
+            (xtdb/sync node)
+
+            (let [params  (json/read-str (json/write-str {:id id}) {:key-fn keyword})
+                  ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
+                                                                     (assoc :params params)))]
+              (is (= 200 (:status ok-resp))))
+
+            (xtdb/sync node)
+            (testing "they are now contacts with each other"
+              (let [db (xtdb/db node)
+                    sid-contacts (db.contacts/by-uid db sid)
+                    cid-contacts (db.contacts/by-uid db cid)]
+                (is (contains? (:contacts/ids sid-contacts) cid))
+                (is (contains? (:contacts/ids cid-contacts) sid))
+                (testing "and each others contacts"
+                  (is (contains? (:contacts/ids sid-contacts) fid))
+                  (is (contains? (:contacts/ids cid-contacts) fid)))))))
+
+        (testing "inviting through an expired link fails"
+          (let [now (Date.)
+                before-expiry-ts (Date. (+ (.getTime now)
+                                           (.toMillis (Duration/ofDays 89))))
+                after-expiry-ts (Date. (+ (.getTime now)
+                                          (.toMillis (Duration/ofDays 91))))
+                ok-resp (api.invite-link/post-contact-invite-link (get-ctx uid))
+                {:keys [url id]} (json/read-str (:body ok-resp) {:key-fn keyword})]
+
+            (is (= 200 (:status ok-resp)))
+            (is (string? url))
+            (is (crdt/ulid? (crdt/parse-ulid id)))
+
+            (xtdb/sync node)
 
           ;; Let the link expire
-          (binding [db.invite-link/*test-current-ts* after-expiry-ts]
-            (let [params  (json/read-str (json/write-str {:id id}) {:key-fn keyword})
-                  ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
-                                                                     (assoc :params params)))]
-              (is (= 400 (:status ok-resp))))
-            (let [params  (json/read-str (json/write-str {:id id}) {:key-fn keyword})
-                  ok-resp (api.invite-link/get-invite-link (-> (get-ctx cid)
-                                                               (assoc :params params)))]
-              (is (= 400 (:status ok-resp)))))
-          (binding [db.invite-link/*test-current-ts* before-expiry-ts]
-            (let [params  (json/read-str (json/write-str {:id id}) {:key-fn keyword})
-                  ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
-                                                                     (assoc :params params)))]
-              (is (= 200 (:status ok-resp)))))))
+            (binding [db.invite-link/*test-current-ts* after-expiry-ts]
+              (let [params  (json/read-str (json/write-str {:id id}) {:key-fn keyword})
+                    ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
+                                                                       (assoc :params params)))]
+                (is (= 400 (:status ok-resp))))
+              (let [params  (json/read-str (json/write-str {:id id}) {:key-fn keyword})
+                    ok-resp (api.invite-link/get-invite-link (-> (get-ctx cid)
+                                                                 (assoc :params params)))]
+                (is (= 400 (:status ok-resp)))))
+            (binding [db.invite-link/*test-current-ts* before-expiry-ts]
+              (let [params  (json/read-str (json/write-str {:id id}) {:key-fn keyword})
+                    ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
+                                                                       (assoc :params params)))]
+                (is (= 200 (:status ok-resp)))))))
 
-      (xtdb/sync node)
+        (xtdb/sync node)
 
-      (.close node))))
+        (.close node)))))
 
 (deftest deleted-users
   (testing "only deleted users are masked in the response"
