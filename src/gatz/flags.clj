@@ -9,7 +9,7 @@
 
 (def current-values
   {:flags/post_to_friends_of_friends true
-   :flags/global_invites_enabled false
+   :flags/global_invites_enabled true
    :flags/only_users_with_friends_can_invite true})
 
 (def ^:dynamic *flags* current-values)
