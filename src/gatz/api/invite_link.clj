@@ -44,17 +44,16 @@
     (some? (:group_id params)) (update :group_id crdt/parse-ulid)))
 
 (def post-invite-link-crew-params post-group-invite-link-params)
-(def parse-invite-link-crew-params parse-group-invite-link-params)
+
+(defn parse-invite-link-crew-params [_params] {})
 
 (defn post-crew-invite-link [{:keys [auth/user-id params] :as ctx}]
   (assert user-id "The user should be authenticated by now")
-  (let [{:keys [group_id]} (parse-group-invite-link-params params)
+  (let [{:keys []} (parse-invite-link-crew-params params)
         screen (db.invite-link/get-screen ctx)]
     (if (:invite_screen/can_user_invite screen)
       (let [invite-link (db.invite-link/create! ctx {:uid user-id
-                                                     :gid group_id
                                                      :type :invite_link/crew})]
-
         (posthog/capture! ctx "invite_link.new" invite-link)
         (http/ok ctx (->out ctx invite-link)))
       (err-resp "not_allowed" "You can't invite to a crew right now"))))
