@@ -9,6 +9,7 @@
             [gatz.schema :as schema]
             [malli.core :as malli]
             [malli.util :as mu]
+            [sdk.twilio :as twilio]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
@@ -223,8 +224,10 @@
                                    :phone phone
                                    :username username
                                    :now now})
+         test? (or (not= :env/prod (:env ctx))
+                   (contains? twilio/TEST_PHONES phone))
          txns [(-> user
-                   (assoc :user/is_test (not= :env/prod (:env ctx)))
+                   (assoc :user/is_test test?)
                    (assoc :db/doc-type :gatz.crdt/user :db/op :create)
                    (update :user/name as-unique)
                    (update :user/phone_number as-unique))

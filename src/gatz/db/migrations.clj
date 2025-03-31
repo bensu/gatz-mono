@@ -23,6 +23,8 @@
             [gatz.system :as gatz.system]
             [malli.core :as malli]
             [com.biffweb :as biff :refer [q]]
+            [sdk.posthog :as posthog]
+            [sdk.twilio :as twilio]
             [xtdb.api :as xtdb])
   (:import [java.util Date]))
 
@@ -840,10 +842,9 @@
 (defn all-users [db]
   (->> (q db '{:find [u]
                :where [[u :db/type :gatz/user]]})
-       (map first)
-       (map (fn [u]
-              (let [uid (:xt/id u)]
-                (db.user/by-id db uid))))))
+       (keep first)
+       (map (fn [uid]
+              (db.user/by-id db uid)))))
 
 (defn extract-twitter-users [json-data]
   (let [instructions (get-in json-data [:data :user :result :timeline :timeline :instructions])]
@@ -1130,4 +1131,22 @@
       (biff/submit-tx ctx txn-batch))))
 
 
+;; ======================================================================
+;; Mark all test users as test
 
+(comment
+  (def -ctx @gatz.system/system)
+
+  (def -test-users
+    (let [db (xtdb.api/db (:biff.xtdb/node -ctx))
+          test-users (->> (all-users db)
+                          (filter #(contains? twilio/TEST_PHONES (:user/phone_number %)))
+                          (remove :user/is_test))
+          txns (map (fn [user]
+                      (assoc user :user/is_test true))
+                    test-users)]
+      test-users
+      #_(biff/submit-tx -ctx txns)))
+
+  (doseq [user -test-users]
+    (sdk.posthog/identify! -ctx (assoc user :user/is_test true))))
