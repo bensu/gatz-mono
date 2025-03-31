@@ -1,8 +1,8 @@
 (ns ddl.api
   "Stores Deferred Deep Links by matching browser fingerprints with device fingerprints"
   (:require [clojure.data.json :as json]
+            [clojure.string :as str]
             [gatz.settings :as gatz.settings]
-            [clojure.tools.logging :as log]
             [malli.core :as m]
             [java-time.api :as jt])
   (:import [eu.bitwalker.useragentutils UserAgent OperatingSystem]
@@ -109,9 +109,15 @@
 ;; ======================================================================
 ;; HTTP API
 
+(defn ips->ip [ips]
+  (->> (str/split ips #",")
+       (map str/trim)
+       (first)))
+
 (defn get-client-ip [request]
-  (or (get-in request [:headers "x-forwarded-for"])
-      (:remote-addr request)))
+  (some-> (or (get-in request [:headers "x-forwarded-for"])
+              (:remote-addr request))
+          (ips->ip)))
 
 (def test-il-url "/invite-link/01J44YYWRY2AKXWM48EC6JFNQ7")
 
@@ -125,20 +131,11 @@
     (string? os)      (assoc :ddl/os (keyword "ddl" os))))
 
 (defn post-pending-links [{:keys [params] :as request}]
-  (def -pending-links @pending-links*)
-  (def -request request)
-  (log/info "matching pending links")
-  (log/info "params" params)
-  (log/info "pending links" -pending-links)
-  (log/info "ip found" (get-client-ip request))
-  (log/info "x-forwarded-for" (get-in request [:headers "x-forwarded-for"]))
-  (log/info "remote-addr" (:remote-addr request))
   (let [ip (get-client-ip request)
         req-browser-info (parse-browser-info (:browser_info params))
         path (when-let [pending-link (some-> ip get-link)]
                (when (match? (:browser_info pending-link) req-browser-info)
                  (:path pending-link)))]
-    (log/info "path" path)
     {:status 200
      :headers {"content-type" "application/json"}
      :body (if path
