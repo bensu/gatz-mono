@@ -59,10 +59,9 @@
        (println e#))))
 
 (defn start-connection
-  [{:keys [conns-state auth/user-id biff/db biff.xtdb/node] :as ctx}]
+  [{:keys [conns-state auth/user-id biff/db] :as ctx}]
   (assert conns-state)
   (when (jetty/ws-upgrade-request? ctx)
-    ;; TODO: asert this user is actually in the database
     (if-let [user (some->> user-id (db.user/by-id db))]
       (let [user-id (:xt/id user)
             conn-id (random-uuid)]
@@ -70,23 +69,17 @@
          {:on-connect (fn [ws]
                         (sentry/try-and-send!
                          (log/info "connecting websocket for user" user-id)
-                         (let [db (xtdb/db node)
-                               ds (or (db/discussions-by-user-id db user-id) #{})]
-                           (swap! conns-state conns/add-conn {:ws ws
-                                                              :user-id user-id
-                                                              :conn-id conn-id
-                                                              :user-discussions ds}))
+                         (swap! conns-state conns/add-conn {:ws ws
+                                                            :user-id user-id
+                                                            :conn-id conn-id})
                          (jetty/send! ws (json/write-str
                                           (connection-response user-id conn-id)))
                          (db.user/mark-active! (assoc ctx :auth/user-id user-id))))
           :on-close (fn [_ws status-code reason]
                       (sentry/try-and-send!
                        (log/info "closing websocket for user" user-id status-code reason)
-                       (let [db (xtdb/db node)
-                             ds (or (db/discussions-by-user-id db user-id) #{})]
-                         (swap! conns-state conns/remove-conn {:user-id user-id
-                                                               :conn-id conn-id
-                                                               :user-discussions ds}))
+                       (swap! conns-state conns/remove-conn {:user-id user-id
+                                                             :conn-id conn-id})
                        (db.user/mark-active! (assoc ctx :auth/user-id user-id))))
           :on-text (fn [ws text]
                       ;; TODO: create discussion or add member
@@ -100,14 +93,14 @@
   (let [did (:xt/id d)
         mid (:xt/id m)
         conns @conns-state]
-    (doseq [uid (conns/discussion-users conns did)
-            :let [d (db.discussion/->external d uid)]
-            ws (conns/user-wss conns uid)]
-      (log/info "sending message delta to connected clients for" uid)
-      ;; did and mid no longer needed as of v1.1.18
-      (jetty/send! ws (json/write-str {:event/type :event/message_edited
-                                       :event/data {:did did :mid mid
-                                                    :message m :discussion d}})))))
+    (doseq [uid (:discussion/members d)]
+      (let [d (db.discussion/->external d uid)]
+        (doseq [ws (conns/user-wss conns uid)]
+          (log/info "sending message delta to connected clients for" uid)
+          ;; did and mid no longer needed as of v1.1.18
+          (jetty/send! ws (json/write-str {:event/type :event/message_edited
+                                           :event/data {:did did :mid mid
+                                                        :message m :discussion d}})))))))
 
 (defmulti handle-evt! (fn [_ctx evt]
                         (:evt/type evt)))
@@ -169,8 +162,6 @@
                          (partial db.user/by-id db))
                    user_ids)
         conns @conns-state]
-    ;; register these users to listen to the discussion
-    (swap! conns-state conns/add-users-to-d {:did did :user-ids members})
     ;; Sending this to the members is not necessary 
     ;; because they are now listening to feed items
     ;; as of v1.1.18
@@ -256,12 +247,9 @@
 
 (def alive-message {:status "ok"})
 
-(defn ping-every-connection!
-  [{:keys [conns-state] :as ctx}]
-  ;; (println "pinging every connection")
-  (let [all-wss (conns/all-wss @conns-state)
-        msg (json/write-str alive-message)]
-    (doseq [ws all-wss]
+(defn ping-every-connection! [{:keys [conns-state] :as _ctx}]
+  (let [msg (json/write-str alive-message)]
+    (doseq [ws (conns/all-wss @conns-state)]
       (jetty/send! ws msg))))
 
 (defn get-manifest [_]
