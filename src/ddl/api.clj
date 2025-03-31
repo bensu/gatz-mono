@@ -92,8 +92,8 @@
   ([^Date ts now]
    {:pre [(inst? ts)] :post [(boolean? %)]}
    (let [ts-instant (jt/instant (.toInstant ts))
-         one-hour-ago (jt/minus now (jt/hours 1))]
-     (jt/after? one-hour-ago ts-instant))))
+         two-days-ago (jt/minus now (jt/days 2))]
+     (jt/after? two-days-ago ts-instant))))
 
 (defn get-link [ip]
   {:pre [(string? ip)]}
