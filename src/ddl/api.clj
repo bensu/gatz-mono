@@ -40,6 +40,7 @@
 
 (defn- ios? [os-group]
   (.equals os-group OperatingSystem/IOS))
+
 (defn parse-user-agent
   "Extract what we are going to use from the user-agent
 

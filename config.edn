@@ -12,6 +12,9 @@
         :biff.xtdb.lucene.checkpointer/bucket "XTDB_LUCENE_CHECKPOINTS_S3_BUCKET"
         ;; :biff.xtdb.jdbc/password "JDBC_PASSWORD"
 
+        :admin/username "ADMIN_USERNAME"
+        :admin/password "ADMIN_PASSWORD"
+
         :twilio/verify-service "TWILIO_VERIFY_SERVICE"
         :twilio/sid "TWILIO_SID"
         :twilio/auth-token "TWILIO_AUTH_TOKEN"

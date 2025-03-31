@@ -5,6 +5,7 @@
             [clojure.data.json :as json]
             [crdt.core :as crdt]
             [ddl.api :as ddl.api]
+            [ddl.admin :as ddl.admin]
             [gatz.auth :as auth]
             [gatz.api.contacts :as api.contacts]
             [gatz.api.discussion :as api.discussion]
@@ -277,6 +278,9 @@
 
                 ;; User visible, oustside of API
                 ["/invite/:code" {:get ddl.api/register-and-redirect!}]
+
+                ["/admin" {:middleware [ddl.admin/wrap-admin-auth]}
+                 ["/ddl" {:get ddl.admin/get-debug-route}]]
 
                 ;; unauthenticated
                 ["/api"
