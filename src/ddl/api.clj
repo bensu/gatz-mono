@@ -2,6 +2,7 @@
   "Stores Deferred Deep Links by matching browser fingerprints with device fingerprints"
   (:require [clojure.data.json :as json]
             [gatz.settings :as gatz.settings]
+            [clojure.tools.logging :as log]
             [malli.core :as m]
             [java-time.api :as jt])
   (:import [eu.bitwalker.useragentutils UserAgent OperatingSystem]
@@ -123,14 +124,21 @@
     (boolean? mobile) (assoc :ddl/mobile? mobile)
     (string? os)      (assoc :ddl/os (keyword "ddl" os))))
 
-(defn post-pending-links
-  "Clears the link after returning it"
-  [{:keys [params] :as request}]
+(defn post-pending-links [{:keys [params] :as request}]
+  (def -pending-links @pending-links*)
+  (def -request request)
+  (log/info "matching pending links")
+  (log/info "params" params)
+  (log/info "pending links" -pending-links)
+  (log/info "ip found" (get-client-ip request))
+  (log/info "x-forwarded-for" (get-in request [:headers "x-forwarded-for"]))
+  (log/info "remote-addr" (:remote-addr request))
   (let [ip (get-client-ip request)
         req-browser-info (parse-browser-info (:browser_info params))
         path (when-let [pending-link (some-> ip get-link)]
                (when (match? (:browser_info pending-link) req-browser-info)
                  (:path pending-link)))]
+    (log/info "path" path)
     {:status 200
      :headers {"content-type" "application/json"}
      :body (if path
@@ -171,97 +179,4 @@
 
       ;; Desktop or other device
       (redirect-to (str host "/invite/" code)))))
-
-;; ======================================================================
-;; Deprecated: Client side matcher
-;; This proved to be too complicated
-
-(comment
-  (defn browser->matcher
-    "Returns what we are going to match on based on the browser info"
-    [browser-info]
-    (let [ua-matchers (parse-user-agent (:userAgent browser-info))]
-      {:ddl/locale (:language browser-info)
-       :ddl/screen-width (:screenWidth browser-info)
-       :ddl/screen-height (:screenHeight browser-info)
-       :ddl/timezone-offset (some-> (:timezoneOffset browser-info) abs)
-       :ddl/mobile? (:ddl/mobile? ua-matchers)
-       :ddl/os (:ddl/os ua-matchers)}))
-
-
-;; TODO: this is not a pure function because it depends on the current time zone
-;; of the tester
-  (defn timezone-to-offset
-    ([timezone-name]
-     (timezone-to-offset timezone-name (ZonedDateTime/now)))
-    ([timezone-name ^ZonedDateTime reference-time]
-     (try
-       (let [zone (ZoneId/of timezone-name)
-             time-in-zone (.withZoneSameInstant reference-time zone)
-             offset (.getTotalSeconds (.getOffset time-in-zone))]
-         (abs (/ offset 60)))  ; Convert seconds to minutes
-       (catch Exception _e
-         (println "Error: Invalid timezone name")
-         nil))))
-
-
-  (def ^:dynamic *reference-time* nil)
-
-
-  (defn device->matcher
-    "Returns what we are going to match on based on the app device info"
-    [device-info]
-    (let [reference-time (or *reference-time* (ZonedDateTime/now))]
-      {:ddl/locale (get-in device-info [:locale 0 :languageTag])
-       :ddl/screen-width (:screenWidth device-info)
-       :ddl/screen-height (:screenHeight device-info)
-       :ddl/timezone-offset (some-> (get-in device-info [:timezone 0 :timeZone])
-                                    (timezone-to-offset reference-time))
-       :ddl/mobile? true
-       :ddl/os (case (:os device-info)
-                 "android" :ddl/android
-                 "ios" :ddl/ios
-                 nil)}))
-
-
-
-  (def exact-ks [:ddl/os :ddl/timezone-offset :ddl/locale :ddl/mobile?])
-
-
-;; We omit :ddl/screen-height because it can vary across browsers
-  (def similar-ks [:ddl/screen-width])
-
-
-  (def THRESHHOLD 10)
-
-
-  (defn similar? [a b]
-    {:pre [(number? a) (number? b)]}
-    (<= (Math/abs (- a b)) THRESHHOLD))
-
-
-  (defn match? [browser-matcher device-matcher]
-    (and (= (select-keys browser-matcher exact-ks)
-            (select-keys device-matcher exact-ks))
-         (every? (fn [k]
-                   (similar? (get browser-matcher k)
-                             (get device-matcher k)))
-                 similar-ks)))
-
-
-  (defn ^:deprecated
-    register-link!
-    [{:keys [params] :as request}]
-    (let [ip (get-client-ip request)
-          {:keys [url browser_info]} params
-          browser-matcher (some-> browser_info browser->matcher)]
-      (when (and (string? ip) (string? url) (map? browser-matcher))
-        (when (:ddl/mobile? browser-matcher)
-          (put-link! ip url browser-matcher))))
-    #_(catch Exception e
-        (log/error "Failed to register ddl link")
-        (log/error e))
-    {:status 200
-     :headers {"content-type" "application/json"}
-     :body (json/write-str {:success :ok})}))
 
