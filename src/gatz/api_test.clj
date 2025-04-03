@@ -38,25 +38,94 @@
     (let [ctx (db.util-test/test-system)
           db (:biff/db ctx)
           handler system/handler
-          api-routes ["/api/invite-link/screen"
+          ;; All API routes protected by auth middleware
+          api-routes [;; User related routes
+                      "/api/me"
+                      "/api/user"
+                      "/api/user/push-token"
+                      "/api/user/disable-push"
+                      "/api/user/avatar"
+                      "/api/user/settings/notifications"
+                      "/api/user/settings/location"
+                      "/api/user/delete"
+                      "/api/user/block"
+                      "/api/user/settings/urls"
+                      "/api/user/settings/profile"
+                      "/api/user/location"
+                      "/api/me/crdt"
+
+                      ;; Media and file routes
+                      "/api/file/presign"
+                      "/api/media"
+                      "/api/link-preview"
+
+                      ;; Message routes
+                      "/api/message"
+                      "/api/message/delete"
+                      "/api/message/flag"
+                      "/api/message/edit"
+                      "/api/message/react"
+                      "/api/message/undo-react"
+
+                      ;; Feed routes
+                      "/api/feed/posts"
+                      "/api/feed/active"
+                      "/api/feed/items"
+                      "/api/feed/dismiss"
+                      "/api/feed/mark-seen"
+
+                      ;; Search route
+                      "/api/search"
+
+                      ;; Contact routes
+                      "/api/contact"
+                      "/api/contacts"
+                      "/api/contact/request"
+                      "/api/contact/share-link"
+                      "/api/contact/hide"
+                      "/api/contact/unhide"
+
+                      ;; Group routes
+                      "/api/group"
+                      "/api/groups"
+                      "/api/group/avatar"
+                      "/api/group/request"
+                      "/api/group/share-link"
+
+                      ;; Invite link routes
+                      "/api/invite-link/screen"
                       "/api/invite-link"
-                      "/api/invite-link/code"
                       "/api/invite-link/join"
                       "/api/invite-link/crew-share-link"
-                      "/api/contact/share-link"
-                      "/api/group/share-link"
-                     ;; Add more protected routes here as needed
-                      ]]
+                      "/api/invite-link/code"
+
+                      ;; Discussion routes
+                      "/api/discussions"
+                      "/api/discussion"
+                      "/api/discussion/mark-many-seen"
+                      "/api/discussion/mark-seen"
+                      "/api/discussion/mark-message-seen"
+                      "/api/discussion/archive"
+                      "/api/discussion/unarchive"
+                      "/api/discussion/subscribe"
+                      "/api/discussion/unsubscribe"]]
 
       ;; Test that routes without authentication return 401
       (doseq [route api-routes]
         (let [;; Use the appropriate HTTP method for each route
               method (cond
-                       ;; These routes accept GET
-                       (#{"/api/invite-link/screen" "/api/invite-link" "/api/invite-link/code"} route)
+                       ;; Routes that accept GET
+                       (#{"/api/me" "/api/user" "/api/feed/posts" "/api/feed/active" "/api/feed/items"
+                          "/api/search" "/api/contact" "/api/contacts" "/api/group" "/api/groups"
+                          "/api/invite-link/screen" "/api/invite-link" "/api/invite-link/code"
+                          "/api/discussion" "/api/discussions"} route)
                        :get
-                       
-                       ;; All other routes in the test list use POST
+
+                       ;; Routes that can accept both GET and POST (test with GET)
+                       (#{"/api/me/crdt"} route)
+                       :get
+
+                       ;; All other routes use POST
                        :else
                        :post)
               request {:uri route
