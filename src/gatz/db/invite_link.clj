@@ -31,10 +31,18 @@
 ;; This dynamic var is a sign that I need effect handlers
 (defn expired?
   ([invite-link]
-   (expired? invite-link {:now (or *test-current-ts* (Date.))}))
-  ([{:invite_link/keys [expires_at]} {:keys [now]}]
-   (boolean (and expires_at
-                 (util/before? expires_at now)))))
+   (expired? invite-link {:flags {}}))
+  ([{:invite_link/keys [expires_at] :as il} {:keys [now flags]}]
+   (def -il il)
+   (def -now now)
+   (def -flags flags)
+   (let [enforce-expiry? (if (contains? flags :flags/invite_links_expire)
+                           (:flags/invite_links_expire flags)
+                           true)
+         current-ts (or *test-current-ts* now (Date.))]
+     (if enforce-expiry?
+       (boolean (and expires_at (util/before? expires_at current-ts)))
+       false))))
 
 #_(def default-settings
     {:invite_link/multi-user-mode :invite_link/crew})
@@ -110,6 +118,23 @@
                                 [?id :db/type :gatz/invite_link]]}
                    code))]
     (from-entity e)))
+
+(defn active-crew-invite-by-user
+  "Returns the most recently created active (not expired) crew invite link for a specific user"
+  [db user-id & {:keys [flags]}]
+  {:pre [(uuid? user-id)]}
+  (let [results (q db '{:find (pull ?id [*])
+                        :in [user-id]
+                        :where [[?id :invite_link/created_by user-id]
+                                [?id :invite_link/type :invite_link/crew]
+                                [?id :db/type :gatz/invite_link]]}
+                   user-id)]
+    (when-let [invite-links (seq (map from-entity results))]
+      ;; Find the most recent non-expired link
+      (->> invite-links
+           (remove #(expired? % {:flags flags}))
+           (sort-by :invite_link/created_at #(compare %2 %1)) ; Sort descending by creation date
+           first))))
 
 (defn mark-used!
   [{:keys [biff/db] :as ctx} id {:keys [by-uid now]}]

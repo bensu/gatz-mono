@@ -274,6 +274,100 @@
 
         (.close node)))))
 
+(deftest crew-invite-link-reuse
+  (testing "reusing existing crew invite links"
+    (flags/with-flags {:flags/global_invites_enabled true
+                       :flags/only_users_with_friends_can_invite false}
+      (let [[uid cid] (take 2 (repeatedly random-uuid))
+            now (Date.)
+            ctx (db.util-test/test-system)
+            node (:biff.xtdb/node ctx)
+            get-ctx (fn [uid]
+                      (-> ctx
+                          (assoc :biff/db (xtdb/db node))
+                          (assoc :auth/user-id uid)))]
+
+        ;; Create test users
+        (db.user/create-user!
+         ctx {:id uid :username "user_id" :phone "+14159499000" :now now})
+        (db.user/create-user!
+         ctx {:id cid :username "contact" :phone "+14159499001" :now now})
+
+        (xtdb/sync node)
+
+        (testing "first create request creates a new invite link"
+          (let [create-resp (api.invite-link/post-crew-invite-link (get-ctx uid))
+                {:keys [id code]} (parse-resp create-resp)]
+            (is (= 200 (:status create-resp)))
+            (is (string? code))
+
+            (xtdb/sync node)
+
+            (testing "second request reuses the same invite link"
+              (let [second-resp (api.invite-link/post-crew-invite-link (get-ctx uid))
+                    second-result (parse-resp second-resp)]
+                (is (= 200 (:status second-resp)))
+                (is (= id (:id second-result)))
+                (is (= code (:code second-result)))))))
+
+        (.close node)))))
+
+(deftest invite-link-expiration-flag
+  (testing "invite link expiration controlled by flag"
+    (let [[uid cid] (take 2 (repeatedly random-uuid))
+          now (Date.)
+          past-date (Date. (- (.getTime now) (* 100 24 60 60 1000))) ; 100 days in the past
+          ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (-> ctx
+                        (assoc :biff/db (xtdb/db node))
+                        (assoc :auth/user-id uid)))]
+
+      ;; Create test users
+      (db.user/create-user!
+       ctx {:id uid :username "user_id" :phone "+14159499000" :now now})
+      (db.user/create-user!
+       ctx {:id cid :username "contact" :phone "+14159499001" :now now})
+
+      (xtdb/sync node)
+
+      ;; Create an expired invite link
+      (binding [db.invite-link/*test-current-ts* past-date]
+        (db.invite-link/create! ctx {:uid uid :type :invite_link/crew}))
+
+      (xtdb/sync node)
+
+      (testing "with flag enabled, expired links are considered expired"
+        (flags/with-flags {:flags/global_invites_enabled true
+                           :flags/only_users_with_friends_can_invite false
+                           :flags/invite_links_expire true}
+          (let [resp (api.invite-link/post-crew-invite-link (get-ctx uid))
+                link-data (parse-resp resp)]
+
+          ;; Should create a new link since old one is expired
+            (is (= 200 (:status resp)))
+            (is (some? (:id link-data)))
+            (is (some? (:code link-data))))))
+
+      (xtdb/sync node)
+
+      (testing "with flag disabled, expired links can still be used"
+        (let [flags {:flags/global_invites_enabled true
+                     :flags/only_users_with_friends_can_invite false
+                     :flags/invite_links_expire false}
+              existing-invite (db.invite-link/active-crew-invite-by-user (xtdb/db node) uid :flags flags)
+              _ (is (some? existing-invite) "Should find an expired link when flag is disabled")
+
+              resp (api.invite-link/post-crew-invite-link (get-ctx uid))
+              link-data (parse-resp resp)]
+
+          ;; Should reuse the expired link since expiration is disabled
+          (is (= 200 (:status resp)))
+          (is (= (str (:xt/id existing-invite)) (:id link-data)))))
+
+      (.close node))))
+
 (deftest feed-visibility-rules
   (testing "feed visibility rules when becoming friends"
     (flags/with-flags {:flags/global_invites_enabled true

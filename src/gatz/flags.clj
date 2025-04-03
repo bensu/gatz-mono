@@ -5,12 +5,14 @@
   [:map
    [:flags/post_to_friends_of_friends boolean?]
    [:flags/global_invites_enabled boolean?]
-   [:flags/only_users_with_friends_can_invite boolean?]])
+   [:flags/only_users_with_friends_can_invite boolean?]
+   [:flags/invite_links_expire boolean?]])
 
 (def current-values
   {:flags/post_to_friends_of_friends true
    :flags/global_invites_enabled true
-   :flags/only_users_with_friends_can_invite true})
+   :flags/only_users_with_friends_can_invite false
+   :flags/invite_links_expire false})
 
 (def ^:dynamic *flags* current-values)
 

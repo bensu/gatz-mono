@@ -87,7 +87,8 @@
 (deftest invite-to-group
   (testing "when inviting to a group, they can join open discussions"
     (flags/with-flags {:flags/global_invites_enabled true
-                       :flags/only_users_with_friends_can_invite false}
+                       :flags/only_users_with_friends_can_invite false
+                       :flags/invite_links_expire true}
       (let [uid (random-uuid)
             cid (random-uuid)
             did (random-uuid)
@@ -218,17 +219,20 @@
 
           ;; Let the link expire
             (binding [db.invite-link/*test-current-ts* after-expiry-ts]
-              (let [db (xtdb/db node)
-                    il (db.invite-link/by-id db invite-link-id)
-                    params  (db.util-test/json-params {:id invite-link-id})
-                    ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
-                                                                       (assoc :params params)))]
-                (is (db.invite-link/expired? il))
-                (is (= 400 (:status ok-resp))))
-              (let [params  (db.util-test/json-params {:id invite-link-id})
-                    ok-resp (api.invite-link/get-invite-link (-> (get-ctx cid)
-                                                                 (assoc :params params)))]
-                (is (= 400 (:status ok-resp)))))
+              (flags/with-flags {:flags/global_invites_enabled true
+                                 :flags/only_users_with_friends_can_invite false
+                                 :flags/invite_links_expire true}
+                (let [db (xtdb/db node)
+                      il (db.invite-link/by-id db invite-link-id)
+                      params  (db.util-test/json-params {:id invite-link-id})
+                      ok-resp (api.invite-link/post-join-invite-link (-> (get-ctx cid)
+                                                                         (assoc :params params)))]
+                  (is (db.invite-link/expired? il) "Invite link should be expired")
+                  (is (= 400 (:status ok-resp)) "Post join invite link should fail for expired links"))
+                (let [params  (db.util-test/json-params {:id invite-link-id})
+                      ok-resp (api.invite-link/get-invite-link (-> (get-ctx cid)
+                                                                   (assoc :params params)))]
+                  (is (= 400 (:status ok-resp)) "Get invite link should fail for expired links"))))
 
             (binding [db.invite-link/*test-current-ts* before-expiry-ts]
               (let [db (xtdb/db node)

@@ -47,14 +47,17 @@
 
 (defn parse-invite-link-crew-params [_params] {})
 
-(defn post-crew-invite-link [{:keys [auth/user-id params] :as ctx}]
+(defn post-crew-invite-link [{:keys [auth/user-id biff/db params flags/flags] :as ctx}]
   (assert user-id "The user should be authenticated by now")
   (let [{:keys []} (parse-invite-link-crew-params params)
         screen (db.invite-link/get-screen ctx)]
     (if (:invite_screen/can_user_invite screen)
-      (let [invite-link (db.invite-link/create! ctx {:uid user-id
-                                                     :type :invite_link/crew})]
-        (posthog/capture! ctx "invite_link.new" invite-link)
+      (let [existing-invite (db.invite-link/active-crew-invite-by-user db user-id :flags flags)
+            invite-link (or existing-invite
+                            (db.invite-link/create! ctx {:uid user-id
+                                                         :type :invite_link/crew}))]
+        (when-not existing-invite
+          (posthog/capture! ctx "invite_link.new" invite-link))
         (http/ok ctx (->out ctx invite-link)))
       (err-resp "not_allowed" "You can't invite to a crew right now"))))
 
@@ -203,13 +206,13 @@
        :error "unknown_type"
        :message "We don't recognize this type of invite"})))
 
-(defn get-invite-link [{:keys [auth/user-id biff/db] :as ctx}]
+(defn get-invite-link [{:keys [auth/user-id biff/db flags/flags] :as ctx}]
   (if-not user-id
     (err-resp "unauthenticated" "Must be authenticated")
     (let [params (parse-get-invite-link-params (:params ctx))]
       (if-let [invite-link-id (:id params)]
         (if-let [invite-link (db.invite-link/by-id db invite-link-id)]
-          (if (db.invite-link/expired? invite-link)
+          (if (db.invite-link/expired? invite-link {:flags flags})
             (err-resp "expired" "Invite Link expired")
             (let [response (invite-link-response ctx invite-link)]
               (posthog/capture! ctx "invite_link.viewed" invite-link)
@@ -353,12 +356,12 @@
      (biff/submit-tx ctx (vec txns)))))
 
 (defn post-join-invite-link
-  [{:keys [biff/db auth/user-id] :as ctx}]
+  [{:keys [biff/db auth/user-id flags/flags] :as ctx}]
   (assert user-id "The user should be authenticated by now")
   (let [params (parse-join-link-params (:params ctx))]
     (if-let [id (:id params)]
       (if-let [invite-link (db.invite-link/by-id db id)]
-        (if (db.invite-link/expired? invite-link)
+        (if (db.invite-link/expired? invite-link {:flags flags})
           (err-resp "expired" "Invite Link expired")
           (do
             (case (:invite_link/type invite-link)
@@ -374,13 +377,13 @@
   [:map
    [:code string?]])
 
-(defn get-invite-by-code [{:keys [auth/user-id biff/db] :as ctx}]
+(defn get-invite-by-code [{:keys [auth/user-id biff/db flags/flags] :as ctx}]
   (if-not user-id
     (err-resp "unauthenticated" "Must be authenticated")
     (let [params (:params ctx)]
       (if-let [code (:code params)]
         (if-let [invite-link (db.invite-link/by-code db code)]
-          (if (db.invite-link/expired? invite-link)
+          (if (db.invite-link/expired? invite-link {:flags flags})
             (err-resp "expired" "Invite Link expired")
             (let [response (invite-link-response ctx invite-link)]
               (posthog/capture! ctx "invite_link.viewed" invite-link)
