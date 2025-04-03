@@ -69,6 +69,7 @@
       (err-resp "not_allowed" "You can't invite to a contact right now"))))
 
 (defn post-group-invite-link [{:keys [auth/user-id biff/db] :as ctx}]
+  (assert user-id "The user should be authenticated by now")
   (let [now (Date.)
         params (parse-group-invite-link-params (:params ctx))
         screen (db.invite-link/get-screen ctx)]
@@ -352,11 +353,8 @@
      (biff/submit-tx ctx (vec txns)))))
 
 (defn post-join-invite-link
-
   [{:keys [biff/db auth/user-id] :as ctx}]
-
-  (assert user-id)
-
+  (assert user-id "The user should be authenticated by now")
   (let [params (parse-join-link-params (:params ctx))]
     (if-let [id (:id params)]
       (if-let [invite-link (db.invite-link/by-id db id)]
@@ -391,7 +389,8 @@
         (err-resp "invalid_params" "Invalid params")))))
 
 
-(defn get-invite-screen [ctx]
+(defn get-invite-screen [{:keys [auth/user-id] :as ctx}]
+  (assert user-id "The user should be authenticated by now")
   (let [me-data (api.user/get-me-data ctx)
         invite-screen (db.invite-link/get-screen ctx)]
     (http/ok ctx (assoc me-data :invite_screen invite-screen))))
