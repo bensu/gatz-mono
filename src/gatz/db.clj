@@ -128,6 +128,10 @@
                 media_ids link_previews
                 location_id]}
         (parse-create-params init-params)
+        
+        _ (when (string? text)
+            (assert (<= (count text) schema/max-message-length)
+                    (str "Message exceeds maximum length of " schema/max-message-length " characters")))
 
         _ (when to_all_friends_of_friends
             (assert to_all_contacts "Friends of friends requires to_all_contacts to be true")
@@ -436,7 +440,8 @@
          (uuid? did) (uuid? user-id)
          (or (nil? media_ids) (every? uuid? media_ids))
          (or (nil? reply_to) (uuid? reply_to))
-         (or (nil? link_previews) (every? uuid? link_previews))]}
+         (or (nil? link_previews) (every? uuid? link_previews))
+         (<= (count text) schema/max-message-length)]}
 
   (let [now (or now (Date.))
         mid (or mid (random-uuid))

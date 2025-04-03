@@ -942,6 +942,8 @@
 ;; ======================================================================
 ;; Final schema
 
+(def max-message-length 10000)
+
 (def schema
   {:discussion/id #'DiscussionId
    :user/id #'UserId

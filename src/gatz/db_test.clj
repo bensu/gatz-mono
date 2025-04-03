@@ -10,7 +10,8 @@
             [gatz.db.util-test :as db.util-test]
             [link-preview.core :as link-preview]
             [xtdb.api :as xtdb]
-            [gatz.db.contacts :as db.contacts])
+            [gatz.db.contacts :as db.contacts]
+            [gatz.schema :as schema])
   (:import [java.util Date]))
 
 (deftest test-parse-create-discussion-params
@@ -386,7 +387,14 @@
         (is (thrown? AssertionError
                      (db/create-message! (get-ctx) {:text 123
                                                     :did did
-                                                    :now now})))))))
+                                                    :now now}))))
+                                                    
+      (testing "Message exceeding maximum length"
+        (let [long-text (apply str (repeat (inc schema/max-message-length) "a"))]
+          (is (thrown? AssertionError
+                       (db/create-message! (get-ctx) {:text long-text
+                                                      :did did
+                                                      :now now}))))))))
 
 (deftest test-create-message-conditions
   (let [[user-id other-user-id did other-did] (repeatedly 4 random-uuid)
@@ -753,5 +761,14 @@
                       {:text "hello"
                        :originally_from {:did "550e8400-e29b-41d4-a716-446655440000"}
                        :to_all_contacts true
-                       :now now})))))))
+                       :now now}))))
+      
+      (testing "Message exceeding maximum length"
+        (let [long-text (apply str (repeat (inc schema/max-message-length) "a"))]
+          (is (thrown? AssertionError
+                       (db/create-discussion-with-message!
+                        (get-ctx user-id)
+                        {:text long-text
+                         :to_all_contacts true
+                         :now now}))))))))
 
