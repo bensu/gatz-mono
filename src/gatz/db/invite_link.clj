@@ -33,9 +33,6 @@
   ([invite-link]
    (expired? invite-link {:flags {}}))
   ([{:invite_link/keys [expires_at] :as il} {:keys [now flags]}]
-   (def -il il)
-   (def -now now)
-   (def -flags flags)
    (let [enforce-expiry? (if (contains? flags :flags/invite_links_expire)
                            (:flags/invite_links_expire flags)
                            true)
@@ -127,6 +124,7 @@
                         :in [user-id]
                         :where [[?id :invite_link/created_by user-id]
                                 [?id :invite_link/type :invite_link/crew]
+                                [?id :invite_link/group_id nil]
                                 [?id :db/type :gatz/invite_link]]}
                    user-id)]
     (when-let [invite-links (seq (map from-entity results))]

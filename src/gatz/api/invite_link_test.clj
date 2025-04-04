@@ -308,7 +308,35 @@
                     second-result (parse-resp second-resp)]
                 (is (= 200 (:status second-resp)))
                 (is (= id (:id second-result)))
-                (is (= code (:code second-result)))))))
+                (is (= code (:code second-result)))))
+
+            (testing "crew link is returned even when other types of invite links exist"
+              (let [gid (crdt/random-ulid)
+                    ;; Create a group and a crew invite link with group id
+                    group-params (db.util-test/json-params {:group_id gid})
+                    _ (db.group/create! ctx
+                                        {:id gid
+                                         :owner uid
+                                         :now now
+                                         :settings {:discussion/member_mode :discussion.member_mode/open}
+                                         :name "test"
+                                         :members #{}})
+                    _ (api.invite-link/post-group-invite-link
+                       (assoc (get-ctx uid) :params group-params))
+                    _ (db.invite-link/create! ctx {:gid gid
+                                                   :uid uid
+                                                   :type :invite_link/crew})
+
+                    ;; Create a contact invite link
+                    _ (db.invite-link/create! ctx {:uid uid :type :invite_link/contact})
+                    _ (xtdb/sync node)
+
+                    ;; Get crew invite link
+                    crew-resp (api.invite-link/post-crew-invite-link (get-ctx uid))
+                    crew-result (parse-resp crew-resp)]
+                (is (= 200 (:status crew-resp)))
+                (is (= id (:id crew-result)))
+                (is (some? (:code crew-result)))))))
 
         (.close node)))))
 

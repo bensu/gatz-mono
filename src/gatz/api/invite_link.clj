@@ -43,14 +43,9 @@
   (cond-> params
     (some? (:group_id params)) (update :group_id crdt/parse-ulid)))
 
-(def post-invite-link-crew-params post-group-invite-link-params)
-
-(defn parse-invite-link-crew-params [_params] {})
-
-(defn post-crew-invite-link [{:keys [auth/user-id biff/db params flags/flags] :as ctx}]
+(defn post-crew-invite-link [{:keys [auth/user-id biff/db flags/flags] :as ctx}]
   (assert user-id "The user should be authenticated by now")
-  (let [{:keys []} (parse-invite-link-crew-params params)
-        screen (db.invite-link/get-screen ctx)]
+  (let [screen (db.invite-link/get-screen ctx)]
     (if (:invite_screen/can_user_invite screen)
       (let [existing-invite (db.invite-link/active-crew-invite-by-user db user-id :flags flags)
             invite-link (or existing-invite
