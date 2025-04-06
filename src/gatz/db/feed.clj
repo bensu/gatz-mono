@@ -288,15 +288,35 @@
                           (update :feed/dismissed_by conj uid)
                           (assoc :db/op :update))]])))
 
+(defn restore-item-txn-fn [xtdb-ctx {:keys [id uid now]}]
+  (let [db (xtdb/db xtdb-ctx)]
+    (when-let [item (by-id db id)]
+      [[:xtdb.api/put (-> item
+                          (assoc :feed/updated_at now)
+                          (update :feed/dismissed_by disj uid)
+                          (assoc :db/op :update))]])))
 
 (def dismiss-item-expr
   '(fn dismiss-item-fn [xtdb-ctx args]
      (gatz.db.feed/dismiss-item-txn-fn xtdb-ctx args)))
 
+(def restore-item-expr
+  '(fn restore-item-fn [xtdb-ctx args]
+     (gatz.db.feed/restore-item-txn-fn xtdb-ctx args)))
+
 (defn dismiss! [{:keys [biff/db] :as ctx} uid id]
   {:pre [(uuid? uid) (uuid? id)]}
   (let [args {:id id :uid uid :now (Date.)}
         txns  [[:xtdb.api/fn :gatz.db.feed/dismiss-item args]]
+        db-after (xtdb/with-tx db txns)]
+    (assert (some? db-after) "Transaction would've failed")
+    (biff/submit-tx ctx txns)
+    {:item (by-id db-after id)}))
+
+(defn restore! [{:keys [biff/db] :as ctx} uid id]
+  {:pre [(uuid? uid) (uuid? id)]}
+  (let [args {:id id :uid uid :now (Date.)}
+        txns  [[:xtdb.api/fn :gatz.db.feed/restore-item args]]
         db-after (xtdb/with-tx db txns)]
     (assert (some? db-after) "Transaction would've failed")
     (biff/submit-tx ctx txns)
@@ -352,6 +372,7 @@
 
 (def tx-fns
   {:gatz.db.feed/dismiss-item dismiss-item-expr
+   :gatz.db.feed/restore-item restore-item-expr
    :gatz.db.feed/add-uids-to-dids add-uids-to-dids-items-expr
    :gatz.db.feed/mark-seen mark-seen-expr})
 

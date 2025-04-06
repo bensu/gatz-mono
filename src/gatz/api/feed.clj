@@ -353,6 +353,13 @@
         (http/json-response {:item item}))
       (http/err-resp "invalid_params" "Invalid parameters"))))
 
+(defn restore! [{:keys [auth/user-id params] :as ctx}]
+  (let [{:keys [id]} (parse-dismiss-params params)]
+    (if id
+      (let [{:keys [item]} (db.feed/restore! ctx user-id id)]
+        (http/json-response {:item item}))
+      (http/err-resp "invalid_params" "Invalid parameters"))))
+
 (defn mark-many-seen! [{:keys [auth/user-id params] :as ctx}]
   {:pre [(uuid? user-id)]}
   (let [ids (set (keep util/parse-uuid (:ids params)))]

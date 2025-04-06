@@ -342,6 +342,7 @@
 
                  ["/feed/items" {:get api.feed/feed}]
                  ["/feed/dismiss" {:post api.feed/dismiss!}]
+                 ["/feed/restore" {:post api.feed/restore!}]
                  ["/feed/mark-seen" {:post api.feed/mark-many-seen!}]
 
                  ["/search" {:get api.search/search-term}]
