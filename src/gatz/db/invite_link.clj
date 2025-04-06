@@ -15,7 +15,8 @@
 
 (defn make-url [ctx code]
   {:pre [(string? code)] :post [(string? %)]}
-  (format "%s/invite/%s" (:gatz.api/host ctx) code))
+  (let [host (or (:gatz.api/host ctx) "https://api.gatz.chat")]
+    (format "%s/invite/%s" host code)))
 
 (defn valid? [{:keys [] :as invite-link}]
   (and (nil? (:invite_link/used_at invite-link))
@@ -131,6 +132,7 @@
       ;; Find the most recent non-expired link
       (->> invite-links
            (remove #(expired? % {:flags flags}))
+           (filter #(some? (:invite_link/code %)))
            (sort-by :invite_link/created_at #(compare %2 %1)) ; Sort descending by creation date
            first))))
 
