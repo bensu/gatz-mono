@@ -268,7 +268,22 @@
                 ["/invite/:code" {:get ddl.api/register-and-redirect!}]
 
                 ["/admin" {:middleware [ddl.admin/wrap-admin-auth]}
-                 ["/ddl" {:get ddl.admin/get-debug-route}]]
+                 ["/ddl" {:get ddl.admin/get-debug-route}]
+                 ["/test-sentry" {:get (fn [request]
+                                         ;; Intentionally throw an error to test Sentry
+                                         (throw (ex-info "Test Sentry Integration"
+                                                         {:request-id (random-uuid)
+                                                          :source "admin-test-route"
+                                                          :user-agent (get-in request [:headers "user-agent"])})))}]]
+
+                ;; Test route for Sentry - accessible without auth
+                ["/sentry-test" {:get (fn [request]
+                                      ;; Intentionally throw an error to test Sentry
+                                        (throw (ex-info "Public Sentry Test"
+                                                        {:request-id (random-uuid)
+                                                         :source "public-test-route"
+                                                         :timestamp (java.util.Date.)
+                                                         :user-agent (get-in request [:headers "user-agent"])})))}]
 
                 ;; unauthenticated
                 ["/api"
@@ -285,6 +300,14 @@
 
                 ;; authenticated
                 ["/api" {:middleware [auth/wrap-api-auth]}
+                 ["/sentry-test-auth" {:get (fn [request]
+                                           ;; Intentionally throw an error to test Sentry with authentication
+                                              (let [user-id (get-in request [:auth/user-id])]
+                                                (throw (ex-info "Authenticated Sentry Test"
+                                                                {:user-id user-id
+                                                                 :request-id (random-uuid)
+                                                                 :source "authenticated-test-route"
+                                                                 :timestamp (java.util.Date.)}))))}]
                  ["/me" {:get api.user/get-me}]
                  ["/user" {:get api.user/get-user}]
                  ["/user/push-token" {:post   api.user/add-push-token!}]
