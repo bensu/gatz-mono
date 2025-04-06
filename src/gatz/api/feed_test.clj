@@ -1,5 +1,6 @@
 (ns gatz.api.feed-test
   (:require [clojure.test :refer [deftest testing is]]
+            [clojure.data.json :as json]
             [com.biffweb :as biff]
             [crdt.core :as crdt]
             [gatz.crdt.discussion :as crdt.discussion]
@@ -515,8 +516,15 @@
         (let [ctx (get-ctx user-id)
               dismiss-resp (api.feed/dismiss! (assoc ctx :params {}))
               restore-resp (api.feed/restore! (assoc ctx :params {}))]
-          (is (= "invalid_params" (get-in dismiss-resp [:body :error])))
-          (is (= "invalid_params" (get-in restore-resp [:body :error])))))
+          ;; The error responses are JSON strings, not Clojure maps
+          (is (= 400 (:status dismiss-resp)))
+          (is (= 400 (:status restore-resp)))
+
+          ;; Parse the JSON body to check the error
+          (let [dismiss-body (json/read-str (:body dismiss-resp) :key-fn keyword)
+                restore-body (json/read-str (:body restore-resp) :key-fn keyword)]
+            (is (= "invalid_params" (:error dismiss-body)))
+            (is (= "invalid_params" (:error restore-body))))))
 
       ;; Cleanup
       (.close node))))
