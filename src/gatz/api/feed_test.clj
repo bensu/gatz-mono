@@ -3,6 +3,7 @@
             [com.biffweb :as biff]
             [crdt.core :as crdt]
             [gatz.crdt.discussion :as crdt.discussion]
+            [gatz.api.feed :as api.feed]
             [gatz.db :as db]
             [gatz.db.feed :as db.feed]
             [gatz.db.group :as db.group]
@@ -357,6 +358,167 @@
               (is (= 5 (count third-feed)))
               (is (= (take 20 (drop 40 (reverse all-dids))) third-feed))))))
 
+      (.close node))))
+
+(deftest feed-item-hide-and-restore-test
+  (testing "feed items can be hidden and restored properly"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (let [db (xtdb/db node)]
+                      (assoc ctx
+                             :biff/db db
+                             :auth/user-id uid
+                             :auth/user (db.user/by-id db uid)
+                             :auth/cid uid)))
+          now (Date.)
+          [user-id friend-id] (take 2 (repeatedly random-uuid))
+          feed-item-id (random-uuid)]
+
+      ;; Create users
+      (db.user/create-user! ctx
+                            {:id user-id
+                             :username "user"
+                             :phone "+14159499000"
+                             :now now})
+      (db.user/create-user! ctx
+                            {:id friend-id
+                             :username "friend"
+                             :phone "+14159499001"
+                             :now now})
+      (xtdb/sync node)
+
+      ;; Create feed item
+      (let [feed-item {:xt/id feed-item-id
+                       :db/type :gatz/feed_item
+                       :db/version 1
+                       :feed/created_at now
+                       :feed/updated_at now
+                       :feed/uids #{user-id}
+                       :feed/dismissed_by #{}
+                       :feed/hidden_for #{}
+                       :feed/feed_type :feed.type/new_request
+                       :feed/seen_at {}
+                       :feed/ref_type :gatz/contact_request
+                       :feed/ref friend-id
+                       :feed/contact friend-id}]
+        (biff/submit-tx ctx [[:xtdb.api/put (assoc feed-item :db/op :create)]]))
+      (xtdb/sync node)
+
+      (testing "feed item is initially visible"
+        (let [db (xtdb/db node)
+              user-feed (db.feed/for-user-with-ts db user-id)]
+          (is (= 1 (count user-feed)))
+          (is (= feed-item-id (:xt/id (first user-feed))))
+          (is (= #{} (:feed/dismissed_by (first user-feed))))
+          (is (= #{} (:feed/hidden_for (first user-feed))))))
+
+      (testing "feed item can be hidden (dismissed)"
+        (db.feed/dismiss! (get-ctx user-id) user-id feed-item-id)
+        (xtdb/sync node)
+
+        (let [db (xtdb/db node)
+              item (db.feed/by-id db feed-item-id)]
+          (is (= #{user-id} (:feed/dismissed_by item)))
+          (is (not= now (:feed/updated_at item))) ; updated_at should change
+
+          ;; Feed should still return the item since we're just getting all items
+          (let [user-feed (db.feed/for-user-with-ts db user-id)]
+            (is (= 1 (count user-feed)))
+            (is (= feed-item-id (:xt/id (first user-feed))))
+            (is (= #{user-id} (:feed/dismissed_by (first user-feed)))))))
+
+      (testing "feed item can be restored"
+        (db.feed/restore! (get-ctx user-id) user-id feed-item-id)
+        (xtdb/sync node)
+
+        (let [db (xtdb/db node)
+              item (db.feed/by-id db feed-item-id)]
+          (is (= #{} (:feed/dismissed_by item)))
+          (is (not= now (:feed/updated_at item))) ; updated_at should change again
+
+          (let [user-feed (db.feed/for-user-with-ts db user-id)]
+            (is (= 1 (count user-feed)))
+            (is (= feed-item-id (:xt/id (first user-feed))))
+            (is (= #{} (:feed/dismissed_by (first user-feed)))))))
+
+      ;; Cleanup
+      (.close node))))
+
+(deftest feed-api-dismiss-and-restore-test
+  (testing "API endpoints for feed item dismissal and restoration work properly"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid]
+                    (let [db (xtdb/db node)
+                          user (db.user/by-id db uid)]
+                      (assoc ctx
+                             :biff/db db
+                             :auth/user-id uid
+                             :auth/user user
+                             :auth/cid uid)))
+          now (Date.)
+          [user-id friend-id] (take 2 (repeatedly random-uuid))
+          feed-item-id (random-uuid)]
+
+      ;; Create users
+      (db.user/create-user! ctx
+                            {:id user-id
+                             :username "user"
+                             :phone "+14159499000"
+                             :now now})
+      (db.user/create-user! ctx
+                            {:id friend-id
+                             :username "friend"
+                             :phone "+14159499001"
+                             :now now})
+      (xtdb/sync node)
+
+      ;; Create feed item
+      (let [feed-item {:xt/id feed-item-id
+                       :db/type :gatz/feed_item
+                       :db/version 1
+                       :feed/created_at now
+                       :feed/updated_at now
+                       :feed/uids #{user-id}
+                       :feed/dismissed_by #{}
+                       :feed/hidden_for #{}
+                       :feed/feed_type :feed.type/new_request
+                       :feed/seen_at {}
+                       :feed/ref_type :gatz/contact_request
+                       :feed/ref friend-id
+                       :feed/contact friend-id}]
+        (biff/submit-tx ctx [[:xtdb.api/put (assoc feed-item :db/op :create)]]))
+      (xtdb/sync node)
+
+      (testing "dismiss API endpoint works properly"
+        (let [ctx (get-ctx user-id)
+              resp (api.feed/dismiss! (assoc ctx :params {:id (str feed-item-id)}))]
+          (is (= 200 (:status resp)))
+          (xtdb/sync node)
+
+          (let [db (xtdb/db node)
+                item (db.feed/by-id db feed-item-id)]
+            (is (= #{user-id} (:feed/dismissed_by item))))))
+
+      (testing "restore API endpoint works properly"
+        (let [ctx (get-ctx user-id)
+              resp (api.feed/restore! (assoc ctx :params {:id (str feed-item-id)}))]
+          (is (= 200 (:status resp)))
+          (xtdb/sync node)
+
+          (let [db (xtdb/db node)
+                item (db.feed/by-id db feed-item-id)]
+            (is (= #{} (:feed/dismissed_by item))))))
+
+      (testing "dismiss and restore API endpoints handle invalid parameters"
+        (let [ctx (get-ctx user-id)
+              dismiss-resp (api.feed/dismiss! (assoc ctx :params {}))
+              restore-resp (api.feed/restore! (assoc ctx :params {}))]
+          (is (= "invalid_params" (get-in dismiss-resp [:body :error])))
+          (is (= "invalid_params" (get-in restore-resp [:body :error])))))
+
+      ;; Cleanup
       (.close node))))
 
 (deftest location-feeds
