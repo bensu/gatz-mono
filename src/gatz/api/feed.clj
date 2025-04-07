@@ -349,14 +349,24 @@
 (defn dismiss! [{:keys [auth/user-id params] :as ctx}]
   (let [{:keys [id]} (parse-dismiss-params params)]
     (if id
-      (let [{:keys [item]} (db.feed/dismiss! ctx user-id id)]
+      (let [{:keys [item]} (db.feed/dismiss! ctx user-id id)
+            ;; When dismissing a feed item that points to a discussion, also archive that discussion
+            ref-type (:feed/ref_type item)
+            did (when (= ref-type :gatz/discussion) (:feed/ref item))]
+        (when did
+          (db.discussion/archive! ctx did user-id))
         (http/json-response {:item item}))
       (http/err-resp "invalid_params" "Invalid parameters"))))
 
 (defn restore! [{:keys [auth/user-id params] :as ctx}]
   (let [{:keys [id]} (parse-dismiss-params params)]
     (if id
-      (let [{:keys [item]} (db.feed/restore! ctx user-id id)]
+      (let [{:keys [item]} (db.feed/restore! ctx user-id id)
+            ;; When restoring a feed item that points to a discussion, also unarchive that discussion
+            ref-type (:feed/ref_type item)
+            did (when (= ref-type :gatz/discussion) (:feed/ref item))]
+        (when did
+          (db.discussion/unarchive! ctx did user-id))
         (http/json-response {:item item}))
       (http/err-resp "invalid_params" "Invalid parameters"))))
 

@@ -361,6 +361,7 @@
 
       (.close node))))
 
+
 (deftest feed-item-hide-and-restore-test
   (testing "feed items can be hidden and restored properly"
     (let [ctx (db.util-test/test-system)
@@ -374,9 +375,10 @@
                              :auth/cid uid)))
           now (Date.)
           [user-id friend-id] (take 2 (repeatedly random-uuid))
-          feed-item-id (random-uuid)]
+          feed-item-id (random-uuid)
+          discussion-id (random-uuid)]
 
-      ;; Create users
+       ;; Create users
       (db.user/create-user! ctx
                             {:id user-id
                              :username "user"
@@ -389,7 +391,20 @@
                              :now now})
       (xtdb/sync node)
 
-      ;; Create feed item
+      ;; Make users contacts of each other
+      (db.contacts/force-contacts! ctx user-id friend-id)
+      (xtdb/sync node)
+
+       ;; Create a discussion
+      (db/create-discussion-with-message!
+       (get-ctx user-id)
+       {:did discussion-id
+        :selected_users #{friend-id}
+        :text "Test discussion for archiving"
+        :now now})
+      (xtdb/sync node)
+
+       ;; Create feed item for the discussion
       (let [feed-item {:xt/id feed-item-id
                        :db/type :gatz/feed_item
                        :db/version 1
@@ -398,53 +413,54 @@
                        :feed/uids #{user-id}
                        :feed/dismissed_by #{}
                        :feed/hidden_for #{}
-                       :feed/feed_type :feed.type/new_request
+                       :feed/feed_type :feed.type/new_post
                        :feed/seen_at {}
-                       :feed/ref_type :gatz/contact_request
-                       :feed/ref friend-id
-                       :feed/contact friend-id}]
+                       :feed/ref_type :gatz/discussion
+                       :feed/ref discussion-id
+                       :feed/contact user-id}]
         (biff/submit-tx ctx [[:xtdb.api/put (assoc feed-item :db/op :create)]]))
       (xtdb/sync node)
 
-      (testing "feed item is initially visible"
+      (testing "discussion is initially not archived"
         (let [db (xtdb/db node)
-              user-feed (db.feed/for-user-with-ts db user-id)]
-          (is (= 1 (count user-feed)))
-          (is (= feed-item-id (:xt/id (first user-feed))))
-          (is (= #{} (:feed/dismissed_by (first user-feed))))
-          (is (= #{} (:feed/hidden_for (first user-feed))))))
+              discussion (crdt.discussion/->value (db.discussion/by-id db discussion-id))]
+          ;; Check that no users have archived this discussion
+          (is (not (contains? (:discussion/archived_uids discussion) user-id)))
+          (is (= #{} (:feed/dismissed_by (db.feed/by-id db feed-item-id))))))
 
-      (testing "feed item can be hidden (dismissed)"
-        (db.feed/dismiss! (get-ctx user-id) user-id feed-item-id)
-        (xtdb/sync node)
+      (testing "dismissing feed item also archives discussion"
+        (let [ctx (get-ctx user-id)
+              resp (api.feed/dismiss! (assoc ctx :params {:id (str feed-item-id)}))]
+          (is (= 200 (:status resp)))
+          (xtdb/sync node)
 
-        (let [db (xtdb/db node)
-              item (db.feed/by-id db feed-item-id)]
-          (is (= #{user-id} (:feed/dismissed_by item)))
-          (is (not= now (:feed/updated_at item))) ; updated_at should change
+          (let [db (xtdb/db node)
+                discussion (crdt.discussion/->value (db.discussion/by-id db discussion-id))
+                feed-item (db.feed/by-id db feed-item-id)]
+            (is (= #{user-id} (:feed/dismissed_by feed-item)))
+            ;; Check if the user has archived the discussion
+            (let [archived-set (:discussion/archived_uids discussion)]
+              (is (set? archived-set))
+              (is (contains? archived-set user-id))))))
 
-          ;; Feed should still return the item since we're just getting all items
-          (let [user-feed (db.feed/for-user-with-ts db user-id)]
-            (is (= 1 (count user-feed)))
-            (is (= feed-item-id (:xt/id (first user-feed))))
-            (is (= #{user-id} (:feed/dismissed_by (first user-feed)))))))
+      (testing "restoring feed item also unarchives discussion"
+        (let [ctx (get-ctx user-id)
+              resp (api.feed/restore! (assoc ctx :params {:id (str feed-item-id)}))]
+          (is (= 200 (:status resp)))
+          (xtdb/sync node)
 
-      (testing "feed item can be restored"
-        (db.feed/restore! (get-ctx user-id) user-id feed-item-id)
-        (xtdb/sync node)
+          (let [db (xtdb/db node)
+                discussion (crdt.discussion/->value (db.discussion/by-id db discussion-id))
+                feed-item (db.feed/by-id db feed-item-id)]
+            (is (= #{} (:feed/dismissed_by feed-item)))
+            ;; Check if the user has unarchived the discussion
+            (let [archived-uids (:discussion/archived_uids discussion)]
+              (is (set? archived-uids))
+              (is (not (contains? archived-uids user-id)))))))
 
-        (let [db (xtdb/db node)
-              item (db.feed/by-id db feed-item-id)]
-          (is (= #{} (:feed/dismissed_by item)))
-          (is (not= now (:feed/updated_at item))) ; updated_at should change again
-
-          (let [user-feed (db.feed/for-user-with-ts db user-id)]
-            (is (= 1 (count user-feed)))
-            (is (= feed-item-id (:xt/id (first user-feed))))
-            (is (= #{} (:feed/dismissed_by (first user-feed)))))))
-
-      ;; Cleanup
+       ;; Cleanup
       (.close node))))
+
 
 (deftest feed-api-dismiss-and-restore-test
   (testing "API endpoints for feed item dismissal and restoration work properly"
