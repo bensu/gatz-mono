@@ -247,10 +247,12 @@
                                     :group/members #{user-id}}}]
 
     ;; Send notification to the person who created the invite
-    (when-let [notification (notify/invite-accepted
+    (let [group (db.group/by-id db gid)]
+      (when-let [notification (notify/invite-accepted
                              (crdt.user/->value inviter)
-                             (crdt.user/->value user))]
-      (biff/submit-job ctx :notify/any {:notify/notifications [notification]}))
+                             (crdt.user/->value user)
+                             {:group group})]
+        (biff/submit-job ctx :notify/any {:notify/notifications [notification]})))
 
     (biff/submit-tx
      ctx

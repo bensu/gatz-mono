@@ -548,9 +548,9 @@
 
                   (let [notification (first (:notify/notifications job))
                         expected-title (format "%s accepted your invitation" "invitee")
-                        expected-body "You're now friends"
+                        expected-body "They've joined your group"
                         expected-data {:scope :notify/invite_accepted
-                                       :url (format "/contact/%s" invitee-id)}]
+                                       :url (format "/group/%s" gid)}]
                     (is (= (:expo/uid notification) inviter-id) "Notification should be sent to inviter")
                     (is (= "test-inviter-push-token" (:expo/to notification)) "Notification should have the correct push token")
                     (is (= expected-title (:expo/title notification)) "Notification should have the correct title")
