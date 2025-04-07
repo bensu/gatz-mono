@@ -355,7 +355,9 @@
             did (when (= ref-type :gatz/discussion) (:feed/ref item))]
         (when did
           (db.discussion/archive! ctx did user-id))
-        (http/json-response {:item item}))
+        ;; Hydrate the item before returning it
+        (let [hydrated-item (hydrate-item ctx item)]
+          (http/json-response {:item hydrated-item})))
       (http/err-resp "invalid_params" "Invalid parameters"))))
 
 (defn restore! [{:keys [auth/user-id params] :as ctx}]
@@ -367,7 +369,9 @@
             did (when (= ref-type :gatz/discussion) (:feed/ref item))]
         (when did
           (db.discussion/unarchive! ctx did user-id))
-        (http/json-response {:item item}))
+        ;; Hydrate the item before returning it
+        (let [hydrated-item (hydrate-item ctx item)]
+          (http/json-response {:item hydrated-item})))
       (http/err-resp "invalid_params" "Invalid parameters"))))
 
 (defn mark-many-seen! [{:keys [auth/user-id params] :as ctx}]
