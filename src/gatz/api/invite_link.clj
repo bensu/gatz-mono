@@ -11,6 +11,7 @@
             [gatz.db.invite-link :as db.invite-link]
             [gatz.db.user :as db.user]
             [gatz.crdt.user :as crdt.user]
+            [gatz.notify :as notify]
             [gatz.schema :as schema]
             [sdk.posthog :as posthog]
             [xtdb.api :as xtdb])
@@ -224,14 +225,17 @@
     (some? (:id params)) (update :id crdt/parse-ulid)))
 
 (defn invite-to-group!
-  [{:keys [auth/user-id] :as ctx} invite-link]
+  [{:keys [auth/user-id biff.xtdb/node] :as ctx} invite-link]
 
   (assert user-id)
   (assert (= :invite_link/group (:invite_link/type invite-link)))
   (assert (:invite_link/group_id invite-link))
 
-  (let [invited-by-uid (:invite_link/created_by invite-link)
+  (let [db (xtdb/db node)
+        invited-by-uid (:invite_link/created_by invite-link)
         now (Date.)
+        user (db.user/by-id db user-id)
+        inviter (db.user/by-id db invited-by-uid)
         invite-link-args {:id (:xt/id invite-link)
                           :user-id user-id
                           :now now}
@@ -241,6 +245,13 @@
                       :group/action :group/add-member
                       :group/delta {:group/updated_at now
                                     :group/members #{user-id}}}]
+
+    ;; Send notification to the person who created the invite
+    (when-let [notification (notify/invite-accepted
+                             (crdt.user/->value inviter)
+                             (crdt.user/->value user))]
+      (biff/submit-job ctx :notify/any {:notify/notifications [notification]}))
+
     (biff/submit-tx
      ctx
      [[:xtdb.api/fn :gatz.db.group/add-to-group-and-discussions {:action group-action}]
@@ -286,6 +297,8 @@
          by-uid (:invite_link/created_by invite-link)
          now (Date.)
          cid (:invite_link/contact_id invite-link)
+         user (db.user/by-id db user-id)
+         inviter (db.user/by-id db by-uid)
          contact-args {:by-uid cid
                        :to-uid user-id
                        :accepted_invite_feed_item_id (db.feed/new-feed-item-id)
@@ -302,6 +315,13 @@
                 make-friends-with-contacts?
                 (concat (make-friends-with-my-contacts-txn db cid user-id now)))]
      (assert (= by-uid cid))
+
+     ;; Send notification to the person who created the invite
+     (when-let [notification (gatz.notify/invite-accepted
+                              (crdt.user/->value inviter)
+                              (crdt.user/->value user))]
+       (biff/submit-job ctx :notify/any {:notify/notifications [notification]}))
+
      (biff/submit-tx ctx (vec txns)))))
 
 (defn invite-to-crew!
@@ -321,6 +341,8 @@
    (let [db (xtdb/db node)
          by-uid (:invite_link/created_by invite-link)
          now (Date.)
+         user (db.user/by-id db user-id)
+         inviter (db.user/by-id db by-uid)
 
          ;; in case the user has already been added to the crew
          crew-members (-> (:invite_link/used_by invite-link)
@@ -347,6 +369,12 @@
          txns [[:xtdb.api/fn :gatz.db.contacts/invite-contact {:args contact-args}]
                [:xtdb.api/fn :gatz.db.invite-links/mark-used {:args invite-link-args}]
                [:xtdb.api/fn :gatz.db.feed/new-user-item feed-item-args]]]
+
+     ;; Send notification to the person who created the invite
+     (when-let [notification (gatz.notify/invite-accepted
+                              (crdt.user/->value inviter)
+                              (crdt.user/->value user))]
+       (biff/submit-job ctx :notify/any {:notify/notifications [notification]}))
 
      (biff/submit-tx ctx (vec txns)))))
 

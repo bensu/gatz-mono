@@ -3,8 +3,10 @@
             [clojure.set :as set]
             [clojure.test :as t :refer [deftest testing is]]
             [crdt.core :as crdt]
+            [com.biffweb :as biff]
             [gatz.api.invite-link :as api.invite-link]
             [gatz.crdt.discussion :as crdt.discussion]
+            [gatz.crdt.user :as crdt.user]
             [gatz.db.discussion :as db.discussion]
             [gatz.db :as db]
             [gatz.db.invite-link :as db.invite-link]
@@ -395,6 +397,191 @@
           (is (= (str (:xt/id existing-invite)) (:id link-data)))))
 
       (.close node))))
+
+(deftest invite-notification-test
+  (testing "sending notification when invite is accepted"
+    (flags/with-flags {:flags/global_invites_enabled true
+                       :flags/only_users_with_friends_can_invite false}
+      (let [[inviter-id invitee-id] (take 2 (repeatedly random-uuid))
+            gid (crdt/random-ulid)
+            now (Date.)
+            ctx (db.util-test/test-system)
+            node (:biff.xtdb/node ctx)
+            submit-job-calls (atom [])
+            get-ctx (fn [uid]
+                      (-> ctx
+                          (assoc :biff/db (xtdb/db node))
+                          (assoc :auth/user-id uid)))
+            create-crew-invite (fn []
+                                 (api.invite-link/post-crew-invite-link (get-ctx inviter-id)))
+            create-contact-invite (fn []
+                                    (api.invite-link/post-contact-invite-link (get-ctx inviter-id)))
+            create-group-invite (fn []
+                                  (api.invite-link/post-group-invite-link
+                                   (assoc (get-ctx inviter-id)
+                                          :params (db.util-test/json-params {:group_id gid}))))
+            accept-invite-link (fn [id]
+                                 (api.invite-link/post-join-invite-link
+                                  (assoc (get-ctx invitee-id)
+                                         :params (db.util-test/json-params {:id id}))))]
+
+        ;; Create test users
+        (db.user/create-user!
+         ctx {:id inviter-id :username "inviter" :phone "+14159499000" :now now})
+        (db.user/create-user!
+         ctx {:id invitee-id :username "invitee" :phone "+14159499001" :now now})
+
+        ;; Configure push tokens and notification settings for the inviter
+        (db.user/add-push-token!
+         (get-ctx inviter-id)
+         {:push-token {:push/expo {:push/service :push/expo
+                                   :push/token "test-inviter-push-token"
+                                   :push/created_at now}}})
+
+        ;; Enable notifications for the inviter
+        (db.user/edit-notifications!
+         (get-ctx inviter-id)
+         {:settings.notification/overall true
+          :settings.notification/friend_accepted true})
+
+        ;; Create a group
+        (db.group/create! ctx
+                          {:id gid
+                           :owner inviter-id
+                           :now now
+                           :settings {:discussion/member_mode :discussion.member_mode/open}
+                           :name "test"
+                           :members #{}})
+
+        (xtdb/sync node)
+
+        ;; Test for crew invite
+        (testing "notification is sent for crew invite"
+          (with-redefs [biff/submit-job (fn [ctx queue-id job]
+                                          (swap! submit-job-calls conj [queue-id job]))]
+            ;; Create invite
+            (let [create-resp (create-crew-invite)
+                  {:keys [id]} (parse-resp create-resp)]
+              (is (= 200 (:status create-resp)))
+
+              ;; Reset call tracking
+              (reset! submit-job-calls [])
+
+              ;; Accept invite
+              (let [accept-resp (accept-invite-link id)]
+                (is (= 200 (:status accept-resp)))
+
+                ;; Check that notification was sent
+                (is (= 1 (count @submit-job-calls)) "Expected one notification to be sent")
+
+                (let [[queue-id job] (first @submit-job-calls)]
+                  (is (= :notify/any queue-id) "Notification should be sent to notify/any queue")
+                  (is (= 1 (count (:notify/notifications job))) "Should have one notification")
+
+                  (let [notification (first (:notify/notifications job))
+                        expected-title (format "%s accepted your invitation" "invitee")
+                        expected-body "You're now friends"
+                        expected-data {:scope :notify/invite_accepted
+                                       :url (format "/contact/%s" invitee-id)}]
+                    (is (= (:expo/uid notification) inviter-id) "Notification should be sent to inviter")
+                    (is (= "test-inviter-push-token" (:expo/to notification)) "Notification should have the correct push token")
+                    (is (= expected-title (:expo/title notification)) "Notification should have the correct title")
+                    (is (= expected-body (:expo/body notification)) "Notification should have the correct body")
+                    (is (= expected-data (:expo/data notification)) "Notification should have the correct data")))))))
+
+        ;; Test for contact invite
+        (testing "notification is sent for contact invite"
+          (with-redefs [biff/submit-job (fn [ctx queue-id job]
+                                          (swap! submit-job-calls conj [queue-id job]))]
+            ;; Create invite
+            (let [create-resp (create-contact-invite)
+                  {:keys [id]} (parse-resp create-resp)]
+              (is (= 200 (:status create-resp)))
+
+              ;; Reset call tracking
+              (reset! submit-job-calls [])
+
+              ;; Accept invite
+              (let [accept-resp (accept-invite-link id)]
+                (is (= 200 (:status accept-resp)))
+
+                ;; Check that notification was sent
+                (is (= 1 (count @submit-job-calls)) "Expected one notification to be sent")
+
+                (let [[queue-id job] (first @submit-job-calls)]
+                  (is (= :notify/any queue-id) "Notification should be sent to notify/any queue")
+                  (is (= 1 (count (:notify/notifications job))) "Should have one notification")
+
+                  (let [notification (first (:notify/notifications job))
+                        expected-title (format "%s accepted your invitation" "invitee")
+                        expected-body "You're now friends"
+                        expected-data {:scope :notify/invite_accepted
+                                       :url (format "/contact/%s" invitee-id)}]
+                    (is (= (:expo/uid notification) inviter-id) "Notification should be sent to inviter")
+                    (is (= "test-inviter-push-token" (:expo/to notification)) "Notification should have the correct push token")
+                    (is (= expected-title (:expo/title notification)) "Notification should have the correct title")
+                    (is (= expected-body (:expo/body notification)) "Notification should have the correct body")
+                    (is (= expected-data (:expo/data notification)) "Notification should have the correct data")))))))
+
+        ;; Test for group invite
+        (testing "notification is sent for group invite"
+          (with-redefs [biff/submit-job (fn [ctx queue-id job]
+                                          (swap! submit-job-calls conj [queue-id job]))]
+            ;; Create invite
+            (let [create-resp (create-group-invite)
+                  {:keys [id]} (parse-resp create-resp)]
+              (is (= 200 (:status create-resp)))
+
+              ;; Reset call tracking
+              (reset! submit-job-calls [])
+
+              ;; Accept invite
+              (let [accept-resp (accept-invite-link id)]
+                (is (= 200 (:status accept-resp)))
+
+                ;; Check that notification was sent
+                (is (= 1 (count @submit-job-calls)) "Expected one notification to be sent")
+
+                (let [[queue-id job] (first @submit-job-calls)]
+                  (is (= :notify/any queue-id) "Notification should be sent to notify/any queue")
+                  (is (= 1 (count (:notify/notifications job))) "Should have one notification")
+
+                  (let [notification (first (:notify/notifications job))
+                        expected-title (format "%s accepted your invitation" "invitee")
+                        expected-body "You're now friends"
+                        expected-data {:scope :notify/invite_accepted
+                                       :url (format "/contact/%s" invitee-id)}]
+                    (is (= (:expo/uid notification) inviter-id) "Notification should be sent to inviter")
+                    (is (= "test-inviter-push-token" (:expo/to notification)) "Notification should have the correct push token")
+                    (is (= expected-title (:expo/title notification)) "Notification should have the correct title")
+                    (is (= expected-body (:expo/body notification)) "Notification should have the correct body")
+                    (is (= expected-data (:expo/data notification)) "Notification should have the correct data")))))))
+
+        ;; Test notification settings affect delivery
+        (testing "notification is not sent when settings are disabled"
+          ;; Disable notifications
+          (db.user/edit-notifications!
+           (get-ctx inviter-id)
+           {:settings.notification/overall false})
+
+          (xtdb/sync node)
+
+          (with-redefs [biff/submit-job (fn [ctx queue-id job]
+                                          (swap! submit-job-calls conj [queue-id job]))]
+            ;; Create new invite
+            (let [create-resp (create-crew-invite)
+                  {:keys [id]} (parse-resp create-resp)]
+
+              ;; Reset call tracking
+              (reset! submit-job-calls [])
+
+              ;; Accept invite
+              (accept-invite-link id)
+
+              ;; Check that no notification was sent because settings are disabled
+              (is (empty? @submit-job-calls) "No notification should be sent when settings are disabled"))))
+
+        (.close node)))))
 
 (deftest feed-visibility-rules
   (testing "feed visibility rules when becoming friends"

@@ -349,6 +349,20 @@
            :expo/data {:scope :notify/friend_accepted
                        :url (format "/contact/%s" (:xt/id new-friend))}})))))
 
+(defn invite-accepted [inviter new-friend]
+  (let [title (format "%s accepted your invitation" (:user/name new-friend))
+        body "You're now friends"]
+    (when-let [token (->token inviter)]
+      (let [{:settings.notification/keys [overall friend_accepted]}
+            (get-in inviter [:user/settings :settings/notifications])]
+        (when (and overall friend_accepted)
+          {:expo/to token
+           :expo/uid (:xt/id inviter)
+           :expo/title title
+           :expo/body body
+           :expo/data {:scope :notify/invite_accepted
+                       :url (format "/contact/%s" (:xt/id new-friend))}})))))
+
 (def notify-any-job-schema
   [:map
    [:notify/notifications [:vec Notification]]])
