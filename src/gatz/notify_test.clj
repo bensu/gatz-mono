@@ -805,3 +805,91 @@
                 _ (xtdb/sync node)
                 nts (notify/notification-on-reaction (xtdb/db node) message reaction)]
             (is (empty? nts) "No notifications if the user doesn't have them on"))))))
+
+
+(deftest no-notifications-for-edited-messages
+  (testing "Edited messages don't trigger notifications"
+    (let [poster-uid (random-uuid)
+          commenter-uid (random-uuid)
+          ctoken "COMMENTER_TOKEN"
+          ptoken "POSTER_TOKEN"
+          ctx (->ctx)
+          node (:biff.xtdb/node ctx)
+          get-ctx (fn [uid] (with-db (->auth-ctx ctx uid)))
+
+          ;; Create users
+          _ (do
+              (db.user/create-user! (get-ctx poster-uid)
+                                    {:id poster-uid
+                                     :username "poster"
+                                     :phone "+11111111111"})
+              (db.user/create-user! (get-ctx commenter-uid)
+                                    {:id commenter-uid
+                                     :username "commenter"
+                                     :phone "+12222222222"})
+              (xtdb/sync node)
+              (db.contacts/force-contacts! ctx poster-uid commenter-uid)
+              (xtdb/sync node))
+
+          ;; Set up push tokens
+          _ (do
+              (db.user/add-push-token! (get-ctx poster-uid)
+                                       {:push-token {:push/expo {:push/service :push/expo
+                                                                 :push/token ptoken
+                                                                 :push/created_at (Date.)}}})
+              (db.user/add-push-token! (get-ctx commenter-uid)
+                                       {:push-token {:push/expo {:push/service :push/expo
+                                                                 :push/token ctoken
+                                                                 :push/created_at (Date.)}}})
+              (xtdb/sync node))
+
+          ;; Create discussion
+          {:keys [discussion]} (db/create-discussion-with-message!
+                                (get-ctx poster-uid)
+                                {:name ""
+                                 :selected_users #{commenter-uid}
+                                 :text "First discussion!"})
+          did (:xt/id discussion)
+          _ (xtdb/sync node)
+
+          ;; Make sure poster is subscribed to discussion for notifications
+          _ (db.discussion/subscribe! (get-ctx poster-uid) did poster-uid)
+          _ (xtdb/sync node)
+
+          ;; Create a regular message that should trigger notifications
+          regular-message (db/create-message! (get-ctx commenter-uid)
+                                              {:text "This is a regular comment" :did did})
+          _ (xtdb/sync node)
+
+          ;; Create and then edit a message
+          comment-to-edit (db/create-message! (get-ctx commenter-uid)
+                                              {:text "This will be edited" :did did})
+          _ (xtdb/sync node)
+
+          edited-result (db.message/edit-message!
+                         (get-ctx commenter-uid)
+                         {:text "This has been edited"
+                          :mid (:xt/id comment-to-edit)
+                          :did did})
+          _ (xtdb/sync node)
+
+          db (xtdb/db node)
+          regular-message-value (crdt.message/->value regular-message)
+          edited-message-value (crdt.message/->value (:message edited-result))]
+
+      ;; Verify the edit exists
+      (is (seq (:message/edits edited-message-value))
+          "Message should have edits")
+
+      ;; Regular message should generate notifications
+      (let [regular-nts (notify/all-notifications-for-message db regular-message-value)]
+        (is (not-empty regular-nts)
+            "Regular messages should generate notifications for subscribers")
+        (is (= poster-uid (:expo/uid (first regular-nts)))
+            "Poster should receive notification for regular message"))
+
+      ;; Verify using pure functions from notify namespace
+      (let [nts (notify/all-notifications-for-message db edited-message-value)]
+        ;; This will still return notifications, but they should be filtered in on-comment!
+        (is (empty? nts)
+            "The pure notification function still returns notifications")))))

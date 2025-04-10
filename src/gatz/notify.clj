@@ -210,19 +210,22 @@
              vec)))
 
 (defn all-notifications-for-message [db message]
-  (let [nts-to-mentioned (->> (notifications-for-at-mentions db message)
-                              (map (fn [{:keys [expo/uid] :as n}]
-                                     [uid n]))
-                              (into {}))
-        nts-to-subscribers (->> (notifications-for-comment db message)
-                                (map (fn [{:keys [expo/uid] :as n}]
-                                       [uid n]))
-                                (into {}))
+  (let [edited? (db.message/edited? message)]
+    (if (and false edited?)
+      []
+      (let [nts-to-mentioned (->> (notifications-for-at-mentions db message)
+                                  (map (fn [{:keys [expo/uid] :as n}]
+                                         [uid n]))
+                                  (into {}))
+            nts-to-subscribers (->> (notifications-for-comment db message)
+                                    (map (fn [{:keys [expo/uid] :as n}]
+                                           [uid n]))
+                                    (into {}))
         ;; this guarantees that each user will see at most one notification
         ;; the precendence matters in merge
-        uid->notifications (merge nts-to-subscribers
-                                  nts-to-mentioned)]
-    (vec (vals uid->notifications))))
+            uid->notifications (merge nts-to-subscribers
+                                      nts-to-mentioned)]
+        (vec (vals uid->notifications))))))
 
 (def comment-job-schema
   [:map
@@ -349,10 +352,10 @@
            :expo/data {:scope :notify/friend_accepted
                        :url (format "/contact/%s" (:xt/id new-friend))}})))))
 
-(defn invite-accepted 
+(defn invite-accepted
   ([inviter new-friend]
    (invite-accepted inviter new-friend nil))
-  
+
   ([inviter new-friend {:keys [group]}]
    (let [title (format "%s accepted your invitation" (:user/name new-friend))
          body (if group

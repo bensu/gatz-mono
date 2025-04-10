@@ -22,6 +22,9 @@
            (map second))
       []))
 
+(defn edited? [message]
+  (< 1 (count (:message/edits message))))
+
 ;; ========================================================================
 ;; DB & migrations
 
