@@ -369,9 +369,6 @@
 
       (testing "The discussions we think are open, are open"
 
-        (def -db db)
-        (def -now now)
-        (def -inviter inviter)
         (is (= #{inviter-did1 inviter-did2 inviter-did3}
                (db.discussion/open-for-friend db #{inviter} {:now now})))
         (is (= #{invitee1-did1 invitee1-did2}

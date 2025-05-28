@@ -1150,3 +1150,46 @@
 
   (doseq [user -test-users]
     (sdk.posthog/identify! -ctx (assoc user :user/is_test true))))
+
+;; ======================================================================
+;; Fix invite for Anjan and Mwiya
+
+(comment
+
+  ;; do I have the respective users?
+
+  "a12k"
+  (def -anjan-id #uuid "799005c3-0f87-44a7-ab84-43ed33e5f970")
+
+  (def -anjan-invite-id "BNLADL")
+
+  (def -anjan-invite (db.invite-link/by-code -db -anjan-invite-id))
+
+  (do
+    (def -ctx @gatz.system/system)
+
+    (def -db (xtdb.api/db (:biff.xtdb/node -ctx)))
+
+    (def -all-users (all-users -db))
+
+    (map :user/name
+         (take 10 (reverse (sort-by :user/created_at -all-users)))))
+
+  (do
+    (def -db (xtdb.api/db (:biff.xtdb/node -ctx)))
+    (def -anjan (gatz.db.user/by-name -db "a12k"))
+    (def -anjan-invite-id "BNLADL")
+    (def -anjan-invite (db.invite-link/by-code -db -anjan-invite-id))
+    (let [anjan-ctx (assoc -ctx :auth/user -anjan :auth/user-id (:xt/id -anjan))]
+      (gatz.api.invite-link/invite-to-contact! anjan-ctx -anjan-invite)))
+
+  (do
+    (def -db (xtdb.api/db (:biff.xtdb/node -ctx)))
+    (def -mwiya (gatz.db.user/by-name -db "mwiya"))
+    (def -mwiya-invite-id "UTFMVD")
+    (def -mwiya-invite (db.invite-link/by-code -db -mwiya-invite-id))
+    (let [mwiya-ctx (assoc -ctx :auth/user -mwiya :auth/user-id (:xt/id -mwiya))]
+      (gatz.api.invite-link/invite-to-contact! mwiya-ctx -mwiya-invite)))
+
+  )
+

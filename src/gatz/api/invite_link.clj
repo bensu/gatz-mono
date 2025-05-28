@@ -275,8 +275,9 @@
 
 (def test-special-contact #uuid "64a719fa-4963-42e2-bc7e-0cb7beb8844c")
 
-(def prod-uids
-  {"sebas" #uuid "06942e79-cda8-4f55-8bd0-50ce61ebfb60"})
+
+#_{"sebas" #uuid "06942e79-cda8-4f55-8bd0-50ce61ebfb60"}
+(def prod-uids {})
 
 (def invite-all-users
   (set/union #{test-special-contact} (set (vals prod-uids))))
