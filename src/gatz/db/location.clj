@@ -26,7 +26,8 @@
     (with-open [writer (io/writer (io/file "resources/location/selected_metros.json"))]
       (json/write (zipmap (map first selected-metros)
                           (map second selected-metros))
-                  writer))))
+                  writer
+                  {:indent 2}))))
 
 ;; ====================================================================================
 ;; Create db with the UNLOCODE data
