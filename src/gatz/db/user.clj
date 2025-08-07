@@ -575,6 +575,38 @@
                  :gatz.crdt.user/delta delta}]
      (apply-action! ctx action))))
 
+;; ======================================================================
+;; Google Sign-In Functions
+
+(defn create-google-user!
+  "Create a new user with Google Sign-In authentication"
+  [ctx {:keys [google-id email full-name]}]
+  {:pre [(string? google-id) (not (empty? google-id))]}
+  (let [username (str "google" (subs (str/replace google-id #"[^a-zA-Z0-9]" "") 0 6)) ; Generate valid username
+        phone "+1000000001" ; Placeholder phone for Google users (different from Apple)
+        auth {:google_id google-id
+              :email email
+              :method "google"}]
+    (create-user! ctx {:username username
+                       :phone phone
+                       :auth auth})))
+
+(defn link-google-id!
+  "Link Google ID to an existing user account"
+  ([ctx params]
+   (link-google-id! ctx params {:now (Date.)}))
+  ([{:keys [auth/user-id] :as ctx} {:keys [google-id email]} {:keys [now]}]
+   {:pre [(uuid? user-id) (string? google-id) (not (empty? google-id))]}
+   (let [clock (crdt/new-hlc user-id now)
+         auth-fields (cond-> {:auth/google_id (crdt/lww clock google-id)}
+                       email (assoc :auth/email (crdt/lww clock email)))
+         delta {:crdt/clock clock
+                :user/updated_at (crdt/max-wins now)
+                :user/auth auth-fields}
+         action {:gatz.crdt.user/action :gatz.crdt.user/link-google-id
+                 :gatz.crdt.user/delta delta}]
+     (apply-action! ctx action))))
+
 (def tx-fns
   {:gatz.db.user/apply-delta user-apply-delta-expr
    :gatz.db.user/block-user block-user-expr

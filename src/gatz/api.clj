@@ -291,6 +291,7 @@
                  ["/signin" {:post api.user/sign-in!}]
                  ["/signup" {:post api.user/sign-up!}]
                  ["/auth/apple" {:post api.user/apple-sign-in!}]
+                 ["/auth/google" {:post api.user/google-sign-in!}]
 
                  ["/ddl/pending" {:post ddl.api/post-pending-links}]
                  ["/ddl/remove" {:post ddl.api/remove-pending-link!}]
@@ -322,6 +323,7 @@
                  ["/user/settings/profile" {:post api.user/update-profile!}]
                  ["/user/location" {:post api.user/mark-location!}]
                  ["/auth/link-apple" {:post api.user/link-apple!}]
+                 ["/auth/link-google" {:post api.user/link-google!}]
 
                  ["/me/crdt" {:get api.user/get-me-crdt
                               :post api.user/post-me-crdt}]
