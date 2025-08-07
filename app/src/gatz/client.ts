@@ -164,6 +164,42 @@ export class OpenClient {
     }
   }
 
+  async appleSignIn(
+    id_token: string,
+    client_id: string = "chat.gatz"
+  ): Promise<T.AppleSignInAPIResponse> {
+    try {
+      return await this.post<
+        { id_token: string; client_id: string },
+        T.AppleSignInAPIResponse
+      >(this.baseURL + "/api/auth/apple", { id_token, client_id });
+    } catch (error) {
+      if (error.response && error.response.status === 400) {
+        return error.response.data;
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  async googleSignIn(
+    id_token: string,
+    client_id: string
+  ): Promise<T.GoogleSignInAPIResponse> {
+    try {
+      return await this.post<
+        { id_token: string; client_id: string },
+        T.GoogleSignInAPIResponse
+      >(this.baseURL + "/api/auth/google", { id_token, client_id });
+    } catch (error) {
+      if (error.response && error.response.status === 400) {
+        return error.response.data;
+      } else {
+        throw error;
+      }
+    }
+  }
+
   // ======================================================================
   // Dulce Deep Links
 

@@ -461,6 +461,27 @@ export type SignInAPIResponse = APIResponse &
     | { type: "error"; error: SignInError }
   );
 
+export type SocialSignInError = 
+  | "invalid_token" 
+  | "token_expired" 
+  | "signup_disabled"
+  | "google_id_taken"
+  | "apple_id_taken";
+
+export type AppleSignInAPIResponse = APIResponse &
+  (
+    | { type: "sign_up"; user: User; token: string }
+    | { type: "sign_in"; user: User; token: string }
+    | { type: "error"; error: SocialSignInError; message?: string }
+  );
+
+export type GoogleSignInAPIResponse = APIResponse &
+  (
+    | { type: "sign_up"; user: User; token: string }
+    | { type: "sign_in"; user: User; token: string }
+    | { type: "error"; error: SocialSignInError; message?: string }
+  );
+
 export type UserAPIResponse = APIResponse & {
   user: User;
 };

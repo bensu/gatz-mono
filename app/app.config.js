@@ -20,6 +20,7 @@ export default {
       supportsTablet: false,
       bundleIdentifier: "chat.gatz",
       associatedDomains: ["applinks:gatz.chat"],
+      usesAppleSignIn: true,
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         UIStatusBarStyle: "UIStatusBarStyleAutomatic", // Ensures it adapts to theme

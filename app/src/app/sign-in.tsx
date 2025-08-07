@@ -31,6 +31,8 @@ import { SessionContext } from "../context/SessionProvider";
 
 import { Logo, Tagline } from "../components/logo";
 import { NetworkButton, NetworkState } from "../components/NetworkButton";
+import { SocialSignInButtons } from "../components/SocialSignInButtons";
+import { SocialSignInCredential } from "../gatz/auth";
 import { assertNever } from "../util";
 import { MobileScreenWrapper } from "../components/MobileScreenWrapper";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -394,6 +396,46 @@ export default function SignIn() {
 
   const phoneInputRef = useRef<PhoneInput>(null);
 
+  const [isSocialSignInLoading, setIsSocialSignInLoading] = useState(false);
+
+  const handleSocialSignIn = useCallback(
+    async (credential: SocialSignInCredential) => {
+      setIsSocialSignInLoading(true);
+      try {
+        let response: T.AppleSignInAPIResponse | T.GoogleSignInAPIResponse;
+        
+        if (credential.type === 'apple') {
+          response = await openClient.appleSignIn(credential.identityToken);
+        } else {
+          // For Google, we need the web client ID from environment
+          const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
+          response = await openClient.googleSignIn(credential.idToken, webClientId);
+        }
+
+        if (response.type === 'error') {
+          throw new Error(response.message || 'Authentication failed');
+        }
+
+        const { user, token } = response;
+        const { is_admin = false, is_test = false } = user;
+        
+        setTimeout(
+          () => signIn({ userId: user.id, token, is_admin, is_test }),
+          FLASH_SUCCESS_TIMEOUT,
+        );
+      } catch (error) {
+        console.error('Social sign-in error:', error);
+        Alert.alert(
+          'Sign-in Failed',
+          error.message || 'Unable to sign in. Please try again.',
+        );
+      } finally {
+        setIsSocialSignInLoading(false);
+      }
+    },
+    [openClient, signIn],
+  );
+
   const renderInputSection = () => {
     switch (step) {
       case "enter_phone": {
@@ -420,6 +462,15 @@ export default function SignIn() {
                   isDisabled={phone.length === 0}
                 />
               </View>
+              
+              <View style={styles.socialSignInSection}>
+                <Text style={styles.dividerText}>or</Text>
+                <SocialSignInButtons
+                  onSignIn={handleSocialSignIn}
+                  isLoading={isPhoneLoading || isSocialSignInLoading}
+                />
+              </View>
+              
               {!isPhoneLoading && phoneError && (
                 <Text style={styles.message}>
                   Uknown error. Please try again later.
@@ -616,4 +667,15 @@ export const styles = StyleSheet.create({
     textDecorationLine: "underline",
   },
   innerText: { marginLeft: 8, display: "flex", flexDirection: "column" },
+  socialSignInSection: {
+    marginTop: 32,
+    width: '100%',
+  },
+  dividerText: {
+    textAlign: 'center',
+    color: GatzColor.introTitle,
+    fontSize: 16,
+    fontFamily: GatzStyles.tagline.fontFamily,
+    marginBottom: 16,
+  },
 });
