@@ -150,7 +150,8 @@
       ;; Find the appropriate key
       (if-let [jwk (find-apple-key kid)]
         (let [public-key (jwk->rsa-public-key jwk)
-              claims (jws/unsign id-token public-key {:alg :rs256})]
+              claims-bytes (jws/unsign id-token public-key {:alg :rs256})
+              claims (json/read-str (String. claims-bytes) :key-fn keyword)]
           
           ;; Validate required claims
           (let [iss (:iss claims)
@@ -161,7 +162,7 @@
             
             ;; Validate issuer
             (when-not (= iss "https://appleid.apple.com")
-              (throw (ex-info "Invalid issuer" {:issuer iss})))
+              (throw (ex-info "Invalid issuer" {:issuer iss :expected "https://appleid.apple.com"})))
             
             ;; Validate audience
             (when-not (= aud audience)
