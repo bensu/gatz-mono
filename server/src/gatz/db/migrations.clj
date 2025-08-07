@@ -1,0 +1,1195 @@
+(ns gatz.db.migrations
+  (:require [clojure.set :as set]
+            [clojure.string :as str]
+            [clojure.pprint :as pp]
+            [clojure.data.json :as json]
+            [clojure.java.io :as io]
+            [clojure.tools.logging :as log]
+            [clojure.data.csv :as csv]
+            [crdt.core :as crdt]
+            [crdt.ulid :as ulid]
+            [gatz.api.invite-link :as api.invite-link]
+            [gatz.db :refer :all]
+            [gatz.db.contacts :as db.contacts]
+            [gatz.db.discussion :as db.discussion]
+            [gatz.db.feed :as db.feed]
+            [gatz.db.group :as db.group]
+            [gatz.db.message :as db.message]
+            [gatz.db.invite-link :as db.invite-link]
+            [gatz.db.user :as db.user]
+            [gatz.crdt.discussion :as crdt.discussion]
+            [gatz.crdt.user :as crdt.user]
+            [gatz.schema :as schema]
+            [gatz.system :as gatz.system]
+            [malli.core :as malli]
+            [com.biffweb :as biff :refer [q]]
+            [sdk.posthog :as posthog]
+            [sdk.twilio :as twilio]
+            [xtdb.api :as xtdb])
+  (:import [java.util Date]))
+
+(def good-users
+  {"sbensu"  "+12222222222"
+   "bensu" "+10000000000"
+   "sebas" "+14159499932"
+   "devon" "+16509067099"
+   "test" "+11111111111"})
+
+(defn get-env [k]
+  {:post [(string? %)]}
+  (System/getenv k))
+
+(defn get-node []
+  (biff/use-xt {:biff.xtdb/topology :standalone
+                :biff.xtdb.jdbc/jdbcUrl (get-env "DATABASE_URL")}))
+
+(defn get-all-users [db]
+  (q db
+     '{:find (pull u [*])
+       :where [[u :db/type :gatz/user]]}))
+
+(defn delete-bad-users! [ctx]
+  (let [node (:biff.xtdb/node ctx)
+        db (xtdb/db node)
+        all-users (get-all-users db)
+        txns (->> all-users
+                  (remove (fn [user]
+                            (contains? good-users (:user/name user))))
+                  (map :xt/id)
+                  (mapv (fn [uid]
+                          [::xtdb/delete uid])))]
+    (xtdb/submit-tx node txns)))
+
+(defn add-phone-number-to-good-users!
+  [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        txns (for [[username phone] good-users]
+               (some-> (db.user/by-name db username)
+                       (assoc :db/doc-type :gatz/user)
+                       (assoc :user/phone_number phone)))]
+    (biff/submit-tx ctx (vec (remove nil? txns)))))
+
+(defn add-first-and-last-message-to-discussions!
+  [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        txns (for [d (get-all-discussions db)]
+               (when (or (nil? (:discussion/first_message d))
+                         (nil? (:discussion/latest_message d)))
+                 (let [messages (db.message/by-did db (:discussion/did d))]
+                   (when-not (empty? messages)
+                     (let [first-message (or (:discussion/first_message d)
+                                             (:xt/id (first messages)))
+                           last-message (or (:discussion/latest_message d)
+                                            (:xt/id (last messages)))]
+                       (assert (and first-message last-message))
+                       (-> d
+                           (assoc :discussion/first_message first-message
+                                  :discussion/latest_message last-message)
+                           (crdt.discussion/update-discussion)))))))]
+    (biff/submit-tx ctx (vec (remove nil? txns)))))
+
+(defn lower-case-usernames!
+  [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        txns (for [u (get-all-users db)]
+               (let [username (:user/name u)]
+                 (when (not= username (str/lower-case username))
+                   (-> u
+                       (assoc :db/doc-type :gatz/user)
+                       (assoc :user/name (str/lower-case username))))))]
+    (biff/submit-tx ctx (vec (remove nil? txns)))))
+
+(defn get-users-without-push-notifications [db]
+  (let [users (get-all-users db)]
+    (->> users
+         (remove :user/push_tokens)
+         (map :user/name)
+         set)))
+
+(def admin-usernames #{"sebas"})
+(def test-usernames #{"test" "test2" "test3" "test4" "bensu" "sbensu"})
+
+(defn add-admin-and-test-to-all-users!
+  [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        txns (for [u (get-all-users db)]
+               (let [username (:user/name u)]
+                 (cond
+                   (contains? admin-usernames username)
+                   (-> u
+                       (assoc :user/is_admin true)
+                       (crdt.user/update-user))
+
+                   (contains? test-usernames username)
+                   (-> u
+                       (assoc :user/is_test true)
+                       (crdt.user/update-user))
+
+                   :else (crdt.user/update-user u))))]
+    #_(vec (remove nil? txns))
+    (biff/submit-tx ctx (vec (remove nil? txns)))))
+
+(defn username-img [username]
+  {:pre [(string? username)]}
+  (format "https://gatzapi.com/avatars/%s.jpg" username))
+
+;; images are now hosted in cloudflare
+(def picture-in-cloudflare
+  #{"sebas"
+    "devon"
+    "tara"
+    "jack"
+    "grantslatton"
+    "bensu"
+    "martin"
+    "willyintheworld"
+    "tbensu"
+    "lconstable"
+    "ameesh"
+    "ankit"
+    "viktor"
+    "zack"
+    "max"
+    "biglu"})
+
+(defn add-user-images!
+  [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        users (db.user/all-users db)
+        txns (for [u users]
+               (let [username (:user/name u)]
+                 (when (contains? picture-in-cloudflare username)
+                   (let [img (username-img username)]
+                     (-> u
+                         (assoc :user/avatar img)
+                         (crdt.user/update-user)
+                         (dissoc :user/image))))))]
+    (biff/submit-tx ctx (vec (remove nil? txns)))))
+
+(defn add-last-message-read!
+  "Adds the last message read to all discussions"
+  [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        txns (for [d (get-all-discussions db)]
+               (let [last-update (or (:discussion/updated_at d)
+                                     (:discussion/created_at d))
+                     members (:discussion/members d)]
+                 (when-let [last-message (or (:discussion/latest_message d)
+                                             (:discussion/first_message d))]
+                   (let [all-read (into {} (for [m members]
+                                             [m last-message]))]
+                     (-> d
+                         (assoc :discussion/last_message_read all-read)
+                         (crdt.discussion/update-discussion last-update))))))]
+    #_(vec (remove nil? txns))
+    (biff/submit-tx ctx (vec (remove nil? txns)))))
+
+(defn get-all-messages [db]
+  (q db
+     '{:find (pull m [*])
+       :where [[m :db/type :gatz/message]]}))
+
+(defn messages-with-n-or-more-reactions
+  "Finds messages that were reacted to n or more time"
+  [db n]
+  (vec
+   (filter (fn [d]
+             (let [reactions (:message/reactions d)]
+               (<= n (db.message/count-reactions reactions))))
+           (get-all-messages db))))
+
+(defn add-notification-settings-to-users!
+  [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        all-users (get-all-users db)
+        now (java.util.Date.)
+        txns (for [u all-users]
+               (when (nil? (get-in u [:user/settings :settings/notifications]))
+                 (let [token (get-in u [:user/push_tokens :push/expo :push/token])
+                       new-nts (if (nil? token)
+                                 crdt.user/notifications-off
+                                 crdt.user/notifications-on)]
+                   (-> u
+                       (update :user/settings merge {:settings/notifications new-nts})
+                       (crdt.user/update-user now)))))]
+    (vec (remove nil? txns))))
+
+(defn get-discussions-without-last-message [db]
+  (q db
+     '{:find (pull d [*])
+       :where [[d :db/type :gatz/discussion]
+               [d :discussion/latest_message nil]]}))
+
+;; TODO: can't query messages
+(defn d-latest-message [db did]
+  {:pre [(uuid? did)]}
+  (->> (q db '{:find [(pull m [:message/created_at :xt/id]) created-at]
+               :in [did]
+               :where [[m :message/did did]
+                       [m :db/type :gatz/message]
+                       [m :message/created_at created-at]]
+               :order-by [[created-at :desc]]
+               :limit 1}
+          did)
+       (remove :message/deleted_at)
+       ffirst))
+
+(defn add-latest-message!
+  [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        ds (get-discussions-without-last-message db)
+        now (java.util.Date.)
+        txns (for [d ds]
+               (when-let [latest-message (d-latest-message db (:xt/id d))]
+                 (let [latest-activity-ts (:message/created_at latest-message)]
+                   (-> d
+                       (assoc :discussion/latest_message (:xt/id latest-message))
+                       (assoc :discussion/latest_activity_ts latest-activity-ts)
+                       (crdt.discussion/update-discussion now)))))]
+    (biff/submit-tx ctx (vec (remove nil? txns)))))
+
+(defn add-latest-activity-ts!
+  [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        all-discussions (get-all-discussions-with-latest-message db)
+        now (java.util.Date.)
+        txns (for [[d latest-message] all-discussions]
+               (let [latest-activity-ts (:message/created_at latest-message)]
+                 (-> d
+                     (assoc :discussion/latest_activity_ts latest-activity-ts)
+                     (crdt.discussion/update-discussion now))))]
+    (biff/submit-tx ctx (vec (remove nil? txns)))))
+
+(defn fix-first-and-last-message! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        all-discussions (get-all-discussions db)
+        now (java.util.Date.)
+        txns (for [d all-discussions]
+               (let [messages (db.message/by-did db (:discussion/did d))
+                     first-message (first messages)
+                     last-message (last messages)]
+                 (-> d
+                     (assoc :discussion/first_message (:xt/id first-message)
+                            :discussion/latest_message (:xt/id last-message))
+                     (crdt.discussion/update-discussion now))))
+        txns (vec (remove nil? txns))]
+    (biff/submit-tx ctx txns)))
+
+(defn rename-user! [{:keys [biff.xtdb/node] :as ctx} old-name new-name]
+  (let [db (xtdb/db node)
+        user (db.user/by-name db old-name)]
+    (assert user)
+    (db.user/update-username! ctx (:xt/id user) new-name)))
+
+(defn all-messages [db]
+  (q db '{:find (pull m [*])
+          :where [[m :db/type :gatz/message]]}))
+
+(defn messages-v0->v1! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [bad-txn-ids (agent #{})
+        db (xtdb/db node)]
+    (doseq [msgs (partition-all 50 (all-messages db))]
+      (let [txn (->> msgs
+                     (remove :db/version)
+                     (map (fn [msg]
+                            (-> msg
+                                (db.message/v0->v1)
+                                (assoc :db/version 1)))))
+            {:keys [good bad]} (group-by (fn [txn]
+                                           (if (malli.core/validate gatz.schema/MessageCRDT txn)
+                                             :good
+                                             :bad))
+                                         txn)]
+        (println "transaction for " (count good) " messages")
+        (println "ignoring bad " (count bad))
+        (when-not (empty? bad)
+          (doseq [b bad]
+            (clojure.pprint/pprint (:errors (malli.core/explain gatz.schema/MessageCRDT b)))))
+        (send bad-txn-ids clojure.set/union (set (map :xt/id bad)))
+        (biff/submit-tx ctx (vec good))))
+    @bad-txn-ids))
+
+(comment
+
+  ;; 2024-05-01
+  ;; Cleanup of messages that had old data
+
+  (def -ctx @gatz.system/system)
+
+  (messages-v0->v1! -ctx)
+  (biff/submit-tx -ctx [{:db/op :delete :xt/id #uuid "08446f46-8238-41aa-943e-627fa3dadecc"}
+                        {:db/op :delete :xt/id #uuid "e166c6ca-d96b-4a83-8307-5df2ac761f18"}
+                        {:db/op :delete :xt/id  #uuid "ffc636e6-4811-48c1-81e0-d08c91af4b9d"}])
+  (clojure.pprint/pprint
+   (xtdb.api/entity (xtdb.api/db (:biff.xtdb/node -ctx)) #uuid "e166c6ca-d96b-4a83-8307-5df2ac761f18")
+   (xtdb.api/entity (xtdb.api/db (:biff.xtdb/node -ctx)) #uuid "e166c6ca-d96b-4a83-8307-5df2ac761f18")))
+
+(defn users-v0->v1! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [bad-txn-ids (agent #{})
+        db (xtdb/db node)]
+    (doseq [users (partition-all 50 (db.user/all-users db))]
+      (let [txn (->> users
+                     (remove :db/version)
+                     (map (fn [user]
+                            (-> user
+                                (db.user/v0->v1)
+                                (assoc :db/doc-type :gatz.crdt/user)
+                                (assoc :db/version 1)))))
+            {:keys [good bad]}
+            (group-by (fn [txn]
+                        (if (malli.core/validate gatz.schema/UserCRDT txn)
+                          :good
+                          :bad))
+                      txn)]
+        (println "transaction for " (count good) " users")
+        (println "ignoring bad " (count bad) " users")
+        (when-not (empty? bad)
+          (doseq [b bad]
+            (clojure.pprint/pprint (:errors (malli.core/explain gatz.schema/UserCRDT b)))))
+        (send bad-txn-ids clojure.set/union (set (map :xt/id bad)))
+        (biff/submit-tx ctx (vec good))))
+    @bad-txn-ids))
+
+(comment
+  (def -ctx @gatz.system/system)
+
+  (users-v0->v1! -ctx))
+
+(defn discussions-v0->v1! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [bad-txn-ids (agent #{})
+        db (xtdb/db node)]
+    (doseq [ds (partition-all 50 (get-all-discussions db))]
+      (let [txn (->> ds
+                     (keep (fn [d]
+                             (when-not (= 1 (:db/version d))
+                               (-> d
+                                   db.discussion/v0->v1
+                                   db.discussion/crdt->doc
+                                   (assoc :db/doc-type :gatz.doc/discussion
+                                          :db/version 1))))))
+            {:keys [good bad]}
+            (group-by (fn [txn]
+                        (if (malli.core/validate gatz.schema/DiscussionDoc txn)
+                          :good
+                          :bad))
+                      txn)]
+        (println "transaction for " (count good) " ds")
+        (println "ignoring bad " (count bad) " ds")
+        (when-not (empty? bad)
+          (doseq [b bad]
+            (clojure.pprint/pprint (:errors (malli.core/explain gatz.schema/DiscussionDoc b)))))
+        (send bad-txn-ids clojure.set/union (set (map :xt/id bad)))
+        (biff/submit-tx ctx (vec good))))
+    @bad-txn-ids))
+
+(comment
+  (def -ctx @gatz.system/system)
+
+  (discussions-v0->v1! -ctx))
+
+(def intl-users
+  {"adaobi" "+447715935538"
+   "tbensu" "+5491137560441"
+   "bolu" "+2349164824038"
+   "viktor" "+46733843396"
+   "jacks" "+5491166472830"
+   "martin" "+4915905562097"
+   "greggocabral" "+5491138067266"
+   "brob" "+61492496889"
+   "danielcompton" "+6421552546"
+   "fynyky" "+6591001234"})
+
+(defn migrate-phone-numbers!
+  [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        tx (keep (fn [[username intl-phone]]
+                   (let [u (db.user/by-name db username)]
+                     (assert u)
+                     (when-not (= intl-phone (:user/phone_number u))
+                       (merge gatz.crdt.user/user-defaults
+                              (-> u
+                                  (assoc :user/phone_number intl-phone)
+                                  (assoc :db/doc-type :gatz.crdt/user))))))
+                 intl-users)]
+    (biff/submit-tx ctx (vec tx))))
+
+(defn add-active-members! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [bad-txn-ids (agent #{})
+        db (xtdb/db node)]
+    (doseq [dids (partition-all 50 (db.discussion/all-ids db))]
+      (let [txn (mapv (fn [did]
+                        (let [d (db.discussion/by-id db did)
+                              ms (db.message/by-did db did)
+                              active-members (set (map :message/user_id ms))]
+                          (-> d
+                              (assoc :discussion/active_members (crdt/gos active-members))
+                              (db.discussion/crdt->doc)
+                              (assoc :db/doc-type :gatz.doc/discussion))))
+                      dids)
+            {:keys [good bad]}
+            (group-by (fn [txn]
+                        (if (malli.core/validate gatz.schema/DiscussionDoc txn)
+                          :good
+                          :bad))
+                      txn)]
+        (println "transaction for " (count good) " ds")
+        (println "ignoring bad " (count bad) " ds")
+        (when-not (empty? bad)
+          (doseq [b bad]
+            (clojure.pprint/pprint (:errors (malli.core/explain gatz.schema/DiscussionDoc b)))))
+        (send bad-txn-ids clojure.set/union (set (map :xt/id bad)))
+        (biff/submit-tx ctx (vec good))))
+    @bad-txn-ids))
+
+(comment
+  (def -ctx @gatz.system/system)
+
+  (add-active-members! -ctx))
+
+(defn add-empty-contacts! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        now (Date.)
+        uids (db.user/all-ids db)
+        txns (vec (keep
+                   (fn [uid]
+                     (let [contacts (db.contacts/by-uid db uid)]
+                       (when (nil? contacts)
+                         (-> (db.user/new-contacts-txn {:uid uid :now now})
+                             (dissoc :db/op)))))
+                   uids))]
+    (biff/submit-tx ctx txns)))
+
+(defn make-everybody-contacts!
+  [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        now (Date.)
+        uids (db.user/all-ids db)
+        uid-pairs (->> (for [aid uids
+                             bid uids
+                             :when (not= aid bid)]
+                         #{aid bid})
+                       (set)
+                       (mapv vec))
+        txns (mapcat (fn [[a b]]
+                       (db.contacts/forced-contact-txn db a b {:now now}))
+                     uid-pairs)]
+    (biff/submit-tx ctx (vec txns))))
+
+(defn add-fake-contact-requests! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        now (Date.)
+        uids (db.user/all-ids db)
+        uid-pairs (->> (for [aid uids
+                             bid uids
+                             :when (not= aid bid)]
+                         #{aid bid})
+                       (set)
+                       (mapv vec))
+        txns (mapcat (fn [[a b]]
+                       (when (nil? (db.contacts/current-request-between db a b))
+                         (let [from a
+                               to b
+                               req-args {:id (random-uuid) :from from :to to :now now}
+                               transition-args {:from from
+                                                :to to
+                                                :by to
+                                                :now (Date.)
+                                                :state :contact_request/accepted}]
+                           [[:xtdb.api/fn :gatz.db.contacts/new-request {:args req-args}]
+                            [:xtdb.api/fn :gatz.db.contacts/transition-to {:args transition-args}]])))
+                     uid-pairs)]
+    (biff/submit-tx ctx (vec txns))))
+
+(defn add-user-activity-docs! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        uids (db.user/all-ids db)
+        txns (mapv (fn [uid]
+                     (when-not (db.user/activity-by-uid db uid)
+                       (let [{:keys [user/last_active]} (db.user/by-id db uid)]
+                         (db.user/new-activity-doc {:uid uid
+                                                    :now (crdt/-value last_active)}))))
+                   uids)]
+    (biff/submit-tx ctx (vec txns))))
+
+(defn all-invite-links [db]
+  (q db '{:find (pull id [*])
+          :where [[id :db/type :gatz/invite_link]]}))
+
+(defn invite-links-multiple! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb/db node)
+        ils (all-invite-links db)
+        txns (mapv (fn [{:keys [used_at used_by] :as il}]
+                     (-> (merge db.invite-link/default-fields il)
+                         (assoc :db/doc-type :gatz/invite_link)
+                         (assoc :invite_link/used_at (if used_at
+                                                       (if (map? used_at)
+                                                         used_at
+                                                         {used_by used_at})
+                                                       {}))
+                         (assoc :invite_link/used_by (if used_by
+                                                       (if (set? used_by)
+                                                         used_by
+                                                         #{used_by})
+                                                       #{}))))
+                   ils)]
+    (biff/submit-tx ctx txns)))
+
+(comment
+
+;; Make joeryu friends with everybody
+  (def -ctx @gatz.system/system)
+  (def -db (xtdb.api/db (:biff.xtdb/node -ctx)))
+
+  (def -joe-id #uuid "1e794e7a-08c0-4c79-9b51-78e458b40460")
+  (def -luke-id  #uuid "6faf925c-33a6-421d-b57e-9a25fac4e0a0")
+
+  (def -txn
+    (gatz.api.invite-link/make-friends-with-my-contacts-txn -db -luke-id -joe-id (Date.)))
+  (biff/submit-tx -ctx -txn)
+
+  (gatz.db.user/by-name -db "lconstable")
+  (gatz.db.user/by-name -db "joeryu")
+
+  (gatz.db.contacts/by-uid -db -joe-id)
+
+  (def -node (:biff.xtdb/node -ctx))
+
+  (gatz.db.contacts/invite-contact-txn -node {:args {:by-uid -luke-id :to-uid -joe-id :now (Date.)}})
+
+  ;; Add joeryu to all discussions
+  )
+
+(comment
+
+  ;; remove usernames from people's contacts
+
+  (def -test-usernames
+    #{"test" "test2" "test3" "test4" "bensu" "sbensu"
+      "test1231" "test235"})
+
+  (def -ctx @gatz.system/system)
+
+  (isolate-test-users! -ctx -test-usernames))
+
+(defn isolate-test-users! [ctx usernames]
+  {:pre [(every? string? usernames) (set? usernames)]}
+  (let [now (Date.)
+        node (:biff.xtdb/node ctx)
+        db (xtdb.api/db node)
+        txns (->> usernames
+                  (keep (partial db.user/by-name db))
+                  (mapcat (fn [u]
+                            (let [uid (:xt/id u)]
+                              (db.contacts/remove-all-user-contacts-txn db uid now))))
+                  vec)]
+    (biff/submit-tx ctx txns)))
+
+(comment
+
+  ;; Test first with -prod-test-group-id
+  ;; And if that works well, then do it to -fc-group-id
+
+  (def -fc-group-id #crdt/ulid "01J47H8AAW0QRSPKNQ9BHWAEAB")
+
+  (def -prod-test-group-id  #crdt/ulid "01J4JHT8T75BCMKX1QFYQ987K8")
+
+  (def -crew-group-ids #{-fc-group-id})
+
+  (def -ctx @gatz.system/system)
+
+  (mark-group-crew! -ctx -crew-group-ids))
+
+(defn mark-group-crew! [ctx group-ids]
+  {:pre [(every? crdt/ulid? group-ids) (set? group-ids)]}
+
+  (let [db (xtdb.api/db (:biff.xtdb/node ctx))
+        txns (keep (fn [gid]
+                     (some-> (db.group/by-id db gid)
+                             (db.group/mark-crew)
+                             (assoc :db/doc-type :gatz/group)))
+                   group-ids)]
+    (biff/submit-tx ctx (vec txns))))
+
+;; I want some poeple to see the full gammit of what is
+;; happening in Gatz to see if they like it
+;; including what others have posted
+;;
+(comment
+
+  (def -fc-usernames
+    #{"yasmin" "ivan" "woloski"})
+
+  ;; add to open groups
+
+  (def -ctx @gatz.system/system)
+
+  (def -node (:biff.xtdb/node -ctx))
+
+  (def -db (xtdb.api/db -node))
+
+  (def -me (db.user/by-name -db "sebas"))
+
+  (def -yasmin (db.user/by-name -db "yasmin"))
+  (def -adaobi (db.user/by-name -db "adaobi"))
+  (def -adaobi-posts
+    (db.discussion/posts-for-user -db (:xt/id -adaobi)
+                                  {:contact_id (:xt/id -adaobi)}))
+
+
+  (def -groups (db.groups/by-member-uid -db (:xt/id -me)))
+
+  (def -fc-group
+    (first -groups))
+
+  (def -fc-posts
+    (db.discussion/posts-for-group -db (:xt/id -fc-group)
+                                   (:xt/id -me)))
+
+
+  (db.discussion/open-for-group -db (:xt/id -fc-group))
+
+  (def -txns
+    (let [members (->> -fc-usernames
+                       (keep (partial db.user/by-name -db))
+                       (map :xt/id)
+                       set)
+
+          _ (assert (= (count -fc-usernames)
+                       (count members)))
+          txns
+          (db.discussion/add-member-to-group-txn -node
+                                                 {:gid (:xt/id -fc-group)
+                                                  :now (Date.)
+                                                  :by-uid (:xt/id -me)
+                                                  :members members})]
+
+      (biff/submit-tx -ctx txns))))
+
+(comment
+
+  (def -new-usernames
+    #{"dwarkesh", "davidrobertson", "sholto",
+      "nan", "moxie"}))
+
+
+#_(defn make-contacts-with-my-friends!
+    [{:keys [biff.xtdb/node] :as ctx}
+     my-username
+     usernames]
+    (let [db (xtdb/db node)
+          now (Date.)
+          my-id (:xt/id (db.user/by-name db my-username))
+          _ (assert my-id)
+          target-uids (->> usernames
+                           (keep (partial db.user/by-name db))
+                           (map :xt/id))
+          _ (assert (= (count usernames)
+                       (count target-uids)))
+          my-contacts (:contacts/ids (db.contacts/by-uid db my-id))
+          _ (assert (set? my-contacts))
+          uid-pairs (->> (for [aid target-uids
+                               bid my-contacts
+                               :when (not= aid bid)]
+                           #{aid bid})
+                         (set)
+                         (mapv vec))
+          txns (mapcat (fn [[a b]]
+                         (db.contacts/forced-contact-txn db a b {:now now}))
+                       uid-pairs)]
+    ;; txns
+      (biff/submit-tx ctx (vec txns))))
+
+
+(comment
+
+  (def -ctx @gatz.system/system)
+
+  (def -node (:biff.xtdb/node -ctx))
+
+  (def -db (xtdb.api/db -node))
+
+  (def -sgrove (db.user/by-name -db "sgrove"))
+
+  (def -arram (db.user/by-name -db "arram"))
+
+  (let [args {:from (:xt/id -sgrove)
+              :to (:xt/id -arram)
+              :now (Date.)}]
+    (biff/submit-tx -ctx [[:xtdb.api/fn :gatz.db.contacts/remove-contacts {:args args}]])))
+
+(comment
+
+  (do
+    (def -did #uuid "5648acdd-e8ed-4bd6-83cb-469ddfeee572")
+
+    (def -ctx @gatz.system/system)
+
+    (def -node (:biff.xtdb/node -ctx))
+
+    (def -db (xtdb.api/db -node))
+
+    (def -sgrove (db.user/by-name -db "sgrove"))
+
+    (def -arram (db.user/by-name -db "arram")))
+
+  (require '[clojure.tools.logging :as log])
+
+
+  (log/info)
+  (db.discussion/remove-members!
+   (assoc -ctx :biff/db (xtdb.api/db -node) :auth/user-id (:xt/id -sgrove) :auth/user -sgrove)
+   -did
+   #{(:xt/id -arram)}))
+
+
+(comment
+
+  ;; change a username
+
+  (do
+
+    ;; (def -test-uid #uuid "867884d0-986e-4e5f-816c-b12846645e6b")
+
+    (def -uid #uuid "282e63c2-ed1f-4e76-9c4f-4ae06c96342b")
+
+    (def -ctx @gatz.system/system)
+
+    (def -node (:biff.xtdb/node -ctx))
+
+    (def -db (xtdb.api/db -node))
+
+    (def -neil (gatz.db.user/by-id -db -uid)))
+
+  (do
+    (gatz.db.user/update-username! -ctx -uid "neil")))
+
+
+;; ======================================================================
+;; Make invite link on behalf of a user
+
+
+(comment
+
+  (require '[gatz.db.invite-link :as db.invite-link])
+
+  (def -ctx @gatz.system/system)
+
+  (def -uid #uuid "0f13d797-c1f7-45db-9de9-9b13f2724122")
+
+  (gatz.db.invite-link/create! -ctx {:uid -uid
+                                     :type :invite_link/contact}))
+
+
+
+;; ======================================================================
+;; Migrations
+
+;; Go through all the messages and apply the v1->v2 migration that puts
+;; the messages inside of db/full-doc
+
+;; Steps
+
+;; 1. Push new code without Lucene active. The system can start.
+;; 2. Run this migration with the REPL connected. All the messages are now v2
+;; 3. Stop all db changes. Turn on Heroku maintenance mode.
+;; 4. Download PSQL dump from Heroku.
+;; 5. Restore it locally.
+;; 6. Turn on Lucene locally
+;; 7. Checkpoint Lucene locally to the prod S3 bucket
+;; 8. Turn off maintenance mode on Heroku
+;; 9. Deploy new code with Lucene active to Heroku. It can boot from the S3 bucket
+
+;; nREPL server started on port 36869 on host localhost - nrepl://localhost:36869
+
+(defn all-mids [db]
+  (->> (q db '{:find [m]
+               :where [[m :db/type :gatz/message]]})
+       (map first)))
+
+(defn m->full-doc-txn [m]
+  (-> m
+      (db.message/crdt->doc)
+      (assoc :db/doc-type :gatz.doc/message)))
+
+(defonce failed-mids (atom #{}))
+
+;; tx of the prod db backup 521003
+(defn migrate-messages-to-full-doc! [ctx]
+  (let [db (xtdb.api/db (:biff.xtdb/node ctx))
+        mids (all-mids db)
+        txns (keep (fn [mid]
+                     (let [raw-msg (xtdb/entity db mid)]
+                       (when (not (contains? raw-msg :db/full-doc))
+                         (let [msg (db.message/by-id db mid)]
+                           (m->full-doc-txn msg)))))
+                   mids)]
+    (println "about to migrate messages:" (count mids))
+    (doseq [txn-batch (partition 100 txns)]
+      (println "Migrating" (count txn-batch) "messages")
+      (try
+        (biff/submit-tx ctx (vec txn-batch))
+        (catch Exception e
+          (println "message failed")
+          (let [{:keys [tx-doc]} (ex-data e)
+                mid (:xt/id tx-doc)]
+            (println "mid" mid)
+            (swap! failed-mids conj mid)))))))
+
+
+;; ======================================================================
+;; Profile links for existing users
+
+(defn all-users [db]
+  (->> (q db '{:find [u]
+               :where [[u :db/type :gatz/user]]})
+       (keep first)
+       (map (fn [uid]
+              (db.user/by-id db uid)))))
+
+(defn extract-twitter-users [json-data]
+  (let [instructions (get-in json-data [:data :user :result :timeline :timeline :instructions])]
+    (->> instructions
+         (mapcat :entries)
+         (keep (fn [entry]
+                 (when-let [user (get-in entry [:content :itemContent :user_results :result :legacy])]
+                   [(get user :screen_name)
+                    (get user :name)])))
+         (into {}))))
+
+(defn read-json-file [file-path]
+  (try
+    (-> file-path
+        slurp
+        (json/read-str {:key-fn keyword}))
+    (catch Exception _e
+      (println "Failed to read file:" file-path)
+      nil)))
+
+(defn extract-all-twitter-users []
+  (let [dir "resources/migrations/sebas_following"
+        files (->> (range 0 21)
+                   (map #(format "%s/%d.json" dir %)))]
+    (->> files
+         (keep read-json-file)
+         (map extract-twitter-users)
+         (reduce merge {}))))
+
+(defn gatz-username->twitter-handle []
+  ;; reads csv in resources/migrations/twitter_handles.txt
+  ;; returns a map of gatz username to twitter handle
+  (->> (io/resource "migrations/twitter_handles.txt")
+       slurp
+       (str/split-lines)
+       (map #(str/split % #","))
+       (keep (fn [[username twitter-handle]]
+               (when-not  (empty? twitter-handle)
+                 [(str/trim username) (str/trim twitter-handle)])))
+       (into {})))
+
+(defn add-twitter-username-to-users! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb.api/db node)
+        username->handle (gatz-username->twitter-handle)
+        now (java.util.Date.)]
+    (doseq [[username handle] username->handle]
+      (when-let [user (crdt.user/->value (db.user/by-name db username))]
+        (when (nil? (get-in user [:user/profile :profile/urls :profile.urls/twitter]))
+          (println "Adding twitter handle" handle "to user" username)
+          (let [authed-ctx (assoc ctx
+                                  :biff/db (xtdb.api/db node)
+                                  :auth/user-id (:xt/id user)
+                                  :auth/user user)]
+            (println
+             (:user/profile
+              (crdt.user/->value
+               (:user
+                (db.user/edit-profile! authed-ctx
+                                       {:profile.urls/twitter handle}
+                                       {:now now})))))))))))
+
+
+(comment
+  (def -all-twitter-users
+    (extract-all-twitter-users))
+
+  (def sebas-follows-table
+    (->> -all-twitter-users
+         (map (fn [[username full-name]]
+                [(str/lower-case (name username)) (str/lower-case full-name)]))
+         (sort-by first)
+         (into [])))
+
+  (require '[clojure.java.io :as io])
+
+  (def -f
+    (io/file "resources/migrations/sebas_following_handles.txt"))
+
+  (doseq [line sebas-follows-table]
+    (spit -f  (str (str/join " " line) "\n") :append true)))
+
+;; ======================================================================
+;; Add user to open discussion
+
+(defn add-user-to-dids! [ctx dids by-uid user-id]
+  {:pre [(set? dids) (every? uuid? dids) (uuid? user-id) (uuid? by-uid)]}
+  (let [db (xtdb.api/db (:biff.xtdb/node ctx))
+        txn (db.discussion/add-members-to-dids-txn
+             ctx {:now (Date.) :by-uid user-id :members #{user-id} :dids dids})]
+    (biff/submit-tx ctx txn)))
+
+(comment
+
+  (def -new-user (db.user/by-name -db "hellen"))
+
+  (def -riley (db.user/by-name -db "riley"))
+  (def -riley-dids #{#uuid "ceae22c1-43b1-4b39-a8af-00913cb94d93"})
+  (add-user-to-dids! -ctx -riley-dids (:xt/id -riley) (:xt/id -new-user))
+
+  (def -riley (db.user/by-name -db "rinada"))
+  (def -rinad-dids #{#uuid "000bb6a5-eea4-4c3e-80a9-405ee0fe421d"
+                     #uuid "21594fe1-580f-4787-b651-299645180118"})
+
+  (def -grant (db.user/by-name -db "grantslatton"))
+  (def -grants-did #{#uuid "d09d45fd-ae76-4cfe-824c-9a91809a8846"})
+
+  (add-user-to-dids! -ctx -riley-dids (:xt/id -riley) (:xt/id -new-user))
+  (add-user-to-dids! -ctx -rinad-dids (:xt/id -rinada) (:xt/id -new-user))
+  (add-user-to-dids! -ctx -grants-did (:xt/id -grant) (:xt/id -new-user)))
+
+;; ======================================================================
+;; Force accept invites
+
+(defn get-ctx [ctx uid]
+  (let [db (xtdb.api/db (:biff.xtdb/node ctx))
+        user (db.user/by-id db uid)]
+    (assoc ctx :biff/db db
+           :auth/user-id uid
+           :auth/user (crdt.user/->value user))))
+
+(defn force-invite! [ctx from-uid to-uid]
+  (let [invite-link (db.invite-link/create! (get-ctx ctx from-uid)
+                                            {:uid from-uid
+                                             :type :invite_link/contact})]
+    (xtdb/sync (:biff.xtdb/node ctx))
+    (api.invite-link/invite-to-contact!
+     (get-ctx ctx to-uid)
+     invite-link
+     {:make-friends-with-contacts? true})))
+
+
+(comment
+  (def -sebas-uid #uuid "06942e79-cda8-4f55-8bd0-50ce61ebfb60")
+  (def -new-users [#uuid "c3a19ce7-99e0-46ec-a0ad-b74d0a958019"
+                   #uuid "26bd5197-3b99-4f78-8a96-2b1a3cba7a4c"
+                   #uuid "0dd54a1d-aadf-404b-ba41-b1785fdc1be5"])
+  (def -ctx @gatz.system/system)
+
+  (doseq [to-uid -new-users]
+    (log/info "forcing invite from" -sebas-uid "to" to-uid)
+    (log/info (force-invite! -ctx -sebas-uid to-uid)))
+
+  (def -test-users [#uuid "867884d0-986e-4e5f-816c-b12846645e6b"])
+  (def -sebas-test-uid #uuid "64a719fa-4963-42e2-bc7e-0cb7beb8844c")
+
+  (doseq [to-uid -test-users]
+    (log/info "forcing invite from" -sebas-test-uid "to" to-uid)
+    (log/info (force-invite! -ctx -sebas-test-uid to-uid))))
+
+(comment
+  ;; rename parth
+
+  (def -ctx @gatz.system/system)
+  (rename-user! -ctx "parthahya" "parth"))
+
+;; ======================================================================
+;; Add full names
+
+(defn gatz-username->full-name []
+  ;; reads csv in resources/migrations/full_names.txt
+  ;; returns a map of gatz username to full name
+  (->> (io/resource "migrations/full_names.txt")
+       slurp
+       (csv/read-csv)
+       (keep (fn [[username full-name]]
+               (when-not (empty? full-name)
+                 [(str/trim username) (str/trim full-name)])))
+       (into {})))
+
+(defn add-full-name-to-users! [{:keys [biff.xtdb/node] :as ctx}]
+  (let [db (xtdb.api/db node)
+        username->full-name (gatz-username->full-name)
+        now (java.util.Date.)]
+    (doseq [[username full-name] username->full-name]
+      (when-let [user (some-> (db.user/by-name db username)
+                              (crdt.user/->value))]
+        (when (nil? (get-in user [:user/profile :profile/full_name]))
+          (println "Adding full name" full-name "to user" username)
+          (let [authed-ctx (assoc ctx
+                                  :biff/db (xtdb.api/db node)
+                                  :auth/user-id (:xt/id user)
+                                  :auth/user user)
+                {:keys [user]} (db.user/edit-profile! authed-ctx
+                                                      {:profile/full_name full-name}
+                                                      {:now now})]
+            (println (:user/profile (crdt.user/->value user)))))))))
+
+(comment
+  (def -ctx @gatz.system/system)
+
+  (def -michelle-id #uuid "bc895fc1-fe83-4e10-a1a0-8052494cfa8d")
+
+  (let [node (:biff.xtdb/node -ctx)
+        db (xtdb.api/db node)
+        ctx (assoc -ctx
+                   :biff/db db
+                   :auth/user-id -michelle-id
+                   :auth/user (db.user/by-id db -michelle-id))]
+    (db/delete-user! ctx -michelle-id))
+
+  (add-full-name-to-users! -ctx))
+
+
+;; ======================================================================
+;; Delete all feed items
+
+(defn delete-all-feed-items! [ctx]
+  (let [db (xtdb.api/db (:biff.xtdb/node ctx))
+        ids (map first (q db '{:find [id]
+                               :where [[id :db/type :gatz/feed_item]]}))
+        txns (mapv (fn [id]
+                     [:xtdb.api/delete id])
+                   ids)]
+    (println txns)
+    (biff/submit-tx ctx txns)))
+
+
+;; ======================================================================
+;; Add feed items for all discussions
+
+(def did->fi-id (atom {}))
+(def mention->fi-id (atom {}))
+
+;; TODO: generate the fi-ids at the same as the discussions are created
+(defn get-fi-id! [now did]
+  {:pre [(inst? now) (uuid? did)]}
+  (let [r (swap! did->fi-id (fn [m]
+                              (update m did #(or % (ulid/random-time-uuid now)))))]
+    (get r did)))
+
+(defn get-mention-fi-id! [now mid]
+  {:pre [(inst? now) (uuid? mid)]}
+  (let [r (swap! mention->fi-id (fn [m]
+                                  (update m mid #(or % (ulid/random-time-uuid now)))))]
+    (get r mid)))
+
+(defn get-all-dids [db]
+  (map first
+       (q db
+          '{:find [did]
+            :where [[did :db/type :gatz/discussion]]})))
+
+;; TODO: generate the feed items for all the mentions
+(defn add-feed-items-for-discussions! [ctx]
+  (let [db (xtdb.api/db (:biff.xtdb/node ctx))
+        txns
+        (->> (get-all-dids db)
+             (map (comp crdt.discussion/->value (partial db.discussion/by-id db)))
+             (mapcat (fn [{:xt/keys [id]
+                           :discussion/keys [created_at members created_by group_id mentions]
+                           :as d}]
+                       (try
+                         (let [post-fi (db.feed/new-post-txn
+                                        (get-fi-id! created_at id)
+                                        created_at
+                                        {:members members
+                                         :cid created_by
+                                         :gid group_id
+                                         :did id})]
+                           (if mentions
+                             (let [mention-fis (->> mentions
+                                                    (mapcat (fn [[_k mentions]]
+                                                              mentions))
+                                                    (mapcat (fn [{:mention/keys [to_uid by_uid mid ts]}]
+                                                              (db.feed/new-mention-txn
+                                                               (get-mention-fi-id! ts mid)
+                                                               ts
+                                                               {:by_uid by_uid
+                                                                :to_uid to_uid
+                                                                :did id
+                                                                :mid mid
+                                                                :gid group_id}))))]
+                               (concat mention-fis post-fi))
+                             [post-fi]))
+                         (catch Throwable e
+                           (def -d d)
+                           (throw e)))))
+                  ;; remove previously created feed items
+             (remove (fn [fi]
+                       (some? (db.feed/by-id db (:xt/id fi)))))
+             (map (fn [fi]
+                    [:xtdb.api/put (assoc fi :db/op :create)])))]
+    (doseq [txn-batch (partition 100 txns)]
+      (biff/submit-tx ctx txn-batch))))
+
+
+;; ======================================================================
+;; Mark all test users as test
+
+(comment
+  (def -ctx @gatz.system/system)
+
+  (def -test-users
+    (let [db (xtdb.api/db (:biff.xtdb/node -ctx))
+          test-users (->> (all-users db)
+                          (filter #(contains? twilio/TEST_PHONES (:user/phone_number %)))
+                          (remove :user/is_test))
+          txns (map (fn [user]
+                      (assoc user :user/is_test true))
+                    test-users)]
+      test-users
+      #_(biff/submit-tx -ctx txns)))
+
+  (doseq [user -test-users]
+    (sdk.posthog/identify! -ctx (assoc user :user/is_test true))))
+
+;; ======================================================================
+;; Fix invite for Anjan and Mwiya
+
+(comment
+
+  ;; do I have the respective users?
+
+  "a12k"
+  (def -anjan-id #uuid "799005c3-0f87-44a7-ab84-43ed33e5f970")
+
+  (def -anjan-invite-id "BNLADL")
+
+  (def -anjan-invite (db.invite-link/by-code -db -anjan-invite-id))
+
+  (do
+    (def -ctx @gatz.system/system)
+
+    (def -db (xtdb.api/db (:biff.xtdb/node -ctx)))
+
+    (def -all-users (all-users -db))
+
+    (map :user/name
+         (take 10 (reverse (sort-by :user/created_at -all-users)))))
+
+  (do
+    (def -db (xtdb.api/db (:biff.xtdb/node -ctx)))
+    (def -anjan (gatz.db.user/by-name -db "a12k"))
+    (def -anjan-invite-id "BNLADL")
+    (def -anjan-invite (db.invite-link/by-code -db -anjan-invite-id))
+    (let [anjan-ctx (assoc -ctx :auth/user -anjan :auth/user-id (:xt/id -anjan))]
+      (gatz.api.invite-link/invite-to-contact! anjan-ctx -anjan-invite)))
+
+  (do
+    (def -db (xtdb.api/db (:biff.xtdb/node -ctx)))
+    (def -mwiya (gatz.db.user/by-name -db "mwiya"))
+    (def -mwiya-invite-id "UTFMVD")
+    (def -mwiya-invite (db.invite-link/by-code -db -mwiya-invite-id))
+    (let [mwiya-ctx (assoc -ctx :auth/user -mwiya :auth/user-id (:xt/id -mwiya))]
+      (gatz.api.invite-link/invite-to-contact! mwiya-ctx -mwiya-invite)))
+
+  )
+

@@ -1,0 +1,81 @@
+{:paths ["src" "test" "resources" "target/resources" "tasks/src"
+         "vendor/shared/src"]
+ :aliases {:test {:ns-default gatz.test}
+           :build {:ns-default gatz.system
+                   :paths ["tasks/src"]}
+           :cljs {:extra-deps {org.clojure/clojurescript {:mvn/version "1.11.132"}
+                               olical/cljs-test-runner {:mvn/version "3.8.0"}
+                               thheller/shadow-cljs {:mvn/version "2.28.21"}}}}
+ :deps {com.taoensso/nippy {:mvn/version "3.1.1"}
+
+        org.clojure/data.csv {:mvn/version "1.0.1"}
+        metosin/malli {:mvn/version "0.17.0"}
+        camel-snake-kebab/camel-snake-kebab {:mvn/version "0.4.3"}
+        dev.weavejester/medley {:mvn/version "1.7.0"}
+        remus/remus {:mvn/version "0.2.2"}
+        com.amazonaws/aws-java-sdk-s3 {:mvn/version "1.12.661"}
+        ring-cors/ring-cors {:mvn/version "0.1.13"}
+        amalloy/ring-gzip-middleware {:mvn/version "0.1.4"}
+        org.jsoup/jsoup {:mvn/version "1.11.3"}
+        org.clojure/clojure {:mvn/version "1.11.1"}
+        org.slf4j/slf4j-simple {:mvn/version "2.0.0-alpha5"}
+        com.carouselapps/to-jdbc-uri {:mvn/version "0.5.0"}
+        com.posthog.java/posthog {:mvn/version "1.1.1"}
+        io.sentry/sentry-clj {:mvn/version "7.20.226"}
+
+
+        com.github.f4b6a3/ulid-creator {:mvn/version "5.2.3"}
+        com.fasterxml.uuid/java-uuid-generator {:mvn/version "5.1.0"}
+
+        ;; DDL
+        eu.bitwalker/UserAgentUtils {:mvn/version "1.21"}
+        clojure.java-time/clojure.java-time {:mvn/version "1.4.2"}
+
+        ;; Link preview
+        enlive/enlive {:mvn/version "1.1.6"}
+
+        ;; Database
+        org.postgresql/postgresql {:mvn/version "42.2.18"}
+        com.xtdb/xtdb-jdbc             {:mvn/version "1.24.3"}
+        com.xtdb/xtdb-s3               {:mvn/version "1.24.3"}
+        ;;  com.xtdb/xtdb-lmdb             {:mvn/version "1.23.1"}
+        com.xtdb/xtdb-rocksdb          {:mvn/version "1.24.3"}
+        com.xtdb/xtdb-lucene           {:mvn/version "1.24.3"}
+
+        com.xtdb/xtdb-core             {:mvn/version "1.24.3"}
+
+        ;; biff dependencies
+        better-cond/better-cond        {:mvn/version "2.1.4"}
+        buddy/buddy-sign               {:mvn/version "3.4.333"}
+        clj-http/clj-http              {:mvn/version "3.12.3"}
+        com.nextjournal/beholder       {:mvn/version "1.0.2"}
+        info.sunng/ring-jetty9-adapter {:mvn/version "0.17.2"}
+        jarohen/chime                  {:mvn/version "0.3.3"}
+        lambdaisland/uri               {:mvn/version "1.13.95"}
+       ;;  metosin/malli                  {:mvn/version "0.10.3"}
+        metosin/muuntaja               {:mvn/version "0.6.8"}
+        metosin/reitit-ring            {:mvn/version "0.6.0"}
+        nrepl/nrepl                    {:mvn/version "1.0.0"}
+        org.clojure/tools.deps.alpha   {:git/url "https://github.com/clojure/tools.deps.alpha"
+                                        :sha "8f8fc2571e721301b6d52e191129248355cb8c5a"}
+        org.clojure/tools.logging      {:mvn/version "1.2.4"}
+        org.clojure/tools.namespace    {:mvn/version "1.4.4"}
+        org.clojure/test.check         {:mvn/version "1.1.0"}
+       ;;  org.postgresql/postgresql      {:mvn/version "42.6.0"}
+       ;;
+        ring/ring-defaults             {:mvn/version "0.3.4"}
+        rum/rum                        {:mvn/version "0.12.8"
+                                        :exclusions [cljsjs/react cljsjs/react-dom]}
+
+        ;; Location
+        org.locationtech.spatial4j/spatial4j {:mvn/version "0.8"}
+        com.github.davidmoten/rtree {:mvn/version "0.12"}
+
+        ;; deprecated
+        hawk/hawk                      {:mvn/version "0.2.11"}
+
+        io.github.clojure/tools.build {:mvn/version "0.9.6"}
+        com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.6.1"}
+        cider/cider-nrepl              {:mvn/version "0.45.0"}
+        refactor-nrepl/refactor-nrepl  {:mvn/version "3.10.0"}
+        org.clojure/java.classpath     {:mvn/version "1.1.0"}}}

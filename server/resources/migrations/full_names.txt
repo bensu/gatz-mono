@@ -1,0 +1,130 @@
+adam,Adam Goff
+adaobi,Adaobi Adibe
+aiba,Aaron Iba
+ameesh,Ameesh Goyal
+anastasia,Anastasia Gamick
+andy,Andy Matuschak
+ankit,Ankit Ranjan
+ansonyuu,Anson Yu
+arram,Arram Sabeti
+arye,Arye Elfenbein
+avernon,Austin Vernon
+bani,Bani Singh
+bobby,Bobby Healy
+bolu,
+brie,Brie Wolfson
+brob,Brian Lui
+buga,Gonzalo Bugarin
+cakewalk,Kevin Kwok
+calebwatney,Caleb Watney
+catherio,Catherine Olsson
+chandhana,Chandhana Sathishkumar
+charlesxjyang,Charles Yang
+chet,Chet Corcos
+christina,Christina Huang
+coyne,Coyne Lloyd
+danielcompton,Daniel Compton
+david,David Yang
+davidbalbert,David Albert
+davidperell,David Perell
+davidrobertson,David Robertson
+devon,Devon Zuegel
+dwarkesh,Dwarkesh Patel
+dww,Daniel Woelfel
+edbs,Emmett Shear
+eli,Eli Dourado
+ethan,Ethan Loosbrock
+federico_b,Federico Blotta
+fitz,
+fynyky,
+grantslatton,Grant Slatton
+greggocabral,Gregorio Cabral
+guccigiugale,Gustavo Giugale
+hrynor,Helen Rynor
+ian,Ian McCrsyal
+irace,Bryan Irace
+isabelalozada,Isabela Lozada Moreto
+isabm,Isabel Bensusan Moreto
+ishaankri,Ishaan Krishnan
+ivan,Ivan Zhao
+ivann,Ivan Vendrov
+jack,Jack Dent
+jacks,Jack Saracco
+jacobtref,Jacob Trefethen
+janey,Janey Muñoz
+jasoncbenn,Jason Benn
+jayssh,Jay Shah
+jeremy,Jeremy Rubin
+jieunbug,Audrey Kim
+jmduke,Justin Duke
+joao,Joao Batalha
+joe,Joe Taylor
+joellawson,Joel Lawson
+joeryu,Joe Ryu
+john,John Backus
+jordan,Jordan Gonen
+julia,Julia Carvalho
+julilozada,Julieta Lozada Moreto
+kanjun,Kanjun Qiu
+kevin,Kevin Lynagh
+keyserfaty,Karen Serfaty
+klunico,Nicolas Klug Bensusan
+lachygroom,Lachy Groom
+lconstable,Luke Constable
+leiss,Julian Leiss
+liamrosen,Liam Rosen
+limeriksson,Emil Eriksson
+loeber,John Loeber
+ltb,Elena Nadolinski
+lucas,Lucas Heinrich
+lucie,Lucie Lozinski
+luis,Luis Batalha
+mariah,Mariah Samost
+martin,Martin Klepsch
+max,Max Krieger
+maxtagher,Max Tagher
+mchl,Michelle Bu
+mica,Micael Oliveira
+michael_nielsen,Michael Nielsen
+michelle,Michelle Zhang
+moxie,Moxie Marlinspike
+mwcvitkovic,Mila Cvitkovic
+nan,Nan Ransohoff
+nayafia,Nadia Asparouhova
+neil,
+nhfoley,Nick Foley
+osnr,Omar Rizwan
+parth,Parth Ahya
+prigoose,Priya Rose
+riley,Riley Turben
+rinada,Rinad Al Anakrih 
+roks,Ryan Oksenhorn
+rose,Rose Wang
+ryan,
+sam,Sam Gerstenzang
+sara_lahue,Sara LaHue
+scott,Scott Fitsimones
+sebas,Sebastian Bensusan
+seemaychou,Seemay Chou
+sgrove,Sean Grove
+sholto,Sholto Douglas
+simonlast,Simon Last
+sumner, Sumner Norman
+tangert,Tyler Anger
+tara,Tara Seshan
+tay,Taylor Rogalski
+tbensu,Tomas Bensusan
+tommy,
+vicky,Victoria Guareschi
+viktor,Viktor Eriksson
+willyintheworld,Willy Chertman
+woloski,Matias Woloski
+xrg,Xavier Roberts-Gaal
+yash,Yash Shevde
+yasmin,Yasmin Razavi
+zach,
+zack,Zack Kanter
+zoink,Dylan Field
+alex,Alexander Thiemann
+shale,Shale Craig
+jeffchan,Jeff Chan

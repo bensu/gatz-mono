@@ -1,0 +1,27 @@
+(ns gatz.flags
+  (:require [clojure.tools.logging :as log]))
+
+(def values-schema
+  [:map
+   [:flags/post_to_friends_of_friends boolean?]
+   [:flags/global_invites_enabled boolean?]
+   [:flags/only_users_with_friends_can_invite boolean?]
+   [:flags/invite_links_expire boolean?]])
+
+(def current-values
+  {:flags/post_to_friends_of_friends true
+   :flags/global_invites_enabled true
+   :flags/only_users_with_friends_can_invite false
+   :flags/invite_links_expire false})
+
+(def ^:dynamic *flags* current-values)
+
+(defmacro with-flags [flags & body]
+  `(binding [*flags* (merge (or *flags* {}) ~flags)]
+     ~@body))
+
+(defn use-flags [ctx]
+  (let [flags (merge current-values *flags*)]
+    (log/info "Initializing flags:" flags)
+    (assoc ctx :flags/flags flags)))
+
