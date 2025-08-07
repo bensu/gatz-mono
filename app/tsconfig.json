@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "moduleResolution": "node",
+    "allowJs": true,
+  },
+  "include": [
+    "vendor/**/*",
+    "src/**/*",
+    "vendor/react-native-phone-number-input",
+    "vendor/react-native-country-picker-modal",
+    "vendor/react-native-hold-menu",
+    "vendor/react-native-portal",
+    "vendor/whatwg-url-without-unicode"
+  ],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx"
+  ],
+  "extends": "expo/tsconfig.base"
+}

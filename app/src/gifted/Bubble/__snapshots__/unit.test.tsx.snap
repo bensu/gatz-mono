@@ -1,0 +1,1025 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Bubble Snapshot Tests 1. [snapshot-basic-message] renders basic message bubble in regular chat 1`] = `
+<View
+  style={
+    [
+      {
+        "alignItems": "center",
+        "backgroundColor": "transparent",
+        "flex": 1,
+        "flexDirection": "row",
+        "justifyContent": "flex-start",
+      },
+      {
+        "position": "relative",
+      },
+    ]
+  }
+>
+  <View
+    style={
+      [
+        {
+          "alignItems": "flex-start",
+          "flex": 1,
+        },
+      ]
+    }
+  >
+    <View
+      style={
+        [
+          {
+            "justifyContent": "flex-end",
+            "minHeight": 20,
+            "position": "relative",
+          },
+        ]
+      }
+    >
+      <View
+        style={
+          [
+            {},
+            [
+              {
+                "justifyContent": "flex-end",
+                "minHeight": 20,
+                "position": "relative",
+              },
+              {
+                "borderRadius": 6,
+                "paddingHorizontal": 6,
+                "paddingVertical": 6,
+              },
+              {
+                "backgroundColor": "#FFFFFF",
+              },
+              false,
+              {
+                "shadowColor": "#000",
+                "shadowOffset": {
+                  "height": 1,
+                  "width": 0,
+                },
+                "shadowOpacity": 0.1,
+                "shadowRadius": 1,
+              },
+              [
+                {},
+              ],
+              [
+                {},
+              ],
+              {
+                "marginRight": 8,
+              },
+            ],
+            {},
+          ]
+        }
+      >
+        <View
+          style={
+            {
+              "overflow": "hidden",
+              "position": "relative",
+            }
+          }
+        >
+          <View
+            style={
+              {
+                "overflow": "hidden",
+              }
+            }
+            testID="GC_BUBBLE_CONTENT"
+          >
+            <Text
+              data-testid="post-false"
+              testID="message-text"
+            >
+              Hello, this is a snapshot test message!
+            </Text>
+          </View>
+        </View>
+      </View>
+      <View
+        testID="hanging-reactions"
+      />
+    </View>
+  </View>
+</View>
+`;
+
+exports[`Bubble Snapshot Tests 2. [snapshot-post-message] renders message bubble in post context 1`] = `
+<View
+  style={
+    [
+      {
+        "alignItems": "flex-start",
+        "flex": 1,
+      },
+      {
+        "backgroundColor": "transparent",
+      },
+    ]
+  }
+>
+  <View
+    style={
+      [
+        {
+          "justifyContent": "flex-end",
+          "minHeight": 20,
+          "position": "relative",
+        },
+        {
+          "borderRadius": 6,
+          "paddingHorizontal": 6,
+          "paddingVertical": 6,
+        },
+        {
+          "backgroundColor": "#FFFFFF",
+        },
+        {
+          "paddingHorizontal": 0,
+        },
+        null,
+        null,
+        {},
+      ]
+    }
+  >
+    <View
+      style={
+        {
+          "overflow": "hidden",
+        }
+      }
+      testID="GC_BUBBLE_CONTENT"
+    >
+      <Text
+        data-testid="post-false"
+        testID="message-text"
+      >
+        Hello, this is a snapshot test message!
+      </Text>
+    </View>
+  </View>
+</View>
+`;
+
+exports[`Bubble Snapshot Tests 3. [snapshot-grouped-messages] renders grouped consecutive messages 1`] = `
+<View
+  style={
+    [
+      {
+        "alignItems": "center",
+        "backgroundColor": "transparent",
+        "flex": 1,
+        "flexDirection": "row",
+        "justifyContent": "flex-start",
+      },
+      {
+        "position": "relative",
+      },
+    ]
+  }
+>
+  <View
+    style={
+      [
+        {
+          "alignItems": "flex-start",
+          "flex": 1,
+        },
+      ]
+    }
+  >
+    <View
+      style={
+        [
+          {
+            "justifyContent": "flex-end",
+            "minHeight": 20,
+            "position": "relative",
+          },
+        ]
+      }
+    >
+      <View
+        style={
+          [
+            {},
+            [
+              {
+                "justifyContent": "flex-end",
+                "minHeight": 20,
+                "position": "relative",
+              },
+              {
+                "borderRadius": 6,
+                "paddingHorizontal": 6,
+                "paddingVertical": 6,
+              },
+              {
+                "backgroundColor": "#FFFFFF",
+              },
+              false,
+              {
+                "shadowColor": "#000",
+                "shadowOffset": {
+                  "height": 1,
+                  "width": 0,
+                },
+                "shadowOpacity": 0.1,
+                "shadowRadius": 1,
+              },
+              [
+                {},
+              ],
+              [
+                {},
+              ],
+              {
+                "marginRight": 8,
+              },
+            ],
+            {},
+          ]
+        }
+      >
+        <View
+          style={
+            {
+              "overflow": "hidden",
+              "position": "relative",
+            }
+          }
+        >
+          <View
+            style={
+              {
+                "overflow": "hidden",
+              }
+            }
+            testID="GC_BUBBLE_CONTENT"
+          >
+            <Text
+              data-testid="post-false"
+              testID="message-text"
+            >
+              Hello, this is a snapshot test message!
+            </Text>
+          </View>
+        </View>
+      </View>
+      <View
+        testID="hanging-reactions"
+      />
+    </View>
+  </View>
+</View>
+`;
+
+exports[`Bubble Snapshot Tests 4. [snapshot-truncated-gradient] renders truncated message with gradient in post 1`] = `
+<View
+  style={
+    [
+      {
+        "alignItems": "flex-start",
+        "flex": 1,
+      },
+      {
+        "backgroundColor": "transparent",
+      },
+    ]
+  }
+>
+  <View
+    style={
+      [
+        {
+          "justifyContent": "flex-end",
+          "minHeight": 20,
+          "position": "relative",
+        },
+        {
+          "borderRadius": 6,
+          "paddingHorizontal": 6,
+          "paddingVertical": 6,
+        },
+        {
+          "backgroundColor": "#FFFFFF",
+        },
+        {
+          "paddingHorizontal": 0,
+        },
+        null,
+        null,
+        {},
+      ]
+    }
+  >
+    <View
+      style={
+        {
+          "overflow": "hidden",
+        }
+      }
+      testID="GC_BUBBLE_CONTENT"
+    >
+      <Text
+        data-testid="post-false"
+        testID="message-text"
+      >
+        This is a very long message that will be truncated. This is a very long message that will be truncated. This is a very long message that will be truncated. This is a very long message that will be truncated. This is a very long message that will be truncated. This is a very long message that will be truncated. This is a very long message that will be truncated. This is a very long message that will be truncated. This is a very long message that will be truncated. This is a very long message that will be truncated. This is a very long message that will be truncated. This is a very long message that will be truncated. This is a very long message that will be truncated. This is a very long message that will be truncated. This is a very long message that will be truncated. This is a very long message that will be truncated. This is a very long message that will be truncated. This is a very long message that will be truncated. This is a very long message that will be truncated. This is a very long message that will be truncated. 
+      </Text>
+    </View>
+  </View>
+</View>
+`;
+
+exports[`Bubble Snapshot Tests 5. [snapshot-full-display] renders message with showFull and reactions 1`] = `
+<View
+  style={
+    [
+      {
+        "alignItems": "center",
+        "backgroundColor": "transparent",
+        "flex": 1,
+        "flexDirection": "row",
+        "justifyContent": "flex-start",
+      },
+      {
+        "position": "relative",
+      },
+    ]
+  }
+>
+  <View
+    style={
+      [
+        {
+          "alignItems": "flex-start",
+          "flex": 1,
+        },
+      ]
+    }
+  >
+    <View
+      style={
+        [
+          {
+            "justifyContent": "flex-end",
+            "minHeight": 20,
+            "position": "relative",
+          },
+        ]
+      }
+    >
+      <View
+        style={
+          [
+            {},
+            [
+              {
+                "justifyContent": "flex-end",
+                "minHeight": 20,
+                "position": "relative",
+              },
+              {
+                "borderRadius": 6,
+                "paddingHorizontal": 6,
+                "paddingVertical": 6,
+              },
+              {
+                "backgroundColor": "#FFFFFF",
+              },
+              false,
+              {
+                "shadowColor": "#000",
+                "shadowOffset": {
+                  "height": 1,
+                  "width": 0,
+                },
+                "shadowOpacity": 0.1,
+                "shadowRadius": 1,
+              },
+              [
+                {},
+              ],
+              [
+                {},
+              ],
+              {
+                "marginRight": 8,
+              },
+            ],
+            {},
+          ]
+        }
+      >
+        <View
+          style={
+            {
+              "overflow": "hidden",
+              "position": "relative",
+            }
+          }
+        >
+          <View
+            style={
+              {
+                "overflow": "hidden",
+              }
+            }
+            testID="GC_BUBBLE_CONTENT"
+          >
+            <Text
+              data-testid="post-false"
+              testID="message-text"
+            >
+              Hello, this is a snapshot test message!
+            </Text>
+          </View>
+        </View>
+      </View>
+      <View
+        testID="hanging-reactions"
+      />
+    </View>
+  </View>
+</View>
+`;
+
+exports[`Bubble Snapshot Tests 6. [snapshot-null-text] handles null/empty text gracefully 1`] = `null`;
+
+exports[`Bubble Snapshot Tests 7. [snapshot-custom-colors] renders with custom color theme 1`] = `
+<View
+  style={
+    [
+      {
+        "alignItems": "center",
+        "backgroundColor": "transparent",
+        "flex": 1,
+        "flexDirection": "row",
+        "justifyContent": "flex-start",
+      },
+      {
+        "position": "relative",
+      },
+    ]
+  }
+>
+  <View
+    style={
+      [
+        {
+          "alignItems": "flex-start",
+          "flex": 1,
+        },
+      ]
+    }
+  >
+    <View
+      style={
+        [
+          {
+            "justifyContent": "flex-end",
+            "minHeight": 20,
+            "position": "relative",
+          },
+        ]
+      }
+    >
+      <View
+        style={
+          [
+            {},
+            [
+              {
+                "justifyContent": "flex-end",
+                "minHeight": 20,
+                "position": "relative",
+              },
+              {
+                "borderRadius": 6,
+                "paddingHorizontal": 6,
+                "paddingVertical": 6,
+              },
+              {
+                "backgroundColor": "#1a1a1a",
+              },
+              false,
+              {
+                "shadowColor": "#000",
+                "shadowOffset": {
+                  "height": 1,
+                  "width": 0,
+                },
+                "shadowOpacity": 0.1,
+                "shadowRadius": 1,
+              },
+              [
+                {},
+              ],
+              [
+                {},
+              ],
+              {
+                "marginRight": 8,
+              },
+            ],
+            {},
+          ]
+        }
+      >
+        <View
+          style={
+            {
+              "overflow": "hidden",
+              "position": "relative",
+            }
+          }
+        >
+          <View
+            style={
+              {
+                "overflow": "hidden",
+              }
+            }
+            testID="GC_BUBBLE_CONTENT"
+          >
+            <Text
+              data-testid="post-false"
+              testID="message-text"
+            >
+              Hello, this is a snapshot test message!
+            </Text>
+          </View>
+        </View>
+      </View>
+      <View
+        testID="hanging-reactions"
+      />
+    </View>
+  </View>
+</View>
+`;
+
+exports[`Bubble Snapshot Tests 8. [snapshot-animation-states] renders with animation and interaction styles 1`] = `
+<View
+  style={
+    [
+      {
+        "alignItems": "center",
+        "backgroundColor": "transparent",
+        "flex": 1,
+        "flexDirection": "row",
+        "justifyContent": "flex-start",
+      },
+      {
+        "position": "relative",
+      },
+    ]
+  }
+>
+  <View
+    style={
+      [
+        {
+          "alignItems": "flex-start",
+          "flex": 1,
+        },
+      ]
+    }
+  >
+    <View
+      style={
+        [
+          {
+            "justifyContent": "flex-end",
+            "minHeight": 20,
+            "position": "relative",
+          },
+        ]
+      }
+    >
+      <View
+        style={
+          [
+            {
+              "transform": [
+                {
+                  "scale": 0.98,
+                },
+              ],
+            },
+            [
+              {
+                "justifyContent": "flex-end",
+                "minHeight": 20,
+                "position": "relative",
+              },
+              {
+                "borderRadius": 6,
+                "paddingHorizontal": 6,
+                "paddingVertical": 6,
+              },
+              {
+                "backgroundColor": "#FFFFFF",
+              },
+              false,
+              {
+                "shadowColor": "#000",
+                "shadowOffset": {
+                  "height": 1,
+                  "width": 0,
+                },
+                "shadowOpacity": 0.1,
+                "shadowRadius": 1,
+              },
+              [
+                {},
+              ],
+              [
+                {},
+              ],
+              {
+                "marginRight": 8,
+              },
+            ],
+            {
+              "height": 100,
+            },
+          ]
+        }
+      >
+        <View
+          style={
+            {
+              "overflow": "hidden",
+              "position": "relative",
+            }
+          }
+        >
+          <View
+            style={
+              {
+                "overflow": "hidden",
+              }
+            }
+            testID="GC_BUBBLE_CONTENT"
+          >
+            <Text
+              data-testid="post-false"
+              testID="message-text"
+            >
+              Hello, this is a snapshot test message!
+            </Text>
+          </View>
+        </View>
+      </View>
+      <View
+        testID="hanging-reactions"
+      />
+    </View>
+  </View>
+</View>
+`;
+
+exports[`Bubble Snapshot Tests 9. [snapshot-no-margin] renders without margin 1`] = `
+<View
+  style={
+    [
+      {
+        "alignItems": "center",
+        "backgroundColor": "transparent",
+        "flex": 1,
+        "flexDirection": "row",
+        "justifyContent": "flex-start",
+      },
+      {
+        "position": "relative",
+      },
+    ]
+  }
+>
+  <View
+    style={
+      [
+        {
+          "alignItems": "flex-start",
+          "flex": 1,
+        },
+      ]
+    }
+  >
+    <View
+      style={
+        [
+          {
+            "justifyContent": "flex-end",
+            "minHeight": 20,
+            "position": "relative",
+          },
+        ]
+      }
+    >
+      <View
+        style={
+          [
+            {},
+            [
+              {
+                "justifyContent": "flex-end",
+                "minHeight": 20,
+                "position": "relative",
+              },
+              {
+                "borderRadius": 6,
+                "paddingHorizontal": 6,
+                "paddingVertical": 6,
+              },
+              {
+                "backgroundColor": "#FFFFFF",
+              },
+              false,
+              {
+                "shadowColor": "#000",
+                "shadowOffset": {
+                  "height": 1,
+                  "width": 0,
+                },
+                "shadowOpacity": 0.1,
+                "shadowRadius": 1,
+              },
+              [
+                {},
+              ],
+              [
+                {},
+              ],
+              {},
+            ],
+            {},
+          ]
+        }
+      >
+        <View
+          style={
+            {
+              "overflow": "hidden",
+              "position": "relative",
+            }
+          }
+        >
+          <View
+            style={
+              {
+                "overflow": "hidden",
+              }
+            }
+            testID="GC_BUBBLE_CONTENT"
+          >
+            <Text
+              data-testid="post-false"
+              testID="message-text"
+            >
+              Hello, this is a snapshot test message!
+            </Text>
+          </View>
+        </View>
+      </View>
+      <View
+        testID="hanging-reactions"
+      />
+    </View>
+  </View>
+</View>
+`;
+
+exports[`Bubble Snapshot Tests 10. [snapshot-message-positions] renders first and last messages in group differently: first-message-in-group 1`] = `
+<View
+  style={
+    [
+      {
+        "alignItems": "center",
+        "backgroundColor": "transparent",
+        "flex": 1,
+        "flexDirection": "row",
+        "justifyContent": "flex-start",
+      },
+      {
+        "position": "relative",
+      },
+    ]
+  }
+>
+  <View
+    style={
+      [
+        {
+          "alignItems": "flex-start",
+          "flex": 1,
+        },
+      ]
+    }
+  >
+    <View
+      style={
+        [
+          {
+            "justifyContent": "flex-end",
+            "minHeight": 20,
+            "position": "relative",
+          },
+        ]
+      }
+    >
+      <View
+        style={
+          [
+            {},
+            [
+              {
+                "justifyContent": "flex-end",
+                "minHeight": 20,
+                "position": "relative",
+              },
+              {
+                "borderRadius": 6,
+                "paddingHorizontal": 6,
+                "paddingVertical": 6,
+              },
+              {
+                "backgroundColor": "#FFFFFF",
+              },
+              false,
+              {
+                "shadowColor": "#000",
+                "shadowOffset": {
+                  "height": 1,
+                  "width": 0,
+                },
+                "shadowOpacity": 0.1,
+                "shadowRadius": 1,
+              },
+              [
+                {},
+              ],
+              null,
+              {
+                "marginRight": 8,
+              },
+            ],
+            {},
+          ]
+        }
+      >
+        <View
+          style={
+            {
+              "overflow": "hidden",
+              "position": "relative",
+            }
+          }
+        >
+          <View
+            style={
+              {
+                "overflow": "hidden",
+              }
+            }
+            testID="GC_BUBBLE_CONTENT"
+          >
+            <Text
+              data-testid="post-false"
+              testID="message-text"
+            >
+              Hello, this is a snapshot test message!
+            </Text>
+          </View>
+        </View>
+      </View>
+      <View
+        testID="hanging-reactions"
+      />
+    </View>
+  </View>
+</View>
+`;
+
+exports[`Bubble Snapshot Tests 10. [snapshot-message-positions] renders first and last messages in group differently: last-message-in-group 1`] = `
+<View
+  style={
+    [
+      {
+        "alignItems": "center",
+        "backgroundColor": "transparent",
+        "flex": 1,
+        "flexDirection": "row",
+        "justifyContent": "flex-start",
+      },
+      {
+        "position": "relative",
+      },
+    ]
+  }
+>
+  <View
+    style={
+      [
+        {
+          "alignItems": "flex-start",
+          "flex": 1,
+        },
+      ]
+    }
+  >
+    <View
+      style={
+        [
+          {
+            "justifyContent": "flex-end",
+            "minHeight": 20,
+            "position": "relative",
+          },
+        ]
+      }
+    >
+      <View
+        style={
+          [
+            {},
+            [
+              {
+                "justifyContent": "flex-end",
+                "minHeight": 20,
+                "position": "relative",
+              },
+              {
+                "borderRadius": 6,
+                "paddingHorizontal": 6,
+                "paddingVertical": 6,
+              },
+              {
+                "backgroundColor": "#FFFFFF",
+              },
+              false,
+              {
+                "shadowColor": "#000",
+                "shadowOffset": {
+                  "height": 1,
+                  "width": 0,
+                },
+                "shadowOpacity": 0.1,
+                "shadowRadius": 1,
+              },
+              null,
+              [
+                {},
+              ],
+              {
+                "marginRight": 8,
+              },
+            ],
+            {},
+          ]
+        }
+      >
+        <View
+          style={
+            {
+              "overflow": "hidden",
+              "position": "relative",
+            }
+          }
+        >
+          <View
+            style={
+              {
+                "overflow": "hidden",
+              }
+            }
+            testID="GC_BUBBLE_CONTENT"
+          >
+            <Text
+              data-testid="post-false"
+              testID="message-text"
+            >
+              Hello, this is a snapshot test message!
+            </Text>
+          </View>
+        </View>
+      </View>
+      <View
+        testID="hanging-reactions"
+      />
+    </View>
+  </View>
+</View>
+`;
