@@ -1,6 +1,7 @@
 (ns gatz.db.user
   (:require [com.biffweb :as biff :refer [q]]
             [clojure.pprint :as pp]
+            [clojure.string :as str]
             [crdt.core :as crdt]
             [gatz.crdt.user :as crdt.user]
             [gatz.db.contacts :as db.contacts]
@@ -541,6 +542,38 @@
    (let [args {:aid user-id :bid blocked-uid
                :now now :aeid (random-uuid) :beid (random-uuid)}]
      (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.user/block-user args]]))))
+
+;; ======================================================================
+;; Apple Sign-In Functions
+
+(defn create-apple-user!
+  "Create a new user with Apple Sign-In authentication"
+  [ctx {:keys [apple-id email full-name]}]
+  {:pre [(string? apple-id) (not (empty? apple-id))]}
+  (let [username (str "apple" (subs (str/replace apple-id #"[^a-zA-Z0-9]" "") 0 8)) ; Generate valid username
+        phone "+1000000000" ; Placeholder phone for Apple users  
+        auth {:apple_id apple-id
+              :email email
+              :method "apple"}]
+    (create-user! ctx {:username username
+                       :phone phone
+                       :auth auth})))
+
+(defn link-apple-id!
+  "Link Apple ID to an existing user account"
+  ([ctx params]
+   (link-apple-id! ctx params {:now (Date.)}))
+  ([{:keys [auth/user-id] :as ctx} {:keys [apple-id email]} {:keys [now]}]
+   {:pre [(uuid? user-id) (string? apple-id) (not (empty? apple-id))]}
+   (let [clock (crdt/new-hlc user-id now)
+         auth-fields (cond-> {:auth/apple_id (crdt/lww clock apple-id)}
+                       email (assoc :auth/email (crdt/lww clock email)))
+         delta {:crdt/clock clock
+                :user/updated_at (crdt/max-wins now)
+                :user/auth auth-fields}
+         action {:gatz.crdt.user/action :gatz.crdt.user/link-apple-id
+                 :gatz.crdt.user/delta delta}]
+     (apply-action! ctx action))))
 
 (def tx-fns
   {:gatz.db.user/apply-delta user-apply-delta-expr
