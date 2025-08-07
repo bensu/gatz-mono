@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "backlog": {
+      "command": "/Users/sebastianbensusanmoreto/dev/strive/scripts/backlog-mcp",
+      "args": []
+    }
+  }
+}
