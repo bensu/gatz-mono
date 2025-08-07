@@ -1,0 +1,18 @@
+;; shadow-cljs configuration
+{:deps {:aliases [:cljs]}
+ :builds {
+          ;; :app {:target :react-native
+          ;;       :init-fn test.app/init
+          ;;       :output-dir "app"
+          ;;       :devtools {:autoload true
+          ;;                  :preloads [shadow.expo.keep-awake]}}
+          :test {:target :node-test
+                 :output-to "target/test/test.js"
+                 :autorun true}
+          :expo {:target :npm-module
+                 :entries [gatz.expo.core]
+                 :output-dir "npm-package/dist"
+                 :compiler-options {:optimizations :simple}
+                 :js-options {:js-provider :shadow
+                              :keep-native-requires true
+                              :keep-as-require #{"react-native"}}}}}
