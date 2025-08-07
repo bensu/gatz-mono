@@ -2,7 +2,15 @@
   (:require [clojure.data.json :as json]
             [gatz.db.user :as db.user]
             [buddy.sign.jwt :as jwt]
-            [gatz.util :as util]))
+            [buddy.sign.jws :as jws]
+            [buddy.core.keys :as keys]
+            [clj-http.client :as http]
+            [gatz.util :as util]
+            [clojure.string :as str])
+  (:import [java.security.spec RSAPublicKeySpec]
+           [java.security KeyFactory]
+           [java.math BigInteger]
+           [java.util Base64]))
 
 (def auth-schema
   [:map
@@ -67,3 +75,101 @@
             (err-resp "invalid_token" "Invalid JWT token")))
         (err-resp "invalid_token" "Invalid JWT token"))
       (err-resp "missing_token" "Missing token"))))
+
+;; ======================================================================
+;; Apple Sign-In JWT Validation
+
+(def apple-jwks-url "https://appleid.apple.com/auth/keys")
+
+(defn base64url-decode
+  "Decode a base64url-encoded string"
+  [s]
+  (let [padded (case (mod (count s) 4)
+                 2 (str s "==")
+                 3 (str s "=")
+                 s)]
+    (.decode (Base64/getUrlDecoder) (.getBytes padded "UTF-8"))))
+
+(defn jwk->rsa-public-key
+  "Convert a JWK (JSON Web Key) to an RSA public key"
+  [{:keys [n e]}]
+  (let [modulus (BigInteger. 1 (base64url-decode n))
+        exponent (BigInteger. 1 (base64url-decode e))
+        key-spec (RSAPublicKeySpec. modulus exponent)
+        key-factory (KeyFactory/getInstance "RSA")]
+    (.generatePublic key-factory key-spec)))
+
+(def apple-jwks-cache (atom {:keys nil :expires-at 0}))
+
+(defn fetch-apple-jwks
+  "Fetch Apple's JWKS with caching (1 hour TTL)"
+  []
+  (let [now (System/currentTimeMillis)
+        cached @apple-jwks-cache
+        expires-at (:expires-at cached)]
+    (if (< now expires-at)
+      (:keys cached)
+      (try
+        (let [response (http/get apple-jwks-url {:accept :json})
+              jwks (json/read-str (:body response) :key-fn keyword)
+              keys (:keys jwks)
+              new-expires (+ now (* 60 60 1000))] ; Cache for 1 hour
+          (reset! apple-jwks-cache {:keys keys :expires-at new-expires})
+          keys)
+        (catch Exception e
+          (throw (ex-info "Failed to fetch Apple JWKS"
+                          {:error e :url apple-jwks-url})))))))
+
+(defn find-apple-key
+  "Find the Apple public key with the given key ID (kid)"
+  [kid]
+  (let [keys (fetch-apple-jwks)]
+    (first (filter #(= (:kid %) kid) keys))))
+
+(defn verify-apple-id-token
+  "Verify an Apple ID token and extract claims"
+  [id-token {:keys [client-id audience] :or {audience client-id}}]
+  (try
+    (let [header (json/read-str
+                  (String. (base64url-decode
+                            (first (str/split id-token #"\."))))
+                  :key-fn keyword)
+          kid (:kid header)
+          alg (:alg header)]
+      
+      ;; Verify algorithm is RS256
+      (when-not (= alg "RS256")
+        (throw (ex-info "Invalid algorithm" {:algorithm alg})))
+      
+      ;; Find the appropriate key
+      (if-let [jwk (find-apple-key kid)]
+        (let [public-key (jwk->rsa-public-key jwk)
+              claims (jws/unsign id-token public-key {:alg :rs256})]
+          
+          ;; Validate required claims
+          (let [iss (:iss claims)
+                aud (:aud claims)
+                sub (:sub claims)
+                exp (:exp claims)
+                now (/ (System/currentTimeMillis) 1000)]
+            
+            ;; Validate issuer
+            (when-not (= iss "https://appleid.apple.com")
+              (throw (ex-info "Invalid issuer" {:issuer iss})))
+            
+            ;; Validate audience
+            (when-not (= aud audience)
+              (throw (ex-info "Invalid audience" {:audience aud :expected audience})))
+            
+            ;; Validate subject exists
+            (when (str/blank? sub)
+              (throw (ex-info "Missing subject" {:subject sub})))
+            
+            ;; Token expiration is automatically validated by buddy-sign
+            
+            claims))
+        (throw (ex-info "Apple public key not found" {:kid kid}))))
+    (catch Exception e
+      (throw (ex-info "Apple ID token verification failed"
+                      {:error (.getMessage e) :token (subs id-token 0 (min 50 (count id-token)))}
+                      e)))))

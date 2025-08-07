@@ -372,3 +372,110 @@
         (json-response {:status "success"}))
       (err-resp "not_found" "User not found"))))
 
+;; ======================================================================  
+;; Apple Sign-In Authentication
+
+(defn apple-sign-in! [{:keys [params biff/db] :as ctx}]
+  "Handle Apple Sign-In authentication for new users"
+  (let [{:keys [id_token client_id]} params]
+    (cond
+      ;; Validate required parameters
+      (str/blank? id_token)
+      (err-resp "missing_id_token" "Apple ID token is required")
+      
+      (str/blank? client_id)
+      (err-resp "missing_client_id" "Apple client ID is required")
+      
+      ;; Check signup disabled flag
+      (:gatz.auth/signup-disabled? ctx)
+      (err-resp "signup_disabled" "Sign up is disabled right now")
+      
+      :else
+      (try
+        (let [claims (auth/verify-apple-id-token id_token {:client-id client_id})
+              apple-id (:sub claims)
+              email (:email claims)
+              existing-user (db.user/by-apple-id db apple-id)]
+          
+          ;; Check if user account is deleted
+          (when (and existing-user (db.user/deleted? existing-user))
+            (throw (ex-info "Account deleted" {:type :account-deleted})))
+          
+          (if existing-user
+            ;; User exists, return auth token
+            (do
+              (posthog/identify! ctx existing-user)
+              (posthog/capture! (assoc ctx :auth/user-id (:xt/id existing-user)) "user.apple_sign_in")
+              (json-response {:user (crdt.user/->value existing-user)
+                              :token (auth/create-auth-token ctx (:xt/id existing-user))}))
+            
+            ;; Create new user with Apple authentication
+            (let [user (db.user/create-apple-user! ctx {:apple-id apple-id
+                                                        :email email
+                                                        :full-name (:name claims)})]
+              (posthog/identify! ctx user)
+              (posthog/capture! (assoc ctx :auth/user-id (:xt/id user)) "user.apple_sign_up")
+              (json-response {:type "sign_up"
+                              :user (crdt.user/->value user)
+                              :token (auth/create-auth-token ctx (:xt/id user))}))))
+        
+        (catch clojure.lang.ExceptionInfo e
+          (let [ex-data (ex-data e)]
+            (case (:type ex-data)
+              :account-deleted (err-resp "account_deleted" "Account deleted")
+              :duplicate-apple-id (err-resp "apple_id_taken" "This Apple ID is already registered")
+              :duplicate-email (err-resp "email_taken" "This email is already registered")
+              (err-resp "apple_auth_failed" (.getMessage e)))))
+        
+        (catch Exception e
+          (err-resp "apple_auth_failed" "Apple Sign-In authentication failed"))))))
+
+(defn link-apple! [{:keys [params auth/user-id biff/db] :as ctx}]
+  "Link Apple Sign-In to an existing user account"
+  (let [{:keys [id_token client_id]} params]
+    (cond
+      ;; Validate required parameters
+      (str/blank? id_token)
+      (err-resp "missing_id_token" "Apple ID token is required")
+      
+      (str/blank? client_id)
+      (err-resp "missing_client_id" "Apple client ID is required")
+      
+      :else
+      (try
+        (let [claims (auth/verify-apple-id-token id_token {:client-id client_id})
+              apple-id (:sub claims)
+              existing-apple-user (db.user/by-apple-id db apple-id)
+              current-user (db.user/by-id db user-id)]
+          
+          ;; Check if current user account is deleted
+          (when (db.user/deleted? current-user)
+            (throw (ex-info "Account deleted" {:type :account-deleted})))
+          
+          (cond
+            ;; Apple ID already linked to another account
+            (and existing-apple-user (not (= (:xt/id existing-apple-user) user-id)))
+            (err-resp "apple_id_taken" "This Apple ID is already linked to another account")
+            
+            ;; Apple ID already linked to current account
+            (and existing-apple-user (= (:xt/id existing-apple-user) user-id))
+            (json-response {:status "already_linked"
+                            :user (crdt.user/->value existing-apple-user)})
+            
+            ;; Link Apple ID to current account
+            :else
+            (let [{:keys [user]} (db.user/link-apple-id! ctx {:apple-id apple-id
+                                                              :email (:email claims)})]
+              (posthog/capture! ctx "user.link_apple")
+              (json-response {:status "linked"
+                              :user (crdt.user/->value user)}))))
+        
+        (catch clojure.lang.ExceptionInfo e
+          (let [ex-data (ex-data e)]
+            (case (:type ex-data)
+              :account-deleted (err-resp "account_deleted" "Account deleted")
+              (err-resp "apple_link_failed" (.getMessage e)))))
+        
+        (catch Exception e
+          (err-resp "apple_link_failed" "Failed to link Apple Sign-In"))))))
+

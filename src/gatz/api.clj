@@ -290,6 +290,7 @@
                  ["/manifest" {:get get-manifest}]
                  ["/signin" {:post api.user/sign-in!}]
                  ["/signup" {:post api.user/sign-up!}]
+                 ["/auth/apple" {:post api.user/apple-sign-in!}]
 
                  ["/ddl/pending" {:post ddl.api/post-pending-links}]
                  ["/ddl/remove" {:post ddl.api/remove-pending-link!}]
@@ -320,6 +321,7 @@
                  ["/user/settings/urls" {:post api.user/update-urls!}]
                  ["/user/settings/profile" {:post api.user/update-profile!}]
                  ["/user/location" {:post api.user/mark-location!}]
+                 ["/auth/link-apple" {:post api.user/link-apple!}]
 
                  ["/me/crdt" {:get api.user/get-me-crdt
                               :post api.user/post-me-crdt}]
