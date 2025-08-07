@@ -548,9 +548,9 @@
 
 (defn create-apple-user!
   "Create a new user with Apple Sign-In authentication"
-  [ctx {:keys [apple-id email full-name]}]
+  [ctx {:keys [apple-id email full-name username]}]
   {:pre [(string? apple-id) (not (empty? apple-id))]}
-  (let [username (str "apple" (subs (str/replace apple-id #"[^a-zA-Z0-9]" "") 0 8)) ; Generate valid username
+  (let [username (or username (str "apple" (subs (str/replace apple-id #"[^a-zA-Z0-9]" "") 0 8))) ; Use provided username or generate one
         phone "+1000000000" ; Placeholder phone for Apple users  
         auth {:apple_id apple-id
               :email email

@@ -291,6 +291,7 @@
                  ["/signin" {:post api.user/sign-in!}]
                  ["/signup" {:post api.user/sign-up!}]
                  ["/auth/apple" {:post api.user/apple-sign-in!}]
+                 ["/auth/apple/signup" {:post api.user/apple-sign-up!}]
                  ["/auth/google" {:post api.user/google-sign-in!}]
 
                  ["/ddl/pending" {:post ddl.api/post-pending-links}]
