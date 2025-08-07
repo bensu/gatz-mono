@@ -405,7 +405,7 @@ export default function SignIn() {
         let response: T.AppleSignInAPIResponse | T.GoogleSignInAPIResponse;
         
         if (credential.type === 'apple') {
-          response = await openClient.appleSignIn(credential.identityToken);
+          response = await openClient.appleSignIn(credential.identityToken, 'chat.gatz');
         } else {
           // For Google, we need the web client ID from environment
           const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
