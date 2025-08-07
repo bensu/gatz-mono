@@ -94,7 +94,7 @@
   [:map
    [:xt/id #'UserId]
    [:db/type [:enum :gatz/user]]
-   [:db/version [:enum 4]]
+   [:db/version [:enum 4 5]]
    [:user/created_at inst?]
    [:user/is_test [:maybe boolean?]]
    [:user/is_admin [:maybe boolean?]]
@@ -108,6 +108,13 @@
    [:user/avatar [:maybe string?]]
    ;; LWW set
    [:user/blocked_uids [:set uuid?]]
+   ;; Social auth fields (v5)
+   [:user/auth {:optional true} [:map
+                                 [:auth/apple_id {:optional true} [:maybe string?]]
+                                 [:auth/google_id {:optional true} [:maybe string?]]
+                                 [:auth/email {:optional true} [:maybe string?]]
+                                 [:auth/method {:optional true} [:enum "sms" "apple" "google" "email" "hybrid"]]
+                                 [:auth/migration_completed_at {:optional true} [:maybe inst?]]]]
    ;; {k {k LWW}}
    [:user/settings [:map
                     [:settings/location {:optional true} LocationPreferences]
@@ -127,7 +134,7 @@
   [:map
    [:xt/id #'UserId]
    [:db/type [:enum :gatz/user]]
-   [:db/version [:enum 4]]
+   [:db/version [:enum 4 5]]
    [:crdt/clock crdt/hlc-schema]
    [:user/created_at inst?]
    [:user/is_test [:maybe boolean?]]
@@ -141,6 +148,13 @@
    [:user/avatar (crdt/lww-schema [:maybe string?])]
    ;; LWW set
    [:user/blocked_uids (crdt/lww-set-schema #'UserId)]
+   ;; Social auth fields (v5) - LWW for consistency
+   [:user/auth {:optional true} [:map
+                                 [:auth/apple_id {:optional true} (crdt/lww-schema [:maybe string?])]
+                                 [:auth/google_id {:optional true} (crdt/lww-schema [:maybe string?])]
+                                 [:auth/email {:optional true} (crdt/lww-schema [:maybe string?])]
+                                 [:auth/method {:optional true} (crdt/lww-schema [:enum "sms" "apple" "google" "email" "hybrid"])]
+                                 [:auth/migration_completed_at {:optional true} (crdt/lww-schema [:maybe inst?])]]]
    ;; {k {k LWW}}
    [:user/push_tokens (crdt/lww-schema [:maybe PushTokens])]
    [:user/settings [:map

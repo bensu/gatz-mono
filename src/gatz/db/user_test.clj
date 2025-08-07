@@ -82,6 +82,157 @@
 
       (.close node))))
 
+;; Tests for social auth schema extension
+(deftest test-social-auth-schema-extension
+  (testing "User can be created with social auth fields"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          now (Date.)
+          uid (random-uuid)
+          apple-id "000123.abc456.apple-id"
+          google-id "google-user-id-123456"
+          email "user@example.com"]
+      
+      ;; Create user with social auth fields
+      (let [user (create-user! ctx {:id uid
+                                    :username "testuser"
+                                    :phone "+14159499932" 
+                                    :now now
+                                    :auth {:apple_id apple-id
+                                           :google_id google-id
+                                           :email email
+                                           :method "hybrid"
+                                           :migration_completed_at now}})]
+        (xtdb/sync node)
+        
+        ;; Verify user was created with correct fields
+        (let [db (xtdb/db node)
+              retrieved-user (by-id db uid)
+              user-value (crdt.user/->value retrieved-user)]
+          (is (= apple-id (get-in user-value [:user/auth :auth/apple_id])))
+          (is (= google-id (get-in user-value [:user/auth :auth/google_id])))
+          (is (= email (get-in user-value [:user/auth :auth/email])))
+          (is (= "hybrid" (get-in user-value [:user/auth :auth/method])))
+          (is (= now (get-in user-value [:user/auth :auth/migration_completed_at])))
+          
+          ;; Test lookup by social IDs
+          (is (= uid (:xt/id (by-apple-id db apple-id))))
+          (is (= uid (:xt/id (by-google-id db google-id))))
+          (is (= uid (:xt/id (by-email db email))))))
+      
+      (.close node)))
+
+  (testing "User with only SMS auth has default values"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          now (Date.)
+          uid (random-uuid)]
+      
+      ;; Create user without social auth fields (SMS only)
+      (create-user! ctx {:id uid
+                         :username "smsuser"
+                         :phone "+14159499933"
+                         :now now})
+      (xtdb/sync node)
+      
+      (let [db (xtdb/db node)
+            retrieved-user (by-id db uid)
+            user-value (crdt.user/->value retrieved-user)]
+        (is (nil? (get-in user-value [:user/auth :auth/apple_id])))
+        (is (nil? (get-in user-value [:user/auth :auth/google_id])))
+        (is (nil? (get-in user-value [:user/auth :auth/email])))
+        (is (= "sms" (get-in user-value [:user/auth :auth/method])))
+        (is (nil? (get-in user-value [:user/auth :auth/migration_completed_at]))))
+      
+      (.close node)))
+
+  (testing "Social auth field uniqueness constraints"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          now (Date.)
+          uid1 (random-uuid)
+          uid2 (random-uuid)
+          apple-id "000123.abc456.apple-id"
+          google-id "google-user-id-123456"
+          email "user@example.com"]
+      
+      ;; Create first user with social auth
+      (create-user! ctx {:id uid1
+                         :username "user1"
+                         :phone "+14159499934"
+                         :now now
+                         :auth {:apple_id apple-id
+                                :google_id google-id
+                                :email email
+                                :method "hybrid"}})
+      (xtdb/sync node)
+      
+      ;; Attempt to create second user with same social IDs should fail
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (create-user! ctx {:id uid2
+                                      :username "user2"
+                                      :phone "+14159499935"
+                                      :now now
+                                      :auth {:apple_id apple-id}})))
+      
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (create-user! ctx {:id uid2
+                                      :username "user2"
+                                      :phone "+14159499935"
+                                      :now now
+                                      :auth {:google_id google-id}})))
+      
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (create-user! ctx {:id uid2
+                                      :username "user2"
+                                      :phone "+14159499935"
+                                      :now now
+                                      :auth {:email email}})))
+      
+      (.close node))))
+
+(deftest test-social-auth-migrations
+  (testing "v4 users can be migrated to v5 with social auth fields"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          now (Date.)
+          uid (random-uuid)
+          v4-user {:xt/id uid
+                   :db/type :gatz/user
+                   :db/version 4
+                   :crdt/clock (crdt/new-hlc uid now)
+                   :user/created_at now
+                   :user/is_test false
+                   :user/is_admin false
+                   :user/name "olduser"
+                   :user/phone_number "+14159499936"
+                   :user/updated_at (crdt/max-wins now)
+                   :user/deleted_at (crdt/min-wins nil)
+                   :user/blocked_uids (crdt/lww-set (crdt/new-hlc uid now) #{})
+                   :user/avatar (crdt/lww (crdt/new-hlc uid now) nil)
+                   :user/push_tokens (crdt/lww (crdt/new-hlc uid now) nil)
+                   :user/settings {:settings/notifications (crdt.user/notifications-off-crdt (crdt/new-hlc uid now))
+                                   :settings/location {:settings.location/enabled (crdt/lww (crdt/new-hlc uid now) nil)}}
+                   :user/profile {:profile/full_name (crdt/lww (crdt/new-hlc uid now) nil)
+                                  :profile/urls {:profile.urls/website (crdt/lww (crdt/new-hlc uid now) nil)
+                                                 :profile.urls/twitter (crdt/lww (crdt/new-hlc uid now) nil)}}}]
+      
+      ;; Insert v4 user directly
+      (biff/submit-tx ctx [[:xtdb.api/put v4-user]])
+      (xtdb/sync node)
+      
+      ;; Migration should add social auth fields with defaults
+      (let [db (xtdb/db node)
+            migrated-user (by-id db uid)
+            user-value (crdt.user/->value migrated-user)]
+        (is (= 5 (:db/version migrated-user)))
+        (is (nil? (get-in user-value [:user/auth :auth/apple_id])))
+        (is (nil? (get-in user-value [:user/auth :auth/google_id])))
+        (is (nil? (get-in user-value [:user/auth :auth/email])))
+        (is (= "sms" (get-in user-value [:user/auth :auth/method])))
+        (is (nil? (get-in user-value [:user/auth :auth/migration_completed_at]))))
+      
+      (.close node))))
 (deftest user-actions
   (testing "The user actions have the right schema"
     (let [now (Date.)
