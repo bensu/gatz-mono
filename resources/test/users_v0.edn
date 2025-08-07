@@ -1,0 +1,287 @@
+[{:user/created_at #inst "2024-02-08T16:35:38.887-00:00",
+  :user/name "test5",
+  :user/last_active #inst "2024-03-20T21:48:38.748-00:00",
+  :db/type :gatz/user,
+  :user/is_test false,
+  :xt/id #uuid "6d069e52-7cf6-40cc-9623-88b80462d3a4",
+  :user/is_admin false,
+  :user/phone_number "+15555555555",
+  :user/updated_at #inst "2024-03-20T21:48:38.748-00:00",
+  :user/avatar nil,
+  :user/push_tokens nil,
+  :user/settings
+  #:settings{:notifications
+             #:settings.notification{:overall false,
+                                     :activity
+                                     :settings.notification/none,
+                                     :comments_to_own_post false,
+                                     :reactions_to_own_post false,
+                                     :replies_to_comment false,
+                                     :reactions_to_comment false,
+                                     :at_mentions false,
+                                     :subscribe_on_comment false}}}
+ {:user/created_at #inst "2024-02-13T19:34:10.886-00:00",
+  :user/name "willy",
+  :user/last_active #inst "2024-03-20T21:48:38.226-00:00",
+  :db/type :gatz/user,
+  :user/is_test false,
+  :xt/id #uuid "5357c7ec-3bce-4690-ae9e-cb60c06dbe95",
+  :user/is_admin false,
+  :user/phone_number "+18888888888",
+  :user/updated_at #inst "2024-03-20T21:48:38.226-00:00",
+  :user/avatar
+  "https://gatzapi.com/avatars/8f88a166-88c5-41dd-914b-d042bd4bb475",
+  :user/push_tokens nil,
+  :user/settings
+  #:settings{:notifications
+             #:settings.notification{:overall false,
+                                     :activity
+                                     :settings.notification/none,
+                                     :comments_to_own_post false,
+                                     :reactions_to_own_post false,
+                                     :replies_to_comment false,
+                                     :reactions_to_comment false,
+                                     :at_mentions false,
+                                     :subscribe_on_comment false}}}
+ {:user/created_at #inst "2024-02-08T16:40:03.172-00:00",
+  :user/name "test6",
+  :user/last_active #inst "2024-03-20T21:48:38.860-00:00",
+  :db/type :gatz/user,
+  :user/is_test false,
+  :xt/id #uuid "5c1f1fc8-ac54-404a-ae39-6d901fadc478",
+  :user/is_admin false,
+  :user/phone_number "+16666666666",
+  :user/updated_at #inst "2024-03-20T21:48:38.860-00:00",
+  :user/avatar nil,
+  :user/push_tokens nil,
+  :user/settings
+  #:settings{:notifications
+             #:settings.notification{:overall false,
+                                     :activity
+                                     :settings.notification/none,
+                                     :comments_to_own_post false,
+                                     :reactions_to_own_post false,
+                                     :replies_to_comment false,
+                                     :reactions_to_comment false,
+                                     :at_mentions false,
+                                     :subscribe_on_comment false}}}
+ {:user/created_at #inst "2024-02-08T16:26:17.634-00:00",
+  :user/name "test3",
+  :user/last_active #inst "2024-03-20T21:48:39.865-00:00",
+  :db/type :gatz/user,
+  :user/is_test false,
+  :xt/id #uuid "a465b86b-970d-4034-90fe-270fb852238e",
+  :user/is_admin false,
+  :user/phone_number "+13333333333",
+  :user/updated_at #inst "2024-03-20T21:48:39.865-00:00",
+  :user/avatar nil,
+  :user/push_tokens
+  #:push{:expo
+         #:push{:service :push/expo,
+                :token "ExponentPushToken[XDCH3KIPJQkqiq5YmznFss]",
+                :created_at #inst "2024-03-10T18:52:48.234-00:00"}},
+  :user/settings
+  #:settings{:notifications
+             #:settings.notification{:overall true,
+                                     :activity
+                                     :settings.notification/daily,
+                                     :comments_to_own_post true,
+                                     :reactions_to_own_post true,
+                                     :replies_to_comment true,
+                                     :reactions_to_comment true,
+                                     :at_mentions true,
+                                     :subscribe_on_comment true}}}
+ {:user/created_at #inst "2024-01-12T21:53:33.795-00:00",
+  :user/name "sebas",
+  :user/last_active #inst "2024-03-20T21:48:40.171-00:00",
+  :db/type :gatz/user,
+  :user/is_test false,
+  :xt/id #uuid "2699f3d8-45ca-439b-a9e9-4b2b6bf3a899",
+  :user/is_admin true,
+  :user/phone_number "+14159499932",
+  :user/updated_at #inst "2024-03-20T21:48:40.171-00:00",
+  :user/avatar
+  "https://gatzapi.com/avatars/b2a895d3-ad3a-42a6-8c17-03d46a6a6198",
+  :user/push_tokens
+  #:push{:expo
+         #:push{:service :push/expo,
+                :token "ExponentPushToken[XDCH3KIPJQkqiq5YmznFss]",
+                :created_at #inst "2024-03-10T23:39:58.555-00:00"}},
+  :user/settings
+  #:settings{:notifications
+             #:settings.notification{:overall true,
+                                     :activity
+                                     :settings.notification/daily,
+                                     :comments_to_own_post true,
+                                     :reactions_to_own_post true,
+                                     :replies_to_comment true,
+                                     :reactions_to_comment true,
+                                     :at_mentions true,
+                                     :subscribe_on_comment true}}}
+ {:user/created_at #inst "2024-02-23T14:27:39.562-00:00",
+  :user/name "max",
+  :user/last_active #inst "2024-03-20T21:48:39.070-00:00",
+  :db/type :gatz/user,
+  :user/is_test false,
+  :xt/id #uuid "a5bc4dfe-135a-4b82-85b4-32b266008b1f",
+  :user/is_admin false,
+  :user/phone_number "+19999999999",
+  :user/updated_at #inst "2024-03-20T21:48:39.070-00:00",
+  :user/avatar nil,
+  :user/push_tokens nil,
+  :user/settings
+  #:settings{:notifications
+             #:settings.notification{:overall false,
+                                     :activity
+                                     :settings.notification/none,
+                                     :comments_to_own_post false,
+                                     :reactions_to_own_post false,
+                                     :replies_to_comment false,
+                                     :reactions_to_comment false,
+                                     :at_mentions false,
+                                     :subscribe_on_comment false}}}
+ {:user/created_at #inst "2024-02-07T22:58:23.764-00:00",
+  :user/name "bond",
+  :user/last_active #inst "2024-03-20T21:48:39.595-00:00",
+  :db/type :gatz/user,
+  :user/is_test false,
+  :xt/id #uuid "7b24c472-80ca-4963-827f-918de9dece41",
+  :user/is_admin false,
+  :user/phone_number "+14444444444",
+  :user/updated_at #inst "2024-03-20T21:48:39.595-00:00",
+  :user/avatar nil,
+  :user/push_tokens nil,
+  :user/settings
+  #:settings{:notifications
+             #:settings.notification{:overall false,
+                                     :activity
+                                     :settings.notification/none,
+                                     :comments_to_own_post false,
+                                     :reactions_to_own_post false,
+                                     :replies_to_comment false,
+                                     :reactions_to_comment false,
+                                     :at_mentions false,
+                                     :subscribe_on_comment false}}}
+ {:user/created_at #inst "2024-02-07T15:00:48.130-00:00",
+  :user/name "test2",
+  :user/last_active #inst "2024-03-21T01:26:26.247-00:00",
+  :db/type :gatz/user,
+  :user/is_test true,
+  :xt/id #uuid "1f4fe8fa-c6a6-4118-8c49-f8d296153f66",
+  :user/is_admin false,
+  :user/phone_number "+12222222222",
+  :user/updated_at #inst "2024-03-21T01:26:26.247-00:00",
+  :user/avatar nil,
+  :user/push_tokens
+  #:push{:expo
+         #:push{:service :push/expo,
+                :token "ExponentPushToken[Av_YePMUmvM1IBLVyrAjtN]",
+                :created_at #inst "2024-02-09T23:59:49.490-00:00"}},
+  :user/settings
+  #:settings{:notifications
+             #:settings.notification{:overall true,
+                                     :activity
+                                     :settings.notification/daily,
+                                     :comments_to_own_post true,
+                                     :reactions_to_own_post true,
+                                     :replies_to_comment true,
+                                     :reactions_to_comment true,
+                                     :at_mentions true,
+                                     :subscribe_on_comment true}}}
+ {:user/created_at #inst "2024-01-22T23:47:17.900-00:00",
+  :user/name "devon",
+  :user/last_active #inst "2024-03-20T21:48:38.012-00:00",
+  :db/type :gatz/user,
+  :user/is_test false,
+  :xt/id #uuid "1dc9a086-7b5f-4263-a211-1b2fa252ac03",
+  :user/is_admin false,
+  :user/phone_number "+16509067099",
+  :user/updated_at #inst "2024-03-20T21:48:38.012-00:00",
+  :user/avatar "http://localhost:8080/avatars/devon.jpg",
+  :user/push_tokens nil,
+  :user/settings
+  #:settings{:notifications
+             #:settings.notification{:overall false,
+                                     :activity
+                                     :settings.notification/none,
+                                     :comments_to_own_post false,
+                                     :reactions_to_own_post false,
+                                     :replies_to_comment false,
+                                     :reactions_to_comment false,
+                                     :at_mentions false,
+                                     :subscribe_on_comment false}}}
+ {:user/created_at #inst "2024-02-08T16:47:14.436-00:00",
+  :user/name "test7",
+  :user/last_active #inst "2024-03-20T21:48:38.655-00:00",
+  :db/type :gatz/user,
+  :user/is_test false,
+  :xt/id #uuid "9373d3d2-c194-41eb-8b08-091e255917b9",
+  :user/is_admin false,
+  :user/phone_number "+17777777777",
+  :user/updated_at #inst "2024-03-20T21:48:38.655-00:00",
+  :user/avatar nil,
+  :user/push_tokens
+  #:push{:expo
+         #:push{:service :push/expo,
+                :token "ExponentPushToken[XDCH3KIPJQkqiq5YmznFss]",
+                :created_at #inst "2024-02-08T16:52:09.097-00:00"}},
+  :user/settings
+  #:settings{:notifications
+             #:settings.notification{:overall true,
+                                     :activity
+                                     :settings.notification/daily,
+                                     :comments_to_own_post true,
+                                     :reactions_to_own_post true,
+                                     :replies_to_comment true,
+                                     :reactions_to_comment true,
+                                     :at_mentions true,
+                                     :subscribe_on_comment true}}}
+ {:user/created_at #inst "2024-01-12T21:53:12.917-00:00",
+  :user/name "bensu",
+  :user/last_active #inst "2024-03-20T21:48:38.124-00:00",
+  :db/type :gatz/user,
+  :user/is_test true,
+  :xt/id #uuid "ba3c8279-5b4e-4435-8b42-de98327d9f47",
+  :user/is_admin false,
+  :user/phone_number "+10000000000",
+  :user/updated_at #inst "2024-03-20T21:48:38.124-00:00",
+  :user/avatar "http://localhost:8080/avatars/tara.jpg",
+  :user/push_tokens nil,
+  :user/settings
+  #:settings{:notifications
+             #:settings.notification{:overall false,
+                                     :activity
+                                     :settings.notification/none,
+                                     :comments_to_own_post false,
+                                     :reactions_to_own_post false,
+                                     :replies_to_comment false,
+                                     :reactions_to_comment false,
+                                     :at_mentions false,
+                                     :subscribe_on_comment false}}}
+ {:crdt/clock
+  {:ts #inst "2024-05-02T06:05:25.173-00:00",
+   :counter 0,
+   :node #uuid "fb0a361e-9380-429a-839d-3906c7dc5a57"},
+  :user/created_at #inst "2024-01-27T15:30:41.956-00:00",
+  :user/name "test",
+  :user/last_active #inst "2024-05-02T06:05:25.173-00:00",
+  :db/type :gatz/user,
+  :user/image "http://www.gravatar.com/avatar",
+  :user/is_test true,
+  :xt/id #uuid "fb0a361e-9380-429a-839d-3906c7dc5a57",
+  :user/is_admin false,
+  :user/phone_number "+11111111111",
+  :user/updated_at #inst "2024-05-02T04:21:20.007-00:00",
+  :user/avatar "https://gatzapi.com/avatars/ef3b40b3-58c7-4afa-89d9-ecacce580d1f",
+  :user/push_tokens
+  #:push{:expo
+         #:push{:service :push/expo,
+                :token "ExponentPushToken[XDCH3KIPJQkqiq5YmznFss]",
+                :created_at #inst "2024-03-24T19:07:04.108-00:00"}}
+  :user/settings
+  #:settings{:notifications
+             #:settings.notification{:overall true,
+                                     :activity
+                                     :settings.notification/daily,
+                                     :subscribe_on_comment true,
+                                     :suggestions_from_gatz true}}}]

@@ -1,0 +1,508 @@
+(ns gatz.db.user
+  (:require [com.biffweb :as biff :refer [q]]
+            [clojure.pprint :as pp]
+            [crdt.core :as crdt]
+            [gatz.crdt.user :as crdt.user]
+            [gatz.db.contacts :as db.contacts]
+            [gatz.db.evt :as db.evt]
+            [gatz.db.util :as db.util]
+            [gatz.schema :as schema]
+            [malli.core :as malli]
+            [malli.util :as mu]
+            [sdk.twilio :as twilio]
+            [xtdb.api :as xtdb])
+  (:import [java.util Date]))
+
+;; ======================================================================
+;; Migrations
+
+(def migration-client-id #uuid "08f711cd-1d4d-4f61-b157-c36a8be8ef95")
+
+(defn v0->v1 [data]
+  (let [clock (crdt/new-hlc migration-client-id)]
+    (-> (merge crdt.user/user-defaults data)
+        (assoc :crdt/clock clock
+               :db/version 1
+               :db/doc-type :gatz.crdt/user
+               :db/type :gatz/user)
+        (update :user/updated_at #(crdt/->MaxWins %))
+        (update :user/last_active #(crdt/->MaxWins %))
+        (update :user/avatar #(crdt/->LWW clock %))
+        (update :user/push_tokens #(crdt/->LWW clock %))
+        (update-in [:user/settings :settings/notifications]
+                   #(crdt/->lww-map (merge crdt.user/notifications-off %)
+                                    clock)))))
+
+(defn v1->v2 [data]
+  (let [clock (crdt/new-hlc migration-client-id)]
+    (-> data
+        (assoc :db/version 2 :crdt/clock clock)
+        (update-in [:user/profile :profile/urls] #(merge (crdt.user/empty-links clock) %)))))
+
+(defn v2->v3 [data]
+  (let [clock (crdt/new-hlc migration-client-id)
+        nts-on (crdt/-value (get-in data [:user/settings :settings/notifications :settings.notification/overall]))]
+    (-> data
+        (assoc :db/version 3 :crdt/clock clock)
+        (assoc-in [:user/settings :settings/notifications :settings.notification/friend_accepted] (crdt/lww clock nts-on)))))
+
+(defn v3->v4 [data]
+  (let [clock (crdt/new-hlc migration-client-id)]
+    (-> data
+        (assoc :db/version 4 :crdt/clock clock)
+        (update-in [:user/profile :profile/full_name] #(or % (crdt/lww clock nil))))))
+
+
+(def all-migrations
+  [{:from 0 :to 1 :transform v0->v1}
+   {:from 1 :to 2 :transform v1->v2}
+   {:from 2 :to 3 :transform v2->v3}
+   {:from 3 :to 4 :transform v3->v4}])
+
+(defn- as-unique [x] [:db/unique x])
+
+;; ======================================================================
+;; Activity 
+
+;; We keep what used to be :user/last_active in a separate document
+;; so that the user document doesn't get updated every time the user
+;; visits the app.
+
+(defn activity-v0->v1 [data]
+  (let [clock (crdt/new-hlc migration-client-id)]
+    (-> data
+        (assoc :db/version 2 :crdt/clock clock)
+        (assoc :user_activity/last_location (crdt/lww clock nil))
+        (update :user_activity/last_active #(crdt/->MaxWins %)))))
+
+(def activity-migrations
+  [{:from 0 :to 1 :transform identity}
+   {:from 1 :to 2 :transform activity-v0->v1}])
+
+(defn new-activity-doc [{:keys [uid now id]}]
+  (let [clock (crdt/new-hlc uid now)]
+    {:db/doc-type :gatz/user_activity
+     :xt/id (or id (random-uuid))
+     :db/op :create
+     :db/type :gatz/user_activity
+     :db/version 2
+     :user_activity/user_id uid
+     :crdt/clock clock
+     :user_activity/last_active (crdt/->MaxWins now)
+     :user_activity/last_location (crdt/lww clock nil)}))
+
+(defn activity-by-uid [db uid]
+  {:pre [(uuid? uid)]}
+  (some-> (first
+           (q db
+              '{:find (pull a [*])
+                :in [uid]
+                :where [[a :db/type :gatz/user_activity]
+                        [a :user_activity/user_id uid]]}
+              uid))
+          (db.util/->latest-version activity-migrations)))
+
+
+(defn mark-active-txn [xtdb-ctx {:keys [args]}]
+  (let [db (xtdb.api/db xtdb-ctx)
+        {:keys [uid now]} args
+        clock (crdt/new-hlc uid now)
+        delta {:crdt/clock clock
+               :user_activity/last_active now}
+        doc (or (activity-by-uid db uid)
+                (new-activity-doc {:uid uid :now now}))]
+    [[:xtdb.api/put (-> doc
+                        (crdt/-apply-delta delta)
+                        (assoc :db/doc-type :gatz/user_activity))]]))
+
+(defn remove-location!
+  "Development time only"
+  [{:keys [biff.xtdb/node] :as ctx} {:keys [uid now]}]
+  {:pre [(uuid? uid) (inst? now)]}
+  (let [db (xtdb.api/db node)
+        clock (crdt/new-hlc uid now)
+        doc (activity-by-uid db uid)
+        lww (crdt/lww clock nil)]
+    (biff/submit-tx ctx
+                    [[:xtdb.api/put (assoc doc
+                                           :crdt/clock clock
+                                           :user_activity/last_location lww)]])))
+
+(def mark-active-expr
+  '(fn mark-active-fn [ctx args]
+     (gatz.db.user/mark-active-txn ctx args)))
+
+(defn mark-location-txn [xtdb-ctx {:keys [args]}]
+  (let [db (xtdb.api/db xtdb-ctx)
+        {:keys [location_id uid now]} args
+        clock (crdt/new-hlc uid now)
+        lww (crdt/lww clock {:location/id location_id :location/ts now})
+        delta {:crdt/clock clock
+               :user_activity/last_location lww}
+        doc (or (activity-by-uid db uid)
+                (new-activity-doc {:uid uid :now now}))]
+    [[:xtdb.api/put (-> doc
+                        (crdt/-apply-delta delta)
+                        (assoc :db/doc-type :gatz/user_activity))]]))
+
+(def mark-location-expr
+  '(fn mark-location-fn [ctx args]
+     (gatz.db.user/mark-location-txn ctx args)))
+
+;; ====================================================================== 
+;; User
+
+(defn by-name [db username]
+  {:pre [(string? username) (not (empty? username))]}
+  (let [users (q db
+                 '{:find (pull u [*])
+                   :in [username]
+                   :where [[u :user/name username]
+                           [u :db/type :gatz/user]]}
+                 username)
+        ;; TODO: there is a way to guarantee uniqueness of usernames with biff
+        user (->> users
+                  (remove nil?)
+                  (sort-by (comp :user/created_at #(.getTime %)))
+                  first)]
+    (some-> user (db.util/->latest-version all-migrations))))
+
+(defn by-phone [db phone]
+  {:pre [(string? phone) (not (empty? phone))]}
+  (let [users (q db
+                 '{:find (pull u [*])
+                   :in [phone]
+                   :where [[u :user/phone_number phone]
+                           [u :db/type :gatz/user]]}
+                 phone)
+        ;; TODO: there is a way to guarantee uniqueness of phones with biff
+        user (->> users
+                  (remove nil?)
+                  (sort-by (comp #(.getTime %) :user/created_at))
+                  first)]
+    (some-> user (db.util/->latest-version  all-migrations))))
+
+(defn all-ids [db]
+  (q db
+     '{:find  u
+       :where [[u :db/type :gatz/user]]}))
+
+(defn new-contacts-txn [{:keys [uid now]}]
+  (let [contacts (db.contacts/new-contacts {:uid uid
+                                            :now now
+                                            :contact-ids #{}})]
+    (-> contacts
+        (assoc :db/doc-type :gatz/contacts :db/op :create)
+        (update :contacts/user_id as-unique))))
+
+(defn mask-deleted [user]
+  (cond-> user
+    (some? (some-> user :user/deleted_at crdt/-value))
+    (assoc :user/name "[deleted]"
+           :user/avatar nil
+           :user/profile {:profile/full_name nil
+                          :profile/urls {:profile.urls/twitter nil
+                                         :profile.urls/website nil}}
+           :user/phone_number nil)))
+
+(defn by-id [db user-id]
+  {:pre [(uuid? user-id)]}
+  (when-let [e (xtdb/entity db user-id)]
+    (-> (merge crdt.user/user-defaults e)
+        (db.util/->latest-version all-migrations)
+        mask-deleted)))
+
+
+(defn create-user!
+  ([ctx {:keys [username phone id now]}]
+
+   {:pre [(crdt.user/valid-username? username) (string? phone)]}
+
+   (let [id (or id (random-uuid))
+         now (or now (Date.))
+         user (crdt.user/new-user {:id id
+                                   :phone phone
+                                   :username username
+                                   :now now})
+         test? (or (not= :env/prod (:env ctx))
+                   (contains? twilio/TEST_PHONES phone))
+         txns [(-> user
+                   (assoc :user/is_test test?)
+                   (assoc :db/doc-type :gatz.crdt/user :db/op :create)
+                   (update :user/name as-unique)
+                   (update :user/phone_number as-unique))
+               (new-contacts-txn {:uid id :now now})
+               (new-activity-doc {:uid id :now now})]]
+     (biff/submit-tx ctx txns)
+     user)))
+
+(defn update-username!
+  "Only used in manual fixups or migrations, not part of what users can do"
+  ([{:keys [biff.xtdb/node] :as ctx} uid new-username]
+
+   {:pre [(crdt.user/valid-username? new-username)]}
+
+   (let [now (Date.)
+         db (xtdb.api/db node)
+         user (by-id db uid)
+         _ (assert user)
+         new-user (-> user
+                      (assoc :user/name (as-unique new-username)
+                             :user/updated_at (crdt/max-wins now)
+                             :crdt/clock (crdt/new-hlc uid now)
+                             :db/doc-type :gatz.crdt/user))]
+     (biff/submit-tx ctx [new-user])
+     new-user)))
+
+
+;; ====================================================================== 
+;; Actions
+
+(defn user-apply-delta
+  [ctx {:keys [evt] :as _args}]
+  (let [uid (:evt/uid evt)
+        db (xtdb.api/db ctx)
+        user (gatz.db.user/by-id db uid)
+        delta (get-in evt [:evt/data :gatz.crdt.user/delta])
+        new-user (gatz.crdt.user/apply-delta user delta)]
+    [[:xtdb.api/put evt]
+     [:xtdb.api/put new-user]]))
+
+(def ^{:doc "This function will be stored in the db which is why it is an expression"}
+  user-apply-delta-expr
+  '(fn user-apply-delta-fn [ctx args]
+     (gatz.db.user/user-apply-delta ctx args)))
+
+(defn apply-action!
+  "Applies a delta to the user and stores it"
+  [{:keys [biff/db auth/user-id auth/cid] :as ctx} action] ;; TODO: use cid
+  {:pre [(uuid? user-id)]}
+  (let [evt (db.evt/new-evt {:evt/type :gatz.crdt.user/delta
+                             :evt/uid user-id
+                             :evt/cid cid
+                             :evt/data action})]
+    (assert (true? (malli/validate schema/UserEvent evt))
+            (str "Invalid event: " (pp/pprint (malli/explain schema/UserEvent evt))))
+    (let [txs [[:xtdb.api/fn :gatz.db.user/apply-delta {:evt evt}]]
+          ;; Try the transaction before submitting it
+          db-after (xtdb.api/with-tx db txs)]
+      (assert (some? db-after) "Transaction would've failed")
+      (biff/submit-tx (assoc ctx :biff.xtdb/retry false) txs)
+      {:evt (xtdb.api/entity db-after (:xt/id evt))
+       :user (by-id db-after user-id)})))
+
+(defn update-avatar!
+  ([ctx avatar–url]
+   (update-avatar! ctx avatar–url {:now (Date.)}))
+  ([{:keys [auth/user-id] :as ctx} avatar–url {:keys [now]}]
+   {:pre [(uuid? user-id) (string? avatar–url) (inst? now)]}
+   (let [clock (crdt/new-hlc user-id now)
+         action {:gatz.crdt.user/action :gatz.crdt.user/update-avatar
+                 :gatz.crdt.user/delta {:crdt/clock clock
+                                        :user/updated_at (crdt/max-wins now)
+                                        :user/avatar (crdt/->LWW clock avatar–url)}}]
+     (apply-action! ctx action))))
+
+(defn edit-profile!
+  ([ctx profile]
+   (edit-profile! ctx profile {:now (Date.)}))
+
+  ([{:keys [auth/user-id] :as ctx} profile {:keys [now]}]
+   {:pre [(uuid? user-id)]}
+   (let [{:profile/keys [urls full_name]} profile
+         clock (crdt/new-hlc user-id now)
+         crdt (cond-> {}
+                (not (empty? urls)) (assoc :profile/urls (crdt/->lww-map urls clock))
+                (not (empty? full_name)) (assoc :profile/full_name (crdt/lww clock full_name)))
+         action {:gatz.crdt.user/action :gatz.crdt.user/update-profile
+                 :gatz.crdt.user/delta {:crdt/clock clock
+                                        :user/updated_at (crdt/max-wins now)
+                                        :user/profile crdt}}]
+     (apply-action! ctx action))))
+
+(defn add-push-token!
+  ([ctx params]
+   (add-push-token! ctx params {:now (Date.)}))
+  ([{:keys [auth/user-id] :as ctx} {:keys [push-token]} {:keys [now]}]
+
+   {:pre [(uuid? user-id)
+          (malli/validate schema/PushTokens push-token)]}
+
+   (let [clock (crdt/new-hlc user-id now)
+         delta {:crdt/clock clock
+                :user/updated_at (crdt/max-wins now)
+                :user/push_tokens (crdt/->LWW clock push-token)
+                :user/settings {:settings/notifications (crdt.user/notifications-on-crdt clock)}}
+         action {:gatz.crdt.user/action :gatz.crdt.user/add-push-token
+                 :gatz.crdt.user/delta delta}]
+     (apply-action! ctx action))))
+
+(defn remove-push-tokens!
+  ([ctx] (remove-push-tokens! ctx {:now (Date.)}))
+
+  ([{:keys [auth/user-id] :as ctx} {:keys [now]}]
+
+   {:pre [(uuid? user-id)]}
+
+   (let [clock (crdt/new-hlc user-id now)
+         delta {:crdt/clock clock
+                :user/updated_at (crdt/max-wins now)
+                :user/push_tokens (crdt/->LWW clock nil)
+                :user/settings {:settings/notifications (crdt.user/notifications-off-crdt clock)}}
+         action {:gatz.crdt.user/action :gatz.crdt.user/remove-push-token
+                 :gatz.crdt.user/delta delta}]
+     (apply-action! ctx action))))
+
+(defn edit-notifications!
+
+  ([ctx notification-settings]
+   (edit-notifications! ctx notification-settings {:now (Date.)}))
+
+  ([{:keys [auth/user-id] :as ctx} notification-settings {:keys [now]}]
+
+   {:pre [(uuid? user-id)
+          (malli/validate (mu/optional-keys schema/NotificationPreferences)
+                          notification-settings)]}
+
+   (let [clock (crdt/new-hlc user-id now)
+         delta {:crdt/clock clock
+                :user/updated_at (crdt/max-wins now)
+                :user/settings {:settings/notifications (crdt/->lww-map notification-settings clock)}}
+         action {:gatz.crdt.user/action :gatz.crdt.user/update-notifications
+                 :gatz.crdt.user/delta delta}]
+     (apply-action! ctx action))))
+
+(defn turn-off-notifications! [ctx]
+  (edit-notifications! ctx crdt.user/notifications-off))
+
+(defn mark-active!
+  ([ctx]
+   (mark-active! ctx {:now (Date.)}))
+  ([{:keys [auth/user-id] :as ctx} {:keys [now]}]
+   {:pre [(uuid? user-id)]}
+   (let [args {:uid user-id :now now}]
+     (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
+                     [[:xtdb.api/fn :gatz.db.user/mark-active {:args args}]]))))
+
+(defn mark-location!
+  [{:keys [auth/user-id] :as ctx} {:keys [location_id now]}]
+  {:pre [(uuid? user-id) (string? location_id)]}
+  (let [args {:uid user-id :location_id location_id :now now}]
+    (biff/submit-tx (assoc ctx :biff.xtdb/retry false)
+                    [[:xtdb.api/fn :gatz.db.user/mark-location {:args args}]])))
+
+(defn update-location-settings!
+
+  ([ctx location-settings]
+   (update-location-settings! ctx location-settings {:now (Date.)}))
+
+  ([{:keys [auth/user-id] :as ctx} location-settings {:keys [now]}]
+
+   {:pre [(uuid? user-id)
+          (malli/validate (mu/optional-keys schema/LocationPreferences)
+                          location-settings)]}
+
+   (let [clock (crdt/new-hlc user-id now)
+         delta {:crdt/clock clock
+                :user/updated_at (crdt/max-wins now)
+                :user/settings {:settings/location (crdt/->lww-map location-settings clock)}}
+         action {:gatz.crdt.user/action :gatz.crdt.user/update-location-settings
+                 :gatz.crdt.user/delta delta}]
+     (apply-action! ctx action))))
+
+(defn deleted? [user]
+  (boolean (:user/deleted_at (crdt.user/->value user))))
+
+(defn mark-delete-delta [uid now]
+  (let [clock (crdt/new-hlc uid now)]
+    {:crdt/clock clock
+     :user/updated_at (crdt/max-wins now)
+     :user/deleted_at now
+     :user/profile {:profile/full_name (crdt/lww clock nil)
+                    :profile/urls {:profile.urls/twitter (crdt/lww clock nil)
+                                   :profile.urls/website (crdt/lww clock nil)}}}))
+
+(defn mark-deleted-txn [db {:keys [uid now]}]
+  (let [user (by-id db uid)
+        delta (mark-delete-delta uid now)]
+    (assert user)
+    [[:xtdb.api/put (-> user
+                        (gatz.crdt.user/apply-delta delta)
+                        (assoc :db/doc-type :gatz.crdt/user))]]))
+
+(defn mark-deleted!
+  ([ctx]
+   (mark-deleted! ctx {:now (Date.)}))
+  ([{:keys [auth/user-id] :as ctx} {:keys [now]}]
+   {:pre [(uuid? user-id)]}
+   (let [delta (mark-delete-delta user-id now)
+         action {:gatz.crdt.user/action :gatz.crdt.user/mark-deleted
+                 :gatz.crdt.user/delta delta}]
+     (apply-action! ctx action))))
+
+(defn mutually-blocked? [alice bob]
+  (boolean
+   (and alice bob
+        (or
+         (contains? (:user/blocked_uids (crdt.user/->value alice)) (:xt/id bob))
+         (contains? (:user/blocked_uids (crdt.user/->value bob)) (:xt/id alice))))))
+
+(defn- block-evt [{:keys [eid from to now]}]
+  {:pre [(uuid? eid) (uuid? from) (uuid? to) (not= from to) (inst? now)]}
+  (let [clock (crdt/new-hlc from now)
+        delta {:crdt/clock clock
+               :user/updated_at (crdt/max-wins now)
+               :user/blocked_uids (crdt/lww-set-delta clock #{to})}
+        action {:gatz.crdt.user/action :gatz.crdt.user/block-another-user
+                :gatz.crdt.user/delta delta}]
+    (db.evt/new-evt {:xt/id eid
+                     :evt/type :gatz.crdt.user/delta
+                     :evt/ts now
+                     :evt/uid from
+                     :evt/cid from
+                     :evt/data action})))
+
+(defn block-user-txn
+  [_ctx {:keys [aid bid now aeid beid] :as _args}]
+  (let [a-evt (block-evt {:eid aeid :from aid :to bid :now now})
+        b-evt (block-evt {:eid beid :from bid :to aid :now now})
+        args {:from aid :to bid :now now}]
+    [[:xtdb.api/fn :gatz.db.user/apply-delta {:evt a-evt}]
+     [:xtdb.api/fn :gatz.db.user/apply-delta {:evt b-evt}]
+     [:xtdb.api/fn :gatz.db.contacts/remove-contacts {:args args}]]))
+
+(def ^{:doc "This function will be stored in the db which is why it is an expression"}
+  block-user-expr
+  '(fn block-user-fn [ctx args]
+     (gatz.db.user/block-user-txn ctx args)))
+
+(defn block-user!
+
+  ([ctx blocked-uid]
+   (block-user! ctx blocked-uid {:now (Date.)}))
+
+  ([{:keys [auth/user-id] :as ctx} blocked-uid {:keys [now]}]
+
+   {:pre [(uuid? blocked-uid) (uuid? user-id) (not= blocked-uid user-id)]}
+
+
+   (let [args {:aid user-id :bid blocked-uid
+               :now now :aeid (random-uuid) :beid (random-uuid)}]
+     (biff/submit-tx ctx [[:xtdb.api/fn :gatz.db.user/block-user args]]))))
+
+(def tx-fns
+  {:gatz.db.user/apply-delta user-apply-delta-expr
+   :gatz.db.user/block-user block-user-expr
+   :gatz.db.user/mark-active mark-active-expr
+   :gatz.db.user/mark-location mark-location-expr})
+
+
+(defn all-users [db]
+  (mapv mask-deleted
+        (q db '{:find (pull user [*])
+                :where [[user :db/type :gatz/user]]})))
+
+
+(defn get-friend-ids [db uid]
+  ;; TOOD: change with friendship
+  (all-ids db))

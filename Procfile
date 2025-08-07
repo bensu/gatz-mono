@@ -1,0 +1,1 @@
+web: java -jar target/uberjar/gatz-web-standalone.jar

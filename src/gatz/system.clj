@@ -1,0 +1,270 @@
+(ns gatz.system
+  (:gen-class)
+  (:require [com.biffweb :as biff]
+            [gatz.email :as email]
+            [gatz.api :as api]
+            [gatz.db :as db]
+            [gatz.db.contacts :as db.contacts]
+            [gatz.db.discussion :as db.discussion]
+            [gatz.db.feed :as db.feed]
+            [gatz.db.group :as db.group]
+            [gatz.db.invite-link :as db.invite-link]
+            [gatz.db.mention :as db.mention]
+            [gatz.db.message :as db.message]
+            [gatz.db.user :as db.user]
+            [gatz.flags :as flags]
+            [gatz.schema :as schema]
+            [gatz.connections :as conns]
+            [gatz.notify :as notify]
+            [gatz.util :as util]
+            [gatz.http :as http]
+            [clojure.java.io :as io]
+            [clojure.string :as str]
+            [clojure.test :as test]
+            [clojure.tools.logging :as log]
+            [clojure.tools.namespace.repl :as tn-repl]
+            [ring.middleware.cors :as ring.cors]
+            [ring.middleware.gzip :refer [wrap-gzip]]
+            [malli.core :as malc]
+            [malli.registry :as malr]
+            [nrepl.cmdline :as nrepl-cmd]
+            [ring.adapter.jetty9]
+            [to-jdbc-uri.core :refer [to-jdbc-uri]]
+            [sdk.heroku :as heroku]
+            [sdk.posthog :as posthog]
+            [sdk.sentry :as sentry]
+            [xtdb.jdbc.psql])
+  (:import [java.time Duration]
+           [org.postgresql Driver]))
+
+(def plugins
+  [api/plugin
+   (biff/authentication-plugin {})
+   #_home/plugin
+   notify/plugin
+   schema/plugin])
+
+(defn wrap-cors [handler]
+  (-> handler
+      (ring.cors/wrap-cors
+       :access-control-allow-origin [#".*"]
+       :access-control-allow-methods [:get :put :post :delete])))
+
+(def routes [["" {:middleware [http/wrap-maintenance-mode
+                               biff/wrap-site-defaults]}
+              (keep :routes plugins)]
+             ["" {:middleware [http/wrap-maintenance-mode
+                               biff/wrap-api-defaults
+                               sentry/wrap-sentry
+                               wrap-cors
+                               wrap-gzip]}
+              (keep :api-routes plugins)]])
+
+(def handler (-> (biff/reitit-handler {:routes routes})
+                 biff/wrap-base-defaults))
+
+(def static-pages (apply biff/safe-merge (map :static plugins)))
+
+(defn generate-assets! [ctx]
+  (biff/export-rum static-pages "target/resources/public")
+  (biff/delete-old-files {:dir "target/resources/public"
+                          :exts [".html"]}))
+
+(defn on-save [ctx]
+  (biff/add-libs)
+  (biff/eval-files! ctx)
+  (generate-assets! ctx)
+  (test/run-all-tests #"gatz.test.*"))
+
+(def malli-opts
+  {:registry (malr/composite-registry
+              malc/default-registry
+              (apply biff/safe-merge
+                     (keep :schema plugins)))})
+
+(def tx-fns
+  (merge biff/tx-fns
+         db/tx-fns
+         db.discussion/tx-fns db.message/tx-fns
+         db.invite-link/tx-fns db.feed/tx-fns
+         db.user/tx-fns db.contacts/tx-fns db.group/tx-fns db.mention/tx-fns))
+
+(def initial-system
+  {:biff/plugins #'plugins
+   :biff/send-email #'email/send-email
+   :biff/handler #'handler
+   :biff/malli-opts #'malli-opts
+   :biff.beholder/on-save #'on-save
+   :biff.xtdb/tx-fns tx-fns})
+
+(defonce system (atom {}))
+
+(defn use-atom [ctx k initial-state]
+  {:pre [(keyword? k)]}
+  (let [a (atom initial-state)]
+    (-> ctx
+        (assoc k a)
+        (update :biff/stop conj #(reset! a initial-state)))))
+
+;; ====================================================================== 
+;; Fake server
+
+;; I think it can trick Heroku into thinking the app is up and running
+;; but I am not sure
+
+(defn tiny-handler [ctx]
+  {:status 200
+   :headers {"content-type" "text/plain"}
+   :body "Loading"})
+
+(defn start-fake-server [{:keys [biff/secret] :as ctx}]
+     ;; This is here so that heroku is happy with the startup time
+  (let [port (or (Integer/parseInt (System/getenv "PORT"))
+                 (util/parse-long (secret :biff/port)))
+        _ (println "binding fake server to " port)
+        server (ring.adapter.jetty9/run-jetty
+                tiny-handler
+                {:host "localhost"
+                 :port port
+                 :join? false
+                 :allow-null-path-info true})]
+    (println "server" server)
+    (assoc ctx :fake-server server)))
+
+(defn stop-fake-server [ctx]
+  (println "stopping fake server")
+  (ring.adapter.jetty9/stop-server (:fake-server ctx))
+  (dissoc ctx :fake-server ctx))
+
+;; ======================================================================  
+;; XTDB
+
+(comment
+  (defn parse-jdbc-uri [uri-s]
+    {:pre [(string? uri-s)]}
+    (let [uri (java.net.URI. uri-s)
+          user-info (.getUserInfo uri)
+          [user password] (str/split user-info #":")]
+      {:host (.getHost uri)
+       :db (str/replace-first (.getPath uri) "/" "")
+       :port (.getPort uri)
+       :user user
+       :password password})))
+
+;; https://v1-docs.xtdb.com/administration/checkpointing/
+;; https://v1-docs.xtdb.com/storage/aws-s3/
+(defn s3-checkpont-store
+  "Used in production. 
+
+   To use in local development edit :biff.xtdb/checkpointer in config.edn"
+  [_ctx bucket]
+  {:pre [(string? bucket)]}
+  (log/info "checkpointing from S3" bucket)
+  {:xtdb/module 'xtdb.checkpoint/->checkpointer
+   :approx-frequency (Duration/ofHours 2)
+   :retention-policy {:retain-at-least 5 :retain-newer-than (Duration/ofDays 3)}
+   :store {:xtdb/module 'xtdb.s3.checkpoint/->cp-store :bucket bucket}})
+
+;; https://v1-docs.xtdb.com/administration/checkpointing/
+(defn file-checkpoint-store
+  "Used for local development"
+  [_ctx path]
+  {:pre [(string? path)]}
+  (log/info "checkpointing from file" path)
+  {:xtdb/module 'xtdb.checkpoint/->checkpointer
+   :approx-frequency (Duration/ofHours 2)
+   :retention-policy {:retain-at-least 5 :retain-newer-than (Duration/ofDays 3)}
+   :store {:path path :xtdb/module 'xtdb.checkpoint/->filesystem-checkpoint-store}})
+
+(defn index-store [{:keys [biff/secret] :as ctx}]
+  (let [node-id (or (System/getenv "NODE_ID") "local")]
+    (log/info "checkpointer used" (:biff.xtdb/checkpointer ctx))
+    {:kv-store {:xtdb/module 'xtdb.rocksdb/->kv-store
+                :db-dir (io/file (format "storage/%s/xtdb/index" node-id))
+                :checkpointer (case (:biff.xtdb/checkpointer ctx)
+                                :biff.xtdb.checkpointer/s3 (s3-checkpont-store ctx (secret :biff.xtdb.checkpointer/bucket))
+                                :biff.xtdb.checkpointer/file (file-checkpoint-store ctx "storage/xtdb/checkpoints"))}}))
+
+;; https://v1-docs.xtdb.com/extensions/1.24.3/full-text-search/#_custom_indexer
+(defn lucene-store [{:keys [biff/secret] :as ctx}]
+  (let [node-id (or (System/getenv "NODE_ID") "local")]
+    {:db-dir (format "storage/%s/xtdb/lucene" node-id)
+     :checkpointer (case (:biff.xtdb/checkpointer ctx)
+                     :biff.xtdb.checkpointer/s3 (s3-checkpont-store ctx (secret :biff.xtdb.lucene.checkpointer/bucket))
+                     :biff.xtdb.checkpointer/file (file-checkpoint-store ctx "storage/xtdb/lucene-checkpoints"))}))
+
+;; When trying to scale the dynos [here](https://dashboard.heroku.com/apps/gatz/resources), the first constraint is the maximum number of connections for the Heroku PSQL add-on [here](https://data.heroku.com/datastores/73e41c97-1f7d-4799-99bb-1c4404bdfc07#), which is 20 connections.
+;; The default pool size for Hikari is 10 connections, which implies 10 connections per dyno.
+;; To have room to start up to 4 dynos, I changed it to `maximumPoolSize = 5`
+;; More here: https://www.notion.so/bensu/AWS-Heroku-faeae904d27d4970b3470369af4acaa7?pvs=4#110ef5d2b61a40fb8a4fd16d91658d1f
+(def hikari-max-pool-size 5)
+
+(defn xtdb-system [{:keys [biff/secret] :as ctx}]
+  (let [jdbc-url (to-jdbc-uri (secret :biff.xtdb.jdbc/jdbcUrl))]
+    {:xtdb/index-store (index-store ctx)
+     :xtdb.lucene/lucene-store (lucene-store ctx)
+     :xtdb/tx-log {:xtdb/module 'xtdb.jdbc/->tx-log
+                   :connection-pool :xtdb.jdbc/connection-pool}
+     :xtdb/document-store {:xtdb/module 'xtdb.jdbc/->document-store
+                           :connection-pool :xtdb.jdbc/connection-pool}
+     :xtdb.jdbc/connection-pool {:dialect {:xtdb/module 'xtdb.jdbc.psql/->dialect}
+                                 :pool-opts {:maximumPoolSize hikari-max-pool-size}
+                                 :db-spec {:jdbcUrl jdbc-url}}}))
+
+;; ====================================================================== 
+;; Overall system
+
+(def components
+  [biff/use-config
+   flags/use-flags
+   biff/use-secrets
+   posthog/use-posthog
+   heroku/use-heroku-config
+   sentry/use-sentry
+   (fn start-conns-state [ctx]
+     (use-atom ctx :conns-state conns/init-state))
+   (fn start-xtdb [ctx]
+     (-> ctx
+         (assoc :biff.xtdb/opts (xtdb-system ctx))
+         (biff/use-xt)))
+   biff/use-queues
+   biff/use-tx-listener
+   (fn start-http-server [{:keys [biff/secret] :as ctx}]
+     (let [port (or (some-> (System/getenv "PORT") Integer/parseInt)
+                    (some-> (secret :biff/port) util/parse-long)
+                    8080)]
+       (assert (some? port))
+       (log/info "Binding HTTP to port:" port)
+       (biff/use-jetty (assoc ctx :biff/port port :biff/host "0.0.0.0"))))
+   biff/use-chime
+   biff/use-beholder])
+
+(defn start []
+  (let [new-system (reduce (fn [system component]
+                             (log/info "starting:" (str component))
+                             (component system))
+                           initial-system
+                           components)]
+    (reset! system new-system)
+    (generate-assets! new-system)
+    (log/info "Go to" (:biff/base-url new-system))))
+
+(defn -main [& args]
+  (start)
+  (apply nrepl-cmd/-main args))
+
+(defn refresh []
+  (doseq [f (:biff/stop @system)]
+    (log/info "stopping:" (str f))
+    (f))
+  (tn-repl/refresh :after `start))
+
+(comment
+  ;; Evaluate this if you make a change to initial-system, components, :tasks,
+  ;; :queues, or config.edn. If you update secrets.env, you'll need to restart
+  ;; the app.
+  (refresh)
+
+  ;; If that messes up your editor's REPL integration, you may need to use this
+  ;; instead:
+  (biff/fix-print (refresh))) 
