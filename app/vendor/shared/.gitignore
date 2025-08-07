@@ -1,0 +1,23 @@
+node_modules/**/*
+.expo/*
+npm-debug.*
+*.jks
+*.p12
+*.key
+*.mobileprovision
+out/
+.shadow-cljs/
+.nrepl-port
+pom.xml
+.idea/
+*.iml
+app/
+
+.calva/
+.clj-kondo/
+.shadow-cljs/
+.lsp/
+target/
+.cpcache/
+bin/tailwind
+# npm-package/dist
