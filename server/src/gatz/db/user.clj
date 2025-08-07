@@ -52,12 +52,23 @@
         (assoc :db/version 4 :crdt/clock clock)
         (update-in [:user/profile :profile/full_name] #(or % (crdt/lww clock nil))))))
 
+(defn v4->v5 [data]
+  (let [clock (crdt/new-hlc migration-client-id)]
+    (-> data
+        (assoc :db/version 5 :crdt/clock clock)
+        ;; Add social auth fields nested under user/auth
+        (assoc :user/auth {:auth/apple_id (crdt/lww clock nil)
+                           :auth/google_id (crdt/lww clock nil)
+                           :auth/email (crdt/lww clock nil)
+                           :auth/method (crdt/lww clock "sms")
+                           :auth/migration_completed_at (crdt/lww clock nil)}))))
 
 (def all-migrations
   [{:from 0 :to 1 :transform v0->v1}
    {:from 1 :to 2 :transform v1->v2}
    {:from 2 :to 3 :transform v2->v3}
-   {:from 3 :to 4 :transform v3->v4}])
+   {:from 3 :to 4 :transform v3->v4}
+   {:from 4 :to 5 :transform v4->v5}])
 
 (defn- as-unique [x] [:db/unique x])
 
@@ -182,6 +193,33 @@
                   first)]
     (some-> user (db.util/->latest-version  all-migrations))))
 
+(defn by-apple-id [db apple-id]
+  {:pre [(string? apple-id) (not (empty? apple-id))]}
+  (->> (q db '{:find (pull u [*]) :where [[u :db/type :gatz/user]]})
+       (map #(db.util/->latest-version % all-migrations))
+       (filter (fn [user]
+                 (= apple-id (some-> user :user/auth :auth/apple_id crdt/-value))))
+       (sort-by :user/created_at)
+       first))
+
+(defn by-google-id [db google-id]
+  {:pre [(string? google-id) (not (empty? google-id))]}
+  (->> (q db '{:find (pull u [*]) :where [[u :db/type :gatz/user]]})
+       (map #(db.util/->latest-version % all-migrations))
+       (filter (fn [user]
+                 (= google-id (some-> user :user/auth :auth/google_id crdt/-value))))
+       (sort-by :user/created_at)
+       first))
+
+(defn by-email [db email]
+  {:pre [(string? email) (not (empty? email))]}
+  (->> (q db '{:find (pull u [*]) :where [[u :db/type :gatz/user]]})
+       (map #(db.util/->latest-version % all-migrations))
+       (filter (fn [user]
+                 (= email (some-> user :user/auth :auth/email crdt/-value))))
+       (sort-by :user/created_at)
+       first))
+
 (defn all-ids [db]
   (q db
      '{:find  u
@@ -214,23 +252,37 @@
 
 
 (defn create-user!
-  ([ctx {:keys [username phone id now]}]
+  ([ctx {:keys [username phone id now auth]}]
 
    {:pre [(crdt.user/valid-username? username) (string? phone)]}
 
    (let [id (or id (random-uuid))
          now (or now (Date.))
+         ;; Always get fresh DB to check for duplicates
+         db (xtdb/db (:biff.xtdb/node ctx))
+         
+         ;; Check for duplicate social auth IDs  
+         _ (when (and (:apple_id auth) (by-apple-id db (:apple_id auth)))
+             (throw (ex-info "Apple ID already exists" {:type :duplicate-apple-id})))
+         _ (when (and (:google_id auth) (by-google-id db (:google_id auth)))
+             (throw (ex-info "Google ID already exists" {:type :duplicate-google-id})))
+         _ (when (and (:email auth) (by-email db (:email auth)))
+             (throw (ex-info "Email already exists" {:type :duplicate-email})))
+         
          user (crdt.user/new-user {:id id
                                    :phone phone
                                    :username username
-                                   :now now})
+                                   :now now
+                                   :auth auth})
          test? (or (not= :env/prod (:env ctx))
                    (contains? twilio/TEST_PHONES phone))
-         txns [(-> user
-                   (assoc :user/is_test test?)
-                   (assoc :db/doc-type :gatz.crdt/user :db/op :create)
-                   (update :user/name as-unique)
-                   (update :user/phone_number as-unique))
+         
+         user-txn (-> user
+                       (assoc :user/is_test test?)
+                       (assoc :db/doc-type :gatz.crdt/user :db/op :create)
+                       (update :user/name as-unique)
+                       (update :user/phone_number as-unique))
+         txns [user-txn
                (new-contacts-txn {:uid id :now now})
                (new-activity-doc {:uid id :now now})]]
      (biff/submit-tx ctx txns)

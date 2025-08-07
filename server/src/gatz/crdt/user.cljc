@@ -88,7 +88,7 @@
      true (assoc :db/doc-type :gatz/user)
      true (assoc :user/updated_at now))))
 
-(defn new-user [{:keys [id phone username now]}]
+(defn new-user [{:keys [id phone username now auth]}]
 
   {:pre [(valid-username? username)]}
 
@@ -99,7 +99,7 @@
         clock (crdt/new-hlc uid now)]
     {:xt/id uid
      :db/type :gatz/user
-     :db/version 4
+     :db/version 5
      :crdt/clock clock
      :user/created_at now
      :user/is_test false
@@ -111,6 +111,12 @@
      :user/blocked_uids (crdt/lww-set clock #{})
      :user/avatar (crdt/lww clock nil)
      :user/push_tokens (crdt/lww clock nil)
+     ;; Social auth fields nested under user/auth (v5)
+     :user/auth {:auth/apple_id (crdt/lww clock (:apple_id auth))
+                 :auth/google_id (crdt/lww clock (:google_id auth))
+                 :auth/email (crdt/lww clock (:email auth))
+                 :auth/method (crdt/lww clock (or (:method auth) "sms"))
+                 :auth/migration_completed_at (crdt/lww clock (:migration_completed_at auth))}
      :user/settings {:settings/notifications (notifications-off-crdt clock)
                      :settings/location {:settings.location/enabled (crdt/lww clock nil)}}
      :user/profile {:profile/full_name (crdt/lww clock nil)
