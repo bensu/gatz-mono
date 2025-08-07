@@ -2,6 +2,7 @@
   "build": {
     "production": {
       "channel": "production",
+      "node": "20.11.1",
       "env": {
         "EXPO_PUBLIC_ENV_NAME": "production",
         "EXPO_PUBLIC_API_URL": "https://api.gatz.chat",
@@ -9,6 +10,7 @@
       }
     },
     "test": {
+      "node": "20.11.1",
       "env": {
         "EXPO_PUBLIC_ENV_NAME": "test",
         "EXPO_PUBLIC_API_URL": "https://localhost:8080",
@@ -16,6 +18,7 @@
       }
     },
     "development": {
+      "node": "20.11.1",
       "env": {
         "EXPO_PUBLIC_ENV_NAME": "development",
         "EXPO_PUBLIC_API_URL": "https://api.gatz.chat"
@@ -27,6 +30,7 @@
         "channel": "preview",
         "distribution": "internal",
         "developmentClient": false,
+        "node": "20.11.1",
         "env": {
           "EXPO_PUBLIC_ENV_NAME": "production",
           "EXPO_PUBLIC_API_URL": "https://api.gatz.chat"
