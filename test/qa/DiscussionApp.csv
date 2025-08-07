@@ -1,0 +1,144 @@
+slug,name,step to test
+[message-send],User sends a text message successfully,1. Navigate to a discussion
+[message-send],User sends a text message successfully,2. Tap on the message input field at the bottom
+[message-send],User sends a text message successfully,"3. Type a message ""Hello world"""
+[message-send],User sends a text message successfully,4. Tap the send button
+[message-send],User sends a text message successfully,"Expected: Message appears in chat with pending indicator, then transitions to sent state"
+
+[message-send-empty],User tries to send empty message,1. Navigate to a discussion
+[message-send-empty],User tries to send empty message,2. Tap on the message input field at the bottom
+[message-send-empty],User tries to send empty message,3. Leave the field empty
+[message-send-empty],User tries to send empty message,4. Tap the send button
+[message-send-empty],User tries to send empty message,Expected: Send button is disabled or no message is sent
+
+[message-edit],User edits their own message,1. Navigate to a discussion with messages you sent
+[message-edit],User edits their own message,2. Long press on one of your messages
+[message-edit],User edits their own message,"3. Tap ""Edit"" from the context menu"
+[message-edit],User edits their own message,"4. Modify the text to ""Edited message"""
+[message-edit],User edits their own message,5. Tap the send button
+[message-edit],User edits their own message,Expected: Message updates with new text and shows edited indicator
+
+[message-edit-multiple],User edits same message multiple times,1. Navigate to a discussion with a message you already edited
+[message-edit-multiple],User edits same message multiple times,2. Long press on the edited message
+[message-edit-multiple],User edits same message multiple times,"3. Tap ""Edit"" from the context menu"
+[message-edit-multiple],User edits same message multiple times,4. Modify the text again
+[message-edit-multiple],User edits same message multiple times,5. Tap the send button
+[message-edit-multiple],User edits same message multiple times,"Expected: Message updates with newest text, edit history is preserved"
+
+[message-delete],User deletes their own message,1. Navigate to a discussion with messages you sent
+[message-delete],User deletes their own message,2. Long press on one of your messages
+[message-delete],User deletes their own message,"3. Tap ""Delete"" from the context menu"
+[message-delete],User deletes their own message,4. Confirm deletion if prompted
+[message-delete],User deletes their own message,Expected: Message disappears from the chat immediately
+
+[message-reply],User replies to another message,1. Navigate to a discussion with existing messages
+[message-reply],User replies to another message,2. Long press on any message
+[message-reply],User replies to another message,"3. Tap ""Reply"" from the context menu"
+[message-reply],User replies to another message,"4. Type ""This is a reply"""
+[message-reply],User replies to another message,5. Tap the send button
+[message-reply],User replies to another message,Expected: New message appears with reply indicator showing original message
+
+[reaction-add],User adds a reaction to a message,1. Navigate to a discussion with messages
+[reaction-add],User adds a reaction to a message,2. Long press on any message
+[reaction-add],User adds a reaction to a message,"3. Tap ""React"" from the context menu"
+[reaction-add],User adds a reaction to a message,"4. Select ""❤️"" from the reaction picker"
+[reaction-add],User adds a reaction to a message,"Expected: Reaction picker closes, heart emoji appears on the message"
+
+[reaction-toggle],User adds then removes same reaction,1. Navigate to a discussion with a message you already reacted to
+[reaction-toggle],User adds then removes same reaction,2. Tap the existing reaction emoji on the message
+[reaction-toggle],User adds then removes same reaction,Expected: Reaction is removed from the message
+
+[reaction-view],User views all reactions on a message,1. Navigate to a discussion with messages that have reactions
+[reaction-view],User views all reactions on a message,2. Tap on the reaction count below a message
+[reaction-view],User views all reactions on a message,3. View the reactions sheet
+[reaction-view],User views all reactions on a message,Expected: Sheet displays all reactions with user names who reacted
+
+[profile-navigation],User navigates to another user's profile,1. Navigate to a discussion with messages from other users
+[profile-navigation],User navigates to another user's profile,2. Tap on a user's avatar or username
+[profile-navigation],User navigates to another user's profile,Expected: Navigation to user profile page at /contact/[userId]
+
+[discussion-navigation],User navigates to another discussion,1. Navigate to a discussion
+[discussion-navigation],User navigates to another discussion,2. Find a message that references another discussion
+[discussion-navigation],User navigates to another discussion,3. Tap on the discussion link
+[discussion-navigation],User navigates to another discussion,Expected: Navigation to the referenced discussion
+
+[post-suggestion],User creates a suggested post from a message,1. Navigate to a discussion with messages
+[post-suggestion],User creates a suggested post from a message,2. Long press on any message
+[post-suggestion],User creates a suggested post from a message,"3. Tap ""Suggest as Post"" from the context menu"
+[post-suggestion],User creates a suggested post from a message,Expected: Navigation to post creation page with message content
+
+[discussion-archive],User archives/hides a discussion,1. Navigate to a discussion
+[discussion-archive],User archives/hides a discussion,2. Access discussion options menu
+[discussion-archive],User archives/hides a discussion,"3. Tap ""Archive"" option"
+[discussion-archive],User archives/hides a discussion,4. Confirm archive action if prompted
+[discussion-archive],User archives/hides a discussion,Expected: Discussion is archived and user returns to home screen
+
+[flag-message],User flags inappropriate message,1. Navigate to a discussion with messages from other users
+[flag-message],User flags inappropriate message,2. Long press on a message you didn't send
+[flag-message],User flags inappropriate message,"3. Tap ""Flag"" from the context menu"
+[flag-message],User flags inappropriate message,4. Confirm flagging if prompted
+[flag-message],User flags inappropriate message,Expected: Message disappears from view immediately
+
+[message-send-failure],Message fails to send due to network error,1. Navigate to a discussion
+[message-send-failure],Message fails to send due to network error,2. Turn off network/internet connection
+[message-send-failure],Message fails to send due to network error,3. Type a message and tap send
+[message-send-failure],Message fails to send due to network error,4. Wait for send timeout
+[message-send-failure],Message fails to send due to network error,Expected: Message shows error state with retry option
+
+[discussion-load-error],Discussion fails to load on initial render,1. Turn off network/internet connection
+[discussion-load-error],Discussion fails to load on initial render,2. Navigate to a discussion URL
+[discussion-load-error],Discussion fails to load on initial render,3. Wait for load timeout
+[discussion-load-error],Discussion fails to load on initial render,"Expected: Error message displays ""Failed to load discussion"" with ""Please try again later"""
+
+[loading-to-loaded],Component transitions from loading to loaded state,1. Navigate to a discussion URL
+[loading-to-loaded],Component transitions from loading to loaded state,2. Observe loading state
+[loading-to-loaded],Component transitions from loading to loaded state,3. Wait for discussion to load
+[loading-to-loaded],Component transitions from loading to loaded state,"Expected: Activity indicator shows during loading, then chat interface appears"
+
+[pending-to-sent],Message transitions from pending to sent state,1. Navigate to a discussion with good network
+[pending-to-sent],Message transitions from pending to sent state,2. Send a message
+[pending-to-sent],Message transitions from pending to sent state,3. Observe message state
+[pending-to-sent],Message transitions from pending to sent state,"Expected: Message shows pending indicator briefly, then transitions to sent state"
+
+[pending-to-error],Message transitions from pending to error state,1. Navigate to a discussion
+[pending-to-error],Message transitions from pending to error state,2. Send a message
+[pending-to-error],Message transitions from pending to error state,3. Quickly turn off network before send completes
+[pending-to-error],Message transitions from pending to error state,"Expected: Message shows pending state, then error state after timeout"
+
+[reaction-picker-open-close],Reaction picker opens and closes,1. Navigate to a discussion with messages
+[reaction-picker-open-close],Reaction picker opens and closes,"2. Long press on a message and tap ""React"""
+[reaction-picker-open-close],Reaction picker opens and closes,3. Observe reaction picker sheet
+[reaction-picker-open-close],Reaction picker opens and closes,4. Tap outside the sheet or close button
+[reaction-picker-open-close],Reaction picker opens and closes,"Expected: Reaction picker opens from bottom, closes when dismissed"
+
+[reaction-display-open-close],Reaction display sheet opens and closes,1. Navigate to a discussion with reacted messages
+[reaction-display-open-close],Reaction display sheet opens and closes,2. Tap on reaction count
+[reaction-display-open-close],Reaction display sheet opens and closes,3. Observe reactions display sheet
+[reaction-display-open-close],Reaction display sheet opens and closes,4. Tap close button or outside sheet
+[reaction-display-open-close],Reaction display sheet opens and closes,"Expected: Reactions sheet opens showing all reactions, closes when dismissed"
+
+[app-background-foreground],App state changes affect data refresh,1. Navigate to a discussion
+[app-background-foreground],App state changes affect data refresh,2. Switch app to background
+[app-background-foreground],App state changes affect data refresh,3. Have another user send a message
+[app-background-foreground],App state changes affect data refresh,4. Return app to foreground
+[app-background-foreground],App state changes affect data refresh,Expected: Discussion refreshes and shows new message
+
+[deep-link-highlight],Message highlighted when accessed via deep link,1. Access discussion with highlightedMessageId parameter in URL
+[deep-link-highlight],Message highlighted when accessed via deep link,2. Wait for discussion to load
+[deep-link-highlight],Message highlighted when accessed via deep link,3. Locate the specified message
+[deep-link-highlight],Message highlighted when accessed via deep link,Expected: Specified message has highlighted styling/appearance
+
+[connection-status-offline],Connection status shows when offline,1. Navigate to a discussion
+[connection-status-offline],Connection status shows when offline,2. Turn off network connection
+[connection-status-offline],Connection status shows when offline,3. Observe top of screen
+[connection-status-offline],Connection status shows when offline,Expected: Connection status indicator shows offline state
+
+[navigation-mobile],Navigation differs on mobile platform,1. Use mobile device/emulator
+[navigation-mobile],Navigation differs on mobile platform,2. Navigate to a discussion
+[navigation-mobile],Navigation differs on mobile platform,3. Tap a discussion link in a message
+[navigation-mobile],Navigation differs on mobile platform,Expected: Navigation uses /discussion/[did] path format
+
+[navigation-desktop],Navigation differs on desktop platform,1. Use desktop browser
+[navigation-desktop],Navigation differs on desktop platform,2. Navigate to a discussion
+[navigation-desktop],Navigation differs on desktop platform,3. Click a discussion link in a message
+[navigation-desktop],Navigation differs on desktop platform,Expected: Navigation uses ?did=[did] query parameter format

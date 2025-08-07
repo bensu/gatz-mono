@@ -1,0 +1,830 @@
+diff --git a/package.json b/package.json
+index dc47982..694d5ff 100644
+--- a/package.json
++++ b/package.json
+@@ -29,7 +29,7 @@
+     "expo-av": "~13.4.1",
+     "expo-clipboard": "~4.3.1",
+     "expo-constants": "~14.4.2",
+-    "expo-dev-client": "~2.4.12",
++    "expo-dev-client": "~2.4.13",
+     "expo-device": "~5.4.0",
+     "expo-document-picker": "~11.5.4",
+     "expo-font": "~11.4.0",
+@@ -60,12 +60,13 @@
+     "prop-types": "^15.8.1",
+     "react": "18.2.0",
+     "react-dom": "18.2.0",
+-    "react-native": "0.72.6",
++    "react-native": "0.72.10",
+     "react-native-communications": "^2.2.1",
+     "react-native-gesture-handler": "~2.12.0",
+     "react-native-get-random-values": "~1.9.0",
+     "react-native-iphone-x-helper": "^1.3.1",
+     "react-native-lightbox-v2": "^0.9.0",
++    "react-native-markdown-display": "^7.0.2",
+     "react-native-markdown-package": "^1.8.2",
+     "react-native-parsed-text": "^0.0.22",
+     "react-native-reanimated": "~3.3.0",
+diff --git a/src/components/AccessoryBar.tsx b/src/components/AccessoryBar.tsx
+index d95f347..1b0e32d 100644
+--- a/src/components/AccessoryBar.tsx
++++ b/src/components/AccessoryBar.tsx
+@@ -6,18 +6,23 @@ import {
+   getLocationAsync,
+   pickImageAsync,
+   takePictureAsync,
++  OnImages,
+ } from "../mediaUtils";
+ 
+-export default class AccessoryBar extends React.Component<any> {
++type Props = {
++  onImages: OnImages;
++};
++
++export default class AccessoryBar extends React.Component<Props> {
+   render() {
+-    const { onSend, isTyping } = this.props;
++    const { onImages } = this.props;
+ 
+     return (
+       <View style={styles.container}>
+-        <Button onPress={() => pickImageAsync(onSend)} name="photo" />
+-        <Button onPress={() => takePictureAsync(onSend)} name="camera" />
+-        <Button onPress={() => getLocationAsync(onSend)} name="my-location" />
+-        <Button onPress={() => isTyping()} name="chat" />
++        <Button onPress={() => pickImageAsync(onImages)} name="photo" />
++        <Button onPress={() => takePictureAsync(onImages)} name="camera" />
++        {/* <Button onPress={() => getLocationAsync(onSend)} name="my-location" /> */}
++        {/* <Button onPress={() => isTyping()} name="chat" /> */}
+       </View>
+     );
+   }
+diff --git a/src/components/DiscussionApp.tsx b/src/components/DiscussionApp.tsx
+index 02aea71..15e0103 100644
+--- a/src/components/DiscussionApp.tsx
++++ b/src/components/DiscussionApp.tsx
+@@ -14,6 +14,8 @@ import { Color as GatzColor } from "../gatz/styles";
+ import { SUUID, Message, User, DiscussionResponse } from "../gatz/types";
+ import { appendIMessages, toIMessage } from "../util";
+ 
++import AccessoryBar from "./AccessoryBar";
++
+ import { FrontendDBContext } from "../context/FrontendDBProvider";
+ import { ClientContext, ConnectionStatus } from "../context/ClientProvider";
+ import { SessionContext } from "../context/SessionProvider";
+@@ -371,14 +373,18 @@ const DiscussionApp = (props: Props) => {
+     [onSend]
+   );
+ 
+-  // const renderAccessory = useCallback(() => {
+-  //   return (
+-  //     <AccessoryBar
+-  //       onSend={onSendFromUser}
+-  //       isTyping={() => setIsTyping(true)}
+-  //     />
+-  //   );
+-  // }, [onSendFromUser, setIsTyping]);
++  const onImages = useCallback((images: { image: string }[]) => {
++    console.log(images);
++  }, []);
++
++  const renderAccessory = useCallback(() => {
++    return (
++      <AccessoryBar
++        onImages={onImages}
++        // isTyping={() => setIsTyping(true)}
++      />
++    );
++  }, [onSendFromUser, setIsTyping]);
+ 
+   const renderSystemMessage = useCallback((props) => {
+     return (
+@@ -417,7 +423,7 @@ const DiscussionApp = (props: Props) => {
+         // onPressAvatar={onPressAvatar}
+         onQuickReply={onQuickReply}
+         renderUsernameOnMessage
+-        // renderAccessory={renderAccessory}
++        renderAccessory={renderAccessory}
+         renderSystemMessage={renderSystemMessage}
+         keyboardShouldPersistTaps="never"
+         isTyping={state.isTyping}
+diff --git a/src/gifted/Bubble.tsx b/src/gifted/Bubble.tsx
+index 9672bba..830a63c 100644
+--- a/src/gifted/Bubble.tsx
++++ b/src/gifted/Bubble.tsx
+@@ -89,6 +89,9 @@ const { iMessageBubble } = StyleSheet.create({
+ const styles = {
+   wrapperShadow: {
+     ...GatzStyles.thinDropShadow,
++    // width: "100%",
++    flex: 1,
++    marginRight: 10,
+   },
+   left: StyleSheet.create({
+     container: {
+@@ -352,9 +355,9 @@ export default class Bubble extends React.Component<BubbleProps> {
+             inPost ? null : styles.wrapperShadow,
+             this.styledBubbleToNext(),
+             this.styledBubbleToPrevious(),
+-            position === "left" && this.props.withMargin
+-              ? { marginRight: 60 }
+-              : {},
++            // position === "left" && this.props.withMargin
++            //   ? { marginRight: 60 }
++            //   : {},
+           ]}
+         >
+           <TouchableWithoutFeedback
+diff --git a/src/gifted/GiftedChat.tsx b/src/gifted/GiftedChat.tsx
+index af54f8f..09263ca 100644
+--- a/src/gifted/GiftedChat.tsx
++++ b/src/gifted/GiftedChat.tsx
+@@ -148,7 +148,7 @@ export interface GiftedChatProps<TMessage extends IMessage = IMessage> {
+   /* Custom action button on the left of the message composer */
+   renderActions?(props: ActionsProps): React.ReactNode;
+   /*Custom second line of actions below the message composer */
+-  renderAccessory?(props: InputToolbarProps<TMessage>): React.ReactNode;
++  renderAccessory?(props: InputToolbarProps): React.ReactNode;
+   /*Callback when the Action button is pressed (if set, the default actionSheet will not be used) */
+   onPressActionButton?(): void;
+   /* Callback when the input text changes */
+diff --git a/src/gifted/InputToolbar.tsx b/src/gifted/InputToolbar.tsx
+index 563eeec..a848341 100644
+--- a/src/gifted/InputToolbar.tsx
++++ b/src/gifted/InputToolbar.tsx
+@@ -35,17 +35,15 @@ const IconSend = (props: SendProps<IMessage>) => {
+   );
+ };
+ 
+-export interface InputToolbarProps<TMessage extends IMessage> {
+-  renderAccessory?(props: InputToolbarProps<TMessage>): React.ReactNode;
++export interface InputToolbarProps {
++  renderAccessory?(props: InputToolbarProps): React.ReactNode;
+   renderActions?(props: ActionsProps): React.ReactNode;
+   onPressActionButton?(): void;
+-  onSend: (messages: Partial<TMessage> | Partial<TMessage>[]) => void;
++  onSend: (messages: Partial<IMessage> | Partial<IMessage>[]) => void;
+   text: string;
+ }
+ 
+-export function InputToolbar<TMessage extends IMessage = IMessage>(
+-  props: InputToolbarProps<TMessage>
+-) {
++export function InputToolbar(props: InputToolbarProps) {
+   const [position, setPosition] = useState("absolute");
+   useEffect(() => {
+     const keyboardWillShowListener = Keyboard.addListener(
+@@ -67,15 +65,15 @@ export function InputToolbar<TMessage extends IMessage = IMessage>(
+ 
+   return (
+     <View style={[styles.container, { position }] as ViewStyle}>
++      {renderAccessory && (
++        <View style={[styles.accessory]}>{renderAccessory(props)}</View>
++      )}
+       <View style={[styles.primary]}>
+         {/* {renderActions?.(rest) ||
+           (onPressActionButton && <Actions {...rest} />)} */}
+         <Composer {...props} />
+         <IconSend onSend={props.onSend} text={props.text} />
+       </View>
+-      {/* {renderAccessory && (
+-        <View style={[styles.accessory]}>{renderAccessory(props)}</View>
+-      )} */}
+     </View>
+   );
+ }
+diff --git a/src/gifted/MessageText.tsx b/src/gifted/MessageText.tsx
+index 8430055..a296210 100644
+--- a/src/gifted/MessageText.tsx
++++ b/src/gifted/MessageText.tsx
+@@ -1,7 +1,8 @@
+-import PropTypes from "prop-types";
+ import React from "react";
+ import { Linking, StyleSheet, View, TextProps, Text } from "react-native";
+ 
++import Markdown, { MarkdownIt } from "react-native-markdown-display";
++
+ import { Color as GatzColor } from "../gatz/styles";
+ 
+ import ParsedText from "react-native-parsed-text";
+@@ -38,7 +39,8 @@ export function MessageText({
+   const { actionSheet } = useChatContext();
+   const { getLocale } = useChatContext();
+ 
+-  const onUrlPress = (url: string) => {
++  const onUrlPress = (url: string): boolean => {
++    return true;
+     // When someone sends a message that includes a website address beginning with "www." (omitting the scheme),
+     // react-native-parsed-text recognizes it as a valid url, but Linking fails to open due to the missing scheme.
+     if (WWW_URL_PATTERN.test(url)) {
+@@ -123,20 +125,27 @@ export function MessageText({
+   const linkStyle = [styles[position].link];
+   return (
+     <View style={[styles[position].container]}>
+-      {postOpts.isPost ? renderPostUsername() : null}
++      {/* {postOpts.isPost ? renderPostUsername() : null} */}
+       <Text numberOfLines={showFull ? null : 4} ellipsizeMode="tail">
+-        {postOpts.isPost ? null : renderUsername()}
+-        <ParsedText
++        {renderUsername()}
++        {/* {postOpts.isPost ? null : ()} */}
++      </Text>
++      <Markdown
++        onLinkPress={onUrlPress}
++        markdownit={MarkdownIt({ linkify: true })}
++      >
++        {/* <ParsedText
+           style={[styles[position].text]}
+           parse={[
+             { type: "url", style: linkStyle, onPress: onUrlPress },
+             { type: "phone", style: linkStyle, onPress: onPhonePress },
+             { type: "email", style: linkStyle, onPress: onEmailPress },
+           ]}
+-        >
+-          {currentMessage!.text}
+-        </ParsedText>
+-      </Text>
++        > */}
++        {currentMessage!.text}
++        {/* ![Minion](https://pbs.twimg.com/profile_images/659458812106141696/Li3DkPr0_400x400.jpg) */}
++        {/* </ParsedText> */}
++      </Markdown>
+     </View>
+   );
+ }
+diff --git a/src/mediaUtils.ts b/src/mediaUtils.ts
+index 5933024..6844fee 100644
+--- a/src/mediaUtils.ts
++++ b/src/mediaUtils.ts
+@@ -40,9 +40,9 @@ export async function getLocationAsync(
+   }
+ }
+ 
+-export async function pickImageAsync(
+-  onSend: (images: { image: string }[]) => void
+-) {
++export type OnImages = (images: { image: string }[]) => void;
++
++export async function pickImageAsync(onImages: OnImages) {
+   if (await ImagePicker.requestMediaLibraryPermissionsAsync()) {
+     const result = await ImagePicker.launchImageLibraryAsync({
+       allowsEditing: true,
+@@ -50,7 +50,7 @@ export async function pickImageAsync(
+     });
+ 
+     if (!result.canceled) {
+-      onSend([{ image: result.uri }]);
++      onImages([{ image: result.uri }]);
+       return result.uri;
+     }
+   }
+diff --git a/yarn.lock b/yarn.lock
+index b6e227c..a553a26 100644
+--- a/yarn.lock
++++ b/yarn.lock
+@@ -2066,44 +2066,44 @@
+   dependencies:
+     merge-options "^3.0.4"
+ 
+-"@react-native-community/cli-clean@11.3.7":
+-  version "11.3.7"
+-  resolved "https://registry.yarnpkg.com/@react-native-community/cli-clean/-/cli-clean-11.3.7.tgz#cb4c2f225f78593412c2d191b55b8570f409a48f"
+-  integrity sha512-twtsv54ohcRyWVzPXL3F9VHGb4Qhn3slqqRs3wEuRzjR7cTmV2TIO2b1VhaqF4HlCgNd+cGuirvLtK2JJyaxMg==
++"@react-native-community/cli-clean@11.3.10":
++  version "11.3.10"
++  resolved "https://registry.yarnpkg.com/@react-native-community/cli-clean/-/cli-clean-11.3.10.tgz#70d14dd998ce8ad532266b36a0e5cafe22d300ac"
++  integrity sha512-g6QjW+DSqoWRHzmIQW3AH22k1AnynWuOdy2YPwYEGgPddTeXZtJphIpEVwDOiC0L4mZv2VmiX33/cGNUwO0cIA==
+   dependencies:
+-    "@react-native-community/cli-tools" "11.3.7"
++    "@react-native-community/cli-tools" "11.3.10"
+     chalk "^4.1.2"
+     execa "^5.0.0"
+     prompts "^2.4.0"
+ 
+-"@react-native-community/cli-config@11.3.7":
+-  version "11.3.7"
+-  resolved "https://registry.yarnpkg.com/@react-native-community/cli-config/-/cli-config-11.3.7.tgz#4ce95548252ecb094b576369abebf9867c95d277"
+-  integrity sha512-FDBLku9xskS+bx0YFJFLCmUJhEZ4/MMSC9qPYOGBollWYdgE7k/TWI0IeYFmMALAnbCdKQAYP5N29N55Tad8lg==
++"@react-native-community/cli-config@11.3.10":
++  version "11.3.10"
++  resolved "https://registry.yarnpkg.com/@react-native-community/cli-config/-/cli-config-11.3.10.tgz#753510a80a98b136fec852e1ea5fa655c13dbd17"
++  integrity sha512-YYu14nm1JYLS6mDRBz78+zDdSFudLBFpPkhkOoj4LuBhNForQBIqFFHzQbd9/gcguJxfW3vlYSnudfaUI7oGLg==
+   dependencies:
+-    "@react-native-community/cli-tools" "11.3.7"
++    "@react-native-community/cli-tools" "11.3.10"
+     chalk "^4.1.2"
+     cosmiconfig "^5.1.0"
+     deepmerge "^4.3.0"
+     glob "^7.1.3"
+     joi "^17.2.1"
+ 
+-"@react-native-community/cli-debugger-ui@11.3.7":
+-  version "11.3.7"
+-  resolved "https://registry.yarnpkg.com/@react-native-community/cli-debugger-ui/-/cli-debugger-ui-11.3.7.tgz#2147b73313af8de3c9b396406d5d344b904cf2bb"
+-  integrity sha512-aVmKuPKHZENR8SrflkMurZqeyLwbKieHdOvaZCh1Nn/0UC5CxWcyST2DB2XQboZwsvr3/WXKJkSUO+SZ1J9qTQ==
++"@react-native-community/cli-debugger-ui@11.3.10":
++  version "11.3.10"
++  resolved "https://registry.yarnpkg.com/@react-native-community/cli-debugger-ui/-/cli-debugger-ui-11.3.10.tgz#b16ebf770ba3cc76bf46580f101d00dacf919824"
++  integrity sha512-kyitGV3RsjlXIioq9lsuawha2GUBPCTAyXV6EBlm3qlyF3dMniB3twEvz+fIOid/e1ZeucH3Tzy5G3qcP8yWoA==
+   dependencies:
+     serve-static "^1.13.1"
+ 
+-"@react-native-community/cli-doctor@11.3.7":
+-  version "11.3.7"
+-  resolved "https://registry.yarnpkg.com/@react-native-community/cli-doctor/-/cli-doctor-11.3.7.tgz#7d5f5b1aea78134bba713fa97795986345ff1344"
+-  integrity sha512-YEHUqWISOHnsl5+NM14KHelKh68Sr5/HeEZvvNdIcvcKtZic3FU7Xd1WcbNdo3gCq5JvzGFfufx02Tabh5zmrg==
++"@react-native-community/cli-doctor@11.3.10":
++  version "11.3.10"
++  resolved "https://registry.yarnpkg.com/@react-native-community/cli-doctor/-/cli-doctor-11.3.10.tgz#161b8fd1b485cd52f7a19b2025696070b9d2b6a1"
++  integrity sha512-DpMsfCWKZ15L9nFK/SyDvpl5v6MjV+arMHMC1i8kR+DOmf2xWmp/pgMywKk0/u50yGB9GwxBHt3i/S/IMK5Ylg==
+   dependencies:
+-    "@react-native-community/cli-config" "11.3.7"
+-    "@react-native-community/cli-platform-android" "11.3.7"
+-    "@react-native-community/cli-platform-ios" "11.3.7"
+-    "@react-native-community/cli-tools" "11.3.7"
++    "@react-native-community/cli-config" "11.3.10"
++    "@react-native-community/cli-platform-android" "11.3.10"
++    "@react-native-community/cli-platform-ios" "11.3.10"
++    "@react-native-community/cli-tools" "11.3.10"
+     chalk "^4.1.2"
+     command-exists "^1.2.8"
+     envinfo "^7.7.2"
+@@ -2119,47 +2119,47 @@
+     wcwidth "^1.0.1"
+     yaml "^2.2.1"
+ 
+-"@react-native-community/cli-hermes@11.3.7":
+-  version "11.3.7"
+-  resolved "https://registry.yarnpkg.com/@react-native-community/cli-hermes/-/cli-hermes-11.3.7.tgz#091e730a1f8bace6c3729e8744bad6141002e0e8"
+-  integrity sha512-chkKd8n/xeZkinRvtH6QcYA8rjNOKU3S3Lw/3Psxgx+hAYV0Gyk95qJHTalx7iu+PwjOOqqvCkJo5jCkYLkoqw==
++"@react-native-community/cli-hermes@11.3.10":
++  version "11.3.10"
++  resolved "https://registry.yarnpkg.com/@react-native-community/cli-hermes/-/cli-hermes-11.3.10.tgz#f3d4f069ca472b1d8b4e8132cf9c44097a58ca19"
++  integrity sha512-vqINuzAlcHS9ImNwJtT43N7kfBQ7ro9A8O1Gpc5TQ0A8V36yGG8eoCHeauayklVVgMZpZL6f6mcoLLr9IOgBZQ==
+   dependencies:
+-    "@react-native-community/cli-platform-android" "11.3.7"
+-    "@react-native-community/cli-tools" "11.3.7"
++    "@react-native-community/cli-platform-android" "11.3.10"
++    "@react-native-community/cli-tools" "11.3.10"
+     chalk "^4.1.2"
+     hermes-profile-transformer "^0.0.6"
+     ip "^1.1.5"
+ 
+-"@react-native-community/cli-platform-android@11.3.7":
+-  version "11.3.7"
+-  resolved "https://registry.yarnpkg.com/@react-native-community/cli-platform-android/-/cli-platform-android-11.3.7.tgz#7845bc48258b6bb55df208a23b3690647f113995"
+-  integrity sha512-WGtXI/Rm178UQb8bu1TAeFC/RJvYGnbHpULXvE20GkmeJ1HIrMjkagyk6kkY3Ej25JAP2R878gv+TJ/XiRhaEg==
++"@react-native-community/cli-platform-android@11.3.10":
++  version "11.3.10"
++  resolved "https://registry.yarnpkg.com/@react-native-community/cli-platform-android/-/cli-platform-android-11.3.10.tgz#756dd73ad78bf2f20c678683dfc48cb764b1b590"
++  integrity sha512-RGu9KuDIXnrcNkacSHj5ETTQtp/D/835L6veE2jMigO21p//gnKAjw3AVLCysGr8YXYfThF8OSOALrwNc94puQ==
+   dependencies:
+-    "@react-native-community/cli-tools" "11.3.7"
++    "@react-native-community/cli-tools" "11.3.10"
+     chalk "^4.1.2"
+     execa "^5.0.0"
+     glob "^7.1.3"
+     logkitty "^0.7.1"
+ 
+-"@react-native-community/cli-platform-ios@11.3.7":
+-  version "11.3.7"
+-  resolved "https://registry.yarnpkg.com/@react-native-community/cli-platform-ios/-/cli-platform-ios-11.3.7.tgz#87478f907634713b7236c77870446a5ca1f35ff1"
+-  integrity sha512-Z/8rseBput49EldX7MogvN6zJlWzZ/4M97s2P+zjS09ZoBU7I0eOKLi0N9wx+95FNBvGQQ/0P62bB9UaFQH2jw==
++"@react-native-community/cli-platform-ios@11.3.10":
++  version "11.3.10"
++  resolved "https://registry.yarnpkg.com/@react-native-community/cli-platform-ios/-/cli-platform-ios-11.3.10.tgz#f8a9bca1181802f12ed15714d5a496e60096cbed"
++  integrity sha512-JjduMrBM567/j4Hvjsff77dGSLMA0+p9rr0nShlgnKPcc+0J4TDy0hgWpUceM7OG00AdDjpetAPupz0kkAh4cQ==
+   dependencies:
+-    "@react-native-community/cli-tools" "11.3.7"
++    "@react-native-community/cli-tools" "11.3.10"
+     chalk "^4.1.2"
+     execa "^5.0.0"
+     fast-xml-parser "^4.0.12"
+     glob "^7.1.3"
+     ora "^5.4.1"
+ 
+-"@react-native-community/cli-plugin-metro@11.3.7":
+-  version "11.3.7"
+-  resolved "https://registry.yarnpkg.com/@react-native-community/cli-plugin-metro/-/cli-plugin-metro-11.3.7.tgz#2e8a9deb30b40495c5c1347a1837a824400fa00f"
+-  integrity sha512-0WhgoBVGF1f9jXcuagQmtxpwpfP+2LbLZH4qMyo6OtYLWLG13n2uRep+8tdGzfNzl1bIuUTeE9yZSAdnf9LfYQ==
++"@react-native-community/cli-plugin-metro@11.3.10":
++  version "11.3.10"
++  resolved "https://registry.yarnpkg.com/@react-native-community/cli-plugin-metro/-/cli-plugin-metro-11.3.10.tgz#6ed67dda2518d3dabae20f3b38f66a0a9bd8e962"
++  integrity sha512-ZYAc5Hc+QVqJgj1XFbpKnIPbSJ9xKcBnfQrRhR+jFyt2DWx85u4bbzY1GSVc/USs0UbSUXv4dqPbnmOJz52EYQ==
+   dependencies:
+-    "@react-native-community/cli-server-api" "11.3.7"
+-    "@react-native-community/cli-tools" "11.3.7"
++    "@react-native-community/cli-server-api" "11.3.10"
++    "@react-native-community/cli-tools" "11.3.10"
+     chalk "^4.1.2"
+     execa "^5.0.0"
+     metro "0.76.8"
+@@ -2170,13 +2170,13 @@
+     metro-runtime "0.76.8"
+     readline "^1.3.0"
+ 
+-"@react-native-community/cli-server-api@11.3.7":
+-  version "11.3.7"
+-  resolved "https://registry.yarnpkg.com/@react-native-community/cli-server-api/-/cli-server-api-11.3.7.tgz#2cce54b3331c9c51b9067129c297ab2e9a142216"
+-  integrity sha512-yoFyGdvR3HxCnU6i9vFqKmmSqFzCbnFSnJ29a+5dppgPRetN+d//O8ard/YHqHzToFnXutAFf2neONn23qcJAg==
++"@react-native-community/cli-server-api@11.3.10":
++  version "11.3.10"
++  resolved "https://registry.yarnpkg.com/@react-native-community/cli-server-api/-/cli-server-api-11.3.10.tgz#2c4940d921711f2c78f0b61f126e8dbbbef6277c"
++  integrity sha512-WEwHWIpqx3gA6Da+lrmq8+z78E1XbxxjBlvHAXevhjJj42N4SO417eZiiUVrFzEFVVJSUee9n9aRa0kUR+0/2w==
+   dependencies:
+-    "@react-native-community/cli-debugger-ui" "11.3.7"
+-    "@react-native-community/cli-tools" "11.3.7"
++    "@react-native-community/cli-debugger-ui" "11.3.10"
++    "@react-native-community/cli-tools" "11.3.10"
+     compression "^1.7.1"
+     connect "^3.6.5"
+     errorhandler "^1.5.1"
+@@ -2185,10 +2185,10 @@
+     serve-static "^1.13.1"
+     ws "^7.5.1"
+ 
+-"@react-native-community/cli-tools@11.3.7":
+-  version "11.3.7"
+-  resolved "https://registry.yarnpkg.com/@react-native-community/cli-tools/-/cli-tools-11.3.7.tgz#37aa7efc7b4a1b7077d541f1d7bb11a2ab7b6ff2"
+-  integrity sha512-peyhP4TV6Ps1hk+MBHTFaIR1eI3u+OfGBvr5r0wPwo3FAJvldRinMgcB/TcCcOBXVORu7ba1XYjkubPeYcqAyA==
++"@react-native-community/cli-tools@11.3.10":
++  version "11.3.10"
++  resolved "https://registry.yarnpkg.com/@react-native-community/cli-tools/-/cli-tools-11.3.10.tgz#d7bbe3fd8b338004f996f03f53a5373d9caab91c"
++  integrity sha512-4kCuCwVcGagSrNg9vxMNVhynwpByuC/J5UnKGEet3HuqmoDhQW15m18fJXiehA8J+u9WBvHduefy9nZxO0C06Q==
+   dependencies:
+     appdirsjs "^1.2.4"
+     chalk "^4.1.2"
+@@ -2200,27 +2200,27 @@
+     semver "^7.5.2"
+     shell-quote "^1.7.3"
+ 
+-"@react-native-community/cli-types@11.3.7":
+-  version "11.3.7"
+-  resolved "https://registry.yarnpkg.com/@react-native-community/cli-types/-/cli-types-11.3.7.tgz#12fe7cff3da08bd27e11116531b2e001939854b9"
+-  integrity sha512-OhSr/TiDQkXjL5YOs8+hvGSB+HltLn5ZI0+A3DCiMsjUgTTsYh+Z63OtyMpNjrdCEFcg0MpfdU2uxstCS6Dc5g==
++"@react-native-community/cli-types@11.3.10":
++  version "11.3.10"
++  resolved "https://registry.yarnpkg.com/@react-native-community/cli-types/-/cli-types-11.3.10.tgz#cb02186cd247108bcea5ff93c4c97bb3c8dd8f22"
++  integrity sha512-0FHK/JE7bTn0x1y8Lk5m3RISDHIBQqWLltO2Mf7YQ6cAeKs8iNOJOeKaHJEY+ohjsOyCziw+XSC4cY57dQrwNA==
+   dependencies:
+     joi "^17.2.1"
+ 
+-"@react-native-community/cli@11.3.7":
+-  version "11.3.7"
+-  resolved "https://registry.yarnpkg.com/@react-native-community/cli/-/cli-11.3.7.tgz#564c0054269d8385fa9d301750b2e56dbb5c0cc9"
+-  integrity sha512-Ou8eDlF+yh2rzXeCTpMPYJ2fuqsusNOhmpYPYNQJQ2h6PvaF30kPomflgRILems+EBBuggRtcT+I+1YH4o/q6w==
+-  dependencies:
+-    "@react-native-community/cli-clean" "11.3.7"
+-    "@react-native-community/cli-config" "11.3.7"
+-    "@react-native-community/cli-debugger-ui" "11.3.7"
+-    "@react-native-community/cli-doctor" "11.3.7"
+-    "@react-native-community/cli-hermes" "11.3.7"
+-    "@react-native-community/cli-plugin-metro" "11.3.7"
+-    "@react-native-community/cli-server-api" "11.3.7"
+-    "@react-native-community/cli-tools" "11.3.7"
+-    "@react-native-community/cli-types" "11.3.7"
++"@react-native-community/cli@11.3.10":
++  version "11.3.10"
++  resolved "https://registry.yarnpkg.com/@react-native-community/cli/-/cli-11.3.10.tgz#ea88d20982cfc9ed7a5170d04aeedd2abf092348"
++  integrity sha512-bIx0t5s9ewH1PlcEcuQUD+UnVrCjPGAfjhVR5Gew565X60nE+GTIHRn70nMv9G4he/amBF+Z+vf5t8SNZEWMwg==
++  dependencies:
++    "@react-native-community/cli-clean" "11.3.10"
++    "@react-native-community/cli-config" "11.3.10"
++    "@react-native-community/cli-debugger-ui" "11.3.10"
++    "@react-native-community/cli-doctor" "11.3.10"
++    "@react-native-community/cli-hermes" "11.3.10"
++    "@react-native-community/cli-plugin-metro" "11.3.10"
++    "@react-native-community/cli-server-api" "11.3.10"
++    "@react-native-community/cli-tools" "11.3.10"
++    "@react-native-community/cli-types" "11.3.10"
+     chalk "^4.1.2"
+     commander "^9.4.1"
+     execa "^5.0.0"
+@@ -2240,14 +2240,17 @@
+   resolved "https://registry.yarnpkg.com/@react-native/assets-registry/-/assets-registry-0.72.0.tgz#c82a76a1d86ec0c3907be76f7faf97a32bbed05d"
+   integrity sha512-Im93xRJuHHxb1wniGhBMsxLwcfzdYreSZVQGDoMJgkd6+Iky61LInGEHnQCTN0fKNYF1Dvcofb4uMmE1RQHXHQ==
+ 
+-"@react-native/codegen@^0.72.7":
+-  version "0.72.7"
+-  resolved "https://registry.yarnpkg.com/@react-native/codegen/-/codegen-0.72.7.tgz#b6832ce631ac63143024ea094a6b5480a780e589"
+-  integrity sha512-O7xNcGeXGbY+VoqBGNlZ3O05gxfATlwE1Q1qQf5E38dK+tXn5BY4u0jaQ9DPjfE8pBba8g/BYI1N44lynidMtg==
++"@react-native/codegen@^0.72.8":
++  version "0.72.8"
++  resolved "https://registry.yarnpkg.com/@react-native/codegen/-/codegen-0.72.8.tgz#0593f628e1310f430450a9479fbb4be35e7b63d6"
++  integrity sha512-jQCcBlXV7B7ap5VlHhwIPieYz89yiRgwd2FPUBu+unz+kcJ6pAiB2U8RdLDmyIs8fiWd+Vq1xxaWs4TR329/ng==
+   dependencies:
+     "@babel/parser" "^7.20.0"
+     flow-parser "^0.206.0"
++    glob "^7.1.1"
++    invariant "^2.2.4"
+     jscodeshift "^0.14.0"
++    mkdirp "^0.5.1"
+     nullthrows "^1.1.1"
+ 
+ "@react-native/gradle-plugin@^0.72.11":
+@@ -2265,12 +2268,7 @@
+   resolved "https://registry.yarnpkg.com/@react-native/normalize-color/-/normalize-color-2.1.0.tgz#939b87a9849e81687d3640c5efa2a486ac266f91"
+   integrity sha512-Z1jQI2NpdFJCVgpY+8Dq/Bt3d+YUi1928Q+/CZm/oh66fzM0RUl54vvuXlPJKybH4pdCZey1eDTPaLHkMPNgWA==
+ 
+-"@react-native/normalize-colors@*":
+-  version "0.74.1"
+-  resolved "https://registry.yarnpkg.com/@react-native/normalize-colors/-/normalize-colors-0.74.1.tgz#6e8ccf99954728dcd3cfe0d56e758ee5050a7bea"
+-  integrity sha512-r+bTRs6pImqE3fx4h7bPzH2sOWSrnSHF/RJ7d00pNUj2P6ws3DdhS7WV+/7YosZkloYQfkiIkK3pIHvcYn665w==
+-
+-"@react-native/normalize-colors@^0.72.0":
++"@react-native/normalize-colors@<0.73.0", "@react-native/normalize-colors@^0.72.0":
+   version "0.72.0"
+   resolved "https://registry.yarnpkg.com/@react-native/normalize-colors/-/normalize-colors-0.72.0.tgz#14294b7ed3c1d92176d2a00df48456e8d7d62212"
+   integrity sha512-285lfdqSXaqKuBbbtP9qL2tDrfxdOFtIMvkKadtleRQkdOxx+uzGvFr82KHmc/sSiMtfXGp7JnFYWVh4sFl7Yw==
+@@ -3711,6 +3709,11 @@ camelcase@^6.2.0:
+   resolved "https://registry.yarnpkg.com/camelcase/-/camelcase-6.3.0.tgz#5685b95eb209ac9c0c177467778c9c84df58ba9a"
+   integrity sha512-Gmy6FhYlCY7uOElZUSbxo2UCDH8owEk996gkbrpsgGtrJLM3J7jGxl9Ic7Qwwj4ivOE5AWZWRMecDdF7hqGjFA==
+ 
++camelize@^1.0.0:
++  version "1.0.1"
++  resolved "https://registry.yarnpkg.com/camelize/-/camelize-1.0.1.tgz#89b7e16884056331a35d6b5ad064332c91daa6c3"
++  integrity sha512-dU+Tx2fsypxTgtLoE36npi3UqcjSSMNYfkqgmoEhtZrraP5VWq0K7FkWVTYa8eMPtnU/G2txVsfdCJTn9uzpuQ==
++
+ caniuse-api@^3.0.0:
+   version "3.0.0"
+   resolved "https://registry.yarnpkg.com/caniuse-api/-/caniuse-api-3.0.0.tgz#5e4d90e2274961d46291997df599e3ed008ee4c0"
+@@ -4174,6 +4177,11 @@ crypto-random-string@^2.0.0:
+   resolved "https://registry.yarnpkg.com/crypto-random-string/-/crypto-random-string-2.0.0.tgz#ef2a7a966ec11083388369baa02ebead229b30d5"
+   integrity sha512-v1plID3y9r/lPhviJ1wrXpLeyUIGAZ2SHNYTEapm7/8A9nLPoyvVp3RK/EPFqn5kEznyWgYZNsRtYYIWbuG8KA==
+ 
++css-color-keywords@^1.0.0:
++  version "1.0.0"
++  resolved "https://registry.yarnpkg.com/css-color-keywords/-/css-color-keywords-1.0.0.tgz#fea2616dc676b2962686b3af8dbdbe180b244e05"
++  integrity sha512-FyyrDHZKEjXDpNJYvVsV960FiqQyXc/LlYmsxl2BcdMb2WPx0OGRVgTg55rPSyLSNMqP52R9r8geSp7apN3Ofg==
++
+ css-declaration-sorter@^6.3.1:
+   version "6.4.1"
+   resolved "https://registry.yarnpkg.com/css-declaration-sorter/-/css-declaration-sorter-6.4.1.tgz#28beac7c20bad7f1775be3a7129d7eae409a3a71"
+@@ -4234,6 +4242,15 @@ css-select@^5.1.0:
+     domutils "^3.0.1"
+     nth-check "^2.0.1"
+ 
++css-to-react-native@^3.0.0:
++  version "3.2.0"
++  resolved "https://registry.yarnpkg.com/css-to-react-native/-/css-to-react-native-3.2.0.tgz#cdd8099f71024e149e4f6fe17a7d46ecd55f1e32"
++  integrity sha512-e8RKaLXMOFii+02mOlqwjbD00KSEKqblnpO9e++1aXS1fPQOpS1YoqdVHBqPjHNoxeF2mimzVqawm2KCbEdtHQ==
++  dependencies:
++    camelize "^1.0.0"
++    css-color-keywords "^1.0.0"
++    postcss-value-parser "^4.0.2"
++
+ css-tree@^1.1.2, css-tree@^1.1.3:
+   version "1.1.3"
+   resolved "https://registry.yarnpkg.com/css-tree/-/css-tree-1.1.3.tgz#eb4870fb6fd7707327ec95c2ff2ab09b5e8db91d"
+@@ -4499,14 +4516,14 @@ depd@~1.1.2:
+   resolved "https://registry.yarnpkg.com/depd/-/depd-1.1.2.tgz#9bcd52e14c097763e749b274c4346ed2e560b5a9"
+   integrity sha512-7emPTl6Dpo6JRXOXjLRxck+FlLRX5847cLKEn00PLAgc3g2hTZZgr+e4c2v6QpSmLeFP3n5yUo7ft6avBK/5jQ==
+ 
+-deprecated-react-native-prop-types@4.1.0:
+-  version "4.1.0"
+-  resolved "https://registry.yarnpkg.com/deprecated-react-native-prop-types/-/deprecated-react-native-prop-types-4.1.0.tgz#8ed03a64c21b7fbdd2d000957b6838d4f38d2c66"
+-  integrity sha512-WfepZHmRbbdTvhcolb8aOKEvQdcmTMn5tKLbqbXmkBvjFjRVWAYqsXk/DBsV8TZxws8SdGHLuHaJrHSQUPRdfw==
++deprecated-react-native-prop-types@^4.2.3:
++  version "4.2.3"
++  resolved "https://registry.yarnpkg.com/deprecated-react-native-prop-types/-/deprecated-react-native-prop-types-4.2.3.tgz#0ef845c1a80ef1636bd09060e4cdf70f9727e5ad"
++  integrity sha512-2rLTiMKidIFFYpIVM69UnQKngLqQfL6I11Ch8wGSBftS18FUXda+o2we2950X+1dmbgps28niI3qwyH4eX3Z1g==
+   dependencies:
+-    "@react-native/normalize-colors" "*"
+-    invariant "*"
+-    prop-types "*"
++    "@react-native/normalize-colors" "<0.73.0"
++    invariant "^2.2.4"
++    prop-types "^15.8.1"
+ 
+ destroy@1.2.0:
+   version "1.2.0"
+@@ -4706,6 +4723,11 @@ entities@^4.2.0, entities@^4.4.0:
+   resolved "https://registry.yarnpkg.com/entities/-/entities-4.5.0.tgz#5d268ea5e7113ec74c4d033b79ea5a35a488fb48"
+   integrity sha512-V0hjH4dGPh9Ao5p0MoRY6BVqtwCjhz6vI5LT8AJ55H+4g9/4vbHx1I54fS0XuclLhDHArPQCiMjDxjaL8fPxhw==
+ 
++entities@~2.0.0:
++  version "2.0.3"
++  resolved "https://registry.yarnpkg.com/entities/-/entities-2.0.3.tgz#5c487e5742ab93c15abb5da22759b8590ec03b7f"
++  integrity sha512-MyoZ0jgnLvB2X3Lg5HqpFmn1kybDiIfEQmKzTb5apr51Rb+T3KdmMiqa70T+bhGnyv7bQ6WMj2QMHpGMmlrUYQ==
++
+ env-editor@^0.4.1:
+   version "0.4.2"
+   resolved "https://registry.yarnpkg.com/env-editor/-/env-editor-0.4.2.tgz#4e76568d0bd8f5c2b6d314a9412c8fe9aa3ae861"
+@@ -4929,23 +4951,23 @@ expo-constants@~14.4.2:
+     "@expo/config" "~8.1.0"
+     uuid "^3.3.2"
+ 
+-expo-dev-client@~2.4.12:
+-  version "2.4.12"
+-  resolved "https://registry.yarnpkg.com/expo-dev-client/-/expo-dev-client-2.4.12.tgz#3ab2d03dfe22527c5f78324e4f658843a19e4d5d"
+-  integrity sha512-3+xg0yb/0g6+JQaWq5+xn2uHoOXP4oSX33aWkaZPSNJLoyzfRaHNDF5MLcrMBbEHCw5T5qZRU291K+uQeMMC0g==
++expo-dev-client@~2.4.13:
++  version "2.4.13"
++  resolved "https://registry.yarnpkg.com/expo-dev-client/-/expo-dev-client-2.4.13.tgz#cf8c829e2f815b273db44c17e513d5410af5b7fa"
++  integrity sha512-EBNJlPntw+DZy7mKxYvpdrmE2GU4YjcEpxSLpwNn2GDwy7e2xXAC2k/25E13BGy3yKPLo1iBXNgB01uleIDdVg==
+   dependencies:
+-    expo-dev-launcher "2.4.14"
+-    expo-dev-menu "3.2.2"
++    expo-dev-launcher "2.4.15"
++    expo-dev-menu "3.2.4"
+     expo-dev-menu-interface "1.3.0"
+     expo-manifests "~0.7.0"
+     expo-updates-interface "~0.10.0"
+ 
+-expo-dev-launcher@2.4.14:
+-  version "2.4.14"
+-  resolved "https://registry.yarnpkg.com/expo-dev-launcher/-/expo-dev-launcher-2.4.14.tgz#ca0cabbefd6c1989709613ead9e86d2f159fe011"
+-  integrity sha512-SlUf+fEX9sKzDzY1Ui8j5775eLKpO0xPVoI89G7CRsrpUv6ZRvRF836cMFesxkU5d+3bXHpKzDQiEPDSI1G/WQ==
++expo-dev-launcher@2.4.15:
++  version "2.4.15"
++  resolved "https://registry.yarnpkg.com/expo-dev-launcher/-/expo-dev-launcher-2.4.15.tgz#298ac56b523f77c40523453224f75dcc894198bc"
++  integrity sha512-6oF4NsxlKwuafnyIZvVtMp4OTxRu4Arsw6qJ9s4jDjZuGJtGwgEj9ux3R0YLkDPs8xhsK9Awp0q17RqbQzs1qg==
+   dependencies:
+-    expo-dev-menu "3.2.2"
++    expo-dev-menu "3.2.3"
+     resolve-from "^5.0.0"
+     semver "^7.5.3"
+ 
+@@ -4954,10 +4976,18 @@ expo-dev-menu-interface@1.3.0:
+   resolved "https://registry.yarnpkg.com/expo-dev-menu-interface/-/expo-dev-menu-interface-1.3.0.tgz#51b6be8c6e0ce73e414ac7a545998dfad0dfdb80"
+   integrity sha512-WtRP7trQ2lizJJTTFXUSGGn1deIeHaYej0sUynvu/uC69VrSP4EeSnYOxbmEO29kuT/MsQBMGu0P/AkMQOqCOg==
+ 
+-expo-dev-menu@3.2.2:
+-  version "3.2.2"
+-  resolved "https://registry.yarnpkg.com/expo-dev-menu/-/expo-dev-menu-3.2.2.tgz#e5285846158286e7da20fa44be1b0e2079fa8cc4"
+-  integrity sha512-q0IDlCGkZMsDIFV+Mgnz0Q3u/bcnrF8IFMglJ0onF09e5csLk5Ts7hKoQyervOJeThyI402r9OQsFNaru2tgtg==
++expo-dev-menu@3.2.3:
++  version "3.2.3"
++  resolved "https://registry.yarnpkg.com/expo-dev-menu/-/expo-dev-menu-3.2.3.tgz#31c102251d94e9a35fac667cefdbaeae7b1e1375"
++  integrity sha512-DneF3okTC4AAfAZgaOIylQ/UngSO8SnUT6bRV6nHhJU/jQS1OIP1cZoNW23I100+2yj6x6mobL21PxyiI5VA8g==
++  dependencies:
++    expo-dev-menu-interface "1.3.0"
++    semver "^7.5.3"
++
++expo-dev-menu@3.2.4:
++  version "3.2.4"
++  resolved "https://registry.yarnpkg.com/expo-dev-menu/-/expo-dev-menu-3.2.4.tgz#25ba1efe70bf74ab2d7804eab54212785cd2a01a"
++  integrity sha512-jPvEY4xGTsiVL6A8M6xThNG+tgCHKlDaWqmWHT+wy2EXgFf/7zE0daVYoFms0KJ1XtZc+/DmDRgIPTR86qIGTg==
+   dependencies:
+     expo-dev-menu-interface "1.3.0"
+     semver "^7.5.3"
+@@ -5665,7 +5695,7 @@ glob@^6.0.1:
+     once "^1.3.0"
+     path-is-absolute "^1.0.0"
+ 
+-glob@^7.0.3, glob@^7.1.2, glob@^7.1.3, glob@^7.1.4:
++glob@^7.0.3, glob@^7.1.1, glob@^7.1.2, glob@^7.1.3, glob@^7.1.4:
+   version "7.2.3"
+   resolved "https://registry.yarnpkg.com/glob/-/glob-7.2.3.tgz#b8df0fb802bbfa8e89bd1d938b4e16578ed44f2b"
+   integrity sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==
+@@ -6093,7 +6123,7 @@ internal-ip@4.3.0:
+     default-gateway "^4.2.0"
+     ipaddr.js "^1.9.0"
+ 
+-invariant@*, invariant@^2.2.4:
++invariant@^2.2.4:
+   version "2.2.4"
+   resolved "https://registry.yarnpkg.com/invariant/-/invariant-2.2.4.tgz#610f3c92c9359ce1db616e538008d23ff35158e6"
+   integrity sha512-phJfQVBuaJM5raOpJjSfkiD6BpbCE4Ns//LaXl6wGYtUBY83nWS6Rf9tXm2e8VaK60JEjYldbPif/A2B1C2gNA==
+@@ -7134,6 +7164,13 @@ lines-and-columns@^1.1.6:
+   resolved "https://registry.yarnpkg.com/lines-and-columns/-/lines-and-columns-1.2.4.tgz#eca284f75d2965079309dc0ad9255abb2ebc1632"
+   integrity sha512-7ylylesZQ/PV29jhEDl3Ufjo6ZX7gCqJr5F7PKrqc93v7fzSymt1BpwEU8nAUXs8qzzvqhbjhK5QZg6Mt/HkBg==
+ 
++linkify-it@^2.0.0:
++  version "2.2.0"
++  resolved "https://registry.yarnpkg.com/linkify-it/-/linkify-it-2.2.0.tgz#e3b54697e78bf915c70a38acd78fd09e0058b1cf"
++  integrity sha512-GnAl/knGn+i1U/wjBz3akz2stz+HrHLsxMwHQGofCDfPvlf+gDKN58UtfmUquTY4/MXeE2x7k19KQmeoZi94Iw==
++  dependencies:
++    uc.micro "^1.0.1"
++
+ linkifyjs@^4.1.3:
+   version "4.1.3"
+   resolved "https://registry.yarnpkg.com/linkifyjs/-/linkifyjs-4.1.3.tgz#0edbc346428a7390a23ea2e5939f76112c9ae07f"
+@@ -7316,6 +7353,17 @@ makeerror@1.0.12:
+   dependencies:
+     tmpl "1.0.5"
+ 
++markdown-it@^10.0.0:
++  version "10.0.0"
++  resolved "https://registry.yarnpkg.com/markdown-it/-/markdown-it-10.0.0.tgz#abfc64f141b1722d663402044e43927f1f50a8dc"
++  integrity sha512-YWOP1j7UbDNz+TumYP1kpwnP0aEa711cJjrAQrzd0UXlbJfc5aAq0F/PZHjiioqDC1NKgvIMX+o+9Bk7yuM2dg==
++  dependencies:
++    argparse "^1.0.7"
++    entities "~2.0.0"
++    linkify-it "^2.0.0"
++    mdurl "^1.0.1"
++    uc.micro "^1.0.5"
++
+ md5-file@^3.2.3:
+   version "3.2.3"
+   resolved "https://registry.yarnpkg.com/md5-file/-/md5-file-3.2.3.tgz#f9bceb941eca2214a4c0727f5e700314e770f06f"
+@@ -7351,6 +7399,11 @@ mdn-data@2.0.14:
+   resolved "https://registry.yarnpkg.com/mdn-data/-/mdn-data-2.0.14.tgz#7113fc4281917d63ce29b43446f701e68c25ba50"
+   integrity sha512-dn6wd0uw5GsdswPFfsgMp5NSB0/aDe6fK94YJV/AJDYXL6HVLWBsxeq7js7Ad+mU2K9LAlwpk6kN2D5mwCPVow==
+ 
++mdurl@^1.0.1:
++  version "1.0.1"
++  resolved "https://registry.yarnpkg.com/mdurl/-/mdurl-1.0.1.tgz#fe85b2ec75a59037f2adfec100fd6c601761152e"
++  integrity sha512-/sKlQJCBYVY9Ers9hqzKou4H6V5UWc/M59TH2dvkt+84itfnq7uFOMLpOiOS4ujvHP4etln18fmIxA5R5fll0g==
++
+ media-typer@0.3.0:
+   version "0.3.0"
+   resolved "https://registry.yarnpkg.com/media-typer/-/media-typer-0.3.0.tgz#8710d7af0aa626f8fffa1ce00168545263255748"
+@@ -8659,7 +8712,7 @@ postcss-unique-selectors@^5.1.1:
+   dependencies:
+     postcss-selector-parser "^6.0.5"
+ 
+-postcss-value-parser@^4.1.0, postcss-value-parser@^4.2.0:
++postcss-value-parser@^4.0.2, postcss-value-parser@^4.1.0, postcss-value-parser@^4.2.0:
+   version "4.2.0"
+   resolved "https://registry.yarnpkg.com/postcss-value-parser/-/postcss-value-parser-4.2.0.tgz#723c09920836ba6d3e5af019f92bc0971c02e514"
+   integrity sha512-1NNCs6uurfkVbeXG4S8JFT9t19m45ICnif8zWLd5oPSZ50QnwMfK+H3jv408d4jw/7Bttv5axS5IiHoLaVNHeQ==
+@@ -8779,7 +8832,7 @@ prompts@^2.0.1, prompts@^2.2.1, prompts@^2.3.2, prompts@^2.4.0:
+     kleur "^3.0.3"
+     sisteransi "^1.0.5"
+ 
+-prop-types@*, prop-types@^15.5.10, prop-types@^15.7.2, prop-types@^15.7.x, prop-types@^15.8.1:
++prop-types@^15.5.10, prop-types@^15.7.2, prop-types@^15.7.x, prop-types@^15.8.1:
+   version "15.8.1"
+   resolved "https://registry.yarnpkg.com/prop-types/-/prop-types-15.8.1.tgz#67d87bf1a694f48435cf332c24af10214a3140b5"
+   integrity sha512-oj87CgZICdulUohogVAR7AjlC0327U4el4L6eAvOqCeudMDVU0NThNaV+b9Df4dXgSP1gXMTnPdhfe/2qDH5cg==
+@@ -8981,6 +9034,13 @@ react-native-communications@^2.2.1:
+   resolved "https://registry.yarnpkg.com/react-native-communications/-/react-native-communications-2.2.1.tgz#7883b56b20a002eeb790c113f8616ea8692ca795"
+   integrity sha512-5+C0X9mopI0+qxyQHzOPEi5v5rxNBQjxydPPiKMQSlX1RBIcJ8uTcqUPssQ9Mo8p6c1IKIWJUSqCj4jAmD0qVQ==
+ 
++react-native-fit-image@^1.5.5:
++  version "1.5.5"
++  resolved "https://registry.yarnpkg.com/react-native-fit-image/-/react-native-fit-image-1.5.5.tgz#c660d1ad74b9dcaa1cba27a0d9c23837e000226c"
++  integrity sha512-Wl3Vq2DQzxgsWKuW4USfck9zS7YzhvLNPpkwUUCF90bL32e1a0zOVQ3WsJILJOwzmPdHfzZmWasiiAUNBkhNkg==
++  dependencies:
++    prop-types "^15.5.10"
++
+ react-native-gesture-handler@~2.12.0:
+   version "2.12.1"
+   resolved "https://registry.yarnpkg.com/react-native-gesture-handler/-/react-native-gesture-handler-2.12.1.tgz#f11a99fb95169810c6886fad5efa01a17fd81660"
+@@ -9016,6 +9076,16 @@ react-native-lightbox@^0.7.0:
+   dependencies:
+     prop-types "^15.5.10"
+ 
++react-native-markdown-display@^7.0.2:
++  version "7.0.2"
++  resolved "https://registry.yarnpkg.com/react-native-markdown-display/-/react-native-markdown-display-7.0.2.tgz#b6584cec8d6670c0141fb8780bc2f0710188a4c2"
++  integrity sha512-Mn4wotMvMfLAwbX/huMLt202W5DsdpMO/kblk+6eUs55S57VVNni1gzZCh5qpznYLjIQELNh50VIozEfY6fvaQ==
++  dependencies:
++    css-to-react-native "^3.0.0"
++    markdown-it "^10.0.0"
++    prop-types "^15.7.2"
++    react-native-fit-image "^1.5.5"
++
+ react-native-markdown-package@^1.8.2:
+   version "1.8.2"
+   resolved "https://registry.yarnpkg.com/react-native-markdown-package/-/react-native-markdown-package-1.8.2.tgz#19db1047e174077f9b9f80303938c775b1c223c0"
+@@ -9089,25 +9159,26 @@ react-native-web@~0.19.6:
+     postcss-value-parser "^4.2.0"
+     styleq "^0.1.3"
+ 
+-react-native@0.72.6:
+-  version "0.72.6"
+-  resolved "https://registry.yarnpkg.com/react-native/-/react-native-0.72.6.tgz#9f8d090694907e2f83af22e115cc0e4a3d5fa626"
+-  integrity sha512-RafPY2gM7mcrFySS8TL8x+TIO3q7oAlHpzEmC7Im6pmXni6n1AuufGaVh0Narbr1daxstw7yW7T9BKW5dpVc2A==
++react-native@0.72.10:
++  version "0.72.10"
++  resolved "https://registry.yarnpkg.com/react-native/-/react-native-0.72.10.tgz#4a796d1b14ab78dcc6520292ff4e66fded0ce3f3"
++  integrity sha512-AjVA1+hCm2VMk3KE9Ve5IeDR3aneEhhQJmBAM9xP3i2WqqS3GksxCz8+JdB83bV6x9mBLv5qPMP71vCged3USw==
+   dependencies:
+     "@jest/create-cache-key-function" "^29.2.1"
+-    "@react-native-community/cli" "11.3.7"
+-    "@react-native-community/cli-platform-android" "11.3.7"
+-    "@react-native-community/cli-platform-ios" "11.3.7"
++    "@react-native-community/cli" "11.3.10"
++    "@react-native-community/cli-platform-android" "11.3.10"
++    "@react-native-community/cli-platform-ios" "11.3.10"
+     "@react-native/assets-registry" "^0.72.0"
+-    "@react-native/codegen" "^0.72.7"
++    "@react-native/codegen" "^0.72.8"
+     "@react-native/gradle-plugin" "^0.72.11"
+     "@react-native/js-polyfills" "^0.72.1"
+     "@react-native/normalize-colors" "^0.72.0"
+     "@react-native/virtualized-lists" "^0.72.8"
+     abort-controller "^3.0.0"
+     anser "^1.4.9"
++    ansi-regex "^5.0.0"
+     base64-js "^1.1.2"
+-    deprecated-react-native-prop-types "4.1.0"
++    deprecated-react-native-prop-types "^4.2.3"
+     event-target-shim "^5.0.1"
+     flow-enums-runtime "^0.0.5"
+     invariant "^2.2.4"
+@@ -10420,6 +10491,11 @@ ua-parser-js@^1.0.35:
+   resolved "https://registry.yarnpkg.com/ua-parser-js/-/ua-parser-js-1.0.37.tgz#b5dc7b163a5c1f0c510b08446aed4da92c46373f"
+   integrity sha512-bhTyI94tZofjo+Dn8SN6Zv8nBDvyXTymAdM3LDI/0IboIUwTu1rEhW7v2TfiVsoYWgkQ4kOVqnI8APUFbIQIFQ==
+ 
++uc.micro@^1.0.1, uc.micro@^1.0.5:
++  version "1.0.6"
++  resolved "https://registry.yarnpkg.com/uc.micro/-/uc.micro-1.0.6.tgz#9c411a802a409a91fc6cf74081baba34b24499ac"
++  integrity sha512-8Y75pvTYkLJW2hWQHXxoqRgV7qb9B+9vFEtidML+7koHUFapnVJAZ6cKs+Qjz5Aw3aZWHMC6u0wJE3At+nSGwA==
++
+ uglify-es@^3.1.9:
+   version "3.3.9"
+   resolved "https://registry.yarnpkg.com/uglify-es/-/uglify-es-3.3.9.tgz#0c1c4f0700bed8dbc124cdb304d2592ca203e677"

@@ -1,0 +1,46 @@
+{
+  "build": {
+    "production": {
+      "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_ENV_NAME": "production",
+        "EXPO_PUBLIC_API_URL": "https://api.gatz.chat",
+        "EXPO_PUBLIC_APP_URL": "chat.gatz://"
+      }
+    },
+    "test": {
+      "env": {
+        "EXPO_PUBLIC_ENV_NAME": "test",
+        "EXPO_PUBLIC_API_URL": "https://localhost:8080",
+        "EXPO_PUBLIC_APP_URL": "chat.gatz://"
+      }
+    },
+    "development": {
+      "env": {
+        "EXPO_PUBLIC_ENV_NAME": "development",
+        "EXPO_PUBLIC_API_URL": "https://api.gatz.chat"
+      },
+      "distribution": "internal",
+      "developmentClient": true
+    },
+    "preview": {
+        "channel": "preview",
+        "distribution": "internal",
+        "developmentClient": false,
+        "env": {
+          "EXPO_PUBLIC_ENV_NAME": "production",
+          "EXPO_PUBLIC_API_URL": "https://api.gatz.chat"
+        },
+        "android": {
+          "buildType": "apk"
+        }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "config/gatz-c8ac3-b3845408d64e.json"
+      }
+    }
+  }
+}

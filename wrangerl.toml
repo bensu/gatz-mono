@@ -1,0 +1,11 @@
+name = "gatz-app"
+type = "webpack"
+account_id = "your-account-id"
+workers_dev = true
+route = ""
+zone_id = ""
+usage_model = ""
+
+[site]
+bucket = "./dist"
+entry-point = "workers-site"

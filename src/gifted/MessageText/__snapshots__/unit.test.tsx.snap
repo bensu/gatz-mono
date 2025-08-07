@@ -1,0 +1,65 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`[rich-text-parsing] Tests for text parsing features Edge Cases [rich-text-parsing] Malformed patterns should not break parsing 1`] = `
+<View
+  style={
+    [
+      {},
+      undefined,
+    ]
+  }
+>
+  <View
+    style={
+      {
+        "position": "relative",
+      }
+    }
+  >
+    <Text
+      ellipsizeMode="tail"
+      numberOfLines={null}
+      onTextLayout={[Function]}
+      style={
+        {
+          "color": "#000000",
+        }
+      }
+      testID="GC_MESSAGE_TEXT"
+    >
+      <Text
+        style={
+          [
+            {
+              "fontSize": 16,
+              "fontWeight": "bold",
+              "lineHeight": 20,
+            },
+            {
+              "color": "#000000",
+            },
+          ]
+        }
+      >
+        Test User
+         
+      </Text>
+      <Text
+        style={
+          [
+            {
+              "fontSize": 16,
+              "lineHeight": 20,
+            },
+            {
+              "color": "#000000",
+            },
+          ]
+        }
+      >
+        Bad URL: htp://example@com and bad email: not@an@email and @
+      </Text>
+    </Text>
+  </View>
+</View>
+`;

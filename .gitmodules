@@ -1,0 +1,12 @@
+[submodule "vendor/react-native-country-picker-modal"]
+	path = vendor/react-native-country-picker-modal
+	url = https://github.com/bensu/react-native-country-picker-modal
+[submodule "vendor/react-native-phone-number-input"]
+	path = vendor/react-native-phone-number-input
+	url = https://github.com/bensu/react-native-phone-number-input.git
+[submodule "vendor/shared"]
+	path = vendor/shared
+	url = https://github.com/bensu/gatz-shared
+[submodule "vendor/react-native-image-gallery"]
+	path = vendor/react-native-image-gallery
+	url = https://github.com/georstat/react-native-image-gallery

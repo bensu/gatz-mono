@@ -1,0 +1,92 @@
+export default {
+  expo: {
+    owner: "sbensu",
+    name: "gatz.chat",
+    slug: "gatz",
+    version: "1.1.29",
+    orientation: "portrait",
+    icon: "./assets/icon.png",
+    userInterfaceStyle: "automatic",
+    experiments: {
+      tsconfigPaths: true,
+    },
+    splash: {
+      image: "./assets/img/gentleman_centered_background.png",
+      resizeMode: "cover",
+      backgroundColor: "#3D5135",
+    },
+    assetBundlePatterns: ["**/*", "assets/**/*"],
+    ios: {
+      supportsTablet: false,
+      bundleIdentifier: "chat.gatz",
+      associatedDomains: ["applinks:gatz.chat"],
+      infoPlist: {
+        ITSAppUsesNonExemptEncryption: false,
+        UIStatusBarStyle: "UIStatusBarStyleAutomatic", // Ensures it adapts to theme
+      },
+    },
+    android: {
+      versionCode: 122,
+      adaptiveIcon: {
+        foregroundImage: "./assets/google_play_icon.png",
+        backgroundColor: "#3D5135",
+      },
+      package: "chat.gatz",
+      googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
+      softwareKeyboardLayoutMode: "resize",
+      intentFilters: [
+        {
+          action: "VIEW",
+          autoVerify: true,
+          category: ["BROWSABLE", "DEFAULT"],
+          data: [
+            {
+              scheme: "https",
+              host: "gatz.chat",
+              pathPrefix: "/",
+            },
+            { scheme: "chat.gatz" },
+          ],
+        },
+      ],
+    },
+    web: {
+      bundler: "metro",
+      favicon: "./assets/favicon.png",
+    },
+    plugins: [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          photosPermission:
+            "This allows you to send photos in your messages and upload your avatar.",
+        },
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          organization: "gatz",
+          project: "app",
+          url: "https://sentry.io/",
+        },
+      ]
+    ],
+    scheme: "chat.gatz",
+    extra: {
+      router: {
+        origin: false,
+      },
+      eas: {
+        projectId: "be633365-719e-4fab-bfda-ced010b5613a",
+      },
+    },
+    updates: {
+      url: "https://u.expo.dev/be633365-719e-4fab-bfda-ced010b5613a",
+    },
+    runtimeVersion: {
+      policy: "appVersion",
+    },
+  },
+};
