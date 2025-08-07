@@ -81,6 +81,11 @@
 
 (def apple-jwks-url "https://appleid.apple.com/auth/keys")
 
+;; ======================================================================  
+;; Google Sign-In JWT Validation
+
+(def google-jwks-url "https://www.googleapis.com/oauth2/v3/certs")
+
 (defn base64url-decode
   "Decode a base64url-encoded string"
   [s]
@@ -100,6 +105,7 @@
     (.generatePublic key-factory key-spec)))
 
 (def apple-jwks-cache (atom {:keys nil :expires-at 0}))
+(def google-jwks-cache (atom {:keys nil :expires-at 0}))
 
 (defn fetch-apple-jwks
   "Fetch Apple's JWKS with caching (1 hour TTL)"
@@ -171,5 +177,81 @@
         (throw (ex-info "Apple public key not found" {:kid kid}))))
     (catch Exception e
       (throw (ex-info "Apple ID token verification failed"
+                      {:error (.getMessage e) :token (subs id-token 0 (min 50 (count id-token)))}
+                      e)))))
+
+;; ======================================================================
+;; Google Sign-In JWT Validation Functions
+
+(defn fetch-google-jwks
+  "Fetch Google's JWKS with caching (5 minute TTL as per Google docs)"
+  []
+  (let [now (System/currentTimeMillis)
+        cached @google-jwks-cache
+        expires-at (:expires-at cached)]
+    (if (< now expires-at)
+      (:keys cached)
+      (try
+        (let [response (http/get google-jwks-url {:accept :json})
+              jwks (json/read-str (:body response) :key-fn keyword)
+              keys (:keys jwks)
+              new-expires (+ now (* 5 60 1000))] ; Cache for 5 minutes per Google docs
+          (reset! google-jwks-cache {:keys keys :expires-at new-expires})
+          keys)
+        (catch Exception e
+          (throw (ex-info "Failed to fetch Google JWKS"
+                          {:error e :url google-jwks-url})))))))
+
+(defn find-google-key
+  "Find the Google public key with the given key ID (kid)"
+  [kid]
+  (let [keys (fetch-google-jwks)]
+    (first (filter #(= (:kid %) kid) keys))))
+
+(defn verify-google-id-token
+  "Verify a Google ID token and extract claims"
+  [id-token {:keys [client-id audience] :or {audience client-id}}]
+  (try
+    (let [header (json/read-str
+                  (String. (base64url-decode
+                            (first (str/split id-token #"\."))))
+                  :key-fn keyword)
+          kid (:kid header)
+          alg (:alg header)]
+      
+      ;; Verify algorithm is RS256
+      (when-not (= alg "RS256")
+        (throw (ex-info "Invalid algorithm" {:algorithm alg})))
+      
+      ;; Find the appropriate key
+      (if-let [jwk (find-google-key kid)]
+        (let [public-key (jwk->rsa-public-key jwk)
+              claims (jws/unsign id-token public-key {:alg :rs256})]
+          
+          ;; Validate required claims
+          (let [iss (:iss claims)
+                aud (:aud claims)
+                sub (:sub claims)
+                exp (:exp claims)
+                now (/ (System/currentTimeMillis) 1000)]
+            
+            ;; Validate issuer - Google uses accounts.google.com or https://accounts.google.com
+            (when-not (contains? #{"https://accounts.google.com" "accounts.google.com"} iss)
+              (throw (ex-info "Invalid issuer" {:issuer iss})))
+            
+            ;; Validate audience
+            (when-not (= aud audience)
+              (throw (ex-info "Invalid audience" {:audience aud :expected audience})))
+            
+            ;; Validate subject exists
+            (when (str/blank? sub)
+              (throw (ex-info "Missing subject" {:subject sub})))
+            
+            ;; Token expiration is automatically validated by buddy-sign
+            
+            claims))
+        (throw (ex-info "Google public key not found" {:kid kid}))))
+    (catch Exception e
+      (throw (ex-info "Google ID token verification failed"
                       {:error (.getMessage e) :token (subs id-token 0 (min 50 (count id-token)))}
                       e)))))

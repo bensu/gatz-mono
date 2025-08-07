@@ -479,3 +479,110 @@
         (catch Exception e
           (err-resp "apple_link_failed" "Failed to link Apple Sign-In"))))))
 
+;; ======================================================================  
+;; Google Sign-In Authentication
+
+(defn google-sign-in! [{:keys [params biff/db] :as ctx}]
+  "Handle Google Sign-In authentication for new users"
+  (let [{:keys [id_token client_id]} params]
+    (cond
+      ;; Validate required parameters
+      (str/blank? id_token)
+      (err-resp "missing_id_token" "Google ID token is required")
+      
+      (str/blank? client_id)
+      (err-resp "missing_client_id" "Google client ID is required")
+      
+      ;; Check signup disabled flag
+      (:gatz.auth/signup-disabled? ctx)
+      (err-resp "signup_disabled" "Sign up is disabled right now")
+      
+      :else
+      (try
+        (let [claims (auth/verify-google-id-token id_token {:client-id client_id})
+              google-id (:sub claims)
+              email (:email claims)
+              existing-user (db.user/by-google-id db google-id)]
+          
+          ;; Check if user account is deleted
+          (when (and existing-user (db.user/deleted? existing-user))
+            (throw (ex-info "Account deleted" {:type :account-deleted})))
+          
+          (if existing-user
+            ;; User exists, return auth token
+            (do
+              (posthog/identify! ctx existing-user)
+              (posthog/capture! (assoc ctx :auth/user-id (:xt/id existing-user)) "user.google_sign_in")
+              (json-response {:user (crdt.user/->value existing-user)
+                              :token (auth/create-auth-token ctx (:xt/id existing-user))}))
+            
+            ;; Create new user with Google authentication
+            (let [user (db.user/create-google-user! ctx {:google-id google-id
+                                                         :email email
+                                                         :full-name (:name claims)})]
+              (posthog/identify! ctx user)
+              (posthog/capture! (assoc ctx :auth/user-id (:xt/id user)) "user.google_sign_up")
+              (json-response {:type "sign_up"
+                              :user (crdt.user/->value user)
+                              :token (auth/create-auth-token ctx (:xt/id user))}))))
+        
+        (catch clojure.lang.ExceptionInfo e
+          (let [ex-data (ex-data e)]
+            (case (:type ex-data)
+              :account-deleted (err-resp "account_deleted" "Account deleted")
+              :duplicate-google-id (err-resp "google_id_taken" "This Google account is already registered")
+              :duplicate-email (err-resp "email_taken" "This email is already registered")
+              (err-resp "google_auth_failed" (.getMessage e)))))
+        
+        (catch Exception e
+          (err-resp "google_auth_failed" "Google Sign-In authentication failed")))))
+
+(defn link-google! [{:keys [params auth/user-id biff/db] :as ctx}]
+  "Link Google Sign-In to an existing user account"
+  (let [{:keys [id_token client_id]} params]
+    (cond
+      ;; Validate required parameters
+      (str/blank? id_token)
+      (err-resp "missing_id_token" "Google ID token is required")
+      
+      (str/blank? client_id)
+      (err-resp "missing_client_id" "Google client ID is required")
+      
+      :else
+      (try
+        (let [claims (auth/verify-google-id-token id_token {:client-id client_id})
+              google-id (:sub claims)
+              existing-google-user (db.user/by-google-id db google-id)
+              current-user (db.user/by-id db user-id)]
+          
+          ;; Check if current user account is deleted
+          (when (db.user/deleted? current-user)
+            (throw (ex-info "Account deleted" {:type :account-deleted})))
+          
+          (cond
+            ;; Google ID already linked to another account
+            (and existing-google-user (not (= (:xt/id existing-google-user) user-id)))
+            (err-resp "google_id_taken" "This Google account is already linked to another account")
+            
+            ;; Google ID already linked to current account
+            (and existing-google-user (= (:xt/id existing-google-user) user-id))
+            (json-response {:status "already_linked"
+                            :user (crdt.user/->value existing-google-user)})
+            
+            ;; Link Google ID to current account
+            :else
+            (let [{:keys [user]} (db.user/link-google-id! ctx {:google-id google-id
+                                                               :email (:email claims)})]
+              (posthog/capture! ctx "user.link_google")
+              (json-response {:status "linked"
+                              :user (crdt.user/->value user)}))))
+        
+        (catch clojure.lang.ExceptionInfo e
+          (let [ex-data (ex-data e)]
+            (case (:type ex-data)
+              :account-deleted (err-resp "account_deleted" "Account deleted")
+              (err-resp "google_link_failed" (.getMessage e)))))
+        
+        (catch Exception e
+          (err-resp "google_link_failed" "Failed to link Google Sign-In")))))))
+
