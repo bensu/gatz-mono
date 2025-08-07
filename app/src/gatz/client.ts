@@ -182,6 +182,25 @@ export class OpenClient {
     }
   }
 
+  async appleSignUp(
+    id_token: string,
+    username: string,
+    client_id: string = "chat.gatz"
+  ): Promise<T.AppleSignInAPIResponse> {
+    try {
+      return await this.post<
+        { id_token: string; username: string; client_id: string },
+        T.AppleSignInAPIResponse
+      >(this.baseURL + "/api/auth/apple/signup", { id_token, username, client_id });
+    } catch (error) {
+      if (error.response && error.response.status === 400) {
+        return error.response.data;
+      } else {
+        throw error;
+      }
+    }
+  }
+
   async googleSignIn(
     id_token: string,
     client_id: string

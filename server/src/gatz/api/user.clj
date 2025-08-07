@@ -375,8 +375,10 @@
 ;; ======================================================================  
 ;; Apple Sign-In Authentication
 
-(defn apple-sign-in! [{:keys [params biff/db] :as ctx}]
+(defn apple-sign-in! 
   "Handle Apple Sign-In authentication for new users"
+  [{:keys [params biff/db] :as ctx}]
+  (def -ctx ctx)
   (let [{:keys [id_token client_id]} params]
     (cond
       ;; Validate required parameters
@@ -409,15 +411,11 @@
               (json-response {:user (crdt.user/->value existing-user)
                               :token (auth/create-auth-token ctx (:xt/id existing-user))}))
             
-            ;; Create new user with Apple authentication
-            (let [user (db.user/create-apple-user! ctx {:apple-id apple-id
-                                                        :email email
-                                                        :full-name (:name claims)})]
-              (posthog/identify! ctx user)
-              (posthog/capture! (assoc ctx :auth/user-id (:xt/id user)) "user.apple_sign_up")
-              (json-response {:type "sign_up"
-                              :user (crdt.user/->value user)
-                              :token (auth/create-auth-token ctx (:xt/id user))}))))
+            ;; New user - return success without creating user, let frontend handle sign-up
+            (json-response {:requires_signup true
+                            :apple_id apple-id
+                            :email email
+                            :full_name (:name claims)})))
         
         (catch clojure.lang.ExceptionInfo e
           (let [ex-data (ex-data e)]
@@ -478,6 +476,67 @@
         
         (catch Exception e
           (err-resp "apple_link_failed" "Failed to link Apple Sign-In"))))))
+
+(defn apple-sign-up! [{:keys [params biff/db] :as ctx}]
+  "Create a new user with Apple Sign-In and username"
+  (let [{:keys [id_token client_id username]} params]
+    (cond
+      ;; Validate required parameters
+      (str/blank? id_token)
+      (err-resp "missing_id_token" "Apple ID token is required")
+      
+      (str/blank? client_id)
+      (err-resp "missing_client_id" "Apple client ID is required")
+      
+      (str/blank? username)
+      (err-resp "missing_username" "Username is required")
+      
+      ;; Check signup disabled flag
+      (:gatz.auth/signup-disabled? ctx)
+      (err-resp "signup_disabled" "Sign up is disabled right now")
+      
+      :else
+      (try
+        (let [claims (auth/verify-apple-id-token id_token {:client-id client_id})
+              apple-id (:sub claims)
+              email (:email claims)
+              clean-username (clean-username username)
+              existing-user (db.user/by-apple-id db apple-id)]
+          
+          ;; Validate username
+          (cond
+            (not (crdt.user/valid-username? clean-username))
+            (err-resp "invalid_username" "Username is invalid")
+            
+            (some? (db.user/by-name db clean-username))
+            (err-resp "username_taken" "Username is already taken")
+            
+            (some? existing-user)
+            (err-resp "apple_id_taken" "This Apple ID is already registered")
+            
+            :else
+            ;; Create new user with Apple authentication and username
+            (let [user (db.user/create-apple-user! ctx {:apple-id apple-id
+                                                        :email email
+                                                        :full-name (:name claims)
+                                                        :username clean-username})]
+              (posthog/identify! ctx user)
+              (posthog/capture! (assoc ctx :auth/user-id (:xt/id user)) "user.apple_sign_up")
+              (json-response {:type "sign_up"
+                              :user (crdt.user/->value user)
+                              :token (auth/create-auth-token ctx (:xt/id user))}))))
+        
+        (catch clojure.lang.ExceptionInfo e
+          (let [ex-data (ex-data e)]
+            (case (:type ex-data)
+              :account-deleted (err-resp "account_deleted" "Account deleted")
+              :duplicate-apple-id (err-resp "apple_id_taken" "This Apple ID is already registered")
+              :duplicate-email (err-resp "email_taken" "This email is already registered")
+              :duplicate-username (err-resp "username_taken" "Username is already taken")
+              (err-resp "apple_auth_failed" (.getMessage e)))))
+        
+        (catch Exception e
+          (err-resp "apple_auth_failed" "Apple Sign-In authentication failed"))))))
 
 ;; ======================================================================  
 ;; Google Sign-In Authentication

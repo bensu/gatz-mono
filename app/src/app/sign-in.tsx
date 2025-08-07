@@ -167,11 +167,18 @@ export default function SignIn() {
   const [phone, setPhoneText] = useState("");
 
   const [existingUser, setExistingUser] = useState<T.User | null>(null);
+  const [appleSignupData, setAppleSignupData] = useState<{
+    apple_id: string;
+    email?: string;
+    full_name?: string;
+    id_token: string;
+  } | null>(null);
 
   const resetPhone = useCallback(() => {
     setPhoneText("");
     setExistingUser(null);
-  }, [setPhoneText, setExistingUser]);
+    setAppleSignupData(null);
+  }, [setPhoneText, setExistingUser, setAppleSignupData]);
 
   const submitPhoneAsync = useCallback(
     async (text: string): Promise<null> => {
@@ -350,7 +357,16 @@ export default function SignIn() {
   }, []);
 
   const onSignUpAsync = async () => {
-    const r = await openClient.signUp(username, phone);
+    let r: any;
+    
+    if (appleSignupData) {
+      // Use Apple Sign-Up
+      r = await openClient.appleSignUp(appleSignupData.id_token, username, 'chat.gatz');
+    } else {
+      // Use regular SMS sign-up
+      r = await openClient.signUp(username, phone);
+    }
+    
     if (r.type === "error") {
       if (r.message) {
         throw new Error(r.message);
@@ -414,6 +430,18 @@ export default function SignIn() {
 
         if (response.type === 'error') {
           throw new Error(response.message || 'Authentication failed');
+        }
+        
+        if ('requires_signup' in response && response.requires_signup) {
+          // Store Apple Sign-In data and transition to username step
+          setAppleSignupData({
+            apple_id: response.apple_id,
+            email: response.email,
+            full_name: response.full_name,
+            id_token: credential.identityToken,
+          });
+          setStep('enter_username');
+          return;
         }
 
         const { user, token } = response;
@@ -506,10 +534,16 @@ export default function SignIn() {
           (isUsernameAvailable === false ? `${username} is taken` : null);
         return (
           <>
-            <TouchableOpacity onPress={handleRestart}>
-              <EnteredText text={phone} />
-            </TouchableOpacity>
-            <EnteredText text={"Phone verified"} />
+            {appleSignupData ? (
+              <EnteredText text={"Apple Sign-In verified"} />
+            ) : (
+              <>
+                <TouchableOpacity onPress={handleRestart}>
+                  <EnteredText text={phone} />
+                </TouchableOpacity>
+                <EnteredText text={"Phone verified"} />
+              </>
+            )}
             <StepInput
               placeholder="username"
               onChangeText={setUsername}
