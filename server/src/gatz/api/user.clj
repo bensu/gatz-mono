@@ -535,7 +535,7 @@
               (err-resp "google_auth_failed" (.getMessage e)))))
         
         (catch Exception e
-          (err-resp "google_auth_failed" "Google Sign-In authentication failed")))))
+          (err-resp "google_auth_failed" "Google Sign-In authentication failed"))))))
 
 (defn link-google! [{:keys [params auth/user-id biff/db] :as ctx}]
   "Link Google Sign-In to an existing user account"
@@ -584,5 +584,5 @@
               (err-resp "google_link_failed" (.getMessage e)))))
         
         (catch Exception e
-          (err-resp "google_link_failed" "Failed to link Google Sign-In")))))))
+          (err-resp "google_link_failed" "Failed to link Google Sign-In"))))))
 
