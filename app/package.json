@@ -82,7 +82,7 @@
     "moment": "^2.29.4",
     "node-emoji": "1.11.0",
     "path": "^0.12.7",
-    "posthog-react-native": "^3.1.1",
+    "posthog-react-native": "4.2.2",
     "prop-types": "^15.8.1",
     "react": "18.3.1",
     "react-async-hook": "^4.0.0",

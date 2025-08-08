@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { usePostHog } from 'posthog-react-native';
 
 export const POSTHOG_HOST_URL = "https://us.i.posthog.com";
 
@@ -28,22 +29,21 @@ export type AnalyticsWrapper = {
   reset: () => void;
 };
 
-// Mock wrapper around posthog (disabled)
+// Real PostHog wrapper
 export const useProductAnalytics = (): AnalyticsWrapper => {
+  const posthog = usePostHog();
+  
   return useMemo(() => {
     return {
       capture: (event: AnalyticsEvents, properties?: Record<string, any>) => {
-        // Mock implementation - does nothing
-        console.log(`[PostHog Mock] capture: ${event}`, properties);
+        posthog.capture(event, properties);
       },
       identify: (userId: string, properties?: Record<string, any>) => {
-        // Mock implementation - does nothing
-        console.log(`[PostHog Mock] identify: ${userId}`, properties);
+        posthog.identify(userId, properties);
       },
       reset: () => {
-        // Mock implementation - does nothing
-        console.log(`[PostHog Mock] reset`);
+        posthog.reset();
       },
     };
-  }, []);
+  }, [posthog]);
 };
