@@ -98,11 +98,9 @@
                                     :username "testuser"
                                     :phone "+14159499932" 
                                     :now now
-                                    :auth {:apple_id apple-id
-                                           :google_id google-id
-                                           :email email
-                                           :method "hybrid"
-                                           :migration_completed_at now}})]
+                                    :apple_id apple-id
+                                    :google_id google-id
+                                    :email email})]
         (xtdb/sync node)
         
         ;; Verify user was created with correct fields (v5 schema with top-level auth)
@@ -112,7 +110,6 @@
           (is (= apple-id (:user/apple_id user-value)))
           (is (= google-id (:user/google_id user-value)))
           (is (= email (:user/email user-value)))
-          (is (= "hybrid" (:user/auth_method user-value)))
           
           ;; Test lookup by social IDs
           (is (= uid (:xt/id (by-apple-id db apple-id))))
@@ -140,7 +137,6 @@
         (is (nil? (:user/apple_id user-value)))
         (is (nil? (:user/google_id user-value)))
         (is (nil? (:user/email user-value)))
-        (is (= "sms" (:user/auth_method user-value))))
       
       (.close node)))
 
@@ -159,10 +155,9 @@
                          :username "user1"
                          :phone "+14159499934"
                          :now now
-                         :auth {:apple_id apple-id
-                                :google_id google-id
-                                :email email
-                                :method "hybrid"}})
+                         :apple_id apple-id
+                         :google_id google-id
+                         :email email})
       (xtdb/sync node)
       
       ;; Attempt to create second user with same social IDs should fail
@@ -171,21 +166,21 @@
                                       :username "user2"
                                       :phone "+14159499935"
                                       :now now
-                                      :auth {:apple_id apple-id}})))
+                                      :apple_id apple-id})))
       
       (is (thrown? clojure.lang.ExceptionInfo
                    (create-user! ctx {:id uid2
                                       :username "user2"
                                       :phone "+14159499935"
                                       :now now
-                                      :auth {:google_id google-id}})))
+                                      :google_id google-id})))
       
       (is (thrown? clojure.lang.ExceptionInfo
                    (create-user! ctx {:id uid2
                                       :username "user2"
                                       :phone "+14159499935"
                                       :now now
-                                      :auth {:email email}})))
+                                      :email email})))
       
       (.close node))))
 
@@ -227,7 +222,6 @@
         (is (nil? (:user/apple_id user-value)))
         (is (nil? (:user/google_id user-value)))
         (is (nil? (:user/email user-value)))
-        (is (= "sms" (:user/auth_method user-value))))
       
       (.close node))))
 (deftest user-actions
@@ -363,7 +357,6 @@
                        :user/apple_id nil
                        :user/google_id nil
                        :user/email nil
-                       :user/auth_method "sms"
                        :user/profile {:profile/full_name "Test User"
                                       :profile/urls {:profile.urls/website nil
                                                      :profile.urls/twitter "https://twitter.com/test"}}
@@ -410,7 +403,6 @@
                        :user/apple_id nil
                        :user/google_id nil
                        :user/email nil
-                       :user/auth_method "sms"
                        :user/profile {:profile/full_name nil
                                       :profile/urls {:profile.urls/website nil
                                                      :profile.urls/twitter nil}}
@@ -497,7 +489,6 @@
                        :user/apple_id nil
                        :user/google_id nil
                        :user/email nil
-                       :user/auth_method "sms"
                        :user/push_tokens nil,
                        :user/phone_number "4159499932",
                        :user/created_at now
@@ -534,7 +525,6 @@
                        :user/apple_id nil
                        :user/google_id nil
                        :user/email nil
-                       :user/auth_method "sms"
                        :user/push_tokens nil,
                        :user/phone_number nil
                        :user/created_at now

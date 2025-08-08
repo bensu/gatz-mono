@@ -71,9 +71,8 @@
           (let [user-id (get-in response-data [:user :xt/id])
                 user (db.user/by-id (xtdb/db node) user-id)
                 user-value (crdt.user/->value user)]
-            (is (= (:sub mock-google-claims) (get-in user-value [:user/auth :auth/google_id])))
-            (is (= (:email mock-google-claims) (get-in user-value [:user/auth :auth/email])))
-            (is (= "google" (get-in user-value [:user/auth :auth/method])))))
+            (is (= (:sub mock-google-claims) (:user/google_id user-value)))
+            (is (= (:email mock-google-claims) (:user/email user-value)))))
         
         (.close node)))))
 
@@ -90,9 +89,8 @@
                                  :username "existing_google_user"
                                  :phone "+14159499900"
                                  :now now
-                                 :auth {:google_id google-id
-                                        :email (:email mock-google-claims)
-                                        :method "google"}})
+                                 :google_id google-id
+                                 :email (:email mock-google-claims)})
       (xtdb/sync node)
 
       (with-redefs [auth/verify-google-id-token (constantly mock-google-claims)
@@ -170,7 +168,7 @@
                                  :username "user1"
                                  :phone "+14159499903"
                                  :now now
-                                 :auth {:google_id google-id}})
+                                 :google_id google-id})
       
       ;; Create user2 without Google ID  
       (db.user/create-user! ctx {:id user2-id
@@ -206,8 +204,7 @@
                                  :username "google_user"
                                  :phone "+14159499905"
                                  :now now
-                                 :auth {:google_id google-id
-                                        :method "google"}})
+                                 :google_id google-id})
       (xtdb/sync node)
 
       (with-redefs [auth/verify-google-id-token (constantly mock-google-claims)]

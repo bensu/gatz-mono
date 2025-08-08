@@ -112,15 +112,7 @@
    [:user/apple_id {:optional true} [:maybe string?]]
    [:user/google_id {:optional true} [:maybe string?]]
    [:user/email {:optional true} [:maybe string?]]
-   [:user/auth_method {:optional true} [:enum "sms" "apple" "google" "email" "hybrid"]]
    [:user/migration_completed_at {:optional true} [:maybe inst?]]
-   ;; Legacy auth structure (v4 and earlier) - still supported for backward compatibility
-   [:user/auth {:optional true} [:map
-                                 [:auth/apple_id {:optional true} [:maybe string?]]
-                                 [:auth/google_id {:optional true} [:maybe string?]]
-                                 [:auth/email {:optional true} [:maybe string?]]
-                                 [:auth/method {:optional true} [:enum "sms" "apple" "google" "email" "hybrid"]]
-                                 [:auth/migration_completed_at {:optional true} [:maybe inst?]]]]
    ;; {k {k LWW}}
    [:user/settings [:map
                     [:settings/location {:optional true} LocationPreferences]
@@ -158,15 +150,7 @@
    [:user/apple_id {:optional true} [:maybe string?]]
    [:user/google_id {:optional true} [:maybe string?]]
    [:user/email {:optional true} [:maybe string?]]
-   [:user/auth_method {:optional true} [:enum "sms" "apple" "google" "email" "hybrid"]]
    [:user/migration_completed_at {:optional true} [:maybe inst?]]
-   ;; Legacy auth structure (v4 and earlier) - still supported for backward compatibility
-   [:user/auth {:optional true} [:map
-                                 [:auth/apple_id {:optional true} (crdt/lww-schema [:maybe string?])]
-                                 [:auth/google_id {:optional true} (crdt/lww-schema [:maybe string?])]
-                                 [:auth/email {:optional true} (crdt/lww-schema [:maybe string?])]
-                                 [:auth/method {:optional true} (crdt/lww-schema [:enum "sms" "apple" "google" "email" "hybrid"])]
-                                 [:auth/migration_completed_at {:optional true} (crdt/lww-schema [:maybe inst?])]]]
    ;; {k {k LWW}}
    [:user/push_tokens (crdt/lww-schema [:maybe PushTokens])]
    [:user/settings [:map
@@ -651,7 +635,6 @@
    [:crdt/clock crdt/hlc-schema]
    [:user/updated_at [:or inst? (crdt/max-wins-schema inst?)]]
    [:user/apple_id string?]
-   [:user/auth_method [:enum "sms" "apple" "google" "email" "hybrid"]]
    [:user/migration_completed_at inst?]
    [:user/email {:optional true} [:maybe string?]]])
 
@@ -660,7 +643,6 @@
    [:crdt/clock crdt/hlc-schema]
    [:user/updated_at [:or inst? (crdt/max-wins-schema inst?)]]
    [:user/google_id string?]
-   [:user/auth_method [:enum "sms" "apple" "google" "email" "hybrid"]]
    [:user/migration_completed_at inst?]
    [:user/email {:optional true} [:maybe string?]]])
 

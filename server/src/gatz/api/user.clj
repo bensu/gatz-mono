@@ -47,7 +47,6 @@
                              [:contact schema/ContactResponse]]]]
    [:migration {:optional true} [:map
                                  [:required boolean?]
-                                 [:auth_method [:enum "sms" "apple" "google" "email" "hybrid"]]
                                  [:show_migration_screen boolean?]
                                  [:completed_at [:maybe inst?]]]]])
 
@@ -60,16 +59,18 @@
                              db.contacts/->contact)}))))
 
 (defn migration-status
-  "Calculate migration status for a user based on their auth_method and migration_completed_at fields"
+  "Calculate migration status for a user based on whether they have social auth linked"
   [user-value]
-  (let [auth-method (:user/auth_method user-value)
-        migration-completed-at (:user/migration_completed_at user-value)
-        needs-migration? (and (= "sms" auth-method) 
+  (let [migration-completed-at (:user/migration_completed_at user-value)
+        apple-id (:user/apple_id user-value)
+        google-id (:user/google_id user-value) 
+        email (:user/email user-value)
+        has-linked-account? (or apple-id google-id email)
+        needs-migration? (and (not has-linked-account?) 
                               (nil? migration-completed-at))
         show-migration-screen? needs-migration?]
     (when needs-migration?
       {:required true
-       :auth_method auth-method
        :show_migration_screen show-migration-screen?
        :completed_at migration-completed-at})))
 
@@ -620,10 +621,6 @@
                                        {:crdt/clock clock
                                         :user/updated_at (crdt/max-wins now)
                                         :user/google_id google-id
-                                        :user/auth_method (cond 
-                                                            (:user/apple_id existing-user-by-email) "hybrid"
-                                                            (:user/email existing-user-by-email) "hybrid"
-                                                            :else "google")
                                         :user/migration_completed_at now})]
                 (biff/submit-tx ctx [[:xtdb.api/put (assoc updated-user :db/doc-type :gatz.crdt/user)]])
                 (posthog/identify! ctx updated-user)
@@ -659,10 +656,12 @@
     (cond
       ;; Validate required parameters
       (str/blank? id_token)
-      (err-resp "missing_id_token" "Google ID token is required")
+      (do
+        (err-resp "missing_id_token" "Google ID token is required"))
       
       (str/blank? client_id)
-      (err-resp "missing_client_id" "Google client ID is required")
+      (do
+        (err-resp "missing_client_id" "Google client ID is required"))
       
       :else
       (try
@@ -671,6 +670,7 @@
               existing-google-user (db.user/by-google-id db google-id)
               current-user (db.user/by-id db user-id)]
           
+          
           ;; Check if current user account is deleted
           (when (db.user/deleted? current-user)
             (throw (ex-info "Account deleted" {:type :account-deleted})))
@@ -678,20 +678,23 @@
           (cond
             ;; Google ID already linked to another account
             (and existing-google-user (not (= (:xt/id existing-google-user) user-id)))
-            (err-resp "google_id_taken" "This Google account is already linked to another account")
+            (do
+              (err-resp "google_id_taken" "This Google account is already linked to another account"))
             
             ;; Google ID already linked to current account
             (and existing-google-user (= (:xt/id existing-google-user) user-id))
-            (json-response {:status "already_linked"
-                            :user (crdt.user/->value existing-google-user)})
+            (do
+              (json-response {:status "already_linked"
+                              :user (crdt.user/->value existing-google-user)}))
             
             ;; Link Google ID to current account
             :else
-            (let [{:keys [user]} (db.user/link-google-id! ctx {:google-id google-id
-                                                               :email (:email claims)})]
-              (posthog/capture! ctx "user.link_google")
-              (json-response {:status "linked"
-                              :user (crdt.user/->value user)}))))
+            (do
+              (let [{:keys [user]} (db.user/link-google-id! ctx {:google-id google-id
+                                                                 :email (:email claims)})]
+                (posthog/capture! ctx "user.link_google")
+                (json-response {:status "linked"
+                                :user (crdt.user/->value user)})))))
         
         (catch clojure.lang.ExceptionInfo e
           (let [ex-data (ex-data e)]
@@ -700,6 +703,7 @@
               (err-resp "google_link_failed" (.getMessage e)))))
         
         (catch Exception e
+          (.printStackTrace e)
           (err-resp "google_link_failed" "Failed to link Google Sign-In"))))))
 
 ;; ======================================================================  
