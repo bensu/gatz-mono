@@ -209,7 +209,7 @@ export class OpenClient {
       return await this.post<
         { id_token: string; client_id: string },
         T.GoogleSignInAPIResponse
-      >(this.baseURL + "/api/auth/google", { id_token, client_id });
+      >(this.baseURL + "/auth/google", { id_token, client_id });
     } catch (error) {
       if (error.response && error.response.status === 400) {
         return error.response.data;
