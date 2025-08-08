@@ -197,8 +197,8 @@ export class AuthService {
       
       if (credential.type === 'apple') {
         response = await this.executeWithRetry(
-          () => this.client.appleSignIn(credential.identityToken, 'chat.gatz'),
-          `apple-signin-${credential.identityToken.substring(0, 10)}`
+          () => this.client.appleSignIn(credential.idToken, 'chat.gatz'),
+          `apple-signin-${credential.idToken.substring(0, 10)}`
         );
       } else {
         const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
@@ -237,7 +237,7 @@ export class AuthService {
             apple_id: response.apple_id,
             email: response.email,
             full_name: response.full_name,
-            id_token: credential.type === 'apple' ? credential.identityToken : undefined
+            id_token: credential.type === 'apple' ? credential.idToken : undefined
           }
         };
       }
