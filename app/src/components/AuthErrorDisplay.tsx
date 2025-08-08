@@ -80,7 +80,7 @@ export const AuthErrorDisplay: React.FC<AuthErrorDisplayProps> = ({
         </View>
         {onDismiss && (
           <TouchableOpacity onPress={onDismiss} style={styles.dismissButton}>
-            <MaterialIcons name="close" size={20} color={GatzColor.introTitle} />
+            <MaterialIcons name="close" size={20} color={GatzColor.strongerGrey} />
           </TouchableOpacity>
         )}
       </View>
@@ -104,11 +104,10 @@ const styles = StyleSheet.create({
   },
   errorContent: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
   errorIcon: {
     marginRight: 8,
-    marginTop: 2,
   },
   textContainer: {
     flex: 1,

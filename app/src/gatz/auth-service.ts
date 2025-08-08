@@ -394,7 +394,7 @@ export class AuthService {
       return {
         success: false,
         requiresCode: false,
-        error: error instanceof Error ? mapErrorToAuthError(error) : createAuthError(AuthErrorType.NETWORK_ERROR)
+        error: error instanceof Error ? mapErrorToAuthError(error) : createAuthError(AuthErrorType.EMAIL_SENDING_FAILED)
       };
     }
   }

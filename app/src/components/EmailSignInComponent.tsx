@@ -18,6 +18,7 @@ interface EmailSignInComponentProps {
   onEmailVerified: (email: string) => Promise<void>;
   onLinkEmail: (email: string, code: string) => Promise<void>;
   isLoading?: boolean;
+  useModalStyling?: boolean;
 }
 
 type Step = 'enter_email' | 'verify_code';
@@ -35,6 +36,7 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
   onEmailVerified,
   onLinkEmail,
   isLoading = false,
+  useModalStyling = false,
 }) => {
   const colors = useThemeColors();
   const [step, setStep] = useState<Step>('enter_email');
@@ -109,6 +111,37 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
 
   const isButtonDisabled = isLoading || isCodeLoading || isVerificationLoading;
 
+  const renderButton = (title: string, onPress: () => void, isDisabled: boolean, state: NetworkState) => {
+    if (useModalStyling) {
+      return (
+        <TouchableOpacity
+          style={[
+            styles.modalButton, 
+            { 
+              backgroundColor: colors.buttonActive,
+              opacity: (isDisabled || state === 'loading') ? 0.6 : 1
+            }
+          ]}
+          onPress={onPress}
+          disabled={isDisabled || state === 'loading'}
+        >
+          <Text style={[styles.modalButtonText, { color: '#FFFFFF' }]}>
+            {state === 'loading' ? 'Loading...' : title}
+          </Text>
+        </TouchableOpacity>
+      );
+    }
+
+    return (
+      <NetworkButton
+        title={title}
+        onPress={onPress}
+        state={state}
+        isDisabled={isDisabled}
+      />
+    );
+  };
+
   return (
     <View style={styles.container}>
       {step === 'enter_email' ? (
@@ -139,12 +172,12 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
             />
           </View>
           
-          <NetworkButton
-            title="Send Verification Code"
-            onPress={handleSendCode}
-            state={getSendCodeButtonState()}
-            isDisabled={!email.trim() || isButtonDisabled}
-          />
+          {renderButton(
+            "Send Verification Code",
+            handleSendCode,
+            !email.trim() || isButtonDisabled,
+            getSendCodeButtonState()
+          )}
         </>
       ) : (
         <>
@@ -197,12 +230,12 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
               />
             </View>
             
-            <NetworkButton
-              title="Link Email"
-              onPress={handleVerifyCode}
-              state={getVerifyCodeButtonState()}
-              isDisabled={!isCodeValid(code) || isButtonDisabled}
-            />
+            {renderButton(
+              "Link Email",
+              handleVerifyCode,
+              !isCodeValid(code) || isButtonDisabled,
+              getVerifyCodeButtonState()
+            )}
           </View>
         </>
       )}
@@ -212,15 +245,9 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
         <View style={styles.errorContainer}>
           <AuthErrorDisplay
             error={currentError}
-            onRetry={() => {
-              setCurrentError(null);
-              if (step === 'enter_email') {
-                handleSendCode();
-              } else {
-                handleVerifyCode();
-              }
-            }}
+            showRetryButton={false}
             onDismiss={() => setCurrentError(null)}
+            style={useModalStyling ? styles.modalErrorStyle : undefined}
           />
         </View>
       )}
@@ -265,6 +292,23 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   errorContainer: {
+    marginTop: 8,
+  },
+  modalButton: {
+    borderRadius: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 50,
+  },
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  modalErrorStyle: {
+    backgroundColor: 'transparent',
+    padding: 0,
     marginTop: 8,
   },
 });

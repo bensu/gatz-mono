@@ -44,7 +44,7 @@ export const AUTH_ERROR_MESSAGES: Record<AuthErrorType, string> = {
   [AuthErrorType.SIGNUP_DISABLED]: "Sign up is currently disabled",
   [AuthErrorType.EMAIL_INVALID]: "Please enter a valid email address",
   [AuthErrorType.EMAIL_TAKEN]: "This email address is already registered",
-  [AuthErrorType.EMAIL_SENDING_FAILED]: "Failed to send verification email. Please try again",
+  [AuthErrorType.EMAIL_SENDING_FAILED]: "Unknown error, please try again",
   [AuthErrorType.EMAIL_SIGNIN_FAILED]: "Email sign-in failed. Please try again"
 };
 
@@ -86,6 +86,16 @@ export const mapErrorToAuthError = (error: any): AuthError => {
   if (error.message?.toLowerCase().includes('cancelled') || 
       error.message?.toLowerCase().includes('canceled')) {
     return createAuthError(AuthErrorType.CANCELLED, error, undefined, false);
+  }
+
+  if (error.response?.status === 400) {
+    // Handle bad request errors from backend
+    // Check if this is an email-related endpoint
+    const url = error.config?.url || '';
+    if (url.includes('/auth/send-email-code')) {
+      return createAuthError(AuthErrorType.EMAIL_SENDING_FAILED, error, undefined, true);
+    }
+    return createAuthError(AuthErrorType.UNKNOWN_ERROR, error, undefined, true);
   }
 
   if (error.response?.status === 401) {

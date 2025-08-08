@@ -8,6 +8,8 @@ import {
   Linking,
   Alert,
   Dimensions,
+  KeyboardAvoidingView,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -37,6 +39,8 @@ interface MigrationScreenProps {
   gatzClient?: GatzClient; // Optional for email linking
 }
 
+type ModalState = 'main' | 'email_only';
+
 const ANIMATION_DURATION = 100;
 
 export const MigrationScreen: React.FC<MigrationScreenProps> = ({
@@ -51,6 +55,7 @@ export const MigrationScreen: React.FC<MigrationScreenProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [currentError, setCurrentError] = useState<AuthError | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [modalState, setModalState] = useState<ModalState>('main');
   const translateY = useSharedValue(SCREEN_HEIGHT);
   const opacity = useSharedValue(0);
 
@@ -236,7 +241,18 @@ export const MigrationScreen: React.FC<MigrationScreenProps> = ({
         </TouchableOpacity>
       </Animated.View>
       <Animated.View style={[styles.container, containerStyle, { backgroundColor: colors.appBackground }]}>
-        <View style={styles.content}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoidingView}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <ScrollView 
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContentContainer}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.content}>
           {showSuccess ? (
             /* Success View */
             <View style={styles.successContainer}>
@@ -256,7 +272,10 @@ export const MigrationScreen: React.FC<MigrationScreenProps> = ({
               <View style={styles.header}>
                 <View style={styles.titleContainer}>
                   <Text style={[styles.title, { color: colors.primaryText }]}>
-                    Link to Google ID, Apple ID, or your email
+                    {modalState === 'main' 
+                      ? 'Link to Google ID, Apple ID, or your email'
+                      : 'Link your email address'
+                    }
                   </Text>
                 </View>
                 <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -272,22 +291,47 @@ export const MigrationScreen: React.FC<MigrationScreenProps> = ({
 
               {/* Auth Buttons */}
               <View style={styles.authSection}>
-                <SocialSignInButtons
-                  onSignIn={handleSocialSignIn}
-                  isLoading={isLoading}
-                />
-                
-                {/* Email Fallback Option */}
-                <View style={styles.fallbackSection}>
-                  <Text style={[styles.fallbackTitle, { color: colors.secondaryText }]}>
-                    Or link your email address
-                  </Text>
-                  <EmailSignInComponent
-                    onEmailVerified={async () => {}} // Not used for linking
-                    onLinkEmail={handleLinkEmail}
-                    isLoading={isLoading}
-                  />
-                </View>
+                {modalState === 'main' ? (
+                  <>
+                    <SocialSignInButtons
+                      onSignIn={handleSocialSignIn}
+                      isLoading={isLoading}
+                    />
+                    
+                    {/* Email Sign-In Button */}
+                    <TouchableOpacity
+                      style={[styles.emailSignInButton, { borderColor: colors.border }]}
+                      onPress={() => setModalState('email_only')}
+                      disabled={isLoading}
+                    >
+                      <Ionicons name="mail-outline" size={20} color={colors.primaryText} />
+                      <Text style={[styles.emailSignInText, { color: colors.primaryText }]}>
+                        Sign in with email
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    {/* Email-Only State */}
+                    <EmailSignInComponent
+                      onEmailVerified={async () => {}} // Not used for linking
+                      onLinkEmail={handleLinkEmail}
+                      isLoading={isLoading}
+                      useModalStyling={true}
+                    />
+                    
+                    {/* Back to Social Options */}
+                    <TouchableOpacity
+                      style={styles.backToSocialButton}
+                      onPress={() => setModalState('main')}
+                      disabled={isLoading}
+                    >
+                      <Text style={[styles.backToSocialText, { color: colors.buttonActive }]}>
+                        Link your Apple ID or Google ID instead
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
 
               {/* Error Display */}
@@ -325,7 +369,9 @@ export const MigrationScreen: React.FC<MigrationScreenProps> = ({
               </View>
             </>
           )}
-        </View>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </Animated.View>
     </>
   );
@@ -363,9 +409,20 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContentContainer: {
+    flexGrow: 1,
+    justifyContent: 'flex-end',
+  },
   content: {
     paddingHorizontal: 24,
     paddingTop: 16,
+    minHeight: 500, // Ensure enough space for email input + keyboard
   },
   header: {
     flexDirection: 'row',
@@ -397,6 +454,32 @@ const styles = StyleSheet.create({
   },
   authSection: {
     marginBottom: 24,
+  },
+  emailSignInButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 0.5,
+    borderRadius: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 12,
+    height: 50,
+    marginTop: 12,
+  },
+  emailSignInText: {
+    fontSize: 22,
+    lineHeight: 22,
+    fontWeight: '500',
+  },
+  backToSocialButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginTop: 16,
+  },
+  backToSocialText: {
+    fontSize: 14,
+    textDecorationLine: 'underline',
   },
   fallbackSection: {
     marginTop: 24,
