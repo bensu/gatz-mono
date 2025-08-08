@@ -88,7 +88,7 @@ export const SocialSignInButtons: React.FC<SocialSignInButtonsProps> = ({
         >
           <Ionicons name="logo-google" size={20} color="#4285F4" />
           <Text style={[styles.modalGoogleButtonText, { color: colors.primaryText }]}>
-            {isGoogleLoading ? 'Loading...' : 'Sign in with Google'}
+            {isGoogleLoading ? 'Signing in...' : 'Sign in with Google'}
           </Text>
         </TouchableOpacity>
       ) : (
@@ -98,7 +98,7 @@ export const SocialSignInButtons: React.FC<SocialSignInButtonsProps> = ({
           disabled={isAnyLoading}
         >
           <Text style={[styles.signInGoogleButtonText, { color: GatzColor.introTitle }]}>
-            {isGoogleLoading ? 'Loading...' : 'Sign in with Google'}
+            {isGoogleLoading ? 'Signing in...' : 'Sign in with Google'}
           </Text>
         </TouchableOpacity>
       )}

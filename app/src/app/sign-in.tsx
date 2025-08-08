@@ -333,6 +333,8 @@ export default function SignIn() {
     resetUsername();
     setCurrentError(null);
     setShowEmailSignIn(false);
+    setIsSocialSignInLoading(false);
+    setSocialSignInSuccess(false);
   }, [setStep, resetPhone, resetCode, resetUsername]);
 
   const handleRestart = useCallback(() => {
@@ -428,6 +430,7 @@ export default function SignIn() {
   const phoneInputRef = useRef<PhoneInput>(null);
 
   const [isSocialSignInLoading, setIsSocialSignInLoading] = useState(false);
+  const [socialSignInSuccess, setSocialSignInSuccess] = useState(false);
   const [currentError, setCurrentError] = useState<AuthError | null>(null);
   const [showEmailSignIn, setShowEmailSignIn] = useState(false);
 
@@ -461,6 +464,9 @@ export default function SignIn() {
           const { is_admin = false, is_test = false } = user;
           const authMethod = credential.type === 'apple' ? 'apple' : 'google';
           
+          // Show success message during the delay
+          setSocialSignInSuccess(true);
+          
           setTimeout(
             () => signIn(
               { userId: user.id, token, is_admin, is_test },
@@ -483,7 +489,10 @@ export default function SignIn() {
           canRetry: true
         });
       } finally {
-        setIsSocialSignInLoading(false);
+        // Only clear loading if there was no success (which means error)
+        if (!socialSignInSuccess) {
+          setIsSocialSignInLoading(false);
+        }
       }
     },
     [authService, signIn],
@@ -568,10 +577,16 @@ export default function SignIn() {
                 <Text style={styles.dividerText}>or</Text>
                 {!showEmailSignIn ? (
                   <>
-                    <SocialSignInButtons
-                      onSignIn={handleSocialSignIn}
-                      isLoading={isPhoneLoading || isSocialSignInLoading}
-                    />
+                    {socialSignInSuccess ? (
+                      <View style={styles.successMessageContainer}>
+                        <Text style={styles.successMessage}>Success! Signing you in...</Text>
+                      </View>
+                    ) : (
+                      <SocialSignInButtons
+                        onSignIn={handleSocialSignIn}
+                        isLoading={isPhoneLoading || isSocialSignInLoading}
+                      />
+                    )}
                     <TouchableOpacity
                       style={styles.emailSignInButton}
                       onPress={() => setShowEmailSignIn(true)}
@@ -849,5 +864,15 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: GatzStyles.tagline.fontFamily,
     textDecorationLine: 'underline',
+  },
+  successMessageContainer: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  successMessage: {
+    color: GatzColor.introTitle,
+    fontSize: 18,
+    fontFamily: GatzStyles.tagline.fontFamily,
+    fontWeight: '500',
   },
 });
