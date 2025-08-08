@@ -499,12 +499,44 @@ export type FeatureFlags = {
 
 export type FeatureFlag = keyof FeatureFlags;
 
+export type MigrationStatus = {
+  required: boolean;
+  auth_method: "sms" | "apple" | "google" | "email" | "hybrid";
+  show_migration_screen: boolean;
+  completed_at: string | null;
+};
+
 export type MeAPIResponse = APIResponse & {
   user: User;
   contacts: Contact[];
   groups: Group[];
   contact_requests: PendingContactRequest[];
   flags: { values: FeatureFlags };
+  migration?: MigrationStatus;
+};
+
+export type LinkAppleAPIResponse = APIResponse & {
+  status: "linked" | "already_linked";
+  user: User;
+};
+
+export type LinkGoogleAPIResponse = APIResponse & {
+  status: "linked" | "already_linked";
+  user: User;
+};
+
+export type EmailVerificationAPIResponse = APIResponse &
+  (
+    | { status: "sent"; email: string }
+    | { status: "approved"; email: string }
+    | { requires_signup: true; email: string }
+    | { status: "no_code" | "expired" | "wrong_code" | "max_attempts"; message: string }
+    | { user: User; token: string }
+  );
+
+export type LinkEmailAPIResponse = APIResponse & {
+  status: "linked" | "already_linked";
+  user: User;
 };
 
 export type XTDBTx = {

@@ -33,6 +33,9 @@ import { Logo, Tagline } from "../components/logo";
 import { NetworkButton, NetworkState } from "../components/NetworkButton";
 import { SocialSignInButtons } from "../components/SocialSignInButtons";
 import { SocialSignInCredential } from "../gatz/auth";
+import { AuthService } from "../gatz/auth-service";
+import { AuthError, AuthErrorType } from "../gatz/auth-errors";
+import { AuthErrorDisplay } from "../components/AuthErrorDisplay";
 import { assertNever } from "../util";
 import { MobileScreenWrapper } from "../components/MobileScreenWrapper";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -161,6 +164,7 @@ const SIGN_UP_ERROR_MESSAGES: Record<T.SignUpError, string> = {
 export default function SignIn() {
   const { signIn } = useContext(SessionContext);
   const openClient = useMemo(() => new OpenClient(), []);
+  const authService = useMemo(() => new AuthService(), []);
 
   const [step, setStep] = useState<Step>("enter_phone");
 
@@ -229,7 +233,13 @@ export default function SignIn() {
               const { is_admin, is_test } = user;
               setIsSignInLoading(true);
               setTimeout(
-                () => signIn({ userId: user.id, token, is_admin, is_test }),
+                () => signIn(
+                  { userId: user.id, token, is_admin, is_test },
+                  { 
+                    redirectTo: "/",
+                    authMethod: 'sms'
+                  }
+                ),
                 FLASH_SUCCESS_TIMEOUT,
               );
             } else {
@@ -320,6 +330,7 @@ export default function SignIn() {
     resetPhone();
     resetCode();
     resetUsername();
+    setCurrentError(null);
   }, [setStep, resetPhone, resetCode, resetUsername]);
 
   const handleRestart = useCallback(() => {
@@ -376,6 +387,7 @@ export default function SignIn() {
       }
     } else {
       const { user, token, is_admin = false, is_test = false } = r;
+      const authMethod = appleSignupData ? 'apple' : 'sms';
       setTimeout(() => {
         signIn(
           { userId: user.id, token, is_admin, is_test },
@@ -384,6 +396,7 @@ export default function SignIn() {
               web: "/howto",
               default: "/notifications",
             }),
+            authMethod,
           },
         );
       }, FLASH_SUCCESS_TIMEOUT);
@@ -413,55 +426,64 @@ export default function SignIn() {
   const phoneInputRef = useRef<PhoneInput>(null);
 
   const [isSocialSignInLoading, setIsSocialSignInLoading] = useState(false);
+  const [currentError, setCurrentError] = useState<AuthError | null>(null);
 
   const handleSocialSignIn = useCallback(
     async (credential: SocialSignInCredential) => {
       setIsSocialSignInLoading(true);
+      setCurrentError(null);
+      
       try {
-        let response: T.AppleSignInAPIResponse | T.GoogleSignInAPIResponse;
+        const result = await authService.signInWithSocial(credential);
         
-        if (credential.type === 'apple') {
-          response = await openClient.appleSignIn(credential.identityToken, 'chat.gatz');
-        } else {
-          // For Google, we need the web client ID from environment
-          const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
-          response = await openClient.googleSignIn(credential.idToken, webClientId);
-        }
-
-        if (response.type === 'error') {
-          throw new Error(response.message || 'Authentication failed');
+        if (!result.success) {
+          setCurrentError(result.error!);
+          return;
         }
         
-        if ('requires_signup' in response && response.requires_signup) {
-          // Store Apple Sign-In data and transition to username step
+        if (result.requiresSignup && result.signupData) {
+          // Store social sign-in data and transition to username step
           setAppleSignupData({
-            apple_id: response.apple_id,
-            email: response.email,
-            full_name: response.full_name,
-            id_token: credential.identityToken,
+            apple_id: result.signupData.apple_id,
+            email: result.signupData.email,
+            full_name: result.signupData.full_name,
+            id_token: result.signupData.id_token,
           });
           setStep('enter_username');
           return;
         }
 
-        const { user, token } = response;
-        const { is_admin = false, is_test = false } = user;
-        
-        setTimeout(
-          () => signIn({ userId: user.id, token, is_admin, is_test }),
-          FLASH_SUCCESS_TIMEOUT,
-        );
+        if (result.user && result.token) {
+          const { user, token } = result;
+          const { is_admin = false, is_test = false } = user;
+          const authMethod = credential.type === 'apple' ? 'apple' : 'google';
+          
+          setTimeout(
+            () => signIn(
+              { userId: user.id, token, is_admin, is_test },
+              { 
+                redirectTo: Platform.select({
+                  web: "/",
+                  default: "/"
+                }),
+                authMethod
+              }
+            ),
+            FLASH_SUCCESS_TIMEOUT,
+          );
+        }
       } catch (error) {
         console.error('Social sign-in error:', error);
-        Alert.alert(
-          'Sign-in Failed',
-          error.message || 'Unable to sign in. Please try again.',
-        );
+        setCurrentError({
+          type: AuthErrorType.UNKNOWN_ERROR,
+          message: 'Unable to sign in. Please try again.',
+          canRetry: true
+        });
       } finally {
         setIsSocialSignInLoading(false);
       }
     },
-    [openClient, signIn],
+    [authService, signIn],
   );
 
   const renderInputSection = () => {
@@ -501,8 +523,19 @@ export default function SignIn() {
               
               {!isPhoneLoading && phoneError && (
                 <Text style={styles.message}>
-                  Uknown error. Please try again later.
+                  Unknown error. Please try again later.
                 </Text>
+              )}
+              
+              {currentError && (
+                <AuthErrorDisplay
+                  error={currentError}
+                  onRetry={() => {
+                    setCurrentError(null);
+                    // Trigger appropriate retry based on current step
+                  }}
+                  onDismiss={() => setCurrentError(null)}
+                />
               )}
             </View>
           </>

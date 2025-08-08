@@ -10,6 +10,7 @@ import { SessionContext } from "../../context/SessionProvider";
 import { PortalProvider } from "../../context/PortalProvider";
 import { ActionPillProvider } from "../../context/ActionPillProvider";
 import { ModalContextProvider } from "../../context/ModalContext";
+import { MigrationProvider } from "../../context/MigrationProvider";
 
 export default function Layout() {
   usePushNotificationRouter();
@@ -28,15 +29,17 @@ export default function Layout() {
 
   return (
     <ClientProvider>
-      <FrontendDBProvider>
-        <ActionPillProvider>
-          <PortalProvider>
-            <ModalContextProvider>
-              <Stack />
-            </ModalContextProvider>
-          </PortalProvider>
-        </ActionPillProvider>
-      </FrontendDBProvider>
+      <MigrationProvider>
+        <FrontendDBProvider>
+          <ActionPillProvider>
+            <PortalProvider>
+              <ModalContextProvider>
+                <Stack />
+              </ModalContextProvider>
+            </PortalProvider>
+          </ActionPillProvider>
+        </FrontendDBProvider>
+      </MigrationProvider>
     </ClientProvider >
   );
 }

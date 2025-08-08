@@ -645,3 +645,40 @@
 (defn get-friend-ids [db uid]
   ;; TOOD: change with friendship
   (all-ids db))
+
+;; ======================================================================
+;; Email Authentication Functions
+
+(defn create-email-user!
+  "Create a new user with email authentication"
+  [ctx {:keys [email username]}]
+  {:pre [(string? email) (not (empty? email)) 
+         (string? username) (not (empty? username))]}
+  (let [phone "+1000000002" ; Placeholder phone for email users (different from Apple/Google)
+        auth {:email email
+              :method "email"}]
+    (create-user! ctx {:username username
+                      :phone phone
+                      :auth auth})))
+
+(defn link-email!
+  "Link email to an existing user account"
+  ([ctx params]
+   (link-email! ctx params {:now (Date.)}))
+  ([{:keys [auth/user-id biff.xtdb/node] :as ctx} {:keys [email]} {:keys [now]}]
+   {:pre [(uuid? user-id) (string? email) (not (empty? email))]}
+   (let [db (xtdb/db node)
+         current-user (by-id db user-id)
+         clock (crdt/new-hlc user-id now)
+         auth-fields (cond-> {:user/apple_id (:user/apple_id current-user)
+                              :user/google_id (:user/google_id current-user)
+                              :user/auth_method "hybrid"
+                              :user/migration_completed_at now}
+                       email (assoc :user/email email))
+         updated-user (merge current-user 
+                             {:crdt/clock clock
+                              :user/updated_at (crdt/max-wins now)}
+                             auth-fields)]
+     ;; Submit direct transaction for auth fields
+     (biff/submit-tx ctx [[:xtdb.api/put (assoc updated-user :db/doc-type :gatz.crdt/user)]])
+     {:user updated-user})))

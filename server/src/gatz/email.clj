@@ -8,29 +8,25 @@
 
 (defn signin-link [{:keys [to url user-exists]}]
   {:to to
-   :subject "Join the gatz waitlist"
+   :subject "Sign in to Gatz"
    :html-body (rum/render-static-markup
                [:html
                 [:body
-                 [:p "We received a request to join " settings/app-name
-                  " using this email address. Click this link to join:"]
-                 [:p [:a {:href url :target "_blank"} "Join the gatz waitlist"]]
+                 [:p "We received a request to sign in to " settings/app-name
+                  " using this email address. Click this link to sign in:"]
+                 [:p [:a {:href url :target "_blank"} "Sign in to Gatz"]]
                  [:p "This link will expire in one hour. "
                   "If you did not request this link, you can ignore this email."]]])
-   :text-body (str "We received a request to join " settings/app-name
-                   " using this email address. Click this link to join the waitlist:\n"
-                   "\n"
-                   url "\n"
-                   "\n"
-                   "This link will expire in one hour. If you did not request this link, "
-                   "you can ignore this email.")
+   :text-body (format "We received a request to sign in to %s using this email address. Click this link to sign in:\n\n%s\n\nThis link will expire in one hour. If you did not request this link, you can ignore this email."
+                      settings/app-name
+                      url)
    :message-stream "outbound"})
 
 (defn signin-code [{:keys [to code user-exists]}]
   {:to to
    :subject (if user-exists
-              (str "Sign in to " settings/app-name)
-              (str "Sign up for " settings/app-name))
+              (format "Sign in to %s" settings/app-name)
+              (format "Sign up for %s" settings/app-name))
    :html-body (rum/render-static-markup
                [:html
                 [:body
@@ -40,13 +36,9 @@
                  [:p
                   "This code will expire in three minutes. "
                   "If you did not request this code, you can ignore this email."]]])
-   :text-body (str "We received a request to sign in to " settings/app-name
-                   " using this email address. Enter the following code to sign in:\n"
-                   "\n"
-                   code "\n"
-                   "\n"
-                   "This code will expire in three minutes. If you did not request this code, "
-                   "you can ignore this email.")
+   :text-body (format "We received a request to sign in to %s using this email address. Enter the following code to sign in:\n\n%s\n\nThis code will expire in three minutes. If you did not request this code, you can ignore this email."
+                      settings/app-name
+                      code)
    :message-stream "outbound"})
 
 (defn template [k opts]
@@ -68,13 +60,13 @@
     success))
 
 (defn send-console [ctx form-params]
-  (println "TO:" (:to form-params))
-  (println "SUBJECT:" (:subject form-params))
-  (println)
-  (println (:text-body form-params))
-  (println)
-  (println "To send emails instead of printing them to the console, add your"
-           "API keys for Postmark and Recaptcha to config.edn.")
+  (log/info "Email to console:")
+  (log/info (format "TO: %s" (:to form-params)))
+  (log/info (format "SUBJECT: %s" (:subject form-params)))
+  (log/info "")
+  (log/info (:text-body form-params))
+  (log/info "")
+  (log/info "To send emails instead of printing them to the console, add your API keys for Postmark and Recaptcha to config.edn.")
   true)
 
 (defn send-email [{:keys [biff/secret recaptcha/site-key] :as ctx} opts]

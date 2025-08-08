@@ -299,7 +299,12 @@
 
                  ["/verify/start" {:post api.user/verify-phone!}]
                  ["/verify/code" {:post api.user/verify-code!}]
-                 ["/user/check-username" {:post api.user/check-username}]]
+                 ["/user/check-username" {:post api.user/check-username}]
+                 
+                 ;; Email authentication endpoints
+                 ["/auth/send-email-code" {:post api.user/send-email-code!}]
+                 ["/auth/verify-email-code" {:post api.user/verify-email-code!}]
+                 ["/auth/email/signup" {:post api.user/email-sign-up!}]]
 
                 ;; authenticated
                 ["/api" {:middleware [auth/wrap-api-auth]}
@@ -325,6 +330,7 @@
                  ["/user/location" {:post api.user/mark-location!}]
                  ["/auth/link-apple" {:post api.user/link-apple!}]
                  ["/auth/link-google" {:post api.user/link-google!}]
+                 ["/auth/link-email" {:post api.user/link-email!}]
 
                  ["/me/crdt" {:get api.user/get-me-crdt
                               :post api.user/post-me-crdt}]
