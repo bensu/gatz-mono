@@ -3,7 +3,8 @@ import { Platform } from 'react-native';
 
 export interface AppleSignInCredential {
   type: 'apple';
-  identityToken: string;
+  idToken: string;
+  clientId: string;
   user?: string;
   fullName?: {
     givenName?: string;
@@ -15,6 +16,7 @@ export interface AppleSignInCredential {
 export interface GoogleSignInCredential {
   type: 'google';
   idToken: string;
+  clientId: string;
   user?: {
     id: string;
     name?: string;
@@ -49,7 +51,8 @@ export const signInWithApple = async (): Promise<AppleSignInCredential> => {
 
     return {
       type: 'apple',
-      identityToken: credential.identityToken,
+      idToken: credential.identityToken,
+      clientId: 'chat.gatz', // iOS bundle identifier
       user: credential.user,
       fullName: credential.fullName,
       email: credential.email,
@@ -67,6 +70,8 @@ export const configureGoogleSignIn = () => {
 };
 
 export const signInWithGoogle = async (): Promise<GoogleSignInCredential> => {
+  // TODO: Implement Google Sign-In when package is available
+  // Should return: { type: 'google', idToken: string, clientId: string, user: object }
   throw new Error('Google Sign-In is not currently available. Please use Apple Sign-In or phone authentication.');
 };
 

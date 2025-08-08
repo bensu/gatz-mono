@@ -499,12 +499,30 @@ export type FeatureFlags = {
 
 export type FeatureFlag = keyof FeatureFlags;
 
+export type MigrationStatus = {
+  required: boolean;
+  auth_method: "sms" | "apple" | "google" | "email" | "hybrid";
+  show_migration_screen: boolean;
+  completed_at: string | null;
+};
+
 export type MeAPIResponse = APIResponse & {
   user: User;
   contacts: Contact[];
   groups: Group[];
   contact_requests: PendingContactRequest[];
   flags: { values: FeatureFlags };
+  migration?: MigrationStatus;
+};
+
+export type LinkAppleAPIResponse = APIResponse & {
+  status: "linked" | "already_linked";
+  user: User;
+};
+
+export type LinkGoogleAPIResponse = APIResponse & {
+  status: "linked" | "already_linked";
+  user: User;
 };
 
 export type XTDBTx = {

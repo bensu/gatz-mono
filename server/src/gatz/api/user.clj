@@ -1,6 +1,7 @@
 (ns gatz.api.user
   (:require [clojure.data.json :as json]
             [clojure.string :as str]
+            [clojure.tools.logging :as log]
             [crdt.core :as crdt]
             [gatz.http :as http]
             [gatz.auth :as auth]
@@ -452,16 +453,22 @@
 (defn link-apple! [{:keys [params auth/user-id biff/db] :as ctx}]
   "Link Apple Sign-In to an existing user account"
   (let [{:keys [id_token client_id]} params]
+    (log/info "link-apple called with user-id:" user-id "client_id:" client_id)
     (cond
       ;; Validate required parameters
       (str/blank? id_token)
-      (err-resp "missing_id_token" "Apple ID token is required")
+      (do
+        (log/warn "link-apple: missing id_token")
+        (err-resp "missing_id_token" "Apple ID token is required"))
       
       (str/blank? client_id)
-      (err-resp "missing_client_id" "Apple client ID is required")
+      (do
+        (log/warn "link-apple: missing client_id")
+        (err-resp "missing_client_id" "Apple client ID is required"))
       
       :else
       (try
+        (log/info "link-apple: attempting to verify Apple ID token")
         (let [claims (auth/verify-apple-id-token id_token {:client-id client_id})
               apple-id (:sub claims)
               existing-apple-user (db.user/by-apple-id db apple-id)
@@ -490,12 +497,14 @@
                               :user (crdt.user/->value user)}))))
         
         (catch clojure.lang.ExceptionInfo e
+          (log/error "link-apple ExceptionInfo:" (.getMessage e) "data:" (ex-data e))
           (let [ex-data (ex-data e)]
             (case (:type ex-data)
               :account-deleted (err-resp "account_deleted" "Account deleted")
               (err-resp "apple_link_failed" (.getMessage e)))))
         
         (catch Exception e
+          (log/error "link-apple Exception:" (.getMessage e))
           (err-resp "apple_link_failed" "Failed to link Apple Sign-In"))))))
 
 (defn apple-sign-up! [{:keys [params biff/db] :as ctx}]

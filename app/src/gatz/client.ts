@@ -973,6 +973,26 @@ export class GatzClient {
       { urls },
     );
   }
+
+  async linkApple(
+    id_token: string,
+    client_id: string = "chat.gatz"
+  ): Promise<T.LinkAppleAPIResponse> {
+    return await this.post<
+      { id_token: string; client_id: string },
+      T.LinkAppleAPIResponse
+    >(this.baseURL + "/api/auth/link-apple", { id_token, client_id });
+  }
+
+  async linkGoogle(
+    id_token: string,
+    client_id: string
+  ): Promise<T.LinkGoogleAPIResponse> {
+    return await this.post<
+      { id_token: string; client_id: string },
+      T.LinkGoogleAPIResponse
+    >(this.baseURL + "/api/auth/link-google", { id_token, client_id });
+  }
 }
 
 // TODO: add type of WebSocket messages
