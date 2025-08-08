@@ -12,7 +12,8 @@ import {
   AuthError, 
   AuthErrorType, 
   createAuthError, 
-  mapErrorToAuthError
+  mapErrorToAuthError,
+  isAuthError
 } from './auth-errors';
 
 export type AuthMethod = 'sms' | 'apple' | 'google' | 'email';
@@ -237,7 +238,7 @@ export class AuthService {
         token: response.token
       };
     } catch (error) {
-      const authError = error instanceof AuthError ? error : mapErrorToAuthError(error);
+      const authError = isAuthError(error) ? error : mapErrorToAuthError(error);
       
       if (authError.type === AuthErrorType.CANCELLED) {
         return {
@@ -339,7 +340,7 @@ export class AuthService {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof AuthError ? error : mapErrorToAuthError(error)
+        error: isAuthError(error) ? error : mapErrorToAuthError(error)
       };
     }
   }
@@ -510,7 +511,7 @@ export class AuthService {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof AuthError ? error : mapErrorToAuthError(error)
+        error: isAuthError(error) ? error : mapErrorToAuthError(error)
       };
     }
   }

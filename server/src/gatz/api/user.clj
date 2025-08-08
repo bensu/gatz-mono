@@ -2,6 +2,7 @@
   (:require [clojure.data.json :as json]
             [clojure.string :as str]
             [clojure.tools.logging :as log]
+            [com.biffweb :as biff]
             [crdt.core :as crdt]
             [gatz.http :as http]
             [gatz.auth :as auth]
@@ -592,21 +593,46 @@
         (let [claims (auth/verify-google-id-token id_token {:client-id client_id})
               google-id (:sub claims)
               email (:email claims)
-              existing-user (db.user/by-google-id db google-id)]
+              existing-user-by-google (db.user/by-google-id db google-id)
+              existing-user-by-email (when email (db.user/by-email db email))]
           
-          ;; Check if user account is deleted
-          (when (and existing-user (db.user/deleted? existing-user))
-            (throw (ex-info "Account deleted" {:type :account-deleted})))
-          
-          (if existing-user
-            ;; User exists, return auth token
+          (cond
+            ;; User already has Google ID linked - sign them in
+            existing-user-by-google
             (do
-              (posthog/identify! ctx existing-user)
-              (posthog/capture! (assoc ctx :auth/user-id (:xt/id existing-user)) "user.sign_in")
-              (json-response {:user (crdt.user/->value existing-user)
-                              :token (auth/create-auth-token ctx (:xt/id existing-user))}))
+              (when (db.user/deleted? existing-user-by-google)
+                (throw (ex-info "Account deleted" {:type :account-deleted})))
+              (posthog/identify! ctx existing-user-by-google)
+              (posthog/capture! (assoc ctx :auth/user-id (:xt/id existing-user-by-google)) "user.sign_in")
+              (json-response {:user (crdt.user/->value existing-user-by-google)
+                              :token (auth/create-auth-token ctx (:xt/id existing-user-by-google))}))
             
-            ;; Create new user with Google authentication
+            ;; User exists by email but no Google ID - link Google account and sign them in
+            existing-user-by-email
+            (do
+              (when (db.user/deleted? existing-user-by-email)
+                (throw (ex-info "Account deleted" {:type :account-deleted})))
+              ;; Directly update the user record to link Google ID (without requiring auth context)
+              (let [user-id (:xt/id existing-user-by-email)
+                    now (java.util.Date.)
+                    clock (crdt/new-hlc user-id now)
+                    updated-user (merge existing-user-by-email 
+                                       {:crdt/clock clock
+                                        :user/updated_at (crdt/max-wins now)
+                                        :user/google_id google-id
+                                        :user/auth_method (cond 
+                                                            (:user/apple_id existing-user-by-email) "hybrid"
+                                                            (:user/email existing-user-by-email) "hybrid"
+                                                            :else "google")
+                                        :user/migration_completed_at now})]
+                (biff/submit-tx ctx [[:xtdb.api/put (assoc updated-user :db/doc-type :gatz.crdt/user)]])
+                (posthog/identify! ctx updated-user)
+                (posthog/capture! (assoc ctx :auth/user-id user-id) "user.link_google")
+                (json-response {:user (crdt.user/->value updated-user)
+                                :token (auth/create-auth-token ctx user-id)})))
+            
+            ;; New user - create account with Google authentication
+            :else
             (let [user (db.user/create-google-user! ctx {:google-id google-id
                                                          :email email
                                                          :full-name (:name claims)})]

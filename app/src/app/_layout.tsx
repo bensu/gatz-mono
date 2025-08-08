@@ -11,6 +11,7 @@ import { SessionProvider } from "../context/SessionProvider";
 import { AssetProvider } from "../context/AssetProvider";
 import { VersionProvider } from "../context/VersionProvider";
 import { ThemeProvider } from "../context/ThemeProvider";
+import { configureGoogleSignIn } from "../gatz/auth";
 
 import * as Sentry from '@sentry/react-native';
 
@@ -18,6 +19,9 @@ import * as Sentry from '@sentry/react-native';
 dayjs.extend(localizedFormat);
 import "dayjs/locale/en";
 dayjs.locale("en");
+
+// Configure Google Sign-In
+configureGoogleSignIn();
 
 const navigationIntegration = Sentry.reactNavigationIntegration({
   enableTimeToInitialDisplay: !isRunningInExpoGo(),

@@ -72,15 +72,34 @@ export const signInWithApple = async (): Promise<AppleSignInCredential> => {
 };
 
 export const configureGoogleSignIn = () => {
-  GoogleSignin.configure({
-    // iOS client ID
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-    // Web client ID (also used for Android)
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    // Android client ID
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+  const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+  const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
+  const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
+  
+  if (!webClientId) {
+    console.error('EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID is not set');
+    return;
+  }
+
+  const config = {
+    // Web client ID is used for web platform and also needed for Android
+    webClientId,
+    // Request offline access for refresh tokens
     offlineAccess: true,
-  });
+  };
+
+  // Add iOS client ID if available
+  if (iosClientId) {
+    config.iosClientId = iosClientId;
+  }
+
+  // For Android, use the Android-specific client ID if available
+  // Otherwise fall back to web client ID
+  if (Platform.OS === 'android' && androidClientId) {
+    config.webClientId = androidClientId;
+  }
+
+  GoogleSignin.configure(config);
 };
 
 const signInWithGoogleWeb = async (): Promise<GoogleSignInCredential> => {
@@ -206,18 +225,32 @@ export const signInWithGoogle = async (): Promise<GoogleSignInCredential> => {
     await GoogleSignin.hasPlayServices();
     const userInfo = await GoogleSignin.signIn();
     
-    if (!userInfo.idToken) {
+    // Check for idToken in different possible locations
+    // The response structure can vary - sometimes nested under 'data'
+    const idToken = userInfo.idToken || userInfo.data?.idToken;
+    const userData = userInfo.user || userInfo.data?.user;
+    
+    if (!idToken) {
+      console.error('No ID token found in response:', userInfo);
       throw new Error('Google Sign-In failed: no ID token received');
     }
     
+    // Use the appropriate client ID based on platform
+    let clientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
+    if (Platform.OS === 'android' && process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID) {
+      clientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
+    } else if (Platform.OS === 'ios' && process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID) {
+      clientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
+    }
+
     return {
       type: 'google',
-      idToken: userInfo.idToken,
-      clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-      user: userInfo.user ? {
-        id: userInfo.user.id,
-        name: userInfo.user.name || undefined,
-        email: userInfo.user.email,
+      idToken,
+      clientId,
+      user: userData ? {
+        id: userData.id,
+        name: userData.name || undefined,
+        email: userData.email,
       } : undefined,
     };
   } catch (error) {

@@ -6,7 +6,6 @@ import {
   isAppleSignInAvailable, 
   signInWithApple, 
   signInWithGoogle,
-  configureGoogleSignIn,
   SocialSignInCredential 
 } from '../gatz/auth';
 import { Color as GatzColor, Styles as GatzStyles } from '../gatz/styles';
@@ -35,7 +34,6 @@ export const SocialSignInButtons: React.FC<SocialSignInButtonsProps> = ({
       setIsAppleAvailable(available);
     };
 
-    configureGoogleSignIn();
     checkAppleSignInAvailability();
   }, []);
 
@@ -61,7 +59,8 @@ export const SocialSignInButtons: React.FC<SocialSignInButtonsProps> = ({
       const credential = await signInWithGoogle();
       await onSignIn(credential);
     } catch (error) {
-      console.error('Google Sign-In failed:', error);
+      console.log('Google Sign-In failed');
+      console.error(error);
     } finally {
       setIsGoogleLoading(false);
     }
