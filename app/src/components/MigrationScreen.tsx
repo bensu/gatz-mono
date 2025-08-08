@@ -296,6 +296,7 @@ export const MigrationScreen: React.FC<MigrationScreenProps> = ({
                     <SocialSignInButtons
                       onSignIn={handleSocialSignIn}
                       isLoading={isLoading}
+                      useModalStyling={true}
                     />
                     
                     {/* Email Sign-In Button */}
@@ -427,7 +428,17 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 24,
     paddingTop: 16,
-    minHeight: 500, // Ensure enough space for email input + keyboard
+    ...Platform.select({
+      ios: {
+        minHeight: 500, // Ensure enough space for email input + keyboard
+      },
+      android: {
+        // Let keyboard avoiding view handle the height on Android
+      },
+      web: {
+        minHeight: 500,
+      },
+    }),
   },
   header: {
     flexDirection: 'row',

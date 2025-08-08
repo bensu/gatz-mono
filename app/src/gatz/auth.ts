@@ -1,4 +1,5 @@
 import * as AppleAuthentication from 'expo-apple-authentication';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { Platform } from 'react-native';
 
 export interface AppleSignInCredential {
@@ -71,17 +72,46 @@ export const signInWithApple = async (): Promise<AppleSignInCredential> => {
 };
 
 export const configureGoogleSignIn = () => {
-  // Google Sign-In package is not currently installed due to compatibility issues
-  // This function is a placeholder for when the package is properly integrated
-  console.warn('Google Sign-In is not currently available - package not installed');
+  GoogleSignin.configure({
+    // iOS client ID
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    // Web client ID (also used for Android)
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    // Android client ID
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    offlineAccess: true,
+  });
 };
 
 export const signInWithGoogle = async (): Promise<GoogleSignInCredential> => {
-  // TODO: Implement Google Sign-In when package is available
-  // Should return: { type: 'google', idToken: string, clientId: string, user: object }
-  throw new Error('Google Sign-In is not currently available. Please use Apple Sign-In or phone authentication.');
+  try {
+    await GoogleSignin.hasPlayServices();
+    const userInfo = await GoogleSignin.signIn();
+    
+    if (!userInfo.idToken) {
+      throw new Error('Google Sign-In failed: no ID token received');
+    }
+    
+    return {
+      type: 'google',
+      idToken: userInfo.idToken,
+      clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+      user: userInfo.user ? {
+        id: userInfo.user.id,
+        name: userInfo.user.name || undefined,
+        email: userInfo.user.email,
+      } : undefined,
+    };
+  } catch (error) {
+    console.error('Google Sign-In error:', error);
+    throw error;
+  }
 };
 
 export const signOutGoogle = async (): Promise<void> => {
-  // No-op since Google Sign-In is not available
+  try {
+    await GoogleSignin.signOut();
+  } catch (error) {
+    console.error('Google Sign-Out error:', error);
+  }
 };

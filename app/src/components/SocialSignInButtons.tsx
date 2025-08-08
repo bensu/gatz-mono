@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet, Platform, TouchableOpacity, Text } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import { Ionicons } from '@expo/vector-icons';
 import { 
   isAppleSignInAvailable, 
   signInWithApple, 
@@ -8,18 +9,22 @@ import {
   configureGoogleSignIn,
   SocialSignInCredential 
 } from '../gatz/auth';
-import { Color as GatzColor } from '../gatz/styles';
+import { Color as GatzColor, Styles as GatzStyles } from '../gatz/styles';
+import { useThemeColors } from '../gifted/hooks/useThemeColors';
 import { NetworkButton } from './NetworkButton';
 
 interface SocialSignInButtonsProps {
   onSignIn: (credential: SocialSignInCredential) => Promise<void>;
   isLoading?: boolean;
+  useModalStyling?: boolean;
 }
 
 export const SocialSignInButtons: React.FC<SocialSignInButtonsProps> = ({
   onSignIn,
   isLoading = false,
+  useModalStyling = false,
 }) => {
+  const colors = useThemeColors();
   const [isAppleAvailable, setIsAppleAvailable] = useState(false);
   const [isAppleLoading, setIsAppleLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -76,15 +81,28 @@ export const SocialSignInButtons: React.FC<SocialSignInButtonsProps> = ({
         />
       )}
       
-      {/* Google Sign-In temporarily disabled due to package compatibility issues */}
-      {/* 
-      <NetworkButton
-        title="Continue with Google"
-        onPress={handleGoogleSignIn}
-        state={isGoogleLoading ? "loading" : "idle"}
-        isDisabled={isAnyLoading}
-      />
-      */}
+      {useModalStyling ? (
+        <TouchableOpacity
+          style={[styles.modalGoogleButton, { borderColor: colors.strongGrey }]}
+          onPress={handleGoogleSignIn}
+          disabled={isAnyLoading}
+        >
+          <Ionicons name="logo-google" size={20} color="#4285F4" />
+          <Text style={[styles.modalGoogleButtonText, { color: colors.primaryText }]}>
+            {isGoogleLoading ? 'Loading...' : 'Sign in with Google'}
+          </Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          style={[styles.signInGoogleButton, { borderColor: GatzColor.introTitle }]}
+          onPress={handleGoogleSignIn}
+          disabled={isAnyLoading}
+        >
+          <Text style={[styles.signInGoogleButtonText, { color: GatzColor.introTitle }]}>
+            {isGoogleLoading ? 'Loading...' : 'Sign in with Google'}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -97,5 +115,36 @@ const styles = StyleSheet.create({
   appleButton: {
     width: '100%',
     height: 50,
+  },
+  // Modal styling (matches EmailSignInComponent button style)
+  modalGoogleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 0.5,
+    borderRadius: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 12,
+    height: 50,
+  },
+  modalGoogleButtonText: {
+    fontSize: 22,
+    lineHeight: 22,
+    fontWeight: '500',
+  },
+  // Sign-in page styling (matches email button style)
+  signInGoogleButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+  },
+  signInGoogleButtonText: {
+    fontSize: 16,
+    fontFamily: GatzStyles.tagline.fontFamily,
+    fontWeight: '500',
   },
 });

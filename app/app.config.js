@@ -68,6 +68,12 @@ export default {
         },
       ],
       [
+        "@react-native-google-signin/google-signin",
+        {
+          iosUrlScheme: "com.googleusercontent.apps.848893561159-sis9lh5251nnij27d8mc6iav49pbh3gj",
+        },
+      ],
+      [
         "@sentry/react-native/expo",
         {
           organization: "gatz",
