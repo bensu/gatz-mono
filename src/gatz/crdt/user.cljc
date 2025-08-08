@@ -88,7 +88,7 @@
      true (assoc :db/doc-type :gatz/user)
      true (assoc :user/updated_at now))))
 
-(defn new-user [{:keys [id phone username now auth]}]
+(defn new-user [{:keys [id phone username now apple_id google_id email]}]
 
   {:pre [(valid-username? username)]}
 
@@ -112,10 +112,9 @@
      :user/avatar (crdt/lww clock nil)
      :user/push_tokens (crdt/lww clock nil)
      ;; Top-level auth fields as plain values (immutable) - v5
-     :user/apple_id (:apple_id auth)
-     :user/google_id (:google_id auth)
-     :user/email (:email auth)
-     :user/auth_method (or (:method auth) "sms")
+     :user/apple_id apple_id
+     :user/google_id google_id
+     :user/email email
      :user/settings {:settings/notifications (notifications-off-crdt clock)
                      :settings/location {:settings.location/enabled (crdt/lww clock nil)}}
      :user/profile {:profile/full_name (crdt/lww clock nil)
@@ -188,7 +187,6 @@
               :user/apple_id nil
               :user/google_id nil
               :user/email nil
-              :user/auth_method "sms"
               :user/profile {:profile/full_name nil
                              :profile/urls {:profile.urls/website nil
                                             :profile.urls/twitter nil}}
@@ -213,7 +211,6 @@
               :user/apple_id nil
               :user/google_id nil
               :user/email nil
-              :user/auth_method "sms"
               :user/profile {:profile/full_name nil
                              :profile/urls {:profile.urls/website nil
                                             :profile.urls/twitter nil}}

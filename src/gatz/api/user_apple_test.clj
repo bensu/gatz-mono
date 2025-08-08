@@ -70,9 +70,8 @@
           (let [user-id (get-in response-data [:user :xt/id])
                 user (db.user/by-id (xtdb/db node) user-id)
                 user-value (crdt.user/->value user)]
-            (is (= (:sub mock-apple-claims) (get-in user-value [:user/auth :auth/apple_id])))
-            (is (= (:email mock-apple-claims) (get-in user-value [:user/auth :auth/email])))
-            (is (= "apple" (get-in user-value [:user/auth :auth/method])))))
+            (is (= (:sub mock-apple-claims) (:user/apple_id user-value)))
+            (is (= (:email mock-apple-claims) (:user/email user-value)))))
         
         (.close node)))))
 
@@ -89,9 +88,8 @@
                                  :username "existing_apple_user"
                                  :phone "+14159499900"
                                  :now now
-                                 :auth {:apple_id apple-id
-                                        :email (:email mock-apple-claims)
-                                        :auth_method "apple"}})
+                                 :apple_id apple-id
+                                 :email (:email mock-apple-claims)})
       (xtdb/sync node)
 
       (with-redefs [auth/verify-apple-id-token (constantly mock-apple-claims)
@@ -169,7 +167,7 @@
                                  :username "user1"
                                  :phone "+14159499903"
                                  :now now
-                                 :auth {:apple_id apple-id}})
+                                 :apple_id apple-id})
       
       ;; Create user2 without Apple ID  
       (db.user/create-user! ctx {:id user2-id

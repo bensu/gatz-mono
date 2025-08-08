@@ -60,8 +60,7 @@
         ;; Add top-level auth fields as plain values (immutable)
         (assoc :user/apple_id nil
                :user/google_id nil
-               :user/email nil
-               :user/auth_method "sms"))))
+               :user/email nil))))
 
 (def all-migrations
   [{:from 0 :to 1 :transform v0->v1}
@@ -258,7 +257,7 @@
 
 
 (defn create-user!
-  ([ctx {:keys [username phone id now auth]}]
+  ([ctx {:keys [username phone id now apple_id google_id email]}]
 
    {:pre [(crdt.user/valid-username? username) (string? phone)]}
 
@@ -268,18 +267,20 @@
          db (xtdb/db (:biff.xtdb/node ctx))
          
          ;; Check for duplicate social auth IDs  
-         _ (when (and (:apple_id auth) (by-apple-id db (:apple_id auth)))
+         _ (when (and apple_id (by-apple-id db apple_id))
              (throw (ex-info "Apple ID already exists" {:type :duplicate-apple-id})))
-         _ (when (and (:google_id auth) (by-google-id db (:google_id auth)))
+         _ (when (and google_id (by-google-id db google_id))
              (throw (ex-info "Google ID already exists" {:type :duplicate-google-id})))
-         _ (when (and (:email auth) (by-email db (:email auth)))
+         _ (when (and email (by-email db email))
              (throw (ex-info "Email already exists" {:type :duplicate-email})))
          
          user (crdt.user/new-user {:id id
                                    :phone phone
                                    :username username
                                    :now now
-                                   :auth auth})
+                                   :apple_id apple_id
+                                   :google_id google_id
+                                   :email email})
          test? (or (not= :env/prod (:env ctx))
                    (contains? twilio/TEST_PHONES phone))
          
@@ -562,12 +563,11 @@
   {:pre [(string? apple-id) (not (empty? apple-id))]}
   (let [username (or username (str "apple" (subs (str/replace apple-id #"[^a-zA-Z0-9]" "") 0 8))) ; Use provided username or generate one
         phone "+1000000000" ; Placeholder phone for Apple users  
-        auth {:apple_id apple-id
-              :email email
-              :method "apple"}]
+]
     (create-user! ctx {:username username
                        :phone phone
-                       :auth auth})))
+                       :apple_id apple-id
+                       :email email})))
 
 (defn link-apple-id!
   "Link Apple ID to an existing user account"
@@ -580,7 +580,6 @@
          ;; Update both CRDT fields and immutable auth fields
          clock (crdt/new-hlc user-id now)
          auth-fields (cond-> {:user/apple_id apple-id
-                              :user/auth_method "hybrid"
                               :user/migration_completed_at now}
                        email (assoc :user/email email))
          updated-user (merge current-user 
@@ -600,12 +599,11 @@
   {:pre [(string? google-id) (not (empty? google-id))]}
   (let [username (str "google" (subs (str/replace google-id #"[^a-zA-Z0-9]" "") 0 6)) ; Generate valid username
         phone "+1000000001" ; Placeholder phone for Google users (different from Apple)
-        auth {:google_id google-id
-              :email email
-              :method "google"}]
+]
     (create-user! ctx {:username username
                        :phone phone
-                       :auth auth})))
+                       :google_id google-id
+                       :email email})))
 
 (defn link-google-id!
   "Link Google ID to an existing user account"
@@ -618,7 +616,6 @@
          ;; Update both CRDT fields and immutable auth fields
          clock (crdt/new-hlc user-id now)
          auth-fields (cond-> {:user/google_id google-id
-                              :user/auth_method "hybrid"
                               :user/migration_completed_at now}
                        email (assoc :user/email email))
          updated-user (merge current-user 
@@ -655,11 +652,10 @@
   {:pre [(string? email) (not (empty? email)) 
          (string? username) (not (empty? username))]}
   (let [phone "+1000000002" ; Placeholder phone for email users (different from Apple/Google)
-        auth {:email email
-              :method "email"}]
+]
     (create-user! ctx {:username username
                       :phone phone
-                      :auth auth})))
+                      :email email})))
 
 (defn link-email!
   "Link email to an existing user account"
@@ -672,7 +668,6 @@
          clock (crdt/new-hlc user-id now)
          auth-fields (cond-> {:user/apple_id (:user/apple_id current-user)
                               :user/google_id (:user/google_id current-user)
-                              :user/auth_method "hybrid"
                               :user/migration_completed_at now}
                        email (assoc :user/email email))
          updated-user (merge current-user 

@@ -13,51 +13,62 @@
   (json/read-str (:body resp) :key-fn keyword))
 
 (defn migration-status [user-value]
-  "Calculate migration status for a user based on their auth_method and migration_completed_at fields"
-  (let [auth-method (:user/auth_method user-value)
-        migration-completed-at (:user/migration_completed_at user-value)
-        needs-migration? (and (= "sms" auth-method) 
+  "Calculate migration status for a user based on whether they have social auth linked"
+  (let [migration-completed-at (:user/migration_completed_at user-value)
+        apple-id (:user/apple_id user-value)
+        google-id (:user/google_id user-value) 
+        email (:user/email user-value)
+        has-linked-account? (or apple-id google-id email)
+        needs-migration? (and (not has-linked-account?) 
                               (nil? migration-completed-at))
         show-migration-screen? needs-migration?]
     (when needs-migration?
       {:required true
-       :auth_method auth-method
        :show_migration_screen show-migration-screen?
        :completed_at migration-completed-at})))
 
 (deftest test-migration-status-logic
   (testing "Migration status calculation logic"
     
-    (testing "SMS user without migration should require migration"
-      (let [user-value {:user/auth_method "sms"
+    (testing "SMS-only user without linked accounts should require migration"
+      (let [user-value {:user/apple_id nil
+                       :user/google_id nil
+                       :user/email nil
                        :user/migration_completed_at nil}
             status (migration-status user-value)]
         (is (= true (:required status)))
-        (is (= "sms" (:auth_method status)))
         (is (= true (:show_migration_screen status)))
         (is (nil? (:completed_at status)))))
     
-    (testing "SMS user with completed migration should not require migration"
+    (testing "User with completed migration should not require migration"
       (let [completed-at (Date.)
-            user-value {:user/auth_method "sms"
+            user-value {:user/apple_id nil
+                       :user/google_id nil
+                       :user/email nil
                        :user/migration_completed_at completed-at}
             status (migration-status user-value)]
         (is (nil? status))))
     
-    (testing "Apple user should not require migration"
-      (let [user-value {:user/auth_method "apple"
+    (testing "User with Apple ID should not require migration"
+      (let [user-value {:user/apple_id "apple123"
+                       :user/google_id nil
+                       :user/email nil
                        :user/migration_completed_at nil}
             status (migration-status user-value)]
         (is (nil? status))))
     
-    (testing "Google user should not require migration"
-      (let [user-value {:user/auth_method "google"
+    (testing "User with Google ID should not require migration"
+      (let [user-value {:user/apple_id nil
+                       :user/google_id "google123"
+                       :user/email nil
                        :user/migration_completed_at nil}
             status (migration-status user-value)]
         (is (nil? status))))
     
-    (testing "Hybrid user should not require migration"
-      (let [user-value {:user/auth_method "hybrid"
+    (testing "User with linked email should not require migration"
+      (let [user-value {:user/apple_id nil
+                       :user/google_id nil
+                       :user/email "user@example.com"
                        :user/migration_completed_at nil}
             status (migration-status user-value)]
         (is (nil? status))))))
@@ -76,7 +87,6 @@
           (is (contains? body :user))
           (is (contains? body :migration))
           (is (= true (get-in body [:migration :required])))
-          (is (= "sms" (get-in body [:migration :auth_method])))
           (is (= true (get-in body [:migration :show_migration_screen])))))
       
       ;; Skip Apple and Google tests for now since they're failing due to pre-existing issues
@@ -120,8 +130,6 @@
           ;; Check that user object has expected structure
           (is (string? (get-in body [:user :name])))
           (is (string? (get-in body [:user :phone_number])))
-          (is (= "sms" (get-in body [:user :auth_method])))
           ;; Check migration object structure
           (is (boolean? (get-in body [:migration :required])))
-          (is (string? (get-in body [:migration :auth_method])))
           (is (boolean? (get-in body [:migration :show_migration_screen]))))))))  
