@@ -108,7 +108,13 @@
    [:user/avatar [:maybe string?]]
    ;; LWW set
    [:user/blocked_uids [:set uuid?]]
-   ;; Social auth fields (v5)
+   ;; Top-level social auth fields (v5)
+   [:user/apple_id {:optional true} [:maybe string?]]
+   [:user/google_id {:optional true} [:maybe string?]]
+   [:user/email {:optional true} [:maybe string?]]
+   [:user/auth_method {:optional true} [:enum "sms" "apple" "google" "email" "hybrid"]]
+   [:user/migration_completed_at {:optional true} [:maybe inst?]]
+   ;; Legacy auth structure (v4 and earlier) - still supported for backward compatibility
    [:user/auth {:optional true} [:map
                                  [:auth/apple_id {:optional true} [:maybe string?]]
                                  [:auth/google_id {:optional true} [:maybe string?]]
@@ -148,7 +154,13 @@
    [:user/avatar (crdt/lww-schema [:maybe string?])]
    ;; LWW set
    [:user/blocked_uids (crdt/lww-set-schema #'UserId)]
-   ;; Social auth fields (v5) - LWW for consistency
+   ;; Top-level social auth fields (v5) - plain values for immutable auth data
+   [:user/apple_id {:optional true} [:maybe string?]]
+   [:user/google_id {:optional true} [:maybe string?]]
+   [:user/email {:optional true} [:maybe string?]]
+   [:user/auth_method {:optional true} [:enum "sms" "apple" "google" "email" "hybrid"]]
+   [:user/migration_completed_at {:optional true} [:maybe inst?]]
+   ;; Legacy auth structure (v4 and earlier) - still supported for backward compatibility
    [:user/auth {:optional true} [:map
                                  [:auth/apple_id {:optional true} (crdt/lww-schema [:maybe string?])]
                                  [:auth/google_id {:optional true} (crdt/lww-schema [:maybe string?])]
@@ -634,6 +646,24 @@
    [:user/updated_at [:or inst? (crdt/max-wins-schema inst?)]]
    [:user/blocked_uids (crdt/lww-set-delta-schema #'UserId)]])
 
+(def UserLinkAppleId
+  [:map
+   [:crdt/clock crdt/hlc-schema]
+   [:user/updated_at [:or inst? (crdt/max-wins-schema inst?)]]
+   [:user/apple_id string?]
+   [:user/auth_method [:enum "sms" "apple" "google" "email" "hybrid"]]
+   [:user/migration_completed_at inst?]
+   [:user/email {:optional true} [:maybe string?]]])
+
+(def UserLinkGoogleId
+  [:map
+   [:crdt/clock crdt/hlc-schema]
+   [:user/updated_at [:or inst? (crdt/max-wins-schema inst?)]]
+   [:user/google_id string?]
+   [:user/auth_method [:enum "sms" "apple" "google" "email" "hybrid"]]
+   [:user/migration_completed_at inst?]
+   [:user/email {:optional true} [:maybe string?]]])
+
 (def UserAction
   (mu/closed-schema
    [:or
@@ -663,7 +693,13 @@
      [:gatz.crdt.user/delta UserUpdateLinks]]
     [:map
      [:gatz.crdt.user/action [:enum :gatz.crdt.user/update-profile]]
-     [:gatz.crdt.user/delta UserUpdateProfile]]]))
+     [:gatz.crdt.user/delta UserUpdateProfile]]
+    [:map
+     [:gatz.crdt.user/action [:enum :gatz.crdt.user/link-apple-id]]
+     [:gatz.crdt.user/delta UserLinkAppleId]]
+    [:map
+     [:gatz.crdt.user/action [:enum :gatz.crdt.user/link-google-id]]
+     [:gatz.crdt.user/delta UserLinkGoogleId]]]))
 
 (def UserEvent
   [:map

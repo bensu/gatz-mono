@@ -573,18 +573,23 @@
   "Link Apple ID to an existing user account"
   ([ctx params]
    (link-apple-id! ctx params {:now (Date.)}))
-  ([{:keys [auth/user-id] :as ctx} {:keys [apple-id email]} {:keys [now]}]
+  ([{:keys [auth/user-id biff.xtdb/node] :as ctx} {:keys [apple-id email]} {:keys [now]}]
    {:pre [(uuid? user-id) (string? apple-id) (not (empty? apple-id))]}
-   (let [clock (crdt/new-hlc user-id now)
-         ;; Update top-level auth fields as plain values (immutable)
-         auth-fields (cond-> {:user/apple_id apple-id}
+   (let [db (xtdb/db node)
+         current-user (by-id db user-id)
+         ;; Update both CRDT fields and immutable auth fields
+         clock (crdt/new-hlc user-id now)
+         auth-fields (cond-> {:user/apple_id apple-id
+                              :user/auth_method "hybrid"
+                              :user/migration_completed_at now}
                        email (assoc :user/email email))
-         delta (merge {:crdt/clock clock
-                       :user/updated_at (crdt/max-wins now)}
-                      auth-fields)
-         action {:gatz.crdt.user/action :gatz.crdt.user/link-apple-id
-                 :gatz.crdt.user/delta delta}]
-     (apply-action! ctx action))))
+         updated-user (merge current-user 
+                             {:crdt/clock clock
+                              :user/updated_at (crdt/max-wins now)}
+                             auth-fields)]
+     ;; Submit direct transaction for auth fields
+     (biff/submit-tx ctx [[:xtdb.api/put (assoc updated-user :db/doc-type :gatz.crdt/user)]])
+     {:user updated-user})))
 
 ;; ======================================================================
 ;; Google Sign-In Functions
@@ -606,18 +611,23 @@
   "Link Google ID to an existing user account"
   ([ctx params]
    (link-google-id! ctx params {:now (Date.)}))
-  ([{:keys [auth/user-id] :as ctx} {:keys [google-id email]} {:keys [now]}]
+  ([{:keys [auth/user-id biff.xtdb/node] :as ctx} {:keys [google-id email]} {:keys [now]}]
    {:pre [(uuid? user-id) (string? google-id) (not (empty? google-id))]}
-   (let [clock (crdt/new-hlc user-id now)
-         ;; Update top-level auth fields as plain values (immutable)
-         auth-fields (cond-> {:user/google_id google-id}
+   (let [db (xtdb/db node)
+         current-user (by-id db user-id)
+         ;; Update both CRDT fields and immutable auth fields
+         clock (crdt/new-hlc user-id now)
+         auth-fields (cond-> {:user/google_id google-id
+                              :user/auth_method "hybrid"
+                              :user/migration_completed_at now}
                        email (assoc :user/email email))
-         delta (merge {:crdt/clock clock
-                       :user/updated_at (crdt/max-wins now)}
-                      auth-fields)
-         action {:gatz.crdt.user/action :gatz.crdt.user/link-google-id
-                 :gatz.crdt.user/delta delta}]
-     (apply-action! ctx action))))
+         updated-user (merge current-user 
+                             {:crdt/clock clock
+                              :user/updated_at (crdt/max-wins now)}
+                             auth-fields)]
+     ;; Submit direct transaction for auth fields
+     (biff/submit-tx ctx [[:xtdb.api/put (assoc updated-user :db/doc-type :gatz.crdt/user)]])
+     {:user updated-user})))
 
 (def tx-fns
   {:gatz.db.user/apply-delta user-apply-delta-expr
