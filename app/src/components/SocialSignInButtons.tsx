@@ -125,6 +125,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
     borderWidth: 0.5,
     borderRadius: 8,
     paddingVertical: 14,
@@ -137,24 +138,25 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: '500',
   },
-  // Sign-in page styling (matches email button style)
+  // Sign-in page styling (updated to match Apple style)
   signInGoogleButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    marginTop: 12,
     borderWidth: 1,
     borderRadius: 8,
     gap: 8,
+    height: 50,
   },
   signInGoogleIcon: {
     marginRight: 0,
   },
   signInGoogleButtonText: {
-    fontSize: 16,
-    fontFamily: GatzStyles.tagline.fontFamily,
+    fontSize: 22,
+    lineHeight: 22,
     fontWeight: '500',
   },
 });

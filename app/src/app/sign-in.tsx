@@ -18,7 +18,7 @@ import {
 } from "react-native";
 import { useAsync } from "react-async-hook";
 
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons, Ionicons } from "@expo/vector-icons";
 
 import PhoneInput from "../../vendor/react-native-phone-number-input/lib";
 import { UniversalPhoneInput } from "../components/UniversalPhoneInput";
@@ -592,6 +592,7 @@ export default function SignIn() {
                       onPress={() => setShowEmailSignIn(true)}
                       disabled={isPhoneLoading || isSocialSignInLoading}
                     >
+                      <Ionicons name="mail-outline" size={20} color="#000000" />
                       <Text style={styles.emailSignInText}>Sign in with email</Text>
                     </TouchableOpacity>
                   </>
@@ -840,18 +841,23 @@ export const styles = StyleSheet.create({
     marginBottom: 16,
   },
   emailSignInButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
     paddingVertical: 12,
     paddingHorizontal: 16,
     marginTop: 12,
     borderWidth: 1,
     borderColor: '#000000',
     borderRadius: 8,
+    height: 50,
+    gap: 8,
   },
   emailSignInText: {
     color: '#000000',
-    fontSize: 16,
-    fontFamily: GatzStyles.tagline.fontFamily,
+    fontSize: 22,
+    lineHeight: 22,
     fontWeight: '500',
   },
   backToSocialButton: {

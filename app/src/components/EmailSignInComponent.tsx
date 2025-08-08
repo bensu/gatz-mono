@@ -119,14 +119,13 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
           style={[
             styles.modalButton, 
             { 
-              backgroundColor: colors.buttonActive,
               opacity: (isDisabled || state === 'loading') ? 0.6 : 1
             }
           ]}
           onPress={onPress}
           disabled={isDisabled || state === 'loading'}
         >
-          <Text style={[styles.modalButtonText, { color: '#FFFFFF' }]}>
+          <Text style={styles.modalButtonText}>
             {state === 'loading' ? 'Loading...' : title}
           </Text>
         </TouchableOpacity>
@@ -302,6 +301,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   modalButton: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#000000',
     borderRadius: 8,
     paddingVertical: 14,
     paddingHorizontal: 16,
@@ -310,8 +312,10 @@ const styles = StyleSheet.create({
     height: 50,
   },
   modalButtonText: {
-    fontSize: 16,
+    fontSize: 22,
+    lineHeight: 22,
     fontWeight: '500',
+    color: '#000000',
   },
   modalErrorStyle: {
     backgroundColor: 'transparent',
