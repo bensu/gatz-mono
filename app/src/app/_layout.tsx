@@ -1,7 +1,7 @@
 import dayjs from "dayjs";
 import localizedFormat from "dayjs/plugin/localizedFormat";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { StyleSheet } from "react-native";
 import { isRunningInExpoGo } from 'expo';
 import { Slot, useNavigationContainerRef } from "expo-router";
@@ -12,11 +12,8 @@ import { AssetProvider } from "../context/AssetProvider";
 import { VersionProvider } from "../context/VersionProvider";
 import { ThemeProvider } from "../context/ThemeProvider";
 
-import { PostHogProvider } from "posthog-react-native";
-import { POSTHOG_API_KEY, POSTHOG_HOST_URL } from "../sdk/posthog";
 import * as Sentry from '@sentry/react-native';
 
-const isPostHogDisabled = process.env.EXPO_PUBLIC_ENV_NAME === "development";
 
 dayjs.extend(localizedFormat);
 import "dayjs/locale/en";
@@ -40,25 +37,31 @@ Sentry.init({
 
 function Layout() {
   const ref = useNavigationContainerRef();
+  const [isNavigationReady, setIsNavigationReady] = useState(false);
+  
   useEffect(() => {
-    navigationIntegration.registerNavigationContainer(ref);
-  }, [ref]);
+    // Check if navigation is ready by testing if ref.current exists
+    const checkNavigationReady = () => {
+      if (ref.current && !isNavigationReady) {
+        setIsNavigationReady(true);
+        navigationIntegration.registerNavigationContainer(ref);
+      }
+    };
+
+    const interval = setInterval(checkNavigationReady, 100);
+    return () => clearInterval(interval);
+  }, [ref, isNavigationReady]);
 
   return (
     <ThemeProvider>
       <VersionProvider>
-        <PostHogProvider
-          apiKey={POSTHOG_API_KEY}
-          options={{ host: POSTHOG_HOST_URL, disabled: isPostHogDisabled }}
-        >
-          <GestureHandlerRootView style={styles.container}>
-            <AssetProvider>
-              <SessionProvider>
-                <Slot />
-              </SessionProvider>
-            </AssetProvider>
-          </GestureHandlerRootView>
-        </PostHogProvider>
+        <GestureHandlerRootView style={styles.container}>
+          <AssetProvider>
+            <SessionProvider>
+              <Slot ref={ref} />
+            </SessionProvider>
+          </AssetProvider>
+        </GestureHandlerRootView>
       </VersionProvider>
     </ThemeProvider>
   );
