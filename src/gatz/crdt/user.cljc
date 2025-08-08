@@ -111,12 +111,11 @@
      :user/blocked_uids (crdt/lww-set clock #{})
      :user/avatar (crdt/lww clock nil)
      :user/push_tokens (crdt/lww clock nil)
-     ;; Social auth fields nested under user/auth (v5)
-     :user/auth {:auth/apple_id (crdt/lww clock (:apple_id auth))
-                 :auth/google_id (crdt/lww clock (:google_id auth))
-                 :auth/email (crdt/lww clock (:email auth))
-                 :auth/method (crdt/lww clock (or (:method auth) "sms"))
-                 :auth/migration_completed_at (crdt/lww clock (:migration_completed_at auth))}
+     ;; Top-level auth fields as plain values (immutable) - v5
+     :user/apple_id (:apple_id auth)
+     :user/google_id (:google_id auth)
+     :user/email (:email auth)
+     :user/auth_method (or (:method auth) "sms")
      :user/settings {:settings/notifications (notifications-off-crdt clock)
                      :settings/location {:settings.location/enabled (crdt/lww clock nil)}}
      :user/profile {:profile/full_name (crdt/lww clock nil)
@@ -173,7 +172,7 @@
           final (reduce apply-delta initial (shuffle deltas))]
       (is (= {:xt/id uid
               :db/type :gatz/user
-              :db/version 4
+              :db/version 5
               :crdt/clock clock
               :user/created_at t0
               :user/is_test false
@@ -185,6 +184,11 @@
               :user/push_tokens nil
               :user/blocked_uids #{}
               :user/deleted_at nil
+              ;; New v5 auth fields
+              :user/apple_id nil
+              :user/google_id nil
+              :user/email nil
+              :user/auth_method "sms"
               :user/profile {:profile/full_name nil
                              :profile/urls {:profile.urls/website nil
                                             :profile.urls/twitter nil}}
@@ -193,7 +197,7 @@
              (->value initial)))
       (is (= {:xt/id uid
               :db/type :gatz/user
-              :db/version 4
+              :db/version 5
               :crdt/clock c5
               :user/created_at t0
               :user/is_test false
@@ -205,6 +209,11 @@
               :user/blocked_uids #{}
               :user/push_tokens push-tokens
               :user/deleted_at nil
+              ;; New v5 auth fields
+              :user/apple_id nil
+              :user/google_id nil
+              :user/email nil
+              :user/auth_method "sms"
               :user/profile {:profile/full_name nil
                              :profile/urls {:profile.urls/website nil
                                             :profile.urls/twitter nil}}

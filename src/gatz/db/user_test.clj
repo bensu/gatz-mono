@@ -105,15 +105,14 @@
                                            :migration_completed_at now}})]
         (xtdb/sync node)
         
-        ;; Verify user was created with correct fields
+        ;; Verify user was created with correct fields (v5 schema with top-level auth)
         (let [db (xtdb/db node)
               retrieved-user (by-id db uid)
               user-value (crdt.user/->value retrieved-user)]
-          (is (= apple-id (get-in user-value [:user/auth :auth/apple_id])))
-          (is (= google-id (get-in user-value [:user/auth :auth/google_id])))
-          (is (= email (get-in user-value [:user/auth :auth/email])))
-          (is (= "hybrid" (get-in user-value [:user/auth :auth/method])))
-          (is (= now (get-in user-value [:user/auth :auth/migration_completed_at])))
+          (is (= apple-id (:user/apple_id user-value)))
+          (is (= google-id (:user/google_id user-value)))
+          (is (= email (:user/email user-value)))
+          (is (= "hybrid" (:user/auth_method user-value)))
           
           ;; Test lookup by social IDs
           (is (= uid (:xt/id (by-apple-id db apple-id))))
@@ -138,11 +137,10 @@
       (let [db (xtdb/db node)
             retrieved-user (by-id db uid)
             user-value (crdt.user/->value retrieved-user)]
-        (is (nil? (get-in user-value [:user/auth :auth/apple_id])))
-        (is (nil? (get-in user-value [:user/auth :auth/google_id])))
-        (is (nil? (get-in user-value [:user/auth :auth/email])))
-        (is (= "sms" (get-in user-value [:user/auth :auth/method])))
-        (is (nil? (get-in user-value [:user/auth :auth/migration_completed_at]))))
+        (is (nil? (:user/apple_id user-value)))
+        (is (nil? (:user/google_id user-value)))
+        (is (nil? (:user/email user-value)))
+        (is (= "sms" (:user/auth_method user-value))))
       
       (.close node)))
 
@@ -221,16 +219,15 @@
       (biff/submit-tx ctx [[:xtdb.api/put v4-user]])
       (xtdb/sync node)
       
-      ;; Migration should add social auth fields with defaults
+      ;; Migration should add social auth fields with defaults (v5 schema)
       (let [db (xtdb/db node)
             migrated-user (by-id db uid)
             user-value (crdt.user/->value migrated-user)]
         (is (= 5 (:db/version migrated-user)))
-        (is (nil? (get-in user-value [:user/auth :auth/apple_id])))
-        (is (nil? (get-in user-value [:user/auth :auth/google_id])))
-        (is (nil? (get-in user-value [:user/auth :auth/email])))
-        (is (= "sms" (get-in user-value [:user/auth :auth/method])))
-        (is (nil? (get-in user-value [:user/auth :auth/migration_completed_at]))))
+        (is (nil? (:user/apple_id user-value)))
+        (is (nil? (:user/google_id user-value)))
+        (is (nil? (:user/email user-value)))
+        (is (= "sms" (:user/auth_method user-value))))
       
       (.close node))))
 (deftest user-actions
@@ -347,7 +344,7 @@
           (xtdb/sync node)
 
           (let [final-user (by-id (xtdb/db node) uid)]
-            (is-equal {:db/version 4,
+            (is-equal {:db/version 5,
                        :db/doc-type :gatz/user
                        :db/type :gatz/user,
                        :xt/id uid
@@ -362,6 +359,11 @@
                        :user/deleted_at nil
                        :user/updated_at t4
                        :user/blocked_uids #{blocked-uid}
+                       ;; v5 auth fields
+                       :user/apple_id nil
+                       :user/google_id nil
+                       :user/email nil
+                       :user/auth_method "sms"
                        :user/profile {:profile/full_name "Test User"
                                       :profile/urls {:profile.urls/website nil
                                                      :profile.urls/twitter "https://twitter.com/test"}}
@@ -389,7 +391,7 @@
           (xtdb/sync node)
 
           (let [deleted-user (by-id (xtdb/db node) uid)]
-            (is-equal {:db/version 4,
+            (is-equal {:db/version 5,
                        :db/doc-type :gatz/user
                        :db/type :gatz/user,
                        :xt/id uid
@@ -404,6 +406,11 @@
                        :user/deleted_at t5
                        :user/updated_at t5
                        :user/blocked_uids #{blocked-uid}
+                       ;; v5 auth fields
+                       :user/apple_id nil
+                       :user/google_id nil
+                       :user/email nil
+                       :user/auth_method "sms"
                        :user/profile {:profile/full_name nil
                                       :profile/urls {:profile.urls/website nil
                                                      :profile.urls/twitter nil}}
@@ -485,7 +492,12 @@
                        :user/avatar "https://example.com/avatar.jpg"
                        :db/doc-type :gatz/user
                        :user/blocked_uids #{blocked-uid}
-                       :db/version 4,
+                       :db/version 5,
+                       ;; v5 auth fields
+                       :user/apple_id nil
+                       :user/google_id nil
+                       :user/email nil
+                       :user/auth_method "sms"
                        :user/push_tokens nil,
                        :user/phone_number "4159499932",
                        :user/created_at now
@@ -517,7 +529,12 @@
                        :user/avatar nil
                        :db/doc-type :gatz/user
                        :user/blocked_uids #{blocked-uid}
-                       :db/version 4,
+                       :db/version 5,
+                       ;; v5 auth fields
+                       :user/apple_id nil
+                       :user/google_id nil
+                       :user/email nil
+                       :user/auth_method "sms"
                        :user/push_tokens nil,
                        :user/phone_number nil
                        :user/created_at now

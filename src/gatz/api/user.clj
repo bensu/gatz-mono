@@ -378,7 +378,6 @@
 (defn apple-sign-in! 
   "Handle Apple Sign-In authentication for new users"
   [{:keys [params biff/db] :as ctx}]
-  (def -ctx ctx)
   (let [{:keys [id_token client_id]} params]
     (cond
       ;; Validate required parameters
@@ -407,7 +406,7 @@
             ;; User exists, return auth token
             (do
               (posthog/identify! ctx existing-user)
-              (posthog/capture! (assoc ctx :auth/user-id (:xt/id existing-user)) "user.apple_sign_in")
+              (posthog/capture! (assoc ctx :auth/user-id (:xt/id existing-user)) "user.sign_in")
               (json-response {:user (crdt.user/->value existing-user)
                               :token (auth/create-auth-token ctx (:xt/id existing-user))}))
             
@@ -521,7 +520,7 @@
                                                         :full-name (:name claims)
                                                         :username clean-username})]
               (posthog/identify! ctx user)
-              (posthog/capture! (assoc ctx :auth/user-id (:xt/id user)) "user.apple_sign_up")
+              (posthog/capture! (assoc ctx :auth/user-id (:xt/id user)) "user.sign_up")
               (json-response {:type "sign_up"
                               :user (crdt.user/->value user)
                               :token (auth/create-auth-token ctx (:xt/id user))}))))
@@ -571,7 +570,7 @@
             ;; User exists, return auth token
             (do
               (posthog/identify! ctx existing-user)
-              (posthog/capture! (assoc ctx :auth/user-id (:xt/id existing-user)) "user.google_sign_in")
+              (posthog/capture! (assoc ctx :auth/user-id (:xt/id existing-user)) "user.sign_in")
               (json-response {:user (crdt.user/->value existing-user)
                               :token (auth/create-auth-token ctx (:xt/id existing-user))}))
             
@@ -580,7 +579,7 @@
                                                          :email email
                                                          :full-name (:name claims)})]
               (posthog/identify! ctx user)
-              (posthog/capture! (assoc ctx :auth/user-id (:xt/id user)) "user.google_sign_up")
+              (posthog/capture! (assoc ctx :auth/user-id (:xt/id user)) "user.sign_up")
               (json-response {:type "sign_up"
                               :user (crdt.user/->value user)
                               :token (auth/create-auth-token ctx (:xt/id user))}))))
