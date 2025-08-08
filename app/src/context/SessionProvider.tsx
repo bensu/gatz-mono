@@ -9,11 +9,15 @@ import { usePathname } from "expo-router";
 
 const LOCAL_SESSION_KEY = "gatz/auth";
 
+export type AuthMethod = 'sms' | 'apple' | 'google' | 'email';
+
 export type Session = {
   userId: string;
   token: string;
   is_admin: boolean;
   is_test: boolean;
+  authMethod?: AuthMethod;
+  lastAuthAt?: string;
 };
 
 const SESSION_DEFAULTS = {
@@ -49,6 +53,8 @@ const getLocalSession = async (): Promise<Session | null> => {
         token: parsed.token,
         is_admin: parsed.is_admin || false,
         is_test: parsed.is_test || false,
+        authMethod: parsed.authMethod,
+        lastAuthAt: parsed.lastAuthAt,
       } as Session;
       return out;
     } else {
@@ -74,7 +80,10 @@ const clearLocalSession = async () => {
 // ======================================================================
 // Provider
 
-type SignInOpts = { redirectTo: string };
+type SignInOpts = { 
+  redirectTo: string;
+  authMethod?: AuthMethod;
+};
 
 export type SessionContextType = {
   signIn: (session: Session, signInOpts?: SignInOpts) => void;
@@ -115,8 +124,13 @@ export function SessionProvider(props: React.PropsWithChildren) {
     session: Session,
     opts: SignInOpts = { redirectTo: "/" },
   ) => {
-    setLocalSession(session);
-    setComponentState({ isLoading: false, session });
+    const sessionWithMeta = {
+      ...session,
+      authMethod: opts.authMethod || session.authMethod || 'sms',
+      lastAuthAt: new Date().toISOString(),
+    };
+    setLocalSession(sessionWithMeta);
+    setComponentState({ isLoading: false, session: sessionWithMeta });
     router.replace(opts.redirectTo);
   }, [router, setLocalSession, setComponentState]);
 
