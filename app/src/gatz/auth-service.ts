@@ -62,6 +62,20 @@ export interface UsernameCheckResult {
   error?: AuthError;
 }
 
+export interface EmailVerificationResult {
+  success: boolean;
+  requiresCode: boolean;
+  error?: AuthError;
+}
+
+export interface EmailCodeVerificationResult {
+  success: boolean;
+  user?: T.User;
+  token?: string;
+  requiresSignup?: boolean;
+  error?: AuthError;
+}
+
 export class AuthService {
   private client: OpenClient;
   private retryAttempts = new Map<string, number>();
@@ -330,6 +344,180 @@ export class AuthService {
             break;
           case 'phone_taken':
             errorType = AuthErrorType.PHONE_TAKEN;
+            break;
+          case 'signup_disabled':
+            errorType = AuthErrorType.SIGNUP_DISABLED;
+            break;
+          default:
+            errorType = AuthErrorType.UNKNOWN_ERROR;
+        }
+        
+        return {
+          success: false,
+          error: createAuthError(errorType, undefined, response.message, false)
+        };
+      }
+
+      return {
+        success: true,
+        user: response.user,
+        token: response.token
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof AuthError ? error : mapErrorToAuthError(error)
+      };
+    }
+  }
+
+  async sendEmailCode(email: string): Promise<EmailVerificationResult> {
+    try {
+      const response = await this.executeWithRetry(
+        () => this.client.sendEmailCode(email),
+        `send-email-code-${email}`
+      );
+
+      if ('status' in response && response.status === 'sent') {
+        return {
+          success: true,
+          requiresCode: true
+        };
+      } else {
+        return {
+          success: false,
+          requiresCode: false,
+          error: createAuthError(AuthErrorType.EMAIL_SENDING_FAILED)
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        requiresCode: false,
+        error: error instanceof Error ? mapErrorToAuthError(error) : createAuthError(AuthErrorType.NETWORK_ERROR)
+      };
+    }
+  }
+
+  async verifyEmailCode(email: string, code: string): Promise<EmailCodeVerificationResult> {
+    try {
+      const response = await this.executeWithRetry(
+        () => this.client.verifyEmailCode(email, code),
+        `verify-email-code-${email}-${code}`
+      );
+
+      if ('status' in response) {
+        switch (response.status) {
+          case 'approved':
+            if ('user' in response && 'token' in response && response.user && response.token) {
+              return {
+                success: true,
+                user: response.user,
+                token: response.token
+              };
+            } else {
+              return {
+                success: true,
+                requiresSignup: true
+              };
+            }
+          case 'wrong_code':
+            return {
+              success: false,
+              error: createAuthError(AuthErrorType.INVALID_CODE, undefined, undefined, false)
+            };
+          case 'expired':
+            return {
+              success: false,
+              error: createAuthError(AuthErrorType.CODE_EXPIRED)
+            };
+          case 'no_code':
+            return {
+              success: false,
+              error: createAuthError(AuthErrorType.INVALID_CODE, undefined, 'No verification code found')
+            };
+          case 'max_attempts':
+            return {
+              success: false,
+              error: createAuthError(AuthErrorType.CODE_EXPIRED, undefined, 'Too many attempts')
+            };
+          default:
+            return {
+              success: false,
+              error: createAuthError(AuthErrorType.UNKNOWN_ERROR)
+            };
+        }
+      } else if ('requires_signup' in response && response.requires_signup) {
+        return {
+          success: true,
+          requiresSignup: true
+        };
+      } else {
+        return {
+          success: false,
+          error: createAuthError(AuthErrorType.UNKNOWN_ERROR)
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? mapErrorToAuthError(error) : createAuthError(AuthErrorType.NETWORK_ERROR)
+      };
+    }
+  }
+
+  async signInWithEmail(email: string, code: string): Promise<AuthResult> {
+    try {
+      const result = await this.verifyEmailCode(email, code);
+      
+      if (!result.success) {
+        return {
+          success: false,
+          error: result.error
+        };
+      }
+      
+      if (result.requiresSignup) {
+        return {
+          success: true,
+          requiresSignup: true,
+          signupData: {
+            email: email
+          }
+        };
+      }
+
+      return {
+        success: true,
+        user: result.user,
+        token: result.token
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: createAuthError(AuthErrorType.EMAIL_SIGNIN_FAILED, error as Error)
+      };
+    }
+  }
+
+  async signUpWithEmail(email: string, username: string): Promise<SignUpResult> {
+    try {
+      const response = await this.executeWithRetry(
+        () => this.client.emailSignUp(email, username),
+        `email-signup-${username}`
+      );
+
+      if (response.type === 'error') {
+        let errorType: AuthErrorType;
+        switch (response.error) {
+          case 'username_taken':
+            errorType = AuthErrorType.USERNAME_TAKEN;
+            break;
+          case 'invalid_username':
+            errorType = AuthErrorType.USERNAME_INVALID;
+            break;
+          case 'email_taken':
+            errorType = AuthErrorType.EMAIL_TAKEN;
             break;
           case 'signup_disabled':
             errorType = AuthErrorType.SIGNUP_DISABLED;

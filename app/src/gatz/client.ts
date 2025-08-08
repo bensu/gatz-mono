@@ -243,6 +243,34 @@ export class OpenClient {
     }
     return undefined;
   }
+
+  // Email Authentication Methods
+  async sendEmailCode(email: string): Promise<T.EmailVerificationAPIResponse> {
+    return await this.post<{ email: string }, T.EmailVerificationAPIResponse>(
+      this.baseURL + "/api/auth/send-email-code",
+      { email },
+    );
+  }
+
+  async verifyEmailCode(
+    email: string,
+    code: string,
+  ): Promise<T.EmailVerificationAPIResponse> {
+    return await this.post<
+      { email: string; code: string },
+      T.EmailVerificationAPIResponse
+    >(this.baseURL + "/api/auth/verify-email-code", { email, code });
+  }
+
+  async emailSignUp(
+    email: string,
+    username: string,
+  ): Promise<T.SignUpAPIResponse> {
+    return await this.post<
+      { email: string; username: string },
+      T.SignUpAPIResponse
+    >(this.baseURL + "/api/auth/email/signup", { email, username });
+  }
 }
 
 const isErrorStatus = (status: number) => status >= 400 && status < 600;
@@ -992,6 +1020,16 @@ export class GatzClient {
       { id_token: string; client_id: string },
       T.LinkGoogleAPIResponse
     >(this.baseURL + "/api/auth/link-google", { id_token, client_id });
+  }
+
+  async linkEmail(
+    email: string,
+    code: string
+  ): Promise<T.LinkEmailAPIResponse> {
+    return await this.post<
+      { email: string; code: string },
+      T.LinkEmailAPIResponse
+    >(this.baseURL + "/api/auth/link-email", { email, code });
   }
 }
 

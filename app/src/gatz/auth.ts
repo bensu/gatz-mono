@@ -24,7 +24,14 @@ export interface GoogleSignInCredential {
   };
 }
 
+export interface EmailSignInCredential {
+  type: 'email';
+  email: string;
+  code: string;
+}
+
 export type SocialSignInCredential = AppleSignInCredential | GoogleSignInCredential;
+export type AuthCredential = AppleSignInCredential | GoogleSignInCredential | EmailSignInCredential;
 
 export const isAppleSignInAvailable = async (): Promise<boolean> => {
   if (Platform.OS !== 'ios') return false;

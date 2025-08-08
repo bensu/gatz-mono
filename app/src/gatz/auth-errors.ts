@@ -16,7 +16,11 @@ export enum AuthErrorType {
   USERNAME_TAKEN = 'USERNAME_TAKEN',
   PHONE_INVALID = 'PHONE_INVALID',
   PHONE_TAKEN = 'PHONE_TAKEN',
-  SIGNUP_DISABLED = 'SIGNUP_DISABLED'
+  SIGNUP_DISABLED = 'SIGNUP_DISABLED',
+  EMAIL_INVALID = 'EMAIL_INVALID',
+  EMAIL_TAKEN = 'EMAIL_TAKEN',
+  EMAIL_SENDING_FAILED = 'EMAIL_SENDING_FAILED',
+  EMAIL_SIGNIN_FAILED = 'EMAIL_SIGNIN_FAILED'
 }
 
 export const AUTH_ERROR_MESSAGES: Record<AuthErrorType, string> = {
@@ -37,7 +41,11 @@ export const AUTH_ERROR_MESSAGES: Record<AuthErrorType, string> = {
   [AuthErrorType.USERNAME_TAKEN]: "This username is already taken. Please choose another",
   [AuthErrorType.PHONE_INVALID]: "Please enter a valid phone number",
   [AuthErrorType.PHONE_TAKEN]: "This phone number is already registered",
-  [AuthErrorType.SIGNUP_DISABLED]: "Sign up is currently disabled"
+  [AuthErrorType.SIGNUP_DISABLED]: "Sign up is currently disabled",
+  [AuthErrorType.EMAIL_INVALID]: "Please enter a valid email address",
+  [AuthErrorType.EMAIL_TAKEN]: "This email address is already registered",
+  [AuthErrorType.EMAIL_SENDING_FAILED]: "Failed to send verification email. Please try again",
+  [AuthErrorType.EMAIL_SIGNIN_FAILED]: "Email sign-in failed. Please try again"
 };
 
 export interface AuthError {

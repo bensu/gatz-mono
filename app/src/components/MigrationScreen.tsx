@@ -13,9 +13,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useThemeColors } from '../gifted/hooks/useThemeColors';
 import { SocialSignInButtons } from './SocialSignInButtons';
+import { EmailSignInComponent } from './EmailSignInComponent';
 import { AuthErrorDisplay } from './AuthErrorDisplay';
 import { SocialSignInCredential } from '../gatz/auth';
 import { AuthError, AuthErrorType } from '../gatz/auth-errors';
+import { GatzClient } from '../gatz/client';
 import Animated, {
   useAnimatedStyle,
   withSpring,
@@ -32,6 +34,7 @@ interface MigrationScreenProps {
   onRemindLater: () => void;
   onMigrationSuccess: () => void;
   onLinkAccount: (credential: SocialSignInCredential) => Promise<void>;
+  gatzClient?: GatzClient; // Optional for email linking
 }
 
 const ANIMATION_DURATION = 100;
@@ -42,6 +45,7 @@ export const MigrationScreen: React.FC<MigrationScreenProps> = ({
   onRemindLater,
   onMigrationSuccess,
   onLinkAccount,
+  gatzClient,
 }) => {
   const colors = useThemeColors();
   const [isLoading, setIsLoading] = useState(false);
@@ -151,6 +155,57 @@ export const MigrationScreen: React.FC<MigrationScreenProps> = ({
     onClose();
   }, [onRemindLater, onClose]);
 
+  const handleLinkEmail = useCallback(async (email: string, code: string) => {
+    if (!gatzClient) {
+      throw new Error('No authenticated client available for email linking');
+    }
+
+    setIsLoading(true);
+    setCurrentError(null);
+    
+    try {
+      const result = await gatzClient.linkEmail(email, code);
+      
+      // Check if result indicates an error
+      if (result && typeof result === 'object' && 'type' in result && result.type === 'error') {
+        throw new Error(result.message || 'Failed to link email');
+      }
+      
+      setShowSuccess(true);
+      
+      // Hide success state and close modal after 3 seconds
+      setTimeout(() => {
+        setShowSuccess(false);
+        onMigrationSuccess();
+      }, 3000);
+    } catch (error) {
+      console.error('Email linking failed:', error);
+      
+      // Extract error message from different error types
+      let errorMessage = 'Failed to link your email. Please try again or contact support.';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (error && typeof error === 'object') {
+        if ('response' in error && error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        } else if ('message' in error && typeof error.message === 'string') {
+          errorMessage = error.message;
+        }
+      }
+      
+      setCurrentError({
+        type: AuthErrorType.EMAIL_SIGNIN_FAILED,
+        message: errorMessage,
+        canRetry: true
+      });
+      
+      throw error; // Re-throw to let EmailSignInComponent handle it
+    } finally {
+      setIsLoading(false);
+    }
+  }, [gatzClient, onMigrationSuccess]);
+
   const containerStyle = useAnimatedStyle(() => {
     return {
       transform: [{ translateY: translateY.value }],
@@ -221,6 +276,18 @@ export const MigrationScreen: React.FC<MigrationScreenProps> = ({
                   onSignIn={handleSocialSignIn}
                   isLoading={isLoading}
                 />
+                
+                {/* Email Fallback Option */}
+                <View style={styles.fallbackSection}>
+                  <Text style={[styles.fallbackTitle, { color: colors.secondaryText }]}>
+                    Or link your email address
+                  </Text>
+                  <EmailSignInComponent
+                    onEmailVerified={async () => {}} // Not used for linking
+                    onLinkEmail={handleLinkEmail}
+                    isLoading={isLoading}
+                  />
+                </View>
               </View>
 
               {/* Error Display */}
@@ -330,6 +397,17 @@ const styles = StyleSheet.create({
   },
   authSection: {
     marginBottom: 24,
+  },
+  fallbackSection: {
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E5E5E5',
+  },
+  fallbackTitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 16,
   },
   actions: {
     alignItems: 'center',

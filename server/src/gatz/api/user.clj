@@ -16,7 +16,8 @@
             [gatz.util :as util]
             [medley.core :refer [map-keys]]
             [sdk.posthog :as posthog]
-            [sdk.twilio :as twilio])
+            [sdk.twilio :as twilio]
+            [sdk.email-verification :as sdk.email-verification])
   (:import [java.util Date]))
 
 (defn json-response
@@ -674,4 +675,205 @@
         
         (catch Exception e
           (err-resp "google_link_failed" "Failed to link Google Sign-In"))))))
+
+;; ======================================================================  
+;; Email Verification Authentication
+
+(defn send-email-code! 
+  "Send email verification code for authentication"
+  [{:keys [params biff/db] :as ctx}]
+  (let [{:keys [email]} params]
+    (cond
+      ;; Validate required parameters
+      (str/blank? email)
+      (err-resp "missing_email" "Email address is required")
+      
+      (not (sdk.email-verification/valid-email? email))
+      (err-resp "invalid_email" "Invalid email address format")
+      
+      ;; Check rate limiting
+      (sdk.email-verification/rate-limit-exceeded? db email)
+      (err-resp "rate_limited" "Too many verification attempts. Please try again later")
+      
+      :else
+      (try
+        (let [result (sdk.email-verification/create-verification-code! ctx email)]
+          (log/info "Email verification code sent successfully to" email)
+          (json-response result))
+        
+        (catch clojure.lang.ExceptionInfo e
+          (let [ex-data (ex-data e)]
+            (case (:type ex-data)
+              :invalid-email (err-resp "invalid_email" "Invalid email address format")
+              :suspicious-email (err-resp "suspicious_email" "Email address not allowed")
+              :rate-limit-exceeded (err-resp "rate_limited" "Too many verification attempts. Please try again later")
+              :ip-rate-limit-exceeded (err-resp "rate_limited" "Too many verification attempts from this location")
+              :too-soon (err-resp "too_soon" "Please wait before requesting another code")
+              (err-resp "email_send_failed" (.getMessage e)))))
+        
+        (catch Exception e
+          (log/error "Failed to send email verification code:" (.getMessage e))
+          (err-resp "email_send_failed" "Failed to send verification email"))))))
+
+(defn verify-email-code! 
+  "Verify email code for authentication"
+  [{:keys [params biff/db] :as ctx}]
+  (let [{:keys [email code]} params]
+    (cond
+      ;; Validate required parameters
+      (str/blank? email)
+      (err-resp "missing_email" "Email address is required")
+      
+      (str/blank? code)
+      (err-resp "missing_code" "Verification code is required")
+      
+      (not (sdk.email-verification/valid-email? email))
+      (err-resp "invalid_email" "Invalid email address format")
+      
+      :else
+      (try
+        (let [result (sdk.email-verification/verify-email-code! ctx email code)]
+          (log/info "Email code verification result for" email ":" (:status result))
+          
+          (if (= "approved" (:status result))
+            ;; Code verified successfully - check if user exists or needs signup
+            (if-let [user (db.user/by-email db email)]
+              ;; Existing user - sign them in
+              (do
+                (posthog/identify! ctx user)
+                (posthog/capture! (assoc ctx :auth/user-id (:xt/id user)) "user.sign_in")
+                (json-response {:user (crdt.user/->value user)
+                                :token (auth/create-auth-token ctx (:xt/id user))}))
+              
+              ;; New user - return success without creating user, let frontend handle sign-up
+              (json-response {:requires_signup true
+                              :email email}))
+            
+            ;; Code verification failed
+            (json-response result 400)))
+        
+        (catch Exception e
+          (log/error "Failed to verify email code:" (.getMessage e))
+          (err-resp "verification_failed" "Failed to verify email code"))))))
+
+(defn link-email! 
+  "Link email to an existing user account"
+  [{:keys [params auth/user-id biff/db] :as ctx}]
+  (let [{:keys [email code]} params]
+    (log/info "link-email called with user-id:" user-id "email:" email)
+    (cond
+      ;; Validate required parameters
+      (str/blank? email)
+      (do
+        (log/warn "link-email: missing email")
+        (err-resp "missing_email" "Email address is required"))
+      
+      (str/blank? code)
+      (do
+        (log/warn "link-email: missing code")
+        (err-resp "missing_code" "Verification code is required"))
+      
+      (not (sdk.email-verification/valid-email? email))
+      (err-resp "invalid_email" "Invalid email address format")
+      
+      :else
+      (try
+        (log/info "link-email: attempting to verify email code")
+        (let [verification-result (sdk.email-verification/verify-email-code! ctx email code)]
+          
+          (if (= "approved" (:status verification-result))
+            (let [existing-email-user (db.user/by-email db email)
+                  current-user (db.user/by-id db user-id)]
+              
+              ;; Check if current user account is deleted
+              (when (db.user/deleted? current-user)
+                (throw (ex-info "Account deleted" {:type :account-deleted})))
+              
+              (cond
+                ;; Email already linked to another account
+                (and existing-email-user (not (= (:xt/id existing-email-user) user-id)))
+                (err-resp "email_taken" "This email is already linked to another account")
+                
+                ;; Email already linked to current account
+                (and existing-email-user (= (:xt/id existing-email-user) user-id))
+                (json-response {:status "already_linked"
+                                :user (crdt.user/->value existing-email-user)})
+                
+                ;; Link email to current account
+                :else
+                (let [{:keys [user]} (db.user/link-email! ctx {:email email})]
+                  (posthog/capture! ctx "user.link_email")
+                  (json-response {:status "linked"
+                                  :user (crdt.user/->value user)}))))
+            
+            ;; Code verification failed
+            (json-response verification-result 400)))
+        
+        (catch clojure.lang.ExceptionInfo e
+          (log/error "link-email ExceptionInfo:" (.getMessage e) "data:" (ex-data e))
+          (let [ex-data (ex-data e)]
+            (case (:type ex-data)
+              :account-deleted (err-resp "account_deleted" "Account deleted")
+              (err-resp "email_link_failed" (.getMessage e)))))
+        
+        (catch Exception e
+          (log/error "link-email Exception:" (.getMessage e))
+          (err-resp "email_link_failed" "Failed to link email"))))))
+
+(defn email-sign-up! 
+  "Create a new user with email authentication"
+  [{:keys [params biff/db] :as ctx}]
+  (let [{:keys [email username]} params]
+    (cond
+      ;; Validate required parameters
+      (str/blank? email)
+      (err-resp "missing_email" "Email address is required")
+      
+      (str/blank? username)
+      (err-resp "missing_username" "Username is required")
+      
+      (not (sdk.email-verification/valid-email? email))
+      (err-resp "invalid_email" "Invalid email address format")
+      
+      ;; Check signup disabled flag
+      (:gatz.auth/signup-disabled? ctx)
+      (err-resp "signup_disabled" "Sign up is disabled right now")
+      
+      :else
+      (try
+        (let [clean-username (clean-username username)
+              clean-email (sdk.email-verification/clean-email email)
+              existing-user (db.user/by-email db clean-email)]
+          
+          ;; Validate username
+          (cond
+            (not (crdt.user/valid-username? clean-username))
+            (err-resp "invalid_username" "Username is invalid")
+            
+            (some? (db.user/by-name db clean-username))
+            (err-resp "username_taken" "Username is already taken")
+            
+            (some? existing-user)
+            (err-resp "email_taken" "This email is already registered")
+            
+            :else
+            ;; Create new user with email authentication and username
+            (let [user (db.user/create-email-user! ctx {:email clean-email
+                                                        :username clean-username})]
+              (posthog/identify! ctx user)
+              (posthog/capture! (assoc ctx :auth/user-id (:xt/id user)) "user.sign_up")
+              (json-response {:type "sign_up"
+                              :user (crdt.user/->value user)
+                              :token (auth/create-auth-token ctx (:xt/id user))}))))
+        
+        (catch clojure.lang.ExceptionInfo e
+          (let [ex-data (ex-data e)]
+            (case (:type ex-data)
+              :account-deleted (err-resp "account_deleted" "Account deleted")
+              :duplicate-email (err-resp "email_taken" "This email is already registered")
+              :duplicate-username (err-resp "username_taken" "Username is already taken")
+              (err-resp "email_auth_failed" (.getMessage e)))))
+        
+        (catch Exception e
+          (err-resp "email_auth_failed" "Email authentication failed"))))))
 
