@@ -57,12 +57,11 @@
   (let [clock (crdt/new-hlc migration-client-id)]
     (-> data
         (assoc :db/version 5 :crdt/clock clock)
-        ;; Add social auth fields nested under user/auth
-        (assoc :user/auth {:auth/apple_id (crdt/lww clock nil)
-                           :auth/google_id (crdt/lww clock nil)
-                           :auth/email (crdt/lww clock nil)
-                           :auth/method (crdt/lww clock "sms")
-                           :auth/migration_completed_at (crdt/lww clock nil)}))))
+        ;; Add top-level auth fields as plain values (immutable)
+        (assoc :user/apple_id nil
+               :user/google_id nil
+               :user/email nil
+               :user/auth_method "sms"))))
 
 (def all-migrations
   [{:from 0 :to 1 :transform v0->v1}
@@ -196,30 +195,36 @@
 
 (defn by-apple-id [db apple-id]
   {:pre [(string? apple-id) (not (empty? apple-id))]}
-  (->> (q db '{:find (pull u [*]) :where [[u :db/type :gatz/user]]})
-       (map #(db.util/->latest-version % all-migrations))
-       (filter (fn [user]
-                 (= apple-id (some-> user :user/auth :auth/apple_id crdt/-value))))
-       (sort-by :user/created_at)
-       first))
+  (let [users (q db
+                 '{:find (pull u [*])
+                   :in [apple-id]
+                   :where [[u :user/apple_id apple-id]
+                           [u :db/type :gatz/user]]}
+                 apple-id)]
+    (some-> (first users)
+            (db.util/->latest-version all-migrations))))
 
 (defn by-google-id [db google-id]
   {:pre [(string? google-id) (not (empty? google-id))]}
-  (->> (q db '{:find (pull u [*]) :where [[u :db/type :gatz/user]]})
-       (map #(db.util/->latest-version % all-migrations))
-       (filter (fn [user]
-                 (= google-id (some-> user :user/auth :auth/google_id crdt/-value))))
-       (sort-by :user/created_at)
-       first))
+  (let [users (q db
+                 '{:find (pull u [*])
+                   :in [google-id]
+                   :where [[u :user/google_id google-id]
+                           [u :db/type :gatz/user]]}
+                 google-id)]
+    (some-> (first users)
+            (db.util/->latest-version all-migrations))))
 
 (defn by-email [db email]
   {:pre [(string? email) (not (empty? email))]}
-  (->> (q db '{:find (pull u [*]) :where [[u :db/type :gatz/user]]})
-       (map #(db.util/->latest-version % all-migrations))
-       (filter (fn [user]
-                 (= email (some-> user :user/auth :auth/email crdt/-value))))
-       (sort-by :user/created_at)
-       first))
+  (let [users (q db
+                 '{:find (pull u [*])
+                   :in [email]
+                   :where [[u :user/email email]
+                           [u :db/type :gatz/user]]}
+                 email)]
+    (some-> (first users)
+            (db.util/->latest-version all-migrations))))
 
 (defn all-ids [db]
   (q db
@@ -282,7 +287,12 @@
                        (assoc :user/is_test test?)
                        (assoc :db/doc-type :gatz.crdt/user :db/op :create)
                        (update :user/name as-unique)
-                       (update :user/phone_number as-unique))
+                       (update :user/phone_number as-unique)
+                       ;; Make top-level auth fields unique for indexing (now plain values)
+                       (cond->
+                         (:user/apple_id user) (update :user/apple_id as-unique)
+                         (:user/google_id user) (update :user/google_id as-unique)
+                         (:user/email user) (update :user/email as-unique)))
          txns [user-txn
                (new-contacts-txn {:uid id :now now})
                (new-activity-doc {:uid id :now now})]]
@@ -566,11 +576,12 @@
   ([{:keys [auth/user-id] :as ctx} {:keys [apple-id email]} {:keys [now]}]
    {:pre [(uuid? user-id) (string? apple-id) (not (empty? apple-id))]}
    (let [clock (crdt/new-hlc user-id now)
-         auth-fields (cond-> {:auth/apple_id (crdt/lww clock apple-id)}
-                       email (assoc :auth/email (crdt/lww clock email)))
-         delta {:crdt/clock clock
-                :user/updated_at (crdt/max-wins now)
-                :user/auth auth-fields}
+         ;; Update top-level auth fields as plain values (immutable)
+         auth-fields (cond-> {:user/apple_id apple-id}
+                       email (assoc :user/email email))
+         delta (merge {:crdt/clock clock
+                       :user/updated_at (crdt/max-wins now)}
+                      auth-fields)
          action {:gatz.crdt.user/action :gatz.crdt.user/link-apple-id
                  :gatz.crdt.user/delta delta}]
      (apply-action! ctx action))))
@@ -598,11 +609,12 @@
   ([{:keys [auth/user-id] :as ctx} {:keys [google-id email]} {:keys [now]}]
    {:pre [(uuid? user-id) (string? google-id) (not (empty? google-id))]}
    (let [clock (crdt/new-hlc user-id now)
-         auth-fields (cond-> {:auth/google_id (crdt/lww clock google-id)}
-                       email (assoc :auth/email (crdt/lww clock email)))
-         delta {:crdt/clock clock
-                :user/updated_at (crdt/max-wins now)
-                :user/auth auth-fields}
+         ;; Update top-level auth fields as plain values (immutable)
+         auth-fields (cond-> {:user/google_id google-id}
+                       email (assoc :user/email email))
+         delta (merge {:crdt/clock clock
+                       :user/updated_at (crdt/max-wins now)}
+                      auth-fields)
          action {:gatz.crdt.user/action :gatz.crdt.user/link-google-id
                  :gatz.crdt.user/delta delta}]
      (apply-action! ctx action))))

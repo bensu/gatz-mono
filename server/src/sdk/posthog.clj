@@ -33,6 +33,7 @@
 (def events
   #{"user.sign_in" "user.sign_up" "user.delete_account" "user.block"
     "user.update_urls" "user.update_profile" "user.mark_location"
+    "user.link_apple" "user.link_google"
     "notifications.disable" "notifications.add_push_token" "notifications.update"
     "discussion.archive" "discussion.subscribe" "discussion.unsubscribe"
     "discussion.read" "discussion.new" "discussion.mark_seen"
