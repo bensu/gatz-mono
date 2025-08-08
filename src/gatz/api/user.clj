@@ -41,7 +41,12 @@
    [:contacts [:vec schema/ContactResponse]]
    [:contact_requests [:vec [:map
                              [:id schema/ContactRequestId]
-                             [:contact schema/ContactResponse]]]]])
+                             [:contact schema/ContactResponse]]]]
+   [:migration {:optional true} [:map
+                                 [:required boolean?]
+                                 [:auth_method [:enum "sms" "apple" "google" "email" "hybrid"]]
+                                 [:show_migration_screen boolean?]
+                                 [:completed_at [:maybe inst?]]]]])
 
 (defn pending-contact-requests [db user-id]
   (->> (db.contacts/pending-requests-to db user-id)
@@ -50,6 +55,20 @@
                 :contact (-> (db.user/by-id db from)
                              crdt.user/->value
                              db.contacts/->contact)}))))
+
+(defn migration-status
+  "Calculate migration status for a user based on their auth_method and migration_completed_at fields"
+  [user-value]
+  (let [auth-method (:user/auth_method user-value)
+        migration-completed-at (:user/migration_completed_at user-value)
+        needs-migration? (and (= "sms" auth-method) 
+                              (nil? migration-completed-at))
+        show-migration-screen? needs-migration?]
+    (when needs-migration?
+      {:required true
+       :auth_method auth-method
+       :show_migration_screen show-migration-screen?
+       :completed_at migration-completed-at})))
 
 (defn get-me-data [{:keys [auth/user auth/user-id biff/db flags/flags] :as _ctx}]
   (let [my-contacts (db.contacts/by-uid db user-id)
@@ -60,12 +79,15 @@
                               (-> (db.user/by-id db uid)
                                   crdt.user/->value
                                   db.contacts/->contact))))
-        contact_requests (pending-contact-requests db user-id)]
-    {:user (crdt.user/->value user)
-     :groups groups
-     :contacts contacts
-     :contact_requests contact_requests
-     :flags {:flags/values flags}}))
+        contact_requests (pending-contact-requests db user-id)
+        user-value (crdt.user/->value user)
+        migration-status-obj (migration-status user-value)]
+    (cond-> {:user user-value
+             :groups groups
+             :contacts contacts
+             :contact_requests contact_requests
+             :flags {:flags/values flags}}
+      migration-status-obj (assoc :migration migration-status-obj))))
 
 (defn get-me [{:keys [auth/user] :as ctx}]
   (posthog/identify! ctx user)
