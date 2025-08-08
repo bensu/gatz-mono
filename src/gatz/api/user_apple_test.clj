@@ -8,7 +8,8 @@
             [crdt.core :as crdt]
             [gatz.crdt.user :as crdt.user]
             [xtdb.api :as xtdb]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [sdk.posthog :as posthog])
   (:import [java.util Date]))
 
 (defn parse-resp [resp]
@@ -51,8 +52,8 @@
           node (:biff.xtdb/node ctx)]
       
       (with-redefs [auth/verify-apple-id-token (constantly mock-apple-claims)
-                    sdk.posthog/identify! (constantly nil)
-                    sdk.posthog/capture! (constantly nil)]
+                    posthog/identify! (constantly nil)
+                    posthog/capture! (constantly nil)]
         
         (let [resp (api.user/apple-sign-in! (assoc ctx 
                                                    :params {:id_token "mock.jwt.token"
@@ -93,8 +94,8 @@
       (xtdb/sync node)
 
       (with-redefs [auth/verify-apple-id-token (constantly mock-apple-claims)
-                    sdk.posthog/identify! (constantly nil)
-                    sdk.posthog/capture! (constantly nil)]
+                    posthog/identify! (constantly nil)
+                    posthog/capture! (constantly nil)]
         
         (let [resp (api.user/apple-sign-in! (assoc ctx
                                                    :params {:id_token "mock.jwt.token"
@@ -138,7 +139,7 @@
       (xtdb/sync node)
 
       (with-redefs [auth/verify-apple-id-token (constantly mock-apple-claims)
-                    sdk.posthog/capture! (constantly nil)]
+                    posthog/capture! (constantly nil)]
         
         (let [resp (api.user/link-apple! (assoc ctx
                                                 :params {:id_token "mock.jwt.token"
@@ -187,5 +188,116 @@
           
           (is (= 400 (:status resp)))
           (is (= "apple_id_taken" (:error (parse-resp resp))))))
+      
+      (.close node))))
+
+(deftest test-apple-sign-in-auto-link-to-existing-email
+  (testing "Apple Sign-In automatically links to existing account with same email"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          now (Date.)
+          user-id (random-uuid)
+          shared-email "user@example.com"]
+
+      ;; Create existing user with email (created via SMS/email auth)
+      (db.user/create-user! ctx {:id user-id
+                                 :username "existing_user"
+                                 :phone "+14159499901"
+                                 :email shared-email
+                                 :now now})
+      (xtdb/sync node)
+
+      (with-redefs [auth/verify-apple-id-token (constantly (assoc mock-apple-claims :email shared-email))
+                    sdk.posthog/identify! (constantly nil)
+                    posthog/capture! (constantly nil)]
+        
+        (let [resp (api.user/apple-sign-in! (assoc ctx
+                                                   :params {:id_token "mock.jwt.token"
+                                                           :client_id "com.example.app"}
+                                                   :biff/db (xtdb/db node)))
+              response-data (parse-resp resp)]
+          
+          (is (= 200 (:status resp)))
+          (is (nil? (:type response-data))) ; No "sign_up" since user exists
+          (is (= user-id (get-in response-data [:user :xt/id]))) ; Same user ID
+          (is (some? (:token response-data)))
+          
+          ;; Verify user now has Apple ID linked
+          (xtdb/sync node)
+          (let [user (db.user/by-id (xtdb/db node) user-id)
+                user-value (crdt.user/->value user)]
+            (is (= (:sub mock-apple-claims) (:user/apple_id user-value)))
+            (is (= shared-email (:user/email user-value)))
+            (is (= "existing_user" (:user/username user-value))))))
+      
+      (.close node))))
+
+(deftest test-apple-sign-in-auto-link-to-existing-google-user
+  (testing "Apple Sign-In automatically links to existing Google user with same email"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          now (Date.)
+          user-id (random-uuid)
+          shared-email "user@example.com"
+          google-id "google-123"]
+
+      ;; Create existing user with Google ID
+      (db.user/create-user! ctx {:id user-id
+                                 :username "google_user"
+                                 :google_id google-id
+                                 :email shared-email
+                                 :now now})
+      (xtdb/sync node)
+
+      (with-redefs [auth/verify-apple-id-token (constantly (assoc mock-apple-claims :email shared-email))
+                    sdk.posthog/identify! (constantly nil)
+                    posthog/capture! (constantly nil)]
+        
+        (let [resp (api.user/apple-sign-in! (assoc ctx
+                                                   :params {:id_token "mock.jwt.token"
+                                                           :client_id "com.example.app"}
+                                                   :biff/db (xtdb/db node)))
+              response-data (parse-resp resp)]
+          
+          (is (= 200 (:status resp)))
+          (is (nil? (:type response-data)))
+          (is (= user-id (get-in response-data [:user :xt/id])))
+          
+          ;; Verify user now has both Google and Apple IDs
+          (xtdb/sync node)
+          (let [user (db.user/by-id (xtdb/db node) user-id)
+                user-value (crdt.user/->value user)]
+            (is (= (:sub mock-apple-claims) (:user/apple_id user-value)))
+            (is (= google-id (:user/google_id user-value)))
+            (is (= shared-email (:user/email user-value))))))
+      
+      (.close node))))
+
+(deftest test-apple-sign-in-deleted-user-by-email
+  (testing "Apple Sign-In fails when user with same email is deleted"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          now (Date.)
+          user-id (random-uuid)
+          shared-email "deleted@example.com"]
+
+      ;; Create and then delete user
+      (db.user/create-user! ctx {:id user-id
+                                 :username "deleted_user"
+                                 :phone "+14159499905"
+                                 :email shared-email
+                                 :now now})
+      (db.user/mark-deleted! ctx {:uid user-id :now now})
+      (xtdb/sync node)
+
+      (with-redefs [auth/verify-apple-id-token (constantly (assoc mock-apple-claims :email shared-email))]
+        
+        (let [resp (api.user/apple-sign-in! (assoc ctx
+                                                   :params {:id_token "mock.jwt.token"
+                                                           :client_id "com.example.app"}
+                                                   :biff/db (xtdb/db node)))]
+          
+          (is (= 400 (:status resp)))
+          (is (= "account_deleted" (:error (parse-resp resp))))))
       
       (.close node))))
