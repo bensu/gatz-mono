@@ -63,6 +63,7 @@ export default function Cities() {
 const styles = StyleSheet.create({
   outerContainer: { flex: 1, padding: 20 },
   leftColumn: {
+    flex: 1,
     maxWidth: 600,
     borderRightColor: GatzStyles.platformSeparator.backgroundColor,
     borderRightWidth: StyleSheet.hairlineWidth,

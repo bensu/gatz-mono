@@ -217,7 +217,13 @@ export const LocationSelectionScreen = ({ onSelect, scrollEnabled = false }: Loc
     return (
       <TouchableOpacity
         key={location.id}
-        style={[isLast ? styles.lastRow : styles.locationRow, { backgroundColor: colors.appBackground }]}
+        style={[
+          isLast ? styles.lastRow : styles.locationRow, 
+          { 
+            backgroundColor: colors.appBackground,
+            borderBottomColor: colors.midGrey
+          }
+        ]}
         onPress={() => onSelect(location)}
       >
         <Text style={[styles.locationText, { color: colors.primaryText }]}>
@@ -227,10 +233,8 @@ export const LocationSelectionScreen = ({ onSelect, scrollEnabled = false }: Loc
     );
   }, [colors, onSelect]);
 
-  const ScrollOrList = scrollEnabled ? ScrollView : View;
-
   return (
-    <View style={[styles.innerContainer, { backgroundColor: colors.rowBackground }]}>
+    <View style={[styles.innerContainer, { backgroundColor: colors.rowBackground, flex: 1 }]}>
       {Platform.OS !== "android" && (
         <View style={[styles.searchContainer, { backgroundColor: colors.appBackground, marginBottom: 12 }]}>
           <MaterialIcons name="search" size={20} color={colors.secondaryText} style={styles.searchIcon} />
@@ -244,7 +248,7 @@ export const LocationSelectionScreen = ({ onSelect, scrollEnabled = false }: Loc
         </View>
       )}
 
-      <ScrollOrList style={[styles.flatListContainer]}>
+      <ScrollView style={[styles.flatListContainer, { flex: 1 }]} showsVerticalScrollIndicator={false}>
         <View style={[styles.flatListContainer, { backgroundColor: colors.appBackground, marginBottom: 12 }]}>
           <TouchableOpacity
             style={[styles.lastRow, { backgroundColor: colors.appBackground }]}
@@ -256,24 +260,22 @@ export const LocationSelectionScreen = ({ onSelect, scrollEnabled = false }: Loc
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.flatListContainer, { backgroundColor: colors.appBackground, marginBottom: 12 }]}>
-          <FlatList<T.Location>
-            scrollEnabled={false}
-            data={filteredShortListLocations}
-            renderItem={({ item, index }) => renderItem({ item, index, lastIndex: filteredShortListLocations.length - 1 })}
-            keyExtractor={(location: T.Location) => location.id}
-          />
-        </View>
+        {filteredShortListLocations.length > 0 && (
+          <View style={[styles.flatListContainer, { backgroundColor: colors.appBackground, marginBottom: 12 }]}>
+            {filteredShortListLocations.map((location, index) => 
+              renderItem({ item: location, index, lastIndex: filteredShortListLocations.length - 1 })
+            )}
+          </View>
+        )}
 
-        <View style={[styles.flatListContainer, { backgroundColor: colors.appBackground }]}>
-          <FlatList<T.Location>
-            scrollEnabled={false}
-            data={filteredLocations}
-            renderItem={({ item, index }) => renderItem({ item, index, lastIndex: filteredLocations.length - 1 })}
-            keyExtractor={(location: T.Location) => location.id}
-          />
-        </View>
-      </ScrollOrList>
+        {filteredLocations.length > 0 && (
+          <View style={[styles.flatListContainer, { backgroundColor: colors.appBackground }]}>
+            {filteredLocations.map((location, index) => 
+              renderItem({ item: location, index, lastIndex: filteredLocations.length - 1 })
+            )}
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 };
@@ -326,7 +328,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#E5E5E5",
   },
   locationText: {
     fontSize: 16,
