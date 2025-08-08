@@ -31,7 +31,7 @@ import {
 } from "../../../util/layout";
 
 const { width } = Dimensions.get("window");
-const DRAWER_LABEL_MARGIN = -24; // Consistent margin for drawer text labels
+const DRAWER_LABEL_MARGIN = -4; // Consistent margin for drawer text labels (adjusted for React Navigation v7)
 
 function CustomDrawerContent(props) {
   const handlePressWhyGatz = useCallback(() => {

@@ -40,20 +40,21 @@ export default function Cities() {
   const colors = useThemeColors();
 
   return (
-    <View
-      style={[
-        styles.leftColumn,
-        {
-          backgroundColor: colors.rowBackground,
-          borderRightColor: colors.platformSeparatorDefault,
-          flex: 1,
-        },
-      ]}
-    >
-      <UniversalHeader inDrawer>
-        <HeaderTitleWithIcon title="Cities" iconName="location-outline" />
-      </UniversalHeader>
-      <LocationsInner />
+    <View style={[{ flex: 1, backgroundColor: colors.rowBackground }]}>
+      <View
+        style={[
+          styles.leftColumn,
+          {
+            backgroundColor: colors.rowBackground,
+            borderRightColor: colors.platformSeparatorDefault,
+          },
+        ]}
+      >
+        <UniversalHeader inDrawer>
+          <HeaderTitleWithIcon title="Cities" iconName="location-outline" />
+        </UniversalHeader>
+        <LocationsInner />
+      </View>
     </View>
   );
 }

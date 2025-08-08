@@ -349,29 +349,31 @@ export default function Invites() {
   const groups = result.groups;
 
   return (
-    <View
-      style={[
-        styles.container,
-        styles.leftColumn,
-        {
-          backgroundColor: colors.rowBackground,
-          borderRightColor: colors.platformSeparatorDefault,
-        },
-      ]}
-    >
-      <UniversalHeader inDrawer>
-        <HeaderTitleWithIcon title="Invites" iconName="mail-outline" />
-      </UniversalHeader>
-      <ScrollView>
-        <View style={styles.sections}>
-          <InviteFriends
-            user={result.user}
-            inviteLinkData={result.invite_screen}
-          />
-          <InviteByCode />
-          <InviteToGroup groups={groups} />
-        </View>
-      </ScrollView>
+    <View style={[{ flex: 1, backgroundColor: colors.rowBackground }]}>
+      <View
+        style={[
+          styles.container,
+          styles.leftColumn,
+          {
+            backgroundColor: colors.rowBackground,
+            borderRightColor: colors.platformSeparatorDefault,
+          },
+        ]}
+      >
+        <UniversalHeader inDrawer>
+          <HeaderTitleWithIcon title="Invites" iconName="mail-outline" />
+        </UniversalHeader>
+        <ScrollView>
+          <View style={styles.sections}>
+            <InviteFriends
+              user={result.user}
+              inviteLinkData={result.invite_screen}
+            />
+            <InviteByCode />
+            <InviteToGroup groups={groups} />
+          </View>
+        </ScrollView>
+      </View>
     </View>
   );
 }

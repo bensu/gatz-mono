@@ -677,194 +677,196 @@ export default function Settings() {
   }
 
   return (
-    <View
-      style={[
-        styles.container,
-        styles.leftColumn,
-        {
-          backgroundColor: colors.rowBackground,
-          borderRightColor: colors.platformSeparatorDefault,
-        },
-      ]}
-    >
-      <UniversalHeader inDrawer>
-        <HeaderTitleWithIcon title="Settings" iconName="settings-outline" />
-      </UniversalHeader>
-      <ScrollView>
-        <View style={[styles.sections, { backgroundColor: colors.rowBackground }]} >
-          {user ? (
-            <View style={[styles.section, { backgroundColor: colors.rowBackground }]}>
-              <Text style={[styles.title, { color: colors.primaryText }]}>
-                Profile
-              </Text>
-              <View
-                style={{ flexDirection: "row", alignItems: "center", backgroundColor: colors.rowBackground }}
-              >
-                <TouchableOpacity
-                  style={{ position: "relative" }}
-                  onPress={getPicture}
+    <View style={[{ flex: 1, backgroundColor: colors.rowBackground }]}>
+      <View
+        style={[
+          styles.container,
+          styles.leftColumn,
+          {
+            backgroundColor: colors.rowBackground,
+            borderRightColor: colors.platformSeparatorDefault,
+          },
+        ]}
+      >
+        <UniversalHeader inDrawer>
+          <HeaderTitleWithIcon title="Settings" iconName="settings-outline" />
+        </UniversalHeader>
+        <ScrollView>
+          <View style={[styles.sections, { backgroundColor: colors.rowBackground }]} >
+            {user ? (
+              <View style={[styles.section, { backgroundColor: colors.rowBackground }]}>
+                <Text style={[styles.title, { color: colors.primaryText }]}>
+                  Profile
+                </Text>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", backgroundColor: colors.rowBackground }}
                 >
-                  <View style={{ position: "relative" }}>
-                    <View style={{ opacity: loadingPicture ? 0.2 : 1 }}>
-                      <GiftedAvatar size="hero" user={{ ...user, id: user.id }} />
+                  <TouchableOpacity
+                    style={{ position: "relative" }}
+                    onPress={getPicture}
+                  >
+                    <View style={{ position: "relative" }}>
+                      <View style={{ opacity: loadingPicture ? 0.2 : 1 }}>
+                        <GiftedAvatar size="hero" user={{ ...user, id: user.id }} />
+                      </View>
+                      {loadingPicture &&
+                        <View style={{ position: "absolute", top: "50%", left: "50%", transform: [{ translateX: -10 }, { translateY: -10 }] }}>
+                          <ActivityIndicator size="small" color={colors.primaryText} />
+                        </View>}
                     </View>
-                    {loadingPicture &&
-                      <View style={{ position: "absolute", top: "50%", left: "50%", transform: [{ translateX: -10 }, { translateY: -10 }] }}>
-                        <ActivityIndicator size="small" color={colors.primaryText} />
-                      </View>}
+                    {!loadingPicture && (
+                      <View
+                        style={[
+                          styles.editIconContainer,
+                          { backgroundColor: colors.buttonDisabled },
+                        ]}
+                      >
+                        <MaterialIcons name="edit" size={12} color={colors.grey} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                  <View style={{ marginLeft: 12, flex: 1 }}>
+                    <Label value={user.name} icon={shareLinkIcon()} />
                   </View>
-                  {!loadingPicture && (
-                    <View
-                      style={[
-                        styles.editIconContainer,
-                        { backgroundColor: colors.buttonDisabled },
-                      ]}
-                    >
-                      <MaterialIcons name="edit" size={12} color={colors.grey} />
-                    </View>
-                  )}
-                </TouchableOpacity>
-                <View style={{ marginLeft: 12, flex: 1 }}>
-                  <Label value={user.name} icon={shareLinkIcon()} />
                 </View>
+                <UrlInput
+                  label="Full Name"
+                  value={user.profile?.full_name}
+                  validate={isValidName}
+                  onSubmit={onSubmitName}
+                  cleanText={(t) => t.trim()}
+                />
+
+                <UrlInput
+                  label="Website"
+                  value={user.profile?.urls?.website}
+                  validate={isValidUrl}
+                  onSubmit={onSubmitWebsite}
+                />
+                <UrlInput
+                  label="Twitter username"
+                  value={user.profile?.urls?.twitter}
+                  validate={isValidTwitterUsername}
+                  onSubmit={onSubmitTwitter}
+                />
+
               </View>
-              <UrlInput
-                label="Full Name"
-                value={user.profile?.full_name}
-                validate={isValidName}
-                onSubmit={onSubmitName}
-                cleanText={(t) => t.trim()}
-              />
-
-              <UrlInput
-                label="Website"
-                value={user.profile?.urls?.website}
-                validate={isValidUrl}
-                onSubmit={onSubmitWebsite}
-              />
-              <UrlInput
-                label="Twitter username"
-                value={user.profile?.urls?.twitter}
-                validate={isValidTwitterUsername}
-                onSubmit={onSubmitTwitter}
-              />
-
-            </View>
-          ) : (
-            <View
-              style={[
-                styles.sections,
-                { backgroundColor: colors.rowBackground },
-              ]}
-            >
-              <ActivityIndicator size="large" />
-            </View>
-          )}
-
-          <View
-            style={[styles.section, { backgroundColor: colors.rowBackground }]}
-          >
-            <Text style={[styles.title, { color: colors.primaryText }]}>
-              Log in
-            </Text>
-
-            <View
-              style={[
-                styles.row,
-                { marginBottom: 8, backgroundColor: colors.appBackground },
-              ]}
-            >
-              <Text style={{ fontSize: 18, color: colors.secondaryText }}>
-                {user.phone_number}
-              </Text>
-              <Text style={{ fontSize: 16, color: colors.strongGrey }}>
-                Only used for log in
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.row, { backgroundColor: colors.appBackground }]}
-              onPress={signOut}
-            >
-              <Text
+            ) : (
+              <View
                 style={[
-                  styles.labelText,
-                  { color: colors.errorFont, fontWeight: "400" },
+                  styles.sections,
+                  { backgroundColor: colors.rowBackground },
                 ]}
               >
-                Log out
-              </Text>
-            </TouchableOpacity>
-          </View>
+                <ActivityIndicator size="large" />
+              </View>
+            )}
 
-          {false && (
             <View
-              style={[
-                styles.section,
-                { backgroundColor: colors.rowBackground },
-              ]}
+              style={[styles.section, { backgroundColor: colors.rowBackground }]}
             >
-              <ThemeToggle />
-            </View>
-          )}
-
-          {Platform.OS !== "web" && (user ? (
-            (
-              <>
-                {user.settings?.notifications && (
-                  <NotificationsSection
-                    gatzClient={gatzClient}
-                    notifications={user.settings.notifications}
-                    syncEngine={syncEngine}
-                  />
-                )}
-                {user.settings?.location && (
-                  <LocationSection
-                    gatzClient={gatzClient}
-                    location={user.settings.location}
-                    syncEngine={syncEngine}
-                  />
-                )}
-              </>
-            )
-          ) : (
-            <View style={[styles.sections, { backgroundColor: colors.rowBackground }]}>
-              <ActivityIndicator size="large" />
-            </View>
-          ))}
-
-          <View style={[styles.section, { backgroundColor: colors.rowBackground }]} >
-            <Text style={[styles.title, { color: colors.primaryText }]}>
-              About Gatz
-            </Text>
-            <View
-              style={[
-                styles.row,
-                { marginBottom: 8, backgroundColor: colors.appBackground },
-              ]}
-            >
-              <Text style={{ fontSize: 18, color: colors.primaryText }}>
-                App version
+              <Text style={[styles.title, { color: colors.primaryText }]}>
+                Log in
               </Text>
-              <Text style={{ fontSize: 18, color: colors.secondaryText }}>
-                {Constants.expoConfig.version}
+
+              <View
+                style={[
+                  styles.row,
+                  { marginBottom: 8, backgroundColor: colors.appBackground },
+                ]}
+              >
+                <Text style={{ fontSize: 18, color: colors.secondaryText }}>
+                  {user.phone_number}
+                </Text>
+                <Text style={{ fontSize: 16, color: colors.strongGrey }}>
+                  Only used for log in
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.row, { backgroundColor: colors.appBackground }]}
+                onPress={signOut}
+              >
+                <Text
+                  style={[
+                    styles.labelText,
+                    { color: colors.errorFont, fontWeight: "400" },
+                  ]}
+                >
+                  Log out
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {false && (
+              <View
+                style={[
+                  styles.section,
+                  { backgroundColor: colors.rowBackground },
+                ]}
+              >
+                <ThemeToggle />
+              </View>
+            )}
+
+            {Platform.OS !== "web" && (user ? (
+              (
+                <>
+                  {user.settings?.notifications && (
+                    <NotificationsSection
+                      gatzClient={gatzClient}
+                      notifications={user.settings.notifications}
+                      syncEngine={syncEngine}
+                    />
+                  )}
+                  {user.settings?.location && (
+                    <LocationSection
+                      gatzClient={gatzClient}
+                      location={user.settings.location}
+                      syncEngine={syncEngine}
+                    />
+                  )}
+                </>
+              )
+            ) : (
+              <View style={[styles.sections, { backgroundColor: colors.rowBackground }]}>
+                <ActivityIndicator size="large" />
+              </View>
+            ))}
+
+            <View style={[styles.section, { backgroundColor: colors.rowBackground }]} >
+              <Text style={[styles.title, { color: colors.primaryText }]}>
+                About Gatz
               </Text>
+              <View
+                style={[
+                  styles.row,
+                  { marginBottom: 8, backgroundColor: colors.appBackground },
+                ]}
+              >
+                <Text style={{ fontSize: 18, color: colors.primaryText }}>
+                  App version
+                </Text>
+                <Text style={{ fontSize: 18, color: colors.secondaryText }}>
+                  {Constants.expoConfig.version}
+                </Text>
+              </View>
+            </View>
+            <View style={[{ backgroundColor: colors.rowBackground }]}>
+              <Text style={[styles.title, { color: colors.primaryText }]}>
+                Danger
+              </Text>
+              <TouchableOpacity
+                style={[styles.row, { backgroundColor: colors.appBackground }]}
+                onPress={onDeleteAccount}
+              >
+                <Text style={[styles.labelText, { color: colors.errorFont, fontWeight: "400" }]}>
+                  Delete account
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
-          <View style={[{ backgroundColor: colors.rowBackground }]}>
-            <Text style={[styles.title, { color: colors.primaryText }]}>
-              Danger
-            </Text>
-            <TouchableOpacity
-              style={[styles.row, { backgroundColor: colors.appBackground }]}
-              onPress={onDeleteAccount}
-            >
-              <Text style={[styles.labelText, { color: colors.errorFont, fontWeight: "400" }]}>
-                Delete account
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
     </View>
   );
 }
