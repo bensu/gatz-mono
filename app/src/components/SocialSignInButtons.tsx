@@ -46,6 +46,8 @@ export const SocialSignInButtons: React.FC<SocialSignInButtonsProps> = ({
       await onSignIn(credential);
     } catch (error) {
       console.error('Apple Sign-In failed:', error);
+      // Re-throw the error so the parent component can handle it properly
+      throw error;
     } finally {
       setIsAppleLoading(false);
     }
@@ -61,6 +63,8 @@ export const SocialSignInButtons: React.FC<SocialSignInButtonsProps> = ({
     } catch (error) {
       console.log('Google Sign-In failed');
       console.error(error);
+      // Re-throw the error so the parent component can handle it properly
+      throw error;
     } finally {
       setIsGoogleLoading(false);
     }

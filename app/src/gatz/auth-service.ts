@@ -192,9 +192,9 @@ export class AuthService {
           () => this.client.appleSignIn(credential.idToken, 'chat.gatz')
         );
       } else {
-        const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
+        // Use the same client ID that was used to acquire the token
         response = await this.executeWithoutRetry(
-          () => this.client.googleSignIn(credential.idToken, webClientId)
+          () => this.client.googleSignIn(credential.idToken, credential.clientId)
         );
       }
 
