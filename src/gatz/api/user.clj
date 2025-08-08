@@ -17,7 +17,7 @@
             [medley.core :refer [map-keys]]
             [sdk.posthog :as posthog]
             [sdk.twilio :as twilio]
-            [sdk.email-verification :as sdk.email-verification])
+)
   (:import [java.util Date]))
 
 (defn json-response
@@ -688,16 +688,16 @@
       (str/blank? email)
       (err-resp "missing_email" "Email address is required")
       
-      (not (sdk.email-verification/valid-email? email))
+      (not (auth/valid-email? email))
       (err-resp "invalid_email" "Invalid email address format")
       
       ;; Check rate limiting
-      (sdk.email-verification/rate-limit-exceeded? db email)
+      (auth/rate-limit-exceeded? db email)
       (err-resp "rate_limited" "Too many verification attempts. Please try again later")
       
       :else
       (try
-        (let [result (sdk.email-verification/create-verification-code! ctx email)]
+        (let [result (auth/create-verification-code! ctx email)]
           (log/info "Email verification code sent successfully to" email)
           (json-response result))
         
@@ -727,12 +727,12 @@
       (str/blank? code)
       (err-resp "missing_code" "Verification code is required")
       
-      (not (sdk.email-verification/valid-email? email))
+      (not (auth/valid-email? email))
       (err-resp "invalid_email" "Invalid email address format")
       
       :else
       (try
-        (let [result (sdk.email-verification/verify-email-code! ctx email code)]
+        (let [result (auth/verify-email-code! ctx email code)]
           (log/info "Email code verification result for" email ":" (:status result))
           
           (if (= "approved" (:status result))
@@ -773,13 +773,13 @@
         (log/warn "link-email: missing code")
         (err-resp "missing_code" "Verification code is required"))
       
-      (not (sdk.email-verification/valid-email? email))
+      (not (auth/valid-email? email))
       (err-resp "invalid_email" "Invalid email address format")
       
       :else
       (try
         (log/info "link-email: attempting to verify email code")
-        (let [verification-result (sdk.email-verification/verify-email-code! ctx email code)]
+        (let [verification-result (auth/verify-email-code! ctx email code)]
           
           (if (= "approved" (:status verification-result))
             (let [existing-email-user (db.user/by-email db email)
@@ -832,7 +832,7 @@
       (str/blank? username)
       (err-resp "missing_username" "Username is required")
       
-      (not (sdk.email-verification/valid-email? email))
+      (not (auth/valid-email? email))
       (err-resp "invalid_email" "Invalid email address format")
       
       ;; Check signup disabled flag
@@ -842,7 +842,7 @@
       :else
       (try
         (let [clean-username (clean-username username)
-              clean-email (sdk.email-verification/clean-email email)
+              clean-email (auth/clean-email email)
               existing-user (db.user/by-email db clean-email)]
           
           ;; Validate username
