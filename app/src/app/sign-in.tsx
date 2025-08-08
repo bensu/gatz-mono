@@ -845,11 +845,11 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: GatzColor.introTitle,
+    borderColor: '#000000',
     borderRadius: 8,
   },
   emailSignInText: {
-    color: GatzColor.introTitle,
+    color: '#000000',
     fontSize: 16,
     fontFamily: GatzStyles.tagline.fontFamily,
     fontWeight: '500',

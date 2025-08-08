@@ -82,7 +82,7 @@ export const SocialSignInButtons: React.FC<SocialSignInButtonsProps> = ({
       
       {useModalStyling ? (
         <TouchableOpacity
-          style={[styles.modalGoogleButton, { borderColor: colors.strongGrey }]}
+          style={[styles.modalGoogleButton, { borderColor: '#000000' }]}
           onPress={handleGoogleSignIn}
           disabled={isAnyLoading}
         >
@@ -93,11 +93,12 @@ export const SocialSignInButtons: React.FC<SocialSignInButtonsProps> = ({
         </TouchableOpacity>
       ) : (
         <TouchableOpacity
-          style={[styles.signInGoogleButton, { borderColor: GatzColor.introTitle }]}
+          style={[styles.signInGoogleButton, { borderColor: '#000000' }]}
           onPress={handleGoogleSignIn}
           disabled={isAnyLoading}
         >
-          <Text style={[styles.signInGoogleButtonText, { color: GatzColor.introTitle }]}>
+          <Ionicons name="logo-google" size={20} color="#4285F4" style={styles.signInGoogleIcon} />
+          <Text style={[styles.signInGoogleButtonText, { color: '#000000' }]}>
             {isGoogleLoading ? 'Signing in...' : 'Sign in with Google'}
           </Text>
         </TouchableOpacity>
@@ -124,7 +125,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 14,
     paddingHorizontal: 16,
-    gap: 12,
+    gap: 8,
     height: 50,
   },
   modalGoogleButtonText: {
@@ -134,12 +135,18 @@ const styles = StyleSheet.create({
   },
   // Sign-in page styling (matches email button style)
   signInGoogleButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
     marginTop: 12,
     borderWidth: 1,
     borderRadius: 8,
+    gap: 8,
+  },
+  signInGoogleIcon: {
+    marginRight: 0,
   },
   signInGoogleButtonText: {
     fontSize: 16,

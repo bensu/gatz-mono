@@ -62,7 +62,6 @@ describe('migration', () => {
     test('should not show UI when migration is not required', async () => {
       const migrationStatus: MigrationStatus = {
         required: false,
-        auth_method: 'apple',
         show_migration_screen: false,
         completed_at: new Date().toISOString(),
       };
@@ -79,7 +78,6 @@ describe('migration', () => {
     test('should show screen for first-time migration', async () => {
       const migrationStatus: MigrationStatus = {
         required: true,
-        auth_method: 'sms',
         show_migration_screen: true,
         completed_at: null,
       };
@@ -102,7 +100,6 @@ describe('migration', () => {
     test('should show banner for reminder after screen shown', async () => {
       const migrationStatus: MigrationStatus = {
         required: true,
-        auth_method: 'sms',
         show_migration_screen: true,
         completed_at: null,
       };
@@ -125,7 +122,6 @@ describe('migration', () => {
     test('should not show UI when user has postponed migration', async () => {
       const migrationStatus: MigrationStatus = {
         required: true,
-        auth_method: 'sms',
         show_migration_screen: true,
         completed_at: null,
       };
@@ -150,7 +146,6 @@ describe('migration', () => {
     test('shouldShowMigrationScreen should return correct value', async () => {
       const migrationStatus: MigrationStatus = {
         required: true,
-        auth_method: 'sms',
         show_migration_screen: true,
         completed_at: null,
       };
@@ -168,7 +163,6 @@ describe('migration', () => {
     test('shouldShowMigrationBanner should return correct value', async () => {
       const migrationStatus: MigrationStatus = {
         required: true,
-        auth_method: 'sms',
         show_migration_screen: true,
         completed_at: null,
       };

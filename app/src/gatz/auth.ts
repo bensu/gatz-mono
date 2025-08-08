@@ -81,22 +81,27 @@ export const configureGoogleSignIn = () => {
     return;
   }
 
-  const config = {
+  let config = {
     // Web client ID is used for web platform and also needed for Android
     webClientId,
     // Request offline access for refresh tokens
     offlineAccess: true,
   };
 
-  // Add iOS client ID if available
-  if (iosClientId) {
-    config.iosClientId = iosClientId;
+  // For iOS, use iOS client ID as the main webClientId to ensure tokens are issued with correct audience
+  if (Platform.OS === 'ios' && iosClientId) {
+    config = {
+      ...config,
+      webClientId: iosClientId,
+      iosClientId: iosClientId,
+    };
   }
-
   // For Android, use the Android-specific client ID if available
-  // Otherwise fall back to web client ID
-  if (Platform.OS === 'android' && androidClientId) {
-    config.webClientId = androidClientId;
+  else if (Platform.OS === 'android' && androidClientId) {
+    config = {
+      ...config,
+      webClientId: androidClientId,
+    };
   }
 
   GoogleSignin.configure(config);
