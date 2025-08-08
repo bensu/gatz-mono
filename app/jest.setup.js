@@ -163,6 +163,30 @@ jest.mock('expo-av', () => ({
   },
 }));
 
+// Mock expo-video
+jest.mock('expo-video', () => ({
+  VideoView: ({ testID, style, ...props }) => {
+    const React = require('react');
+    const { View } = require('react-native');
+    return React.createElement(View, {
+      testID: testID || 'Video', // Fallback to 'Video' for test compatibility
+      style,
+      ...props,
+      accessibilityLabel: `VideoView with expo-video`,
+    });
+  },
+  useVideoPlayer: jest.fn(() => ({
+    pause: jest.fn(),
+    play: jest.fn(),
+    mute: jest.fn(),
+    replace: jest.fn(),
+    currentTime: 0,
+    duration: 0,
+    isLoaded: true,
+    isPlaying: false,
+  })),
+}));
+
 // Mock expo-router
 jest.mock('expo-router', () => ({
   useRouter: jest.fn(() => ({
@@ -237,4 +261,18 @@ NativeModules.SettingsManager = {
 // Mock react-native-get-random-values
 jest.mock('react-native-get-random-values', () => ({
   getRandomBase64: jest.fn(),
+}));
+
+// Mock react-native-webview
+jest.mock('react-native-webview', () => ({
+  WebView: ({ source, style, onMessage, onLoad, onError, testID, ...props }) => {
+    const React = require('react');
+    const { View } = require('react-native');
+    return React.createElement(View, {
+      testID: testID || 'WebView',
+      style,
+      ...props,
+      accessibilityLabel: `WebView loading: ${source?.uri || source?.html || 'content'}`,
+    });
+  },
 }));

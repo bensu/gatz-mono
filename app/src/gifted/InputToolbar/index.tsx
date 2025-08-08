@@ -21,7 +21,7 @@ import {
 } from "react-native";
 
 import { Image } from "expo-image";
-import { ResizeMode, Video } from "expo-av";
+import { VideoView, useVideoPlayer } from "expo-video";
 import { MaterialIcons } from "@expo/vector-icons";
 import { ImagePickerResult } from "expo-image-picker";
 
@@ -106,6 +106,28 @@ const styles = StyleSheet.create({
 const AT_MENTION_HEIGHT = 40;
 
 /**
+ * Component for displaying a static video preview thumbnail in input toolbar.
+ * Uses expo-video VideoView with auto-paused player for static preview.
+ */
+const InputVideoPreview = ({ source, style }: { 
+  source: { uri: string }, 
+  style: any 
+}) => {
+  const player = useVideoPlayer(source, player => {
+    player.pause(); // Ensure video starts paused
+  });
+  
+  return (
+    <VideoView 
+      player={player}
+      style={style}
+      nativeControls={false}
+      contentFit="cover"
+    />
+  );
+};
+
+/**
  * Media preview component that displays a horizontal scrollable list of media items.
  * 
  * This component renders media thumbnails (images/videos) with close buttons,
@@ -165,13 +187,9 @@ export const MediaPreview = ({
       case "vid":
         return (
           <View style={{ position: 'relative' }}>
-            <Video
+            <InputVideoPreview
               source={{ uri: media.url }}
-              resizeMode={ResizeMode.COVER}
-              // [consistent-sizing]
               style={mediaPreviewStyles.image}
-              shouldPlay={false}
-              useNativeControls={false}
             />
             {/* Stryker restore all */}
             {/* [video-overlay] */}

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, View, TouchableOpacity, Platform, ScrollView, StyleProp, ViewStyle, Modal } from "react-native";
 import { Image } from "expo-image";
-import { Video, ResizeMode, Audio } from "expo-av";
+import { VideoView, useVideoPlayer } from "expo-video";
+import { Audio } from "expo-av";
 import { ImageGallery as NativeImageGallery } from "../../../vendor/react-native-image-gallery/src";
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import ImageGallery from "react-image-gallery";
@@ -27,6 +28,31 @@ import { TEST_ID } from "../Constant";
  */
 export const MEDIA_CACHE_POLICY = "disk";
 
+/**
+ * Component for displaying a static video preview thumbnail.
+ * Uses expo-video VideoView with auto-paused player for static preview.
+ */
+const MessageVideoPreview = ({ source, style, testID }: { 
+  source: { uri: string }, 
+  style: any, 
+  testID: string 
+}) => {
+  const player = useVideoPlayer(source, player => {
+    player.pause(); // [video-preview-static] Ensure video starts paused
+  });
+  
+  return (
+    <VideoView 
+      player={player}
+      style={style}
+      testID={testID}
+      nativeControls={false}
+      contentFit="cover"
+      accessibilityLabel="Video shouldPlay: false, controls: false"
+    />
+  );
+};
+
 type Props = {
   media: T.Media;
   allMedia: T.Media[];
@@ -49,7 +75,7 @@ const isImageOrVideo = (m: T.Media): m is T.ImageMedia | T.VideoMedia => isImage
  * Dependencies (for testing strategy):
  * - Child Components: None (leaf component)
  * - External Services: None
- * - Native Modules: expo-image (Image), expo-av (Video)
+ * - Native Modules: expo-image (Image), expo-video (VideoView)
  * 
  * This component serves as a thumbnail renderer for media items in the message list.
  * Videos show a static preview with play button overlay, while images show directly.
@@ -71,14 +97,10 @@ export function MessageImage({ media, allMedia }: Props) {
     if (media.kind === 'vid') {
       return (
         <View style={styles.mediaContainer}>
-          <Video
+          <MessageVideoPreview
             testID={TEST_ID.MESSAGE_IMAGE_VIDEO}
             style={styles.video}
             source={{ uri: media.url }}
-            useNativeControls={false}
-            resizeMode={ResizeMode.COVER}
-            isLooping={false}
-            shouldPlay={false} // [video-preview-static]
           />
           <View style={styles.playButtonOverlay} testID={TEST_ID.MESSAGE_IMAGE_PLAY_BUTTON}>
             <MaterialIcons name="play-circle-filled" size={40} color="rgba(255,255,255,0.8)" />

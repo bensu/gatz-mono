@@ -19,7 +19,7 @@ import {
   Platform,
 } from "react-native";
 import { Image } from "expo-image";
-import { Video, ResizeMode } from "expo-av";
+import { VideoView, useVideoPlayer } from "expo-video";
 
 import { MaterialIcons } from "@expo/vector-icons";
 
@@ -51,6 +51,28 @@ import { multiPlatformAlert } from "../util";
 
 export const OUTER_H_PADDING = 10;
 
+/**
+ * Component for displaying a video preview with native controls in post composer.
+ * Uses expo-video VideoView with paused player but shows native controls.
+ */
+const PostVideoPreview = ({ source, style }: { 
+  source: { uri: string }, 
+  style: any 
+}) => {
+  const player = useVideoPlayer(source, player => {
+    player.pause(); // Start paused
+  });
+  
+  return (
+    <VideoView 
+      player={player}
+      style={style}
+      nativeControls={true} // Show controls for post preview
+      contentFit="cover"
+    />
+  );
+};
+
 const InlineMedia = ({ media }: { media: T.Media }) => {
   switch (media.kind) {
     case "img":
@@ -64,12 +86,9 @@ const InlineMedia = ({ media }: { media: T.Media }) => {
     case "vid":
       return (
         <View style={{ width: 150, height: 150, position: 'relative' }}>
-          <Video
+          <PostVideoPreview
             source={{ uri: media.url }}
-            useNativeControls
-            resizeMode={ResizeMode.COVER}
             style={{ width: 150, height: 150 }}
-            shouldPlay={false}
           />
           <View style={{
             position: 'absolute',

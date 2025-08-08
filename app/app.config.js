@@ -58,6 +58,8 @@ export default {
     plugins: [
       "expo-router",
       "expo-font",
+      "expo-localization",
+      "expo-video",
       [
         "expo-image-picker",
         {
