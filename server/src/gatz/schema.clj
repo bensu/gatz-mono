@@ -990,6 +990,22 @@
    [:feed/location_id [:maybe #'LocationId]]])
 
 ;; ======================================================================
+;; Email verification
+
+(def EmailVerificationCode
+  [:map
+   [:xt/id :uuid]
+   [:db/type [:enum :email/verification_code]]
+   [:verification/email string?]
+   [:verification/code string?]
+   [:verification/created_at inst?]
+   [:verification/expires_at inst?]
+   [:verification/attempts int?]
+   [:verification/used boolean?]
+   [:verification/ip_address {:optional true} string?]
+   [:verification/user_agent {:optional true} string?]])
+
+;; ======================================================================
 ;; Final schema
 
 (def max-message-length 10000)
@@ -1019,7 +1035,8 @@
    :gatz.doc/message #'MessageDoc
    :gatz/mention #'Mention
    :gatz/push PushToken
-   :gatz/location #'Location})
+   :gatz/location #'Location
+   :email/verification_code #'EmailVerificationCode})
 
 (def plugin {:schema schema})
 

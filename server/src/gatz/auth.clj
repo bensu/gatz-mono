@@ -1,16 +1,21 @@
 (ns gatz.auth
   (:require [clojure.data.json :as json]
+            [clojure.tools.logging :as log]
+            [clojure.string :as str]
             [gatz.db.user :as db.user]
+            [gatz.email :as email]
             [buddy.sign.jwt :as jwt]
             [buddy.sign.jws :as jws]
             [buddy.core.keys :as keys]
             [clj-http.client :as http]
             [gatz.util :as util]
-            [clojure.string :as str])
+            [xtdb.api :as xtdb]
+            [com.biffweb :as biff])
   (:import [java.security.spec RSAPublicKeySpec]
            [java.security KeyFactory]
            [java.math BigInteger]
-           [java.util Base64]))
+           [java.util Base64 Date]
+           [java.security SecureRandom]))
 
 (def auth-schema
   [:map
@@ -256,3 +261,154 @@
       (throw (ex-info "Google ID token verification failed"
                       {:error (.getMessage e) :token (subs id-token 0 (min 50 (count id-token)))}
                       e)))))
+
+;; Email verification configuration
+(def CODE_LENGTH 6)
+(def CODE_EXPIRY_MINUTES 10)
+(def MAX_ATTEMPTS_PER_EMAIL 3)
+(def RATE_LIMIT_MINUTES 15)
+
+(defn generate-code
+  "Generate a random 6-digit verification code"
+  []
+  (let [random (SecureRandom.)
+        code (StringBuilder.)]
+    (dotimes [_ CODE_LENGTH]
+      (.append code (.nextInt random 10)))
+    (.toString code)))
+
+(defn code-expires-at 
+  "Calculate expiration time for a verification code"
+  [created-at]
+  (Date. (+ (.getTime created-at) (* CODE_EXPIRY_MINUTES 60 1000))))
+
+(defn clean-email 
+  "Clean and normalize email address"
+  [email]
+  (some-> email str/trim str/lower-case))
+
+(defn valid-email? 
+  "Comprehensive email validation"
+  [email]
+  (and (string? email)
+       (>= 320 (count email))  ; RFC 5321 limit
+       (<= 6 (count email))    ; Minimum reasonable email length
+       (re-matches #"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$" email)
+       (not (str/starts-with? email "."))
+       (not (str/ends-with? email "."))
+       (not (str/includes? email ".."))
+       (not (str/includes? email "@."))
+       (not (str/includes? email ".@"))))
+
+(defn expired? 
+  "Check if a verification code has expired"
+  [verification-doc]
+  (let [now (Date.)
+        expires-at (:verification/expires_at verification-doc)]
+    (.after now expires-at)))
+
+(defn get-active-verification 
+  "Get active (non-expired, non-used) verification for an email"
+  [db email]
+  (let [clean-email (clean-email email)
+        verifications (xtdb/q db
+                             '{:find [(pull v [*])]
+                               :in [email]
+                               :where [[v :verification/email email]
+                                      [v :db/type :email/verification_code]
+                                      [v :verification/used false]]}
+                             clean-email)]
+    (->> verifications
+         (map first)
+         (remove expired?)
+         (sort-by :verification/created_at)
+         last))) ; Get the most recent non-expired verification
+
+(defn create-verification-code! 
+  "Create a new email verification code with security checks"
+  [{:keys [biff.xtdb/node headers remote-addr] :as ctx} email]
+  (let [clean-email (clean-email email)
+        db (xtdb/db node)
+        now (Date.)
+        code (generate-code)
+        verification-id (random-uuid)
+        verification-doc {:xt/id verification-id
+                         :db/type :email/verification_code
+                         :verification/email clean-email
+                         :verification/code code
+                         :verification/created_at now
+                         :verification/expires_at (code-expires-at now)
+                         :verification/attempts 0
+                         :verification/used false}]
+    
+    (log/info "Creating email verification code for" clean-email "with ID" verification-id)
+    
+    ;; Store the verification code
+    (biff/submit-tx ctx [verification-doc])
+    
+    ;; Send email with code
+    (let [email-sent? (email/send-email ctx
+                                       {:template :signin-code
+                                        :to clean-email
+                                        :code code
+                                        :user-exists false})]
+      (if email-sent?
+        {:status "sent" :email clean-email}
+        (throw (ex-info "Failed to send verification email" 
+                       {:email clean-email :code code}))))))
+
+(defn verify-email-code! 
+  "Verify an email code and mark it as used"
+  [{:keys [biff.xtdb/node] :as ctx} email code]
+  (let [clean-email (clean-email email)
+        clean-code (str/trim code)
+        db (xtdb/db node)
+        verification (get-active-verification db clean-email)]
+    
+    (log/info "Verifying email code for" clean-email "with code" clean-code)
+    
+    (cond
+      (nil? verification)
+      {:status "no_code" :message "No active verification code found for this email"}
+      
+      (expired? verification)
+      {:status "expired" :message "Verification code has expired"}
+      
+      (>= (:verification/attempts verification) 3)
+      {:status "max_attempts" :message "Too many failed attempts"}
+      
+      (not= clean-code (:verification/code verification))
+      (do
+        ;; Increment attempts
+        (biff/submit-tx ctx [(update verification :verification/attempts inc)])
+        {:status "wrong_code" :message "Invalid verification code"})
+      
+      :else
+      (do
+        ;; Mark as used
+        (biff/submit-tx ctx [(assoc verification :verification/used true)])
+        {:status "approved" :email clean-email}))))
+
+(defn count-recent-attempts
+  "Count verification attempts for an email in the last RATE_LIMIT_MINUTES"
+  [db email]
+  (let [clean-email (clean-email email)
+        cutoff-time (Date. (- (.getTime (Date.)) (* RATE_LIMIT_MINUTES 60 1000)))
+        attempts (xtdb/q db
+                        '{:find [attempts]
+                          :in [email cutoff-time]
+                          :where [[v :verification/email email]
+                                 [v :db/type :email/verification_code]
+                                 [v :verification/created_at created-at]
+                                 [(>= created-at cutoff-time)]
+                                 [v :verification/attempts attempts]]}
+                        clean-email
+                        cutoff-time)]
+    (reduce + 0 (map first attempts))))
+
+(defn rate-limit-exceeded? 
+  "Check if email sending rate limit has been exceeded"
+  [db email]
+  (let [recent-attempts (count-recent-attempts db email)]
+    (>= recent-attempts MAX_ATTEMPTS_PER_EMAIL)))
+
