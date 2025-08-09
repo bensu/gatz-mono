@@ -48,8 +48,10 @@
    opts))
 
 (defn send-postmark [{:keys [biff/secret postmark/from]} form-params]
-  (let [result (http/post "https://api.postmarkapp.com/email"
-                          {:headers {"X-Postmark-Server-Token" (secret :postmark/api-key)}
+  (let [api-key (secret :postmark/api-key)
+        _ (assert api-key "Postmark API key is required")
+        result (http/post "https://api.postmarkapp.com/email"
+                          {:headers {"X-Postmark-Server-Token" api-key}
                            :as :json
                            :content-type :json
                            :form-params (merge {:from from} (cske/transform-keys csk/->PascalCase form-params))
