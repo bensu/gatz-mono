@@ -215,11 +215,16 @@
 
 ;; TODO: do params validation
 (defn sign-up! [{:keys [params biff/db] :as ctx}]
+  (def -ctx ctx)
   (if-let [username (some-> (:username params) clean-username)]
     (if-let [phone (some-> (:phone_number params) clean-phone)]
       (cond
         (:gatz.auth/signup-disabled? ctx)
         (err-resp "signup_disabled" "Sign up is disabled right now")
+
+        ;; Phase 2: Block SMS signup for new users when restriction is enabled
+        (:gatz.auth/sms-signup-restricted? ctx)
+        (err-resp "sms_signup_restricted" "SMS signup is no longer available for new users. Please sign up with Apple, Google, or email instead.")
 
         (not (crdt.user/valid-username? username))
         (err-resp "invalid_username" "Username is invalid")

@@ -23,6 +23,7 @@
         :gatz.auth/jwt-secret "GATZ_JWT_SECRET"
 
         :gatz.auth/signup-disabled? false
+        :gatz.auth/sms-signup-restricted? true
 
         :gatz.site/host "https://gatz.chat"
         :gatz.api/host "https://api.gatz.chat"
@@ -76,6 +77,7 @@
        :biff.middleware/secure false
 
        :gatz.db.user/make-friends-with-everybody? false
+       :gatz.auth/sms-signup-restricted? true
        :gatz.site/host "http://localhost:3000"
        :gatz.api/host "http://localhost:8080"
        :gatz.app/host "http://localhost:8081"
