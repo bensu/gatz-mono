@@ -16,7 +16,6 @@ import {
   isAuthError
 } from './auth-errors';
 
-export type AuthMethod = 'sms' | 'apple' | 'google' | 'email';
 
 export interface AuthResult {
   success: boolean;
@@ -325,6 +324,9 @@ export class AuthService {
             errorType = AuthErrorType.PHONE_TAKEN;
             break;
           case 'signup_disabled':
+            errorType = AuthErrorType.SIGNUP_DISABLED;
+            break;
+          case 'sms_signup_restricted':
             errorType = AuthErrorType.SIGNUP_DISABLED;
             break;
           default:

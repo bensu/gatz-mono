@@ -9,14 +9,11 @@ import { usePathname } from "expo-router";
 
 const LOCAL_SESSION_KEY = "gatz/auth";
 
-export type AuthMethod = 'sms' | 'apple' | 'google' | 'email';
-
 export type Session = {
   userId: string;
   token: string;
   is_admin: boolean;
   is_test: boolean;
-  authMethod?: AuthMethod;
   lastAuthAt?: string;
 };
 
@@ -53,7 +50,6 @@ const getLocalSession = async (): Promise<Session | null> => {
         token: parsed.token,
         is_admin: parsed.is_admin || false,
         is_test: parsed.is_test || false,
-        authMethod: parsed.authMethod,
         lastAuthAt: parsed.lastAuthAt,
       } as Session;
       return out;
@@ -82,7 +78,6 @@ const clearLocalSession = async () => {
 
 type SignInOpts = { 
   redirectTo: string;
-  authMethod?: AuthMethod;
 };
 
 export type SessionContextType = {
@@ -126,7 +121,6 @@ export function SessionProvider(props: React.PropsWithChildren) {
   ) => {
     const sessionWithMeta = {
       ...session,
-      authMethod: opts.authMethod || session.authMethod || 'sms',
       lastAuthAt: new Date().toISOString(),
     };
     setLocalSession(sessionWithMeta);

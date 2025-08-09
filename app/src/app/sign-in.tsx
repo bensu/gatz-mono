@@ -161,6 +161,7 @@ const SIGN_UP_ERROR_MESSAGES: Record<T.SignUpError, string> = {
   phone_taken: "This phone was taken",
   username_taken: "This username is taken",
   signup_disabled: "Sign up is closed",
+  sms_signup_restricted: "SMS signup is no longer available for new users. Please sign up with Apple, Google, or email instead.",
 };
 
 export default function SignIn() {
@@ -242,8 +243,7 @@ export default function SignIn() {
                 () => signIn(
                   { userId: user.id, token, is_admin, is_test },
                   { 
-                    redirectTo: "/",
-                    authMethod: 'sms'
+                    redirectTo: "/"
                   }
                 ),
                 FLASH_SUCCESS_TIMEOUT,
@@ -399,7 +399,6 @@ export default function SignIn() {
       }
     } else {
       const { user, token, is_admin = false, is_test = false } = r;
-      const authMethod = socialSignupData?.type || 'sms';
       setTimeout(() => {
         signIn(
           { userId: user.id, token, is_admin, is_test },
@@ -408,7 +407,6 @@ export default function SignIn() {
               web: "/howto",
               default: "/notifications",
             }),
-            authMethod,
           },
         );
       }, FLASH_SUCCESS_TIMEOUT);
@@ -473,8 +471,6 @@ export default function SignIn() {
         if (result.user && result.token) {
           const { user, token } = result;
           const { is_admin = false, is_test = false } = user;
-          const authMethod = credential.type === 'apple' ? 'apple' : 'google';
-          
           // Show success message during the delay
           setSocialSignInSuccess(true);
           
@@ -485,8 +481,7 @@ export default function SignIn() {
                 redirectTo: Platform.select({
                   web: "/",
                   default: "/"
-                }),
-                authMethod
+                })
               }
             ),
             FLASH_SUCCESS_TIMEOUT,
@@ -540,8 +535,7 @@ export default function SignIn() {
               redirectTo: Platform.select({
                 web: "/",
                 default: "/"
-              }),
-              authMethod: 'email'
+              })
             }
           ),
           FLASH_SUCCESS_TIMEOUT,

@@ -435,7 +435,8 @@ export type SignUpError =
   | "username_taken"
   | "invalid_username"
   | "phone_taken"
-  | "signup_disabled";
+  | "signup_disabled"
+  | "sms_signup_restricted";
 
 export type SignUpAPIResponse = APIResponse &
   (
