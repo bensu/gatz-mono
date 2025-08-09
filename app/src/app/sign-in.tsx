@@ -599,7 +599,7 @@ export default function SignIn() {
                       />
                     )}
                     <TouchableOpacity
-                      style={styles.emailSignInButton}
+                      style={[styles.emailSignInButton, { backgroundColor: colors.appBackground, borderColor: colors.primaryText}]}
                       onPress={() => setShowEmailSignIn(true)}
                       disabled={isPhoneLoading || isSocialSignInLoading}
                     >
@@ -855,12 +855,10 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
     paddingVertical: 12,
     paddingHorizontal: 16,
     marginTop: 12,
-    borderWidth: 1,
-    borderColor: '#000000',
+    borderWidth: 0.5,
     borderRadius: 8,
     height: 50,
     gap: 8,
