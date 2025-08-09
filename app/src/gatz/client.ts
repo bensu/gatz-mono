@@ -116,10 +116,18 @@ export class OpenClient {
   }
 
   async verifyPhone(phone_number: string): Promise<T.VerifyPhoneAPIResponse> {
-    return await this.post<{ phone_number: string }, T.VerifyPhoneAPIResponse>(
-      this.baseURL + "/api/verify/start",
-      { phone_number },
-    );
+    try {
+      return await this.post<{ phone_number: string }, T.VerifyPhoneAPIResponse>(
+        this.baseURL + "/api/verify/start",
+        { phone_number },
+      );
+    } catch (error) {
+      if (error.response && error.response.status === 400) {
+        return error.response.data;
+      } else {
+        throw error;
+      }
+    }
   }
 
   async verifyCode(

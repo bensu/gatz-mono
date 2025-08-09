@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
     display: "flex",
     flexDirection: "row",
     justifyContent: "space-between",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: GatzColor.introTitle,
     borderWidth: 1,
     borderColor: "#000000",
     alignItems: "center",
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 22,
     lineHeight: 22,
-    color: "#000000",
+    color: GatzColor.introBackground,
     fontWeight: "500",
   },
 });

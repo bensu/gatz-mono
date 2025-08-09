@@ -703,13 +703,17 @@ export type MessageAPIResponse = APIResponse & { message: Message };
 // TODO: these don't match the backend
 export type VerifyStatus = "pending" | "wrong_code" | "approved" | "failed";
 
-export type VerifyPhoneAPIResponse = APIResponse & {
-  phone_number: string;
-  status: VerifyStatus;
-  user?: User;
-  token?: string;
-  attemps: number;
-};
+export type VerifyPhoneAPIResponse = APIResponse & 
+  (
+    | {
+        phone_number: string;
+        status: VerifyStatus;
+        user?: User;
+        token?: string;
+        attemps: number;
+      }
+    | APIErrorResponse
+  );
 
 export type CheckUsernameAPIResponse = APIResponse & {
   username: string;
