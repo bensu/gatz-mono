@@ -225,9 +225,10 @@ export class AuthService {
           requiresSignup: true,
           signupData: {
             apple_id: response.apple_id,
+            google_id: response.google_id,
             email: response.email,
             full_name: response.full_name,
-            id_token: credential.type === 'apple' ? credential.idToken : undefined
+            id_token: credential.idToken
           }
         };
       }
@@ -290,11 +291,15 @@ export class AuthService {
     id_token?: string;
   }): Promise<SignUpResult> {
     try {
-      let response: T.SignUpAPIResponse | T.AppleSignInAPIResponse;
+      let response: T.SignUpAPIResponse | T.AppleSignInAPIResponse | T.GoogleSignInAPIResponse;
       
       if (socialData?.apple_id && socialData.id_token) {
         response = await this.executeWithoutRetry(
           () => this.client.appleSignUp(socialData.id_token, username, 'chat.gatz')
+        );
+      } else if (socialData?.google_id && socialData.id_token) {
+        response = await this.executeWithoutRetry(
+          () => this.client.googleSignUp(socialData.id_token, username, socialData.google_id)
         );
       } else if (phoneNumber) {
         response = await this.executeWithoutRetry(

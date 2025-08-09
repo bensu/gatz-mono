@@ -99,7 +99,7 @@
    [:user/is_test [:maybe boolean?]]
    [:user/is_admin [:maybe boolean?]]
    [:user/name string?]
-   [:user/phone_number string?]
+   [:user/phone_number [:maybe string?]]
    ;; MaxWins
    [:user/updated_at inst?]
    ;; MinWins
@@ -138,7 +138,7 @@
    [:user/is_test [:maybe boolean?]]
    [:user/is_admin [:maybe boolean?]]
    [:user/name string?]
-   [:user/phone_number string?]
+   [:user/phone_number [:maybe string?]]
    ;; MaxWins
    [:user/updated_at (crdt/max-wins-schema inst?)]
    [:user/deleted_at (crdt/min-wins-schema [:maybe inst?])]

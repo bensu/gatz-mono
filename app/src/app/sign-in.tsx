@@ -174,18 +174,21 @@ export default function SignIn() {
   const [phone, setPhoneText] = useState("");
 
   const [existingUser, setExistingUser] = useState<T.User | null>(null);
-  const [appleSignupData, setAppleSignupData] = useState<{
-    apple_id: string;
+  const [socialSignupData, setSocialSignupData] = useState<{
+    type: 'apple' | 'google';
+    apple_id?: string;
+    google_id?: string;
     email?: string;
     full_name?: string;
     id_token: string;
+    client_id?: string; // For Google sign-in
   } | null>(null);
 
   const resetPhone = useCallback(() => {
     setPhoneText("");
     setExistingUser(null);
-    setAppleSignupData(null);
-  }, [setPhoneText, setExistingUser, setAppleSignupData]);
+    setSocialSignupData(null);
+  }, [setPhoneText, setExistingUser, setSocialSignupData]);
 
   const submitPhoneAsync = useCallback(
     async (text: string): Promise<null> => {
@@ -376,9 +379,12 @@ export default function SignIn() {
   const onSignUpAsync = async () => {
     let r: any;
     
-    if (appleSignupData) {
+    if (socialSignupData?.type === 'apple') {
       // Use Apple Sign-Up
-      r = await openClient.appleSignUp(appleSignupData.id_token, username, 'chat.gatz');
+      r = await openClient.appleSignUp(socialSignupData.id_token, username, 'chat.gatz');
+    } else if (socialSignupData?.type === 'google') {
+      // Use Google Sign-Up  
+      r = await openClient.googleSignUp(socialSignupData.id_token, username, socialSignupData.client_id!);
     } else {
       // Use regular SMS sign-up
       r = await openClient.signUp(username, phone);
@@ -393,7 +399,7 @@ export default function SignIn() {
       }
     } else {
       const { user, token, is_admin = false, is_test = false } = r;
-      const authMethod = appleSignupData ? 'apple' : 'sms';
+      const authMethod = socialSignupData?.type || 'sms';
       setTimeout(() => {
         signIn(
           { userId: user.id, token, is_admin, is_test },
@@ -451,11 +457,14 @@ export default function SignIn() {
         
         if (result.requiresSignup && result.signupData) {
           // Store social sign-in data and transition to username step
-          setAppleSignupData({
+          setSocialSignupData({
+            type: credential.type === 'apple' ? 'apple' : 'google',
             apple_id: result.signupData.apple_id,
+            google_id: result.signupData.google_id,
             email: result.signupData.email,
             full_name: result.signupData.full_name,
-            id_token: result.signupData.id_token,
+            id_token: result.signupData.id_token!,
+            client_id: credential.type === 'google' ? credential.clientId : undefined,
           });
           setStep('enter_username');
           return;
@@ -664,8 +673,8 @@ export default function SignIn() {
           (isUsernameAvailable === false ? `${username} is taken` : null);
         return (
           <>
-            {appleSignupData ? (
-              <EnteredText text={"Apple Sign-In verified"} />
+            {socialSignupData ? (
+              <EnteredText text={`${socialSignupData.type === 'apple' ? 'Apple' : 'Google'} Sign-In verified`} />
             ) : (
               <>
                 <TouchableOpacity onPress={handleRestart}>
