@@ -480,6 +480,7 @@ export type GoogleSignInAPIResponse = APIResponse &
   (
     | { type: "sign_up"; user: User; token: string }
     | { type: "sign_in"; user: User; token: string }
+    | { requires_signup: true; google_id: string; email?: string; full_name?: string }
     | { type: "error"; error: SocialSignInError; message?: string }
   );
 

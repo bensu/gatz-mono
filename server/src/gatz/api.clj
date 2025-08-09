@@ -293,6 +293,7 @@
                  ["/auth/apple" {:post api.user/apple-sign-in!}]
                  ["/auth/apple/signup" {:post api.user/apple-sign-up!}]
                  ["/auth/google" {:post api.user/google-sign-in!}]
+                 ["/auth/google/signup" {:post api.user/google-sign-up!}]
 
                  ["/ddl/pending" {:post ddl.api/post-pending-links}]
                  ["/ddl/remove" {:post ddl.api/remove-pending-link!}]

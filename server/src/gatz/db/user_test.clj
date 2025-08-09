@@ -184,6 +184,105 @@
 
         (.close node)))))
 
+(deftest test-social-users-without-sms
+  (testing "Social auth users can be created without phone numbers"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          now (Date.)
+          apple-uid (random-uuid)
+          google-uid (random-uuid)
+          apple-id "apple.000123.abc456"
+          google-id "google-user-id-789012"
+          apple-email "apple@example.com"
+          google-email "google@example.com"]
+
+      ;; Create Apple user without phone number
+      (let [apple-user (create-user! ctx {:id apple-uid
+                                          :username "appleuser"
+                                          :phone nil
+                                          :now now
+                                          :apple_id apple-id
+                                          :email apple-email})]
+        (xtdb/sync node)
+        
+        ;; Verify Apple user was created correctly
+        (let [db (xtdb/db node)
+              retrieved-user (by-id db apple-uid)
+              user-value (crdt.user/->value retrieved-user)]
+          (is (= apple-id (:user/apple_id user-value)))
+          (is (= apple-email (:user/email user-value)))
+          (is (nil? (:user/phone_number user-value)))
+          (is (nil? (:user/google_id user-value)))
+          
+          ;; Verify lookups work
+          (is (= apple-uid (:xt/id (by-apple-id db apple-id))))
+          (is (= apple-uid (:xt/id (by-email db apple-email)))))
+
+      ;; Create Google user without phone number
+      (let [google-user (create-user! ctx {:id google-uid
+                                          :username "googleuser"
+                                          :phone nil
+                                          :now now
+                                          :google_id google-id
+                                          :email google-email})]
+        (xtdb/sync node)
+        
+        ;; Verify Google user was created correctly
+        (let [db (xtdb/db node)
+              retrieved-user (by-id db google-uid)
+              user-value (crdt.user/->value retrieved-user)]
+          (is (= google-id (:user/google_id user-value)))
+          (is (= google-email (:user/email user-value)))
+          (is (nil? (:user/phone_number user-value)))
+          (is (nil? (:user/apple_id user-value)))
+          
+          ;; Verify lookups work
+          (is (= google-uid (:xt/id (by-google-id db google-id))))
+          (is (= google-uid (:xt/id (by-email db google-email)))))
+
+      ;; Verify both users exist independently
+      (xtdb/sync node)
+      (let [db (xtdb/db node)]
+        (is (not= (by-id db apple-uid) (by-id db google-uid)))
+        (is (= 2 (count (all-users db)))))
+
+      (.close node)))
+
+  (testing "Multiple social users with nil phone numbers don't conflict"
+    (let [ctx (db.util-test/test-system)
+          node (:biff.xtdb/node ctx)
+          now (Date.)
+          uid1 (random-uuid)
+          uid2 (random-uuid)]
+
+      ;; Create two different social users, both with nil phone numbers
+      (create-user! ctx {:id uid1
+                         :username "socialuser1"
+                         :phone nil
+                         :now now
+                         :apple_id "apple.different.id1"
+                         :email "user1@example.com"})
+      
+      (create-user! ctx {:id uid2
+                         :username "socialuser2"
+                         :phone nil
+                         :now now
+                         :google_id "google-different-id2"
+                         :email "user2@example.com"})
+      
+      (xtdb/sync node)
+      
+      ;; Verify both users exist with nil phone numbers
+      (let [db (xtdb/db node)
+            user1 (crdt.user/->value (by-id db uid1))
+            user2 (crdt.user/->value (by-id db uid2))]
+        (is (nil? (:user/phone_number user1)))
+        (is (nil? (:user/phone_number user2)))
+        (is (= "socialuser1" (:user/name user1)))
+        (is (= "socialuser2" (:user/name user2))))
+
+      (.close node))))))
+
 (deftest test-social-auth-migrations
   (testing "v4 users can be migrated to v5 with social auth fields"
     (let [ctx (db.util-test/test-system)

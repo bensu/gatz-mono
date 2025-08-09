@@ -219,6 +219,25 @@ export class OpenClient {
     }
   }
 
+  async googleSignUp(
+    id_token: string,
+    username: string,
+    client_id: string
+  ): Promise<T.GoogleSignInAPIResponse> {
+    try {
+      return await this.post<
+        { id_token: string; username: string; client_id: string },
+        T.GoogleSignInAPIResponse
+      >(this.baseURL + "/api/auth/google/signup", { id_token, username, client_id });
+    } catch (error) {
+      if (error.response && error.response.status === 400) {
+        return error.response.data;
+      } else {
+        throw error;
+      }
+    }
+  }
+
   // ======================================================================
   // Dulce Deep Links
 
