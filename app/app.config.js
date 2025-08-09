@@ -33,7 +33,6 @@ export default {
         backgroundColor: "#3D5135",
       },
       package: "chat.gatz",
-      googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
       softwareKeyboardLayoutMode: "resize",
       intentFilters: [
         {

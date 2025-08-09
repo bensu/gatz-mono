@@ -92,17 +92,17 @@
           apple-id "000123.abc456.apple-id"
           google-id "google-user-id-123456"
           email "user@example.com"]
-      
+
       ;; Create user with social auth fields
       (let [user (create-user! ctx {:id uid
                                     :username "testuser"
-                                    :phone "+14159499932" 
+                                    :phone "+14159499932"
                                     :now now
                                     :apple_id apple-id
                                     :google_id google-id
                                     :email email})]
         (xtdb/sync node)
-        
+
         ;; Verify user was created with correct fields (v5 schema with top-level auth)
         (let [db (xtdb/db node)
               retrieved-user (by-id db uid)
@@ -110,12 +110,12 @@
           (is (= apple-id (:user/apple_id user-value)))
           (is (= google-id (:user/google_id user-value)))
           (is (= email (:user/email user-value)))
-          
+
           ;; Test lookup by social IDs
           (is (= uid (:xt/id (by-apple-id db apple-id))))
           (is (= uid (:xt/id (by-google-id db google-id))))
           (is (= uid (:xt/id (by-email db email))))))
-      
+
       (.close node)))
 
   (testing "User with only SMS auth has default values"
@@ -123,66 +123,66 @@
           node (:biff.xtdb/node ctx)
           now (Date.)
           uid (random-uuid)]
-      
+
       ;; Create user without social auth fields (SMS only)
       (create-user! ctx {:id uid
                          :username "smsuser"
                          :phone "+14159499933"
                          :now now})
       (xtdb/sync node)
-      
+
       (let [db (xtdb/db node)
             retrieved-user (by-id db uid)
             user-value (crdt.user/->value retrieved-user)]
         (is (nil? (:user/apple_id user-value)))
         (is (nil? (:user/google_id user-value)))
         (is (nil? (:user/email user-value)))
-      
-      (.close node)))
 
-  (testing "Social auth field uniqueness constraints"
-    (let [ctx (db.util-test/test-system)
-          node (:biff.xtdb/node ctx)
-          now (Date.)
-          uid1 (random-uuid)
-          uid2 (random-uuid)
-          apple-id "000123.abc456.apple-id"
-          google-id "google-user-id-123456"
-          email "user@example.com"]
-      
-      ;; Create first user with social auth
-      (create-user! ctx {:id uid1
-                         :username "user1"
-                         :phone "+14159499934"
-                         :now now
-                         :apple_id apple-id
-                         :google_id google-id
-                         :email email})
-      (xtdb/sync node)
-      
-      ;; Attempt to create second user with same social IDs should fail
-      (is (thrown? clojure.lang.ExceptionInfo
-                   (create-user! ctx {:id uid2
-                                      :username "user2"
-                                      :phone "+14159499935"
-                                      :now now
-                                      :apple_id apple-id})))
-      
-      (is (thrown? clojure.lang.ExceptionInfo
-                   (create-user! ctx {:id uid2
-                                      :username "user2"
-                                      :phone "+14159499935"
-                                      :now now
-                                      :google_id google-id})))
-      
-      (is (thrown? clojure.lang.ExceptionInfo
-                   (create-user! ctx {:id uid2
-                                      :username "user2"
-                                      :phone "+14159499935"
-                                      :now now
-                                      :email email})))
-      
-      (.close node))))
+        (.close node)))
+
+    (testing "Social auth field uniqueness constraints"
+      (let [ctx (db.util-test/test-system)
+            node (:biff.xtdb/node ctx)
+            now (Date.)
+            uid1 (random-uuid)
+            uid2 (random-uuid)
+            apple-id "000123.abc456.apple-id"
+            google-id "google-user-id-123456"
+            email "user@example.com"]
+
+        ;; Create first user with social auth
+        (create-user! ctx {:id uid1
+                           :username "user1"
+                           :phone "+14159499934"
+                           :now now
+                           :apple_id apple-id
+                           :google_id google-id
+                           :email email})
+        (xtdb/sync node)
+
+        ;; Attempt to create second user with same social IDs should fail
+        (is (thrown? clojure.lang.ExceptionInfo
+                     (create-user! ctx {:id uid2
+                                        :username "user2"
+                                        :phone "+14159499935"
+                                        :now now
+                                        :apple_id apple-id})))
+
+        (is (thrown? clojure.lang.ExceptionInfo
+                     (create-user! ctx {:id uid2
+                                        :username "user2"
+                                        :phone "+14159499935"
+                                        :now now
+                                        :google_id google-id})))
+
+        (is (thrown? clojure.lang.ExceptionInfo
+                     (create-user! ctx {:id uid2
+                                        :username "user2"
+                                        :phone "+14159499935"
+                                        :now now
+                                        :email email})))
+
+        (.close node)))))
 
 (deftest test-social-auth-migrations
   (testing "v4 users can be migrated to v5 with social auth fields"
@@ -209,11 +209,11 @@
                    :user/profile {:profile/full_name (crdt/lww (crdt/new-hlc uid now) nil)
                                   :profile/urls {:profile.urls/website (crdt/lww (crdt/new-hlc uid now) nil)
                                                  :profile.urls/twitter (crdt/lww (crdt/new-hlc uid now) nil)}}}]
-      
+
       ;; Insert v4 user directly
       (biff/submit-tx ctx [[:xtdb.api/put v4-user]])
       (xtdb/sync node)
-      
+
       ;; Migration should add social auth fields with defaults (v5 schema)
       (let [db (xtdb/db node)
             migrated-user (by-id db uid)
@@ -222,8 +222,9 @@
         (is (nil? (:user/apple_id user-value)))
         (is (nil? (:user/google_id user-value)))
         (is (nil? (:user/email user-value)))
-      
-      (.close node))))
+
+        (.close node)))))
+
 (deftest user-actions
   (testing "The user actions have the right schema"
     (let [now (Date.)
@@ -561,23 +562,23 @@
                     (assoc ctx
                            :biff/db db :auth/user-id uid :auth/user user)))]
 
-     ;; Create users
+    ;; Create users
     (create-user! ctx {:id uid :username "user" :phone "+14159499000" :now now})
     (create-user! ctx {:id contact1 :username "contact1" :phone "+14159499001" :now now})
     (create-user! ctx {:id contact2 :username "contact2" :phone "+14159499002" :now now})
     (create-user! ctx {:id group-member :username "group_member" :phone "+14159499003" :now now})
     (xtdb/sync node)
 
-     ;; Make them contacts
+    ;; Make them contacts
     (db.contacts/force-contacts! ctx uid contact1)
     (db.contacts/force-contacts! ctx uid contact2)
     (xtdb/sync node)
 
-     ;; Create a group and add users
+    ;; Create a group and add users
     (db.group/create! ctx {:id gid :owner group-member :now now
                            :name "test" :members #{uid contact1 contact2}})
 
-     ;; Create a group owned by the user
+    ;; Create a group owned by the user
     (db.group/create! ctx {:id gid2 :owner uid :now now
                            :name "owned group" :members #{contact1 contact2}})
     (xtdb/sync node)
@@ -591,7 +592,7 @@
                                            :group/admins #{contact1}}})
     (xtdb/sync node)
 
-     ;; Create discussions
+    ;; Create discussions
     (db/create-discussion-with-message!
      (get-ctx uid) {:did did1 :text "Discussion they created"
                     :to_all_contacts true :now now})
@@ -606,7 +607,7 @@
     (db/create-message! (get-ctx uid) {:did did3 :text "Message in discussion with participation" :now now})
     (xtdb/sync node)
 
-     ;; Verify initial state
+    ;; Verify initial state
     (let [db (xtdb/db node)
           user (by-id db uid)
           contacts (db.contacts/by-uid db uid)
@@ -640,7 +641,7 @@
       (is (thrown? clojure.lang.ExceptionInfo
                    (db/delete-user! (get-ctx uid) uid {:now now}))))
 
-     ;; Transfer ownership of the group
+    ;; Transfer ownership of the group
     (db.group/apply-action! (get-ctx uid)
                             {:xt/id gid2
                              :group/by_uid uid
@@ -654,11 +655,11 @@
       (is (= #{uid contact1} (:group/admins g2)))
       (is (= contact1 (:group/owner g2))))
 
-     ;; Now delete the user
+    ;; Now delete the user
     (db/delete-user! (get-ctx uid) uid {:now (Date.)})
     (xtdb/sync node)
 
-     ;; Verify post-deletion state
+    ;; Verify post-deletion state
     (let [db (xtdb/db node)
           deleted-user (by-id db uid)
           uid-contacts (db.contacts/by-uid db uid)
@@ -695,5 +696,3 @@
         (is (not (contains? (:discussion/members d2) uid)))))
 
     (.close node)))
-
-

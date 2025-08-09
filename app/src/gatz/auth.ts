@@ -82,7 +82,7 @@ export const configureGoogleSignIn = () => {
   }
 
   let config = {
-    // Web client ID is used for web platform and also needed for Android
+    // React Native Google Sign-In library REQUIRES Web Client ID, even on Android
     webClientId,
     // Request offline access for refresh tokens
     offlineAccess: true,
@@ -96,13 +96,8 @@ export const configureGoogleSignIn = () => {
       iosClientId: iosClientId,
     };
   }
-  // For Android, use the Android-specific client ID if available
-  else if (Platform.OS === 'android' && androidClientId) {
-    config = {
-      ...config,
-      webClientId: androidClientId,
-    };
-  }
+  // For Android, must use Web Client ID - the library doesn't work with Android Client ID
+
 
   GoogleSignin.configure(config);
 };
@@ -240,13 +235,9 @@ export const signInWithGoogle = async (): Promise<GoogleSignInCredential> => {
       throw new Error('Google Sign-In failed: no ID token received');
     }
     
-    // Use the appropriate client ID based on platform
-    let clientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
-    if (Platform.OS === 'android' && process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID) {
-      clientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
-    } else if (Platform.OS === 'ios' && process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID) {
-      clientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
-    }
+    // Must use Web Client ID for API calls to match JWT token's audience claim
+    // The React Native library always issues tokens with Web Client ID as audience
+    const clientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
 
     return {
       type: 'google',

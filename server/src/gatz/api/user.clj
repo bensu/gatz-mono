@@ -620,7 +620,8 @@
               google-id (:sub claims)
               email (:email claims)
               existing-user-by-google (db.user/by-google-id db google-id)
-              existing-user-by-email (when email (db.user/by-email db email))]
+              existing-user-by-email (when email 
+                                       (db.user/by-email db email))]
 
           (cond
             ;; User already has Google ID linked - sign them in
@@ -664,17 +665,13 @@
               (json-response {:type "sign_up"
                               :user (crdt.user/->value user)
                               :token (auth/create-auth-token ctx (:xt/id user))}))))
-
-        (catch clojure.lang.ExceptionInfo e
+        (catch Exception e
           (let [ex-data (ex-data e)]
             (case (:type ex-data)
               :account-deleted (err-resp "account_deleted" "Account deleted")
               :duplicate-google-id (err-resp "google_id_taken" "This Google account is already registered")
               :duplicate-email (err-resp "email_taken" "This email is already registered")
-              (err-resp "google_auth_failed" (.getMessage e)))))
-
-        (catch Exception e
-          (err-resp "google_auth_failed" "Google Sign-In authentication failed"))))))
+              (err-resp "google_auth_failed" (.getMessage e)))))))))
 
 (defn link-google! 
   "Link Google Sign-In to an existing user account"
