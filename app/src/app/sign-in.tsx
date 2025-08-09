@@ -40,6 +40,7 @@ import { AuthErrorDisplay } from "../components/AuthErrorDisplay";
 import { assertNever } from "../util";
 import { MobileScreenWrapper } from "../components/MobileScreenWrapper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useThemeColors } from "../gifted/hooks/useThemeColors";
 
 const FLASH_SUCCESS_TIMEOUT = 2000;
 
@@ -163,6 +164,7 @@ const SIGN_UP_ERROR_MESSAGES: Record<T.SignUpError, string> = {
 };
 
 export default function SignIn() {
+  const colors = useThemeColors();
   const { signIn } = useContext(SessionContext);
   const openClient = useMemo(() => new OpenClient(), []);
   const authService = useMemo(() => new AuthService(), []);
@@ -592,8 +594,8 @@ export default function SignIn() {
                       onPress={() => setShowEmailSignIn(true)}
                       disabled={isPhoneLoading || isSocialSignInLoading}
                     >
-                      <Ionicons name="mail-outline" size={20} color="#000000" />
-                      <Text style={styles.emailSignInText}>Sign in with email</Text>
+                      <Ionicons name="mail-outline" size={20} color={colors.primaryText} />
+                      <Text style={[styles.emailSignInText, { color: colors.primaryText }]}>Sign in with email</Text>
                     </TouchableOpacity>
                   </>
                 ) : (
@@ -855,7 +857,6 @@ export const styles = StyleSheet.create({
     gap: 8,
   },
   emailSignInText: {
-    color: '#000000',
     fontSize: 22,
     lineHeight: 22,
     fontWeight: '500',

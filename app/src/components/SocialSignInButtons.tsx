@@ -2,11 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Platform, TouchableOpacity, Text } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Ionicons } from '@expo/vector-icons';
-import { 
-  isAppleSignInAvailable, 
-  signInWithApple, 
+import {
+  isAppleSignInAvailable,
+  signInWithApple,
   signInWithGoogle,
-  SocialSignInCredential 
+  SocialSignInCredential
 } from '../gatz/auth';
 import { Color as GatzColor, Styles as GatzStyles } from '../gatz/styles';
 import { useThemeColors } from '../gifted/hooks/useThemeColors';
@@ -39,7 +39,7 @@ export const SocialSignInButtons: React.FC<SocialSignInButtonsProps> = ({
 
   const handleAppleSignIn = async () => {
     if (isLoading || isAppleLoading) return;
-    
+
     setIsAppleLoading(true);
     try {
       const credential = await signInWithApple();
@@ -55,7 +55,7 @@ export const SocialSignInButtons: React.FC<SocialSignInButtonsProps> = ({
 
   const handleGoogleSignIn = async () => {
     if (isLoading || isGoogleLoading) return;
-    
+
     setIsGoogleLoading(true);
     try {
       const credential = await signInWithGoogle();
@@ -83,30 +83,16 @@ export const SocialSignInButtons: React.FC<SocialSignInButtonsProps> = ({
           onPress={handleAppleSignIn}
         />
       )}
-      
-      {useModalStyling ? (
-        <TouchableOpacity
-          style={[styles.modalGoogleButton, { borderColor: '#000000' }]}
-          onPress={handleGoogleSignIn}
-          disabled={isAnyLoading}
-        >
-          <Ionicons name="logo-google" size={20} color="#4285F4" />
-          <Text style={[styles.modalGoogleButtonText, { color: colors.primaryText }]}>
-            {isGoogleLoading ? 'Signing in...' : 'Sign in with Google'}
-          </Text>
-        </TouchableOpacity>
-      ) : (
-        <TouchableOpacity
-          style={[styles.signInGoogleButton, { borderColor: '#000000' }]}
-          onPress={handleGoogleSignIn}
-          disabled={isAnyLoading}
-        >
-          <Ionicons name="logo-google" size={20} color="#4285F4" style={styles.signInGoogleIcon} />
-          <Text style={[styles.signInGoogleButtonText, { color: '#000000' }]}>
-            {isGoogleLoading ? 'Signing in...' : 'Sign in with Google'}
-          </Text>
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity
+        style={[styles.modalGoogleButton, { borderColor: colors.primaryText, backgroundColor: colors.appBackground}]}
+        onPress={handleGoogleSignIn}
+        disabled={isAnyLoading}
+      >
+        <Ionicons name="logo-google" size={20} color="#4285F4" />
+        <Text style={[styles.modalGoogleButtonText, { color: colors.primaryText }]}>
+          {isGoogleLoading ? 'Signing in...' : 'Sign in with Google'}
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -125,7 +111,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
     borderWidth: 0.5,
     borderRadius: 8,
     paddingVertical: 14,
