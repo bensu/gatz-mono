@@ -259,7 +259,7 @@
 (defn create-user!
   ([ctx {:keys [username phone id now apple_id google_id email]}]
 
-   {:pre [(crdt.user/valid-username? username) (string? phone)]}
+   {:pre [(crdt.user/valid-username? username) (or (nil? phone) (string? phone))]}
 
    (let [id (or id (random-uuid))
          now (or now (Date.))
@@ -288,9 +288,9 @@
                        (assoc :user/is_test test?)
                        (assoc :db/doc-type :gatz.crdt/user :db/op :create)
                        (update :user/name as-unique)
-                       (update :user/phone_number as-unique)
-                       ;; Make top-level auth fields unique for indexing (now plain values)
+                       ;; Make top-level auth fields unique for indexing (now plain values)  
                        (cond->
+                         (:user/phone_number user) (update :user/phone_number as-unique)
                          (:user/apple_id user) (update :user/apple_id as-unique)
                          (:user/google_id user) (update :user/google_id as-unique)
                          (:user/email user) (update :user/email as-unique)))
@@ -561,11 +561,9 @@
   "Create a new user with Apple Sign-In authentication"
   [ctx {:keys [apple-id email full-name username]}]
   {:pre [(string? apple-id) (not (empty? apple-id))]}
-  (let [username (or username (str "apple" (subs (str/replace apple-id #"[^a-zA-Z0-9]" "") 0 8))) ; Use provided username or generate one
-        phone "+1000000000" ; Placeholder phone for Apple users  
-]
+  (let [username (or username (str "apple" (subs (str/replace apple-id #"[^a-zA-Z0-9]" "") 0 8)))] ; Use provided username or generate one
     (create-user! ctx {:username username
-                       :phone phone
+                       :phone nil ; No phone number for Apple users
                        :apple_id apple-id
                        :email email})))
 
@@ -595,13 +593,11 @@
 
 (defn create-google-user!
   "Create a new user with Google Sign-In authentication"
-  [ctx {:keys [google-id email full-name]}]
+  [ctx {:keys [google-id email full-name username]}]
   {:pre [(string? google-id) (not (empty? google-id))]}
-  (let [username (str "google" (subs (str/replace google-id #"[^a-zA-Z0-9]" "") 0 6)) ; Generate valid username
-        phone "+1000000001" ; Placeholder phone for Google users (different from Apple)
-]
+  (let [username (or username (str "google" (subs (str/replace google-id #"[^a-zA-Z0-9]" "") 0 6)))] ; Use provided username or generate one
     (create-user! ctx {:username username
-                       :phone phone
+                       :phone nil ; No phone number for Google users
                        :google_id google-id
                        :email email})))
 

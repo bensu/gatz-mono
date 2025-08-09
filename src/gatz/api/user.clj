@@ -655,16 +655,12 @@
                                 :user (crdt.user/->value updated-user)
                                 :token (auth/create-auth-token ctx user-id)})))
 
-            ;; New user - create account with Google authentication
+            ;; New user - return success without creating user, let frontend handle sign-up
             :else
-            (let [user (db.user/create-google-user! ctx {:google-id google-id
-                                                         :email email
-                                                         :full-name (:name claims)})]
-              (posthog/identify! ctx user)
-              (posthog/capture! (assoc ctx :auth/user-id (:xt/id user)) "user.sign_up")
-              (json-response {:type "sign_up"
-                              :user (crdt.user/->value user)
-                              :token (auth/create-auth-token ctx (:xt/id user))}))))
+            (json-response {:requires_signup true
+                            :google_id google-id
+                            :email email
+                            :full_name (:name claims)})))
         (catch Exception e
           (let [ex-data (ex-data e)]
             (case (:type ex-data)
@@ -672,6 +668,73 @@
               :duplicate-google-id (err-resp "google_id_taken" "This Google account is already registered")
               :duplicate-email (err-resp "email_taken" "This email is already registered")
               (err-resp "google_auth_failed" (.getMessage e)))))))))
+
+(defn google-sign-up! 
+  "Create a new user with Google Sign-In and username" 
+  [{:keys [params biff/db] :as ctx}]
+  (let [{:keys [id_token client_id username]} params]
+    (cond
+      ;; Validate required parameters
+      (str/blank? id_token)
+      (err-resp "missing_id_token" "Google ID token is required")
+      
+      (str/blank? client_id)
+      (err-resp "missing_client_id" "Google client ID is required")
+      
+      (str/blank? username)
+      (err-resp "missing_username" "Username is required")
+      
+      ;; Check signup disabled flag
+      (:gatz.auth/signup-disabled? ctx)
+      (err-resp "signup_disabled" "Sign up is disabled right now")
+      
+      :else
+      (try
+        (let [claims (auth/verify-google-id-token id_token {:client-id client_id})
+              google-id (:sub claims)
+              email (:email claims)
+              clean-username (clean-username username)
+              existing-user (db.user/by-google-id db google-id)
+              existing-user-by-email (when email (db.user/by-email db email))
+              existing-user-by-username (db.user/by-name db clean-username)]
+          
+          ;; Validate username and check for conflicts
+          (cond
+            (not (crdt.user/valid-username? clean-username))
+            (err-resp "invalid_username" "Username is invalid")
+            
+            (some? existing-user-by-username)
+            (err-resp "username_taken" "Username is already taken")
+            
+            (some? existing-user)
+            (err-resp "google_id_taken" "This Google account is already registered")
+            
+            (some? existing-user-by-email)
+            (err-resp "email_taken" "This email is already registered")
+            
+            :else
+            ;; Create new user with Google authentication and username
+            (let [user (db.user/create-google-user! ctx {:google-id google-id
+                                                        :email email
+                                                        :full-name (:name claims)
+                                                        :username clean-username})]
+              (posthog/identify! ctx user)
+              (posthog/capture! (assoc ctx :auth/user-id (:xt/id user)) "user.sign_up")
+              (json-response {:type "sign_up"
+                              :user (crdt.user/->value user)
+                              :token (auth/create-auth-token ctx (:xt/id user))}))))
+        
+        (catch clojure.lang.ExceptionInfo e
+          (let [ex-data (ex-data e)]
+            (case (:type ex-data)
+              :account-deleted (err-resp "account_deleted" "Account deleted")
+              :duplicate-google-id (err-resp "google_id_taken" "This Google account is already registered")
+              :duplicate-email (err-resp "email_taken" "This email is already registered")
+              :duplicate-username (err-resp "username_taken" "Username is already taken")
+              (err-resp "google_auth_failed" (.getMessage e)))))
+        
+        (catch Exception e
+          (err-resp "google_auth_failed" "Google Sign-In authentication failed"))))))
 
 (defn link-google! 
   "Link Google Sign-In to an existing user account"
