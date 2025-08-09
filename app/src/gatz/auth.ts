@@ -235,9 +235,13 @@ export const signInWithGoogle = async (): Promise<GoogleSignInCredential> => {
       throw new Error('Google Sign-In failed: no ID token received');
     }
     
-    // Must use Web Client ID for API calls to match JWT token's audience claim
-    // The React Native library always issues tokens with Web Client ID as audience
-    const clientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
+    // Must use the same client ID that was used to configure the Google Sign-In library
+    // This ensures the client ID matches the token's audience claim
+    const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
+    const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
+    
+    // Use the same logic as configureGoogleSignIn to determine which client ID was used
+    const clientId = Platform.OS === 'ios' && iosClientId ? iosClientId : webClientId;
 
     return {
       type: 'google',
