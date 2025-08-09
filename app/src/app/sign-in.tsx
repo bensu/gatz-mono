@@ -35,7 +35,7 @@ import { SocialSignInButtons } from "../components/SocialSignInButtons";
 import { EmailSignInComponent } from "../components/EmailSignInComponent";
 import { SocialSignInCredential } from "../gatz/auth";
 import { AuthService } from "../gatz/auth-service";
-import { AuthError, AuthErrorType } from "../gatz/auth-errors";
+import { AuthError, AuthErrorType, mapErrorToAuthError } from "../gatz/auth-errors";
 import { AuthErrorDisplay } from "../components/AuthErrorDisplay";
 import { assertNever } from "../util";
 import { MobileScreenWrapper } from "../components/MobileScreenWrapper";
@@ -161,6 +161,7 @@ const SIGN_UP_ERROR_MESSAGES: Record<T.SignUpError, string> = {
   phone_taken: "This phone was taken",
   username_taken: "This username is taken",
   signup_disabled: "Sign up is closed",
+  sms_signup_restricted: "We don't recognize this phone number",
 };
 
 export default function SignIn() {
@@ -190,10 +191,25 @@ export default function SignIn() {
     setSocialSignupData(null);
   }, [setPhoneText, setExistingUser, setSocialSignupData]);
 
+  const [currentError, setCurrentError] = useState<AuthError | null>(null);
+
   const submitPhoneAsync = useCallback(
     async (text: string): Promise<null> => {
       try {
+        setCurrentError(null); // Clear any previous errors
         const r = await openClient.verifyPhone(text);
+        // Check if this is an error response
+        if (('error' in r && 'message' in r) || ('type' in r && r.type === 'error')) {
+          // Convert to AuthError for better display
+          const authError = mapErrorToAuthError({ 
+            response: { 
+              data: { error: r.error, message: r.message },
+              status: 400 
+            }
+          });
+          setCurrentError(authError);
+          throw new Error(r.message);
+        }
         switch (r.status) {
           case "pending": {
             setStep("verify_phone");
@@ -208,10 +224,13 @@ export default function SignIn() {
           }
         }
       } catch (e) {
+        if (e instanceof Error) {
+          throw e;
+        }
         throw new Error("Unknown error. Please try again later");
       }
     },
-    [openClient, setStep, setExistingUser],
+    [openClient, setStep, setExistingUser, setCurrentError],
   );
 
   const {
@@ -242,8 +261,7 @@ export default function SignIn() {
                 () => signIn(
                   { userId: user.id, token, is_admin, is_test },
                   { 
-                    redirectTo: "/",
-                    authMethod: 'sms'
+                    redirectTo: "/"
                   }
                 ),
                 FLASH_SUCCESS_TIMEOUT,
@@ -399,7 +417,6 @@ export default function SignIn() {
       }
     } else {
       const { user, token, is_admin = false, is_test = false } = r;
-      const authMethod = socialSignupData?.type || 'sms';
       setTimeout(() => {
         signIn(
           { userId: user.id, token, is_admin, is_test },
@@ -408,7 +425,6 @@ export default function SignIn() {
               web: "/howto",
               default: "/notifications",
             }),
-            authMethod,
           },
         );
       }, FLASH_SUCCESS_TIMEOUT);
@@ -439,7 +455,6 @@ export default function SignIn() {
 
   const [isSocialSignInLoading, setIsSocialSignInLoading] = useState(false);
   const [socialSignInSuccess, setSocialSignInSuccess] = useState(false);
-  const [currentError, setCurrentError] = useState<AuthError | null>(null);
   const [showEmailSignIn, setShowEmailSignIn] = useState(false);
 
   const handleSocialSignIn = useCallback(
@@ -473,8 +488,6 @@ export default function SignIn() {
         if (result.user && result.token) {
           const { user, token } = result;
           const { is_admin = false, is_test = false } = user;
-          const authMethod = credential.type === 'apple' ? 'apple' : 'google';
-          
           // Show success message during the delay
           setSocialSignInSuccess(true);
           
@@ -485,8 +498,7 @@ export default function SignIn() {
                 redirectTo: Platform.select({
                   web: "/",
                   default: "/"
-                }),
-                authMethod
+                })
               }
             ),
             FLASH_SUCCESS_TIMEOUT,
@@ -540,8 +552,7 @@ export default function SignIn() {
               redirectTo: Platform.select({
                 web: "/",
                 default: "/"
-              }),
-              authMethod: 'email'
+              })
             }
           ),
           FLASH_SUCCESS_TIMEOUT,
@@ -583,6 +594,15 @@ export default function SignIn() {
                   isDisabled={phone.length === 0}
                 />
               </View>
+              
+              {currentError && (
+                <AuthErrorDisplay
+                  error={currentError}
+                  onDismiss={() => setCurrentError(null)}
+                  showRetryButton={false}
+                  style={{ backgroundColor: 'transparent', padding: 0, marginTop: 16 }}
+                />
+              )}
               
               <View style={styles.socialSignInSection}>
                 <Text style={styles.dividerText}>or</Text>
@@ -626,23 +646,6 @@ export default function SignIn() {
                   </>
                 )}
               </View>
-              
-              {!isPhoneLoading && phoneError && (
-                <Text style={styles.message}>
-                  Unknown error. Please try again later.
-                </Text>
-              )}
-              
-              {currentError && (
-                <AuthErrorDisplay
-                  error={currentError}
-                  onRetry={() => {
-                    setCurrentError(null);
-                    // Trigger appropriate retry based on current step
-                  }}
-                  onDismiss={() => setCurrentError(null)}
-                />
-              )}
             </View>
           </>
         );

@@ -89,7 +89,33 @@ export const mapErrorToAuthError = (error: any): AuthError => {
   }
 
   if (error.response?.status === 400) {
-    // Handle bad request errors from backend
+    // First check if this is a structured backend error
+    if (error.response?.data?.error) {
+      const backendError = error.response.data.error;
+      
+      switch (backendError) {
+        case 'invalid_token':
+        case 'token_expired':
+          return createAuthError(AuthErrorType.INVALID_TOKEN, error, undefined, false);
+        case 'invalid_username':
+          return createAuthError(AuthErrorType.USERNAME_INVALID, error, undefined, false);
+        case 'username_taken':
+          return createAuthError(AuthErrorType.USERNAME_TAKEN, error, undefined, false);
+        case 'phone_taken':
+          return createAuthError(AuthErrorType.PHONE_TAKEN, error, undefined, false);
+        case 'signup_disabled':
+          return createAuthError(AuthErrorType.SIGNUP_DISABLED, error, undefined, false);
+        case 'sms_signup_restricted':
+          return createAuthError(AuthErrorType.SIGNUP_DISABLED, error, error.response?.data?.message, false);
+        case 'apple_id_taken':
+        case 'google_id_taken':
+          return createAuthError(AuthErrorType.ACCOUNT_CONFLICT, error, undefined, false);
+        default:
+          break;
+      }
+    }
+    
+    // Handle other 400 errors
     // Check if this is an email-related endpoint
     const url = error.config?.url || '';
     if (url.includes('/auth/send-email-code')) {
@@ -118,29 +144,6 @@ export const mapErrorToAuthError = (error: any): AuthError => {
 
   if (error.response?.status === 503) {
     return createAuthError(AuthErrorType.SERVICE_UNAVAILABLE, error);
-  }
-
-  if (error.response?.data?.error) {
-    const backendError = error.response.data.error;
-    
-    switch (backendError) {
-      case 'invalid_token':
-      case 'token_expired':
-        return createAuthError(AuthErrorType.INVALID_TOKEN, error, undefined, false);
-      case 'invalid_username':
-        return createAuthError(AuthErrorType.USERNAME_INVALID, error, undefined, false);
-      case 'username_taken':
-        return createAuthError(AuthErrorType.USERNAME_TAKEN, error, undefined, false);
-      case 'phone_taken':
-        return createAuthError(AuthErrorType.PHONE_TAKEN, error, undefined, false);
-      case 'signup_disabled':
-        return createAuthError(AuthErrorType.SIGNUP_DISABLED, error, undefined, false);
-      case 'apple_id_taken':
-      case 'google_id_taken':
-        return createAuthError(AuthErrorType.ACCOUNT_CONFLICT, error, undefined, false);
-      default:
-        return createAuthError(AuthErrorType.UNKNOWN_ERROR, error);
-    }
   }
 
   return createAuthError(AuthErrorType.UNKNOWN_ERROR, error);

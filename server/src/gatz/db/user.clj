@@ -225,6 +225,14 @@
     (some-> (first users)
             (db.util/->latest-version all-migrations))))
 
+(defn sms-only-user? 
+  "Check if a user is SMS-only (legacy user): has phone but no Apple/Google/email"
+  [user]
+  (and (some? (:user/phone_number user))
+       (nil? (:user/apple_id user))
+       (nil? (:user/google_id user))
+       (nil? (:user/email user))))
+
 (defn all-ids [db]
   (q db
      '{:find  u
@@ -563,7 +571,6 @@
   {:pre [(string? apple-id) (not (empty? apple-id))]}
   (let [username (or username (str "apple" (subs (str/replace apple-id #"[^a-zA-Z0-9]" "") 0 8)))] ; Use provided username or generate one
     (create-user! ctx {:username username
-                       :phone nil ; No phone number for Apple users
                        :apple_id apple-id
                        :email email})))
 
@@ -597,7 +604,6 @@
   {:pre [(string? google-id) (not (empty? google-id))]}
   (let [username (or username (str "google" (subs (str/replace google-id #"[^a-zA-Z0-9]" "") 0 6)))] ; Use provided username or generate one
     (create-user! ctx {:username username
-                       :phone nil ; No phone number for Google users
                        :google_id google-id
                        :email email})))
 
@@ -647,11 +653,8 @@
   [ctx {:keys [email username]}]
   {:pre [(string? email) (not (empty? email)) 
          (string? username) (not (empty? username))]}
-  (let [phone "+1000000002" ; Placeholder phone for email users (different from Apple/Google)
-]
-    (create-user! ctx {:username username
-                      :phone phone
-                      :email email})))
+  (create-user! ctx {:username username
+                     :email email}))
 
 (defn link-email!
   "Link email to an existing user account"
