@@ -24,8 +24,9 @@ interface EmailSignInComponentProps {
 type Step = 'enter_email' | 'verify_code';
 
 const isEmailValid = (email: string): boolean => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
+  // Loose email validation - just check for @ and . with some text
+  const emailRegex = /^.+@.+\..+$/;
+  return email.trim().length > 0 && emailRegex.test(email.trim());
 };
 
 const isCodeValid = (code: string): boolean => {
@@ -118,14 +119,13 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
           style={[
             styles.modalButton, 
             { 
-              backgroundColor: colors.buttonActive,
               opacity: (isDisabled || state === 'loading') ? 0.6 : 1
             }
           ]}
           onPress={onPress}
           disabled={isDisabled || state === 'loading'}
         >
-          <Text style={[styles.modalButtonText, { color: '#FFFFFF' }]}>
+          <Text style={styles.modalButtonText}>
             {state === 'loading' ? 'Loading...' : title}
           </Text>
         </TouchableOpacity>
@@ -146,7 +146,7 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
     <View style={styles.container}>
       {step === 'enter_email' ? (
         <>
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, { borderColor: colors.strongGrey }]}>
             <Ionicons 
               name="mail-outline" 
               size={20} 
@@ -155,8 +155,8 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
             />
             <TextInput
               style={[styles.textInput, { 
-                color: colors.primaryText, 
-                borderColor: colors.border 
+                color: colors.primaryText,
+                outlineStyle: 'none' // Remove focus blue on web
               }]}
               placeholder="Enter your email address"
               placeholderTextColor={colors.secondaryText}
@@ -169,13 +169,19 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
               autoCapitalize="none"
               autoCorrect={false}
               editable={!isButtonDisabled}
+              returnKeyType="send"
+              onSubmitEditing={() => {
+                if (isEmailValid(email) && !isButtonDisabled) {
+                  handleSendCode();
+                }
+              }}
             />
           </View>
           
           {renderButton(
             "Send Verification Code",
             handleSendCode,
-            !email.trim() || isButtonDisabled,
+            !isEmailValid(email) || isButtonDisabled,
             getSendCodeButtonState()
           )}
         </>
@@ -193,7 +199,7 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
               </Text>
             </TouchableOpacity>
             
-            <View style={styles.inputContainer}>
+            <View style={[styles.inputContainer, { borderColor: colors.strongGrey }]}>
               <Ionicons 
                 name="key-outline" 
                 size={20} 
@@ -202,8 +208,8 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
               />
               <TextInput
                 style={[styles.textInput, { 
-                  color: colors.primaryText, 
-                  borderColor: colors.border 
+                  color: colors.primaryText,
+                  outlineStyle: 'none' // Remove focus blue on web
                 }]}
                 placeholder="Enter 6-digit code"
                 placeholderTextColor={colors.secondaryText}
@@ -295,6 +301,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   modalButton: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#000000',
     borderRadius: 8,
     paddingVertical: 14,
     paddingHorizontal: 16,
@@ -303,8 +312,10 @@ const styles = StyleSheet.create({
     height: 50,
   },
   modalButtonText: {
-    fontSize: 16,
+    fontSize: 22,
+    lineHeight: 22,
     fontWeight: '500',
+    color: '#000000',
   },
   modalErrorStyle: {
     backgroundColor: 'transparent',

@@ -2,6 +2,7 @@
   (:require [clojure.data.json :as json]
             [clojure.string :as str]
             [clojure.tools.logging :as log]
+            [com.biffweb :as biff]
             [crdt.core :as crdt]
             [gatz.http :as http]
             [gatz.auth :as auth]
@@ -46,7 +47,6 @@
                              [:contact schema/ContactResponse]]]]
    [:migration {:optional true} [:map
                                  [:required boolean?]
-                                 [:auth_method [:enum "sms" "apple" "google" "email" "hybrid"]]
                                  [:show_migration_screen boolean?]
                                  [:completed_at [:maybe inst?]]]]])
 
@@ -59,16 +59,18 @@
                              db.contacts/->contact)}))))
 
 (defn migration-status
-  "Calculate migration status for a user based on their auth_method and migration_completed_at fields"
+  "Calculate migration status for a user based on whether they have social auth linked"
   [user-value]
-  (let [auth-method (:user/auth_method user-value)
-        migration-completed-at (:user/migration_completed_at user-value)
-        needs-migration? (and (= "sms" auth-method) 
+  (let [migration-completed-at (:user/migration_completed_at user-value)
+        apple-id (:user/apple_id user-value)
+        google-id (:user/google_id user-value) 
+        email (:user/email user-value)
+        has-linked-account? (or apple-id google-id email)
+        needs-migration? (and (not has-linked-account?) 
                               (nil? migration-completed-at))
         show-migration-screen? needs-migration?]
     (when needs-migration?
       {:required true
-       :auth_method auth-method
        :show_migration_screen show-migration-screen?
        :completed_at migration-completed-at})))
 
@@ -420,21 +422,43 @@
         (let [claims (auth/verify-apple-id-token id_token {:client-id client_id})
               apple-id (:sub claims)
               email (:email claims)
-              existing-user (db.user/by-apple-id db apple-id)]
+              existing-user-by-apple (db.user/by-apple-id db apple-id)
+              existing-user-by-email (when email (db.user/by-email db email))]
           
-          ;; Check if user account is deleted
-          (when (and existing-user (db.user/deleted? existing-user))
-            (throw (ex-info "Account deleted" {:type :account-deleted})))
-          
-          (if existing-user
-            ;; User exists, return auth token
+          (cond
+            ;; User already has Apple ID linked - sign them in
+            existing-user-by-apple
             (do
-              (posthog/identify! ctx existing-user)
-              (posthog/capture! (assoc ctx :auth/user-id (:xt/id existing-user)) "user.sign_in")
-              (json-response {:user (crdt.user/->value existing-user)
-                              :token (auth/create-auth-token ctx (:xt/id existing-user))}))
+              (when (db.user/deleted? existing-user-by-apple)
+                (throw (ex-info "Account deleted" {:type :account-deleted})))
+              (posthog/identify! ctx existing-user-by-apple)
+              (posthog/capture! (assoc ctx :auth/user-id (:xt/id existing-user-by-apple)) "user.sign_in")
+              (json-response {:user (crdt.user/->value existing-user-by-apple)
+                              :token (auth/create-auth-token ctx (:xt/id existing-user-by-apple))}))
+            
+            ;; User exists by email but no Apple ID - link Apple account and sign them in
+            existing-user-by-email
+            (do
+              (when (db.user/deleted? existing-user-by-email)
+                (throw (ex-info "Account deleted" {:type :account-deleted})))
+              ;; Directly update the user record to link Apple ID (without requiring auth context)
+              (let [user-id (:xt/id existing-user-by-email)
+                    now (java.util.Date.)
+                    clock (crdt/new-hlc user-id now)
+                    updated-user (merge existing-user-by-email 
+                                       {:crdt/clock clock
+                                        :user/updated_at (crdt/max-wins now)
+                                        :user/apple_id apple-id
+                                        :user/migration_completed_at now})]
+                (biff/submit-tx ctx [[:xtdb.api/put (assoc updated-user :db/doc-type :gatz.crdt/user)]])
+                (posthog/identify! ctx updated-user)
+                (posthog/capture! (assoc ctx :auth/user-id user-id) "user.link_apple")
+                (json-response {:type "sign_in"
+                                :user (crdt.user/->value updated-user)
+                                :token (auth/create-auth-token ctx user-id)})))
             
             ;; New user - return success without creating user, let frontend handle sign-up
+            :else
             (json-response {:requires_signup true
                             :apple_id apple-id
                             :email email
@@ -448,11 +472,12 @@
               :duplicate-email (err-resp "email_taken" "This email is already registered")
               (err-resp "apple_auth_failed" (.getMessage e)))))
         
-        (catch Exception e
+        (catch Exception _e
           (err-resp "apple_auth_failed" "Apple Sign-In authentication failed"))))))
 
-(defn link-apple! [{:keys [params auth/user-id biff/db] :as ctx}]
+(defn link-apple!
   "Link Apple Sign-In to an existing user account"
+  [{:keys [params auth/user-id biff/db] :as ctx}]
   (let [{:keys [id_token client_id]} params]
     (log/info "link-apple called with user-id:" user-id "client_id:" client_id)
     (cond
@@ -508,8 +533,9 @@
           (log/error "link-apple Exception:" (.getMessage e))
           (err-resp "apple_link_failed" "Failed to link Apple Sign-In"))))))
 
-(defn apple-sign-up! [{:keys [params biff/db] :as ctx}]
-  "Create a new user with Apple Sign-In and username"
+(defn apple-sign-up! 
+  "Create a new user with Apple Sign-In and username" 
+  [{:keys [params biff/db] :as ctx}]
   (let [{:keys [id_token client_id username]} params]
     (cond
       ;; Validate required parameters
@@ -572,41 +598,65 @@
 ;; ======================================================================  
 ;; Google Sign-In Authentication
 
-(defn google-sign-in! [{:keys [params biff/db] :as ctx}]
+(defn google-sign-in!
   "Handle Google Sign-In authentication for new users"
+  [{:keys [params biff/db] :as ctx}]
   (let [{:keys [id_token client_id]} params]
     (cond
       ;; Validate required parameters
       (str/blank? id_token)
       (err-resp "missing_id_token" "Google ID token is required")
-      
+
       (str/blank? client_id)
       (err-resp "missing_client_id" "Google client ID is required")
-      
+
       ;; Check signup disabled flag
       (:gatz.auth/signup-disabled? ctx)
       (err-resp "signup_disabled" "Sign up is disabled right now")
-      
+
       :else
       (try
         (let [claims (auth/verify-google-id-token id_token {:client-id client_id})
               google-id (:sub claims)
               email (:email claims)
-              existing-user (db.user/by-google-id db google-id)]
-          
-          ;; Check if user account is deleted
-          (when (and existing-user (db.user/deleted? existing-user))
-            (throw (ex-info "Account deleted" {:type :account-deleted})))
-          
-          (if existing-user
-            ;; User exists, return auth token
+              existing-user-by-google (db.user/by-google-id db google-id)
+              existing-user-by-email (when email 
+                                       (db.user/by-email db email))]
+
+          (cond
+            ;; User already has Google ID linked - sign them in
+            existing-user-by-google
             (do
-              (posthog/identify! ctx existing-user)
-              (posthog/capture! (assoc ctx :auth/user-id (:xt/id existing-user)) "user.sign_in")
-              (json-response {:user (crdt.user/->value existing-user)
-                              :token (auth/create-auth-token ctx (:xt/id existing-user))}))
-            
-            ;; Create new user with Google authentication
+              (when (db.user/deleted? existing-user-by-google)
+                (throw (ex-info "Account deleted" {:type :account-deleted})))
+              (posthog/identify! ctx existing-user-by-google)
+              (posthog/capture! (assoc ctx :auth/user-id (:xt/id existing-user-by-google)) "user.sign_in")
+              (json-response {:user (crdt.user/->value existing-user-by-google)
+                              :token (auth/create-auth-token ctx (:xt/id existing-user-by-google))}))
+
+            ;; User exists by email but no Google ID - link Google account and sign them in
+            existing-user-by-email
+            (do
+              (when (db.user/deleted? existing-user-by-email)
+                (throw (ex-info "Account deleted" {:type :account-deleted})))
+              ;; Directly update the user record to link Google ID (without requiring auth context)
+              (let [user-id (:xt/id existing-user-by-email)
+                    now (java.util.Date.)
+                    clock (crdt/new-hlc user-id now)
+                    updated-user (merge existing-user-by-email
+                                        {:crdt/clock clock
+                                         :user/updated_at (crdt/max-wins now)
+                                         :user/google_id google-id
+                                         :user/migration_completed_at now})]
+                (biff/submit-tx ctx [[:xtdb.api/put (assoc updated-user :db/doc-type :gatz.crdt/user)]])
+                (posthog/identify! ctx updated-user)
+                (posthog/capture! (assoc ctx :auth/user-id user-id) "user.link_google")
+                (json-response {:type "sign_in"
+                                :user (crdt.user/->value updated-user)
+                                :token (auth/create-auth-token ctx user-id)})))
+
+            ;; New user - create account with Google authentication
+            :else
             (let [user (db.user/create-google-user! ctx {:google-id google-id
                                                          :email email
                                                          :full-name (:name claims)})]
@@ -615,28 +665,27 @@
               (json-response {:type "sign_up"
                               :user (crdt.user/->value user)
                               :token (auth/create-auth-token ctx (:xt/id user))}))))
-        
-        (catch clojure.lang.ExceptionInfo e
+        (catch Exception e
           (let [ex-data (ex-data e)]
             (case (:type ex-data)
               :account-deleted (err-resp "account_deleted" "Account deleted")
               :duplicate-google-id (err-resp "google_id_taken" "This Google account is already registered")
               :duplicate-email (err-resp "email_taken" "This email is already registered")
-              (err-resp "google_auth_failed" (.getMessage e)))))
-        
-        (catch Exception e
-          (err-resp "google_auth_failed" "Google Sign-In authentication failed"))))))
+              (err-resp "google_auth_failed" (.getMessage e)))))))))
 
-(defn link-google! [{:keys [params auth/user-id biff/db] :as ctx}]
+(defn link-google! 
   "Link Google Sign-In to an existing user account"
+  [{:keys [params auth/user-id biff/db] :as ctx}]
   (let [{:keys [id_token client_id]} params]
     (cond
       ;; Validate required parameters
       (str/blank? id_token)
-      (err-resp "missing_id_token" "Google ID token is required")
+      (do
+        (err-resp "missing_id_token" "Google ID token is required"))
       
       (str/blank? client_id)
-      (err-resp "missing_client_id" "Google client ID is required")
+      (do
+        (err-resp "missing_client_id" "Google client ID is required"))
       
       :else
       (try
@@ -645,6 +694,7 @@
               existing-google-user (db.user/by-google-id db google-id)
               current-user (db.user/by-id db user-id)]
           
+          
           ;; Check if current user account is deleted
           (when (db.user/deleted? current-user)
             (throw (ex-info "Account deleted" {:type :account-deleted})))
@@ -652,7 +702,8 @@
           (cond
             ;; Google ID already linked to another account
             (and existing-google-user (not (= (:xt/id existing-google-user) user-id)))
-            (err-resp "google_id_taken" "This Google account is already linked to another account")
+            (do
+              (err-resp "google_id_taken" "This Google account is already linked to another account"))
             
             ;; Google ID already linked to current account
             (and existing-google-user (= (:xt/id existing-google-user) user-id))
@@ -674,6 +725,7 @@
               (err-resp "google_link_failed" (.getMessage e)))))
         
         (catch Exception e
+          (.printStackTrace e)
           (err-resp "google_link_failed" "Failed to link Google Sign-In"))))))
 
 ;; ======================================================================  
@@ -738,8 +790,10 @@
           (if (= "approved" (:status result))
             ;; Code verified successfully - check if user exists or needs signup
             (if-let [user (db.user/by-email db email)]
-              ;; Existing user - sign them in
+              ;; Existing user - check if deleted, then sign them in
               (do
+                (when (db.user/deleted? user)
+                  (throw (ex-info "Account deleted" {:type :account-deleted})))
                 (posthog/identify! ctx user)
                 (posthog/capture! (assoc ctx :auth/user-id (:xt/id user)) "user.sign_in")
                 (json-response {:user (crdt.user/->value user)
@@ -751,6 +805,14 @@
             
             ;; Code verification failed
             (json-response result 400)))
+        
+        (catch clojure.lang.ExceptionInfo e
+          (let [ex-data (ex-data e)]
+            (case (:type ex-data)
+              :account-deleted (err-resp "account_deleted" "Account deleted")
+              (do
+                (log/error "Failed to verify email code:" (.getMessage e))
+                (err-resp "verification_failed" "Failed to verify email code")))))
         
         (catch Exception e
           (log/error "Failed to verify email code:" (.getMessage e))
@@ -874,6 +936,6 @@
               :duplicate-username (err-resp "username_taken" "Username is already taken")
               (err-resp "email_auth_failed" (.getMessage e)))))
         
-        (catch Exception e
+        (catch Exception _e
           (err-resp "email_auth_failed" "Email authentication failed"))))))
 

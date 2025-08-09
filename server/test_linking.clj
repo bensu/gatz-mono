@@ -38,7 +38,7 @@
       (println "Initial user structure:")
       (pprint/pprint (select-keys initial-user-value 
                                   [:xt/id :user/name :user/phone_number :user/apple_id 
-                                   :user/google_id :user/email :user/auth_method 
+                                   :user/google_id :user/email 
                                    :user/migration_completed_at])))
 
     ;; Test linking Apple ID
@@ -58,7 +58,7 @@
           (println "\nUpdated user structure after linking:")
           (pprint/pprint (select-keys updated-user-value 
                                       [:xt/id :user/name :user/phone_number :user/apple_id 
-                                       :user/google_id :user/email :user/auth_method 
+                                       :user/google_id :user/email 
                                        :user/migration_completed_at])))))
     
     (.close node)

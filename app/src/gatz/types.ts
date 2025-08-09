@@ -501,7 +501,6 @@ export type FeatureFlag = keyof FeatureFlags;
 
 export type MigrationStatus = {
   required: boolean;
-  auth_method: "sms" | "apple" | "google" | "email" | "hybrid";
   show_migration_screen: boolean;
   completed_at: string | null;
 };

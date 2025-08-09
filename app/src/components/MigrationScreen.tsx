@@ -296,11 +296,12 @@ export const MigrationScreen: React.FC<MigrationScreenProps> = ({
                     <SocialSignInButtons
                       onSignIn={handleSocialSignIn}
                       isLoading={isLoading}
+                      useModalStyling={true}
                     />
                     
                     {/* Email Sign-In Button */}
                     <TouchableOpacity
-                      style={[styles.emailSignInButton, { borderColor: colors.border }]}
+                      style={[styles.emailSignInButton, { borderColor: colors.primaryText, backgroundColor: colors.appBackground}]}
                       onPress={() => setModalState('email_only')}
                       disabled={isLoading}
                     >
@@ -407,6 +408,11 @@ const styles = StyleSheet.create({
       android: {
         elevation: 5,
       },
+      web: {
+        maxWidth: 600,
+        alignSelf: 'center',
+        marginHorizontal: 'auto',
+      },
     }),
   },
   keyboardAvoidingView: {
@@ -422,7 +428,17 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 24,
     paddingTop: 16,
-    minHeight: 500, // Ensure enough space for email input + keyboard
+    ...Platform.select({
+      ios: {
+        minHeight: 500, // Ensure enough space for email input + keyboard
+      },
+      android: {
+        // Let keyboard avoiding view handle the height on Android
+      },
+      web: {
+        minHeight: 500,
+      },
+    }),
   },
   header: {
     flexDirection: 'row',

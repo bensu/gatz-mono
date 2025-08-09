@@ -33,7 +33,6 @@ export default {
         backgroundColor: "#3D5135",
       },
       package: "chat.gatz",
-      googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
       softwareKeyboardLayoutMode: "resize",
       intentFilters: [
         {
@@ -65,6 +64,12 @@ export default {
         {
           photosPermission:
             "This allows you to send photos in your messages and upload your avatar.",
+        },
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          iosUrlScheme: "com.googleusercontent.apps.848893561159-sis9lh5251nnij27d8mc6iav49pbh3gj",
         },
       ],
       [

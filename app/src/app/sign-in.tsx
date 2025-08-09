@@ -18,7 +18,7 @@ import {
 } from "react-native";
 import { useAsync } from "react-async-hook";
 
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons, Ionicons } from "@expo/vector-icons";
 
 import PhoneInput from "../../vendor/react-native-phone-number-input/lib";
 import { UniversalPhoneInput } from "../components/UniversalPhoneInput";
@@ -32,6 +32,7 @@ import { SessionContext } from "../context/SessionProvider";
 import { Logo, Tagline } from "../components/logo";
 import { NetworkButton, NetworkState } from "../components/NetworkButton";
 import { SocialSignInButtons } from "../components/SocialSignInButtons";
+import { EmailSignInComponent } from "../components/EmailSignInComponent";
 import { SocialSignInCredential } from "../gatz/auth";
 import { AuthService } from "../gatz/auth-service";
 import { AuthError, AuthErrorType } from "../gatz/auth-errors";
@@ -39,6 +40,7 @@ import { AuthErrorDisplay } from "../components/AuthErrorDisplay";
 import { assertNever } from "../util";
 import { MobileScreenWrapper } from "../components/MobileScreenWrapper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useThemeColors } from "../gifted/hooks/useThemeColors";
 
 const FLASH_SUCCESS_TIMEOUT = 2000;
 
@@ -162,6 +164,7 @@ const SIGN_UP_ERROR_MESSAGES: Record<T.SignUpError, string> = {
 };
 
 export default function SignIn() {
+  const colors = useThemeColors();
   const { signIn } = useContext(SessionContext);
   const openClient = useMemo(() => new OpenClient(), []);
   const authService = useMemo(() => new AuthService(), []);
@@ -331,6 +334,9 @@ export default function SignIn() {
     resetCode();
     resetUsername();
     setCurrentError(null);
+    setShowEmailSignIn(false);
+    setIsSocialSignInLoading(false);
+    setSocialSignInSuccess(false);
   }, [setStep, resetPhone, resetCode, resetUsername]);
 
   const handleRestart = useCallback(() => {
@@ -426,7 +432,9 @@ export default function SignIn() {
   const phoneInputRef = useRef<PhoneInput>(null);
 
   const [isSocialSignInLoading, setIsSocialSignInLoading] = useState(false);
+  const [socialSignInSuccess, setSocialSignInSuccess] = useState(false);
   const [currentError, setCurrentError] = useState<AuthError | null>(null);
+  const [showEmailSignIn, setShowEmailSignIn] = useState(false);
 
   const handleSocialSignIn = useCallback(
     async (credential: SocialSignInCredential) => {
@@ -458,6 +466,9 @@ export default function SignIn() {
           const { is_admin = false, is_test = false } = user;
           const authMethod = credential.type === 'apple' ? 'apple' : 'google';
           
+          // Show success message during the delay
+          setSocialSignInSuccess(true);
+          
           setTimeout(
             () => signIn(
               { userId: user.id, token, is_admin, is_test },
@@ -480,11 +491,62 @@ export default function SignIn() {
           canRetry: true
         });
       } finally {
-        setIsSocialSignInLoading(false);
+        // Only clear loading if there was no success (which means error)
+        if (!socialSignInSuccess) {
+          setIsSocialSignInLoading(false);
+        }
       }
     },
     [authService, signIn],
   );
+
+  const handleEmailVerified = useCallback(async (email: string) => {
+    // This is just for sending the code, no action needed
+    console.log('Email verification code sent to:', email);
+  }, []);
+
+  const handleEmailSignIn = useCallback(async (email: string, code: string) => {
+    try {
+      const result = await authService.signInWithEmail(email, code);
+      
+      if (!result.success) {
+        setCurrentError(result.error!);
+        return;
+      }
+      
+      if (result.requiresSignup && result.signupData) {
+        // Store email signup data and transition to username step
+        setStep('enter_username');
+        return;
+      }
+
+      if (result.user && result.token) {
+        const { user, token } = result;
+        const { is_admin = false, is_test = false } = user;
+        
+        setTimeout(
+          () => signIn(
+            { userId: user.id, token, is_admin, is_test },
+            { 
+              redirectTo: Platform.select({
+                web: "/",
+                default: "/"
+              }),
+              authMethod: 'email'
+            }
+          ),
+          FLASH_SUCCESS_TIMEOUT,
+        );
+      }
+    } catch (error) {
+      console.error('Email sign-in error:', error);
+      setCurrentError({
+        type: AuthErrorType.EMAIL_SIGNIN_FAILED,
+        message: 'Unable to sign in with email. Please try again.',
+        canRetry: true
+      });
+    }
+  }, [authService, signIn]);
 
   const renderInputSection = () => {
     switch (step) {
@@ -515,10 +577,45 @@ export default function SignIn() {
               
               <View style={styles.socialSignInSection}>
                 <Text style={styles.dividerText}>or</Text>
-                <SocialSignInButtons
-                  onSignIn={handleSocialSignIn}
-                  isLoading={isPhoneLoading || isSocialSignInLoading}
-                />
+                {!showEmailSignIn ? (
+                  <>
+                    {socialSignInSuccess ? (
+                      <View style={styles.successMessageContainer}>
+                        <Text style={styles.successMessage}>Success! Signing you in...</Text>
+                      </View>
+                    ) : (
+                      <SocialSignInButtons
+                        onSignIn={handleSocialSignIn}
+                        isLoading={isPhoneLoading || isSocialSignInLoading}
+                      />
+                    )}
+                    <TouchableOpacity
+                      style={styles.emailSignInButton}
+                      onPress={() => setShowEmailSignIn(true)}
+                      disabled={isPhoneLoading || isSocialSignInLoading}
+                    >
+                      <Ionicons name="mail-outline" size={20} color={colors.primaryText} />
+                      <Text style={[styles.emailSignInText, { color: colors.primaryText }]}>Sign in with email</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <EmailSignInComponent
+                      onEmailVerified={handleEmailVerified}
+                      onLinkEmail={handleEmailSignIn}
+                      isLoading={isPhoneLoading || isSocialSignInLoading}
+                    />
+                    <TouchableOpacity
+                      style={styles.backToSocialButton}
+                      onPress={() => setShowEmailSignIn(false)}
+                      disabled={isPhoneLoading || isSocialSignInLoading}
+                    >
+                      <Text style={styles.backToSocialText}>
+                        Back to Apple/Google/SMS options
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
               
               {!isPhoneLoading && phoneError && (
@@ -744,5 +841,45 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: GatzStyles.tagline.fontFamily,
     marginBottom: 16,
+  },
+  emailSignInButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#000000',
+    borderRadius: 8,
+    height: 50,
+    gap: 8,
+  },
+  emailSignInText: {
+    fontSize: 22,
+    lineHeight: 22,
+    fontWeight: '500',
+  },
+  backToSocialButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginTop: 16,
+  },
+  backToSocialText: {
+    color: GatzColor.introTitle,
+    fontSize: 14,
+    fontFamily: GatzStyles.tagline.fontFamily,
+    textDecorationLine: 'underline',
+  },
+  successMessageContainer: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  successMessage: {
+    color: GatzColor.introTitle,
+    fontSize: 18,
+    fontFamily: GatzStyles.tagline.fontFamily,
+    fontWeight: '500',
   },
 });

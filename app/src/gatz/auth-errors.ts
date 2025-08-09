@@ -158,6 +158,17 @@ export const isRetryableError = (error: AuthError): boolean => {
   ].includes(error.type);
 };
 
+export const isAuthError = (error: any): error is AuthError => {
+  return (
+    error &&
+    typeof error === 'object' &&
+    'type' in error &&
+    'message' in error &&
+    'canRetry' in error &&
+    Object.values(AuthErrorType).includes(error.type)
+  );
+};
+
 export const getRetryDelay = (error: AuthError, attemptNumber: number): number => {
   if (error.retryDelay) {
     return error.retryDelay;

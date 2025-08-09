@@ -13,8 +13,7 @@ import {
   AuthErrorType, 
   createAuthError, 
   mapErrorToAuthError,
-  isRetryableError,
-  getRetryDelay 
+  isAuthError
 } from './auth-errors';
 
 export type AuthMethod = 'sms' | 'apple' | 'google' | 'email';
@@ -78,44 +77,25 @@ export interface EmailCodeVerificationResult {
 
 export class AuthService {
   private client: OpenClient;
-  private retryAttempts = new Map<string, number>();
 
   constructor() {
     this.client = new OpenClient();
   }
 
-  private async executeWithRetry<T>(
-    operation: () => Promise<T>,
-    operationId: string,
-    maxRetries: number = 3
+  private async executeWithoutRetry<T>(
+    operation: () => Promise<T>
   ): Promise<T> {
-    const currentAttempt = this.retryAttempts.get(operationId) || 0;
-    
     try {
-      const result = await operation();
-      this.retryAttempts.delete(operationId);
-      return result;
+      return await operation();
     } catch (error) {
-      const authError = mapErrorToAuthError(error);
-      
-      if (currentAttempt < maxRetries && isRetryableError(authError)) {
-        this.retryAttempts.set(operationId, currentAttempt + 1);
-        const delay = getRetryDelay(authError, currentAttempt);
-        
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return this.executeWithRetry(operation, operationId, maxRetries);
-      }
-      
-      this.retryAttempts.delete(operationId);
-      throw authError;
+      throw mapErrorToAuthError(error);
     }
   }
 
   async verifyPhone(phoneNumber: string): Promise<PhoneVerificationResult> {
     try {
-      const response = await this.executeWithRetry(
-        () => this.client.verifyPhone(phoneNumber),
-        `verify-phone-${phoneNumber}`
+      const response = await this.executeWithoutRetry(
+        () => this.client.verifyPhone(phoneNumber)
       );
 
       switch (response.status) {
@@ -143,9 +123,8 @@ export class AuthService {
 
   async verifyCode(phoneNumber: string, code: string): Promise<CodeVerificationResult> {
     try {
-      const response = await this.executeWithRetry(
-        () => this.client.verifyCode(phoneNumber, code),
-        `verify-code-${phoneNumber}-${code}`
+      const response = await this.executeWithoutRetry(
+        () => this.client.verifyCode(phoneNumber, code)
       );
 
       switch (response.status) {
@@ -188,9 +167,8 @@ export class AuthService {
 
   async checkUsername(username: string): Promise<UsernameCheckResult> {
     try {
-      const response = await this.executeWithRetry(
-        () => this.client.checkUsername(username),
-        `check-username-${username}`
+      const response = await this.executeWithoutRetry(
+        () => this.client.checkUsername(username)
       );
 
       return {
@@ -210,15 +188,13 @@ export class AuthService {
       let response: T.AppleSignInAPIResponse | T.GoogleSignInAPIResponse;
       
       if (credential.type === 'apple') {
-        response = await this.executeWithRetry(
-          () => this.client.appleSignIn(credential.idToken, 'chat.gatz'),
-          `apple-signin-${credential.idToken.substring(0, 10)}`
+        response = await this.executeWithoutRetry(
+          () => this.client.appleSignIn(credential.idToken, 'chat.gatz')
         );
       } else {
-        const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
-        response = await this.executeWithRetry(
-          () => this.client.googleSignIn(credential.idToken, webClientId),
-          `google-signin-${credential.idToken.substring(0, 10)}`
+        // Use the same client ID that was used to acquire the token
+        response = await this.executeWithoutRetry(
+          () => this.client.googleSignIn(credential.idToken, credential.clientId)
         );
       }
 
@@ -262,7 +238,7 @@ export class AuthService {
         token: response.token
       };
     } catch (error) {
-      const authError = error instanceof AuthError ? error : mapErrorToAuthError(error);
+      const authError = isAuthError(error) ? error : mapErrorToAuthError(error);
       
       if (authError.type === AuthErrorType.CANCELLED) {
         return {
@@ -317,14 +293,12 @@ export class AuthService {
       let response: T.SignUpAPIResponse | T.AppleSignInAPIResponse;
       
       if (socialData?.apple_id && socialData.id_token) {
-        response = await this.executeWithRetry(
-          () => this.client.appleSignUp(socialData.id_token, username, 'chat.gatz'),
-          `apple-signup-${username}`
+        response = await this.executeWithoutRetry(
+          () => this.client.appleSignUp(socialData.id_token, username, 'chat.gatz')
         );
       } else if (phoneNumber) {
-        response = await this.executeWithRetry(
-          () => this.client.signUp(username, phoneNumber),
-          `sms-signup-${username}`
+        response = await this.executeWithoutRetry(
+          () => this.client.signUp(username, phoneNumber)
         );
       } else {
         return {
@@ -366,16 +340,15 @@ export class AuthService {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof AuthError ? error : mapErrorToAuthError(error)
+        error: isAuthError(error) ? error : mapErrorToAuthError(error)
       };
     }
   }
 
   async sendEmailCode(email: string): Promise<EmailVerificationResult> {
     try {
-      const response = await this.executeWithRetry(
-        () => this.client.sendEmailCode(email),
-        `send-email-code-${email}`
+      const response = await this.executeWithoutRetry(
+        () => this.client.sendEmailCode(email)
       );
 
       if ('status' in response && response.status === 'sent') {
@@ -401,9 +374,8 @@ export class AuthService {
 
   async verifyEmailCode(email: string, code: string): Promise<EmailCodeVerificationResult> {
     try {
-      const response = await this.executeWithRetry(
-        () => this.client.verifyEmailCode(email, code),
-        `verify-email-code-${email}-${code}`
+      const response = await this.executeWithoutRetry(
+        () => this.client.verifyEmailCode(email, code)
       );
 
       if ('status' in response) {
@@ -502,9 +474,8 @@ export class AuthService {
 
   async signUpWithEmail(email: string, username: string): Promise<SignUpResult> {
     try {
-      const response = await this.executeWithRetry(
-        () => this.client.emailSignUp(email, username),
-        `email-signup-${username}`
+      const response = await this.executeWithoutRetry(
+        () => this.client.emailSignUp(email, username)
       );
 
       if (response.type === 'error') {
@@ -540,7 +511,7 @@ export class AuthService {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof AuthError ? error : mapErrorToAuthError(error)
+        error: isAuthError(error) ? error : mapErrorToAuthError(error)
       };
     }
   }

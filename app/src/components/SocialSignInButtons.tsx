@@ -1,25 +1,29 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet, Platform, TouchableOpacity, Text } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import { 
-  isAppleSignInAvailable, 
-  signInWithApple, 
+import { Ionicons } from '@expo/vector-icons';
+import {
+  isAppleSignInAvailable,
+  signInWithApple,
   signInWithGoogle,
-  configureGoogleSignIn,
-  SocialSignInCredential 
+  SocialSignInCredential
 } from '../gatz/auth';
-import { Color as GatzColor } from '../gatz/styles';
+import { Color as GatzColor, Styles as GatzStyles } from '../gatz/styles';
+import { useThemeColors } from '../gifted/hooks/useThemeColors';
 import { NetworkButton } from './NetworkButton';
 
 interface SocialSignInButtonsProps {
   onSignIn: (credential: SocialSignInCredential) => Promise<void>;
   isLoading?: boolean;
+  useModalStyling?: boolean;
 }
 
 export const SocialSignInButtons: React.FC<SocialSignInButtonsProps> = ({
   onSignIn,
   isLoading = false,
+  useModalStyling = false,
 }) => {
+  const colors = useThemeColors();
   const [isAppleAvailable, setIsAppleAvailable] = useState(false);
   const [isAppleLoading, setIsAppleLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -30,19 +34,20 @@ export const SocialSignInButtons: React.FC<SocialSignInButtonsProps> = ({
       setIsAppleAvailable(available);
     };
 
-    configureGoogleSignIn();
     checkAppleSignInAvailability();
   }, []);
 
   const handleAppleSignIn = async () => {
     if (isLoading || isAppleLoading) return;
-    
+
     setIsAppleLoading(true);
     try {
       const credential = await signInWithApple();
       await onSignIn(credential);
     } catch (error) {
       console.error('Apple Sign-In failed:', error);
+      // Re-throw the error so the parent component can handle it properly
+      throw error;
     } finally {
       setIsAppleLoading(false);
     }
@@ -50,13 +55,16 @@ export const SocialSignInButtons: React.FC<SocialSignInButtonsProps> = ({
 
   const handleGoogleSignIn = async () => {
     if (isLoading || isGoogleLoading) return;
-    
+
     setIsGoogleLoading(true);
     try {
       const credential = await signInWithGoogle();
       await onSignIn(credential);
     } catch (error) {
-      console.error('Google Sign-In failed:', error);
+      console.log('Google Sign-In failed');
+      console.error(error);
+      // Re-throw the error so the parent component can handle it properly
+      throw error;
     } finally {
       setIsGoogleLoading(false);
     }
@@ -75,16 +83,16 @@ export const SocialSignInButtons: React.FC<SocialSignInButtonsProps> = ({
           onPress={handleAppleSignIn}
         />
       )}
-      
-      {/* Google Sign-In temporarily disabled due to package compatibility issues */}
-      {/* 
-      <NetworkButton
-        title="Continue with Google"
+      <TouchableOpacity
+        style={[styles.modalGoogleButton, { borderColor: colors.primaryText, backgroundColor: colors.appBackground}]}
         onPress={handleGoogleSignIn}
-        state={isGoogleLoading ? "loading" : "idle"}
-        isDisabled={isAnyLoading}
-      />
-      */}
+        disabled={isAnyLoading}
+      >
+        <Ionicons name="logo-google" size={20} color="#4285F4" />
+        <Text style={[styles.modalGoogleButtonText, { color: colors.primaryText }]}>
+          {isGoogleLoading ? 'Signing in...' : 'Sign in with Google'}
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -97,5 +105,43 @@ const styles = StyleSheet.create({
   appleButton: {
     width: '100%',
     height: 50,
+  },
+  // Modal styling (matches EmailSignInComponent button style)
+  modalGoogleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 0.5,
+    borderRadius: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 8,
+    height: 50,
+  },
+  modalGoogleButtonText: {
+    fontSize: 22,
+    lineHeight: 22,
+    fontWeight: '500',
+  },
+  // Sign-in page styling (updated to match Apple style)
+  signInGoogleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderRadius: 8,
+    gap: 8,
+    height: 50,
+  },
+  signInGoogleIcon: {
+    marginRight: 0,
+  },
+  signInGoogleButtonText: {
+    fontSize: 22,
+    lineHeight: 22,
+    fontWeight: '500',
   },
 });
