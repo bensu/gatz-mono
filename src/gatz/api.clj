@@ -16,6 +16,7 @@
             [gatz.api.media :as api.media]
             [gatz.api.message :as api.message]
             [gatz.api.user :as api.user]
+            [gatz.admin :as admin]
             [gatz.connections :as conns]
             [gatz.crdt.discussion :as crdt.discussion]
             [gatz.crdt.message :as crdt.message]
@@ -255,6 +256,7 @@
 (defn get-manifest [_]
   (json-response settings/manifest))
 
+
 (def plugin
   {:on-tx on-tx
    :tasks [{:task ping-every-connection!
@@ -269,6 +271,7 @@
 
                 ["/admin" {:middleware [ddl.admin/wrap-admin-auth]}
                  ["/ddl" {:get ddl.admin/get-debug-route}]
+                 ["/user-auth-migration-report" {:get admin/user-auth-migration-report}]
                  ["/test-sentry" {:get (fn [request]
                                          ;; Intentionally throw an error to test Sentry
                                          (throw (ex-info "Test Sentry Integration"
