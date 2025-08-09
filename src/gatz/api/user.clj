@@ -252,19 +252,28 @@
    :status (:status v)
    :attempts (- 6 (count (:send_code_attempts v)))})
 
-(defn verify-phone! [{:keys [params biff/db biff/secret] :as _ctx}]
+(defn verify-phone! [{:keys [params biff/db biff/secret] :as ctx}]
   (let [{:keys [phone_number]} params
         phone (clean-phone phone_number)
         user  (some-> (db.user/by-phone db phone) crdt.user/->value)]
-    (if (:user/deleted_at user)
+    (cond
+      (:user/deleted_at user)
       (err-resp "account_deleted" "Account deleted")
-      (if-not (valid-phone? phone)
-        (err-resp "invalid_phone" "Invalid phone number")
-        (let [v (twilio/start-verification! secret {:phone phone})]
-          (json-response (merge {:phone_number phone}
-                                (twilio-to-response v)
-                                (when user
-                                  {:user user}))))))))
+      
+      (not (valid-phone? phone))
+      (err-resp "invalid_phone" "Invalid phone number")
+      
+      ;; Block SMS verification for new users when restriction is enabled
+      (and (:gatz.auth/sms-signup-restricted? ctx)
+           (nil? user))
+      (err-resp "sms_signup_restricted" "We don't recognize this phone number")
+      
+      :else
+      (let [v (twilio/start-verification! secret {:phone phone})]
+        (json-response (merge {:phone_number phone}
+                              (twilio-to-response v)
+                              (when user
+                                {:user user})))))))
 
 (defn verify-code! [{:keys [params biff/secret biff/db] :as ctx}]
   (let [{:keys [phone_number code]} params
