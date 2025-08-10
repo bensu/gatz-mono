@@ -141,23 +141,8 @@ jest.mock('expo-image', () => ({
   },
 }));
 
-// Mock expo-av
-jest.mock('expo-av', () => ({
-  Video: ({ testID, source, style, shouldPlay, useNativeControls, ...props }) => {
-    const React = require('react');
-    const { View } = require('react-native');
-    return React.createElement(View, {
-      testID,
-      style,
-      ...props,
-      accessibilityLabel: `Video shouldPlay: ${shouldPlay}, controls: ${useNativeControls}`,
-      accessibilityValue: { text: source?.uri || '' }
-    });
-  },
-  ResizeMode: {
-    COVER: 'cover',
-    CONTAIN: 'contain',
-  },
+// Mock expo-audio
+jest.mock('expo-audio', () => ({
   Audio: {
     setAudioModeAsync: jest.fn(() => Promise.resolve()),
   },

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { StyleSheet, View, TouchableOpacity, Platform, ScrollView, StyleProp, ViewStyle, Modal } from "react-native";
 import { Image } from "expo-image";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { Audio } from "expo-av";
+import { Audio } from "expo-audio";
 import { ImageGallery as NativeImageGallery } from "../../../vendor/react-native-image-gallery/src";
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import ImageGallery from "react-image-gallery";

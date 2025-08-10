@@ -55,7 +55,7 @@ jest.mock('expo-image', () => {
   };
 });
 
-jest.mock('expo-av', () => {
+jest.mock('expo-audio', () => {
   const { View } = require('react-native');
   return {
     Video: ({ ...props }: any) => <View testID="Video" {...props} />,

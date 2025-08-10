@@ -82,7 +82,7 @@ const createVideoMedia = (overrides: Partial<T.VideoMedia> = {}): T.VideoMedia =
  * TESTING STRATEGY:
  * - Child Components: Use real components with testIDs
  * - External Services: None to mock
- * - Native Modules: Mock expo-image, expo-av, and icon libraries globally
+ * - Native Modules: Mock expo-image, expo-audio, and icon libraries globally
  * 
  * Tests for MEDIA_CACHE_POLICY constant
  * 
@@ -483,7 +483,7 @@ describe('MessageMedia', () => {
     });
 
     it('should configure audio when videos are present', () => {
-      const { Audio } = require('expo-av');
+      const { Audio } = require('expo-audio');
       const media = [createVideoMedia()];
       const scrollRef = createScrollViewRef();
       
@@ -505,7 +505,7 @@ describe('MessageMedia', () => {
     });
 
     it('should not configure audio when only images present', () => {
-      const { Audio } = require('expo-av');
+      const { Audio } = require('expo-audio');
       jest.clearAllMocks();
       const media = [createImageMedia()];
       const scrollRef = createScrollViewRef();
