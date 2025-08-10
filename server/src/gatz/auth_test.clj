@@ -51,13 +51,13 @@
     ;; Test invalid algorithm
     (with-redefs [clojure.data.json/read-str (fn [json-str & opts] {:kid "test-key" :alg "HS256"})]
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Apple ID token verification failed"
-                           (auth/verify-apple-id-token "mock.token" {:client-id "test-client"}))))
+                           (auth/verify-apple-id-token "mock.token" {}))))
     
     ;; Test missing key
     (with-redefs [clojure.data.json/read-str (fn [json-str & opts] {:kid "missing-key" :alg "RS256"})
                   auth/find-apple-key (fn [kid] nil)]
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Apple ID token verification failed"
-                           (auth/verify-apple-id-token "mock.token" {:client-id "test-client"}))))))
+                           (auth/verify-apple-id-token "mock.token" {}))))))
 
 (deftest test-google-jwks-cache
   (testing "Google JWKS caching functionality"
@@ -89,10 +89,10 @@
     ;; Test invalid algorithm
     (with-redefs [clojure.data.json/read-str (fn [json-str & opts] {:kid "google-key" :alg "HS256"})]
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Google ID token verification failed"
-                           (auth/verify-google-id-token "mock.token" {:client-id "test-client"}))))
+                           (auth/verify-google-id-token "mock.token" {}))))
     
     ;; Test missing key
     (with-redefs [clojure.data.json/read-str (fn [json-str & opts] {:kid "missing-key" :alg "RS256"})
                   auth/find-google-key (fn [kid] nil)]
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Google ID token verification failed"
-                           (auth/verify-google-id-token "mock.token" {:client-id "test-client"}))))))
+                           (auth/verify-google-id-token "mock.token" {}))))))

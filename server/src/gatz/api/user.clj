@@ -431,7 +431,7 @@
       
       :else
       (try
-        (let [claims (auth/verify-apple-id-token id_token {:client-id client_id})
+        (let [claims (auth/verify-apple-id-token id_token ctx)
               apple-id (:sub claims)
               email (:email claims)
               existing-user-by-apple (db.user/by-apple-id db apple-id)
@@ -490,7 +490,7 @@
       :else
       (try
         (log/info "link-apple: attempting to verify Apple ID token")
-        (let [claims (auth/verify-apple-id-token id_token {:client-id client_id})
+        (let [claims (auth/verify-apple-id-token id_token ctx)
               apple-id (:sub claims)
               existing-apple-user (db.user/by-apple-id db apple-id)
               current-user (db.user/by-id db user-id)]
@@ -550,7 +550,7 @@
       
       :else
       (try
-        (let [claims (auth/verify-apple-id-token id_token {:client-id client_id})
+        (let [claims (auth/verify-apple-id-token id_token ctx)
               apple-id (:sub claims)
               email (:email claims)
               clean-username (clean-username username)
@@ -612,7 +612,7 @@
 
       :else
       (try
-        (let [claims (auth/verify-google-id-token id_token {:client-id client_id})
+        (let [claims (auth/verify-google-id-token id_token ctx)
               google-id (:sub claims)
               email (:email claims)
               existing-user-by-google (db.user/by-google-id db google-id)
@@ -669,7 +669,7 @@
       
       :else
       (try
-        (let [claims (auth/verify-google-id-token id_token {:client-id client_id})
+        (let [claims (auth/verify-google-id-token id_token ctx)
               google-id (:sub claims)
               email (:email claims)
               clean-username (clean-username username)
@@ -729,7 +729,7 @@
       
       :else
       (try
-        (let [claims (auth/verify-google-id-token id_token {:client-id client_id})
+        (let [claims (auth/verify-google-id-token id_token ctx)
               google-id (:sub claims)
               existing-google-user (db.user/by-google-id db google-id)
               current-user (db.user/by-id db user-id)]

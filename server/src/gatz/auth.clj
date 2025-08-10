@@ -138,8 +138,9 @@
     (first (filter #(= (:kid %) kid) keys))))
 
 (defn verify-apple-id-token
-  "Verify an Apple ID token and extract claims"
-  [id-token {:keys [client-id audience] :or {audience client-id}}]
+  "Verify an Apple ID token and extract claims. The audience (client ID) from the token 
+   must be in the whitelist defined in ctx."
+  [id-token ctx]
   (try
     (let [header (json/read-str
                   (String. (base64url-decode
@@ -163,15 +164,16 @@
                 aud (:aud claims)
                 sub (:sub claims)
                 exp (:exp claims)
-                now (/ (System/currentTimeMillis) 1000)]
+                now (/ (System/currentTimeMillis) 1000)
+                allowed-client-ids (get ctx :gatz.auth/apple-client-ids #{})]
             
             ;; Validate issuer
             (when-not (= iss "https://appleid.apple.com")
               (throw (ex-info "Invalid issuer" {:issuer iss :expected "https://appleid.apple.com"})))
             
-            ;; Validate audience
-            (when-not (= aud audience)
-              (throw (ex-info "Invalid audience" {:audience aud :expected audience})))
+            ;; Validate audience (client ID) from token against whitelist
+            (when-not (contains? allowed-client-ids aud)
+              (throw (ex-info "Invalid Apple client ID in token" {:audience aud :allowed allowed-client-ids})))
             
             ;; Validate subject exists
             (when (str/blank? sub)
@@ -215,8 +217,9 @@
     (first (filter #(= (:kid %) kid) keys))))
 
 (defn verify-google-id-token
-  "Verify a Google ID token and extract claims"
-  [id-token {:keys [client-id audience] :or {audience client-id}}]
+  "Verify a Google ID token and extract claims. The audience (client ID) from the token 
+   must be in the whitelist defined in ctx."
+  [id-token ctx]
   (try
     (let [header (json/read-str
                   (String. (base64url-decode
@@ -240,15 +243,16 @@
                 aud (:aud claims)
                 sub (:sub claims)
                 exp (:exp claims)
-                now (/ (System/currentTimeMillis) 1000)]
+                now (/ (System/currentTimeMillis) 1000)
+                allowed-client-ids (get ctx :gatz.auth/google-client-ids #{})]
             
             ;; Validate issuer - Google uses accounts.google.com or https://accounts.google.com
             (when-not (contains? #{"https://accounts.google.com" "accounts.google.com"} iss)
               (throw (ex-info "Invalid issuer" {:issuer iss})))
             
-            ;; Validate audience
-            (when-not (= aud audience)
-              (throw (ex-info "Invalid audience" {:audience aud :expected audience})))
+            ;; Validate audience (client ID) from token against whitelist
+            (when-not (contains? allowed-client-ids aud)
+              (throw (ex-info "Invalid Google client ID in token" {:audience aud :allowed allowed-client-ids})))
             
             ;; Validate subject exists
             (when (str/blank? sub)

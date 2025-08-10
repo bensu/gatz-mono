@@ -25,6 +25,12 @@
         :gatz.auth/signup-disabled? false
         :gatz.auth/sms-signup-restricted? true
 
+        ;; OAuth client ID whitelists
+        :gatz.auth/apple-client-ids #{"chat.gatz"}
+        :gatz.auth/google-client-ids #{"848893561159-prhe246vbbotf5r2ttao27qhgp26d3jm.apps.googleusercontent.com"
+                                       "848893561159-sis9lh5251nnij27d8mc6iav49pbh3gj.apps.googleusercontent.com"
+                                       "848893561159-v3ong2tkrhtee68loi1kvmqoguhmc42c.apps.googleusercontent.com"}
+
         :gatz.site/host "https://gatz.chat"
         :gatz.api/host "https://api.gatz.chat"
         :gatz.app/host "https://app.gatz.chat"
@@ -78,6 +84,12 @@
 
        :gatz.db.user/make-friends-with-everybody? false
        :gatz.auth/sms-signup-restricted? true
+
+       ;; OAuth client ID whitelists (dev includes dev Android client ID)
+       :gatz.auth/apple-client-ids #{"chat.gatz"}
+       :gatz.auth/google-client-ids #{"848893561159-prhe246vbbotf5r2ttao27qhgp26d3jm.apps.googleusercontent.com"
+                                      "848893561159-sis9lh5251nnij27d8mc6iav49pbh3gj.apps.googleusercontent.com"
+                                      "848893561159-fiaoecn41mqauss313ghml5oj32oh4oi.apps.googleusercontent.com"}
        :gatz.site/host "http://localhost:3000"
        :gatz.api/host "http://localhost:8080"
        :gatz.app/host "http://localhost:8081"

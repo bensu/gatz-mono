@@ -20,7 +20,7 @@
    :email "user@privaterelay.appleid.com" 
    :name "Test User"
    :iss "https://appleid.apple.com"
-   :aud "com.example.app"
+   :aud "chat.gatz"
    :exp (+ (/ (System/currentTimeMillis) 1000) 3600)
    :iat (/ (System/currentTimeMillis) 1000)})
 

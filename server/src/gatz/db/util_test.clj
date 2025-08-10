@@ -27,7 +27,13 @@
       :gatz.site/host "http://localhost:3000"
       :gatz.app/host "http://localhost:3000"
       :gatz.api/host "http://localhost:8080"
-      :biff/malli-opts #'gatz.system/malli-opts})))
+      :biff/malli-opts #'gatz.system/malli-opts
+      ;; OAuth client ID whitelists for testing
+      :gatz.auth/apple-client-ids #{"chat.gatz"}
+      :gatz.auth/google-client-ids #{"848893561159-prhe246vbbotf5r2ttao27qhgp26d3jm.apps.googleusercontent.com"
+                                     "848893561159-sis9lh5251nnij27d8mc6iav49pbh3gj.apps.googleusercontent.com"
+                                     "848893561159-fiaoecn41mqauss313ghml5oj32oh4oi.apps.googleusercontent.com"
+                                     "848893561159-v3ong2tkrhtee68loi1kvmqoguhmc42c.apps.googleusercontent.com"}})))
 
 (defn json-params [m]
   {:pre [(map? m)] :post [(map? %)]}

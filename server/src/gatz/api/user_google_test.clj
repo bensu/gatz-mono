@@ -20,7 +20,7 @@
   :email "user@example.com"
   :name "Test User"
   :iss "https://accounts.google.com"
-  :aud "google-client-id.apps.googleusercontent.com"
+  :aud "848893561159-prhe246vbbotf5r2ttao27qhgp26d3jm.apps.googleusercontent.com"
   :exp (+ (/ (System/currentTimeMillis) 1000) 3600)
   :iat (/ (System/currentTimeMillis) 1000)})
 
