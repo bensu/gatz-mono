@@ -283,10 +283,18 @@ export class OpenClient {
     email: string,
     code: string,
   ): Promise<T.EmailVerificationAPIResponse> {
-    return await this.post<
-      { email: string; code: string },
-      T.EmailVerificationAPIResponse
-    >(this.baseURL + "/api/auth/verify-email-code", { email, code });
+    try {
+      return await this.post<
+        { email: string; code: string },
+        T.EmailVerificationAPIResponse
+      >(this.baseURL + "/api/auth/verify-email-code", { email, code });
+    } catch (error) {
+      if (error.response && error.response.status === 400) {
+        return error.response.data;
+      } else {
+        throw error;
+      }
+    }
   }
 
   async emailSignUp(

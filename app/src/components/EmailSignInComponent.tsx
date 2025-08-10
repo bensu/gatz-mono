@@ -10,6 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '../gifted/hooks/useThemeColors';
 import { NetworkButton, NetworkState } from './NetworkButton';
+import { Color as GatzColor } from '../gatz/styles';
 import { AuthError, AuthErrorType, createAuthError } from '../gatz/auth-errors';
 import { AuthErrorDisplay } from './AuthErrorDisplay';
 import { AuthService } from '../gatz/auth-service';
@@ -146,20 +147,19 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
     <View style={styles.container}>
       {step === 'enter_email' ? (
         <>
-          <View style={[styles.inputContainer, { borderColor: colors.strongGrey }]}>
+          <View style={styles.phoneInputContainer}>
             <Ionicons 
               name="mail-outline" 
               size={20} 
-              color={colors.secondaryText} 
+              color={GatzColor.introBackground} 
               style={styles.inputIcon}
             />
             <TextInput
-              style={[styles.textInput, { 
-                color: colors.primaryText,
+              style={[styles.phoneInputText, { 
                 outlineStyle: 'none' // Remove focus blue on web
               }]}
               placeholder="Enter your email address"
-              placeholderTextColor={colors.secondaryText}
+              placeholderTextColor={GatzColor.introBackground}
               value={email}
               onChangeText={(text) => {
                 setEmail(text);
@@ -193,26 +193,25 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
               onPress={handleBackToEmail}
               disabled={isButtonDisabled}
             >
-              <Ionicons name="arrow-back" size={20} color={colors.buttonActive} />
-              <Text style={[styles.backText, { color: colors.buttonActive }]}>
+              <Ionicons name="arrow-back" size={20} color={GatzColor.introTitle} />
+              <Text style={[styles.backText, { color: GatzColor.introTitle }]}>
                 {email}
               </Text>
             </TouchableOpacity>
             
-            <View style={[styles.inputContainer, { borderColor: colors.strongGrey }]}>
+            <View style={styles.phoneInputContainer}>
               <Ionicons 
                 name="key-outline" 
                 size={20} 
-                color={colors.secondaryText} 
+                color={GatzColor.introBackground} 
                 style={styles.inputIcon}
               />
               <TextInput
-                style={[styles.textInput, { 
-                  color: colors.primaryText,
+                style={[styles.phoneInputText, { 
                   outlineStyle: 'none' // Remove focus blue on web
                 }]}
                 placeholder="Enter 6-digit code"
-                placeholderTextColor={colors.secondaryText}
+                placeholderTextColor={GatzColor.introBackground}
                 value={code}
                 onChangeText={(text) => {
                   // Only allow digits and limit to 6 characters
@@ -253,7 +252,7 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
             error={currentError}
             showRetryButton={false}
             onDismiss={() => setCurrentError(null)}
-            style={useModalStyling ? styles.modalErrorStyle : undefined}
+            style={useModalStyling ? styles.modalErrorStyle : { backgroundColor: 'transparent', padding: 0 }}
           />
         </View>
       )}
@@ -266,11 +265,11 @@ const styles = StyleSheet.create({
     width: '100%',
     gap: 12,
   },
-  inputContainer: {
+  phoneInputContainer: {
+    borderRadius: 8,
+    backgroundColor: GatzColor.introTitle,
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 0,
     height: 50,
@@ -278,9 +277,11 @@ const styles = StyleSheet.create({
   inputIcon: {
     marginRight: 12,
   },
-  textInput: {
+  phoneInputText: {
+    fontWeight: "600",
+    fontSize: 18,
+    color: GatzColor.introBackground,
     flex: 1,
-    fontSize: 16,
     height: '100%',
   },
   codeStep: {
