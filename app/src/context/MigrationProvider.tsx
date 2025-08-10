@@ -10,14 +10,11 @@ import { AppState } from 'react-native';
 import { ClientContext } from './ClientProvider';
 import { SessionContext } from './SessionProvider';
 import { MigrationScreen } from '../components/MigrationScreen';
-import { MigrationBanner } from '../components/MigrationBanner';
 import { SocialSignInCredential } from '../gatz/auth';
 import { MigrationStatus } from '../gatz/types';
 import {
   shouldShowMigrationScreen,
-  shouldShowMigrationBanner,
   markMigrationScreenShown,
-  markMigrationBannerDismissed,
   clearMigrationState,
 } from '../gatz/migration';
 
@@ -42,7 +39,6 @@ export const MigrationProvider: React.FC<PropsWithChildren> = ({ children }) => 
   const [migrationStatus, setMigrationStatus] = useState<MigrationStatus | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showMigrationScreen, setShowMigrationScreen] = useState(false);
-  const [showMigrationBanner, setShowMigrationBanner] = useState(false);
   const [hasCheckedMigrationUI, setHasCheckedMigrationUI] = useState(false);
 
   // Fetch migration status from /me endpoint
@@ -73,13 +69,9 @@ export const MigrationProvider: React.FC<PropsWithChildren> = ({ children }) => 
     }
 
     try {
-      const [shouldShowScreen, shouldShowBanner] = await Promise.all([
-        shouldShowMigrationScreen(status),
-        shouldShowMigrationBanner(status),
-      ]);
+      const shouldShowScreen = await shouldShowMigrationScreen(status);
 
       setShowMigrationScreen(shouldShowScreen);
-      setShowMigrationBanner(shouldShowBanner);
       setHasCheckedMigrationUI(true);
     } catch (error) {
       console.error('Failed to determine migration UI state:', error);
@@ -93,7 +85,6 @@ export const MigrationProvider: React.FC<PropsWithChildren> = ({ children }) => 
     } else {
       setMigrationStatus(null);
       setShowMigrationScreen(false);
-      setShowMigrationBanner(false);
       setHasCheckedMigrationUI(false);
     }
   }, [session]); // Only depend on session to avoid circular dependencies
@@ -141,31 +132,15 @@ export const MigrationProvider: React.FC<PropsWithChildren> = ({ children }) => 
   const handleMigrationScreenClose = useCallback(async () => {
     await markMigrationScreenShown();
     setShowMigrationScreen(false);
-    
-    // Show banner on next app open if migration still required
-    if (migrationStatus?.required) {
-      setShowMigrationBanner(true);
-    }
-  }, [migrationStatus]);
-
-  // Handle banner dismiss
-  const handleBannerDismiss = useCallback(async () => {
-    await markMigrationBannerDismissed();
-    setShowMigrationBanner(false);
   }, []);
+
 
   // Handle migration success
   const handleMigrationSuccess = useCallback(() => {
     setShowMigrationScreen(false);
-    setShowMigrationBanner(false);
     setMigrationStatus(null);
   }, []);
 
-  // Handle "Migrate Now" from banner
-  const handleBannerMigrateNow = useCallback(() => {
-    setShowMigrationBanner(false);
-    setShowMigrationScreen(true);
-  }, []);
 
   return (
     <MigrationContext.Provider
@@ -187,13 +162,6 @@ export const MigrationProvider: React.FC<PropsWithChildren> = ({ children }) => 
         gatzClient={gatzClient}
       />
 
-      {/* Migration Banner */}
-      <MigrationBanner
-        visible={showMigrationBanner}
-        onDismiss={handleBannerDismiss}
-        onMigrateNow={handleBannerMigrateNow}
-        onLinkAccount={handleLinkAccount}
-      />
     </MigrationContext.Provider>
   );
 };

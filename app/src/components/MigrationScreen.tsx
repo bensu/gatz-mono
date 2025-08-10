@@ -238,7 +238,6 @@ export const MigrationScreen: React.FC<MigrationScreenProps> = ({
         <TouchableOpacity
           style={StyleSheet.absoluteFill}
           activeOpacity={1}
-          onPress={onClose}
         >
           <BlurView
             tint={colors.theme === "dark" ? "light" : "dark"}
@@ -279,20 +278,14 @@ export const MigrationScreen: React.FC<MigrationScreenProps> = ({
               <View style={styles.header}>
                 <View style={styles.titleContainer}>
                   <Text style={[styles.title, { color: colors.primaryText }]}>
-                    {modalState === 'main' 
-                      ? 'Link to Google ID, Apple ID, or your email'
-                      : 'Link your email address'
-                    }
+                    Choose a new login
                   </Text>
                 </View>
-                <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                  <Ionicons name="close" size={24} color={colors.secondaryText} />
-                </TouchableOpacity>
               </View>
 
               <View style={styles.descriptionContainer}>
                 <Text style={[styles.description, { color: colors.secondaryText }]}>
-                  Gatz can no longer use SMS and we will deprecate that soon.
+                  Gatz is deprecating login with SMS. Choose a new login method to link to your account.
                 </Text>
               </View>
 
@@ -370,7 +363,7 @@ export const MigrationScreen: React.FC<MigrationScreenProps> = ({
                   disabled={isLoading}
                 >
                   <Text style={[styles.remindLaterText, { color: colors.secondaryText }]}>
-                    Remind Me Later
+                    Remind me later
                   </Text>
                 </TouchableOpacity>
               </View>
