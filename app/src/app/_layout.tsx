@@ -62,7 +62,7 @@ function Layout() {
         <GestureHandlerRootView style={styles.container}>
           <AssetProvider>
             <SessionProvider>
-              <Slot ref={ref} />
+              <Slot />
             </SessionProvider>
           </AssetProvider>
         </GestureHandlerRootView>
