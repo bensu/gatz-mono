@@ -582,6 +582,16 @@
    {:pre [(uuid? user-id) (string? apple-id) (not (empty? apple-id))]}
    (let [db (xtdb/db node)
          current-user (by-id db user-id)
+         
+         ;; Check email uniqueness across all providers if email is being linked
+         _ (when email
+             (when-let [existing-email-user (by-email db email)]
+               (when (not= (:xt/id existing-email-user) user-id)
+                 (throw (ex-info "Email already linked to another account" 
+                                {:type :duplicate-email 
+                                 :email email
+                                 :existing-user-id (:xt/id existing-email-user)})))))
+         
          ;; Update both CRDT fields and immutable auth fields
          clock (crdt/new-hlc user-id now)
          auth-fields (cond-> {:user/apple_id apple-id}
@@ -614,6 +624,16 @@
    {:pre [(uuid? user-id) (string? google-id) (not (empty? google-id))]}
    (let [db (xtdb/db node)
          current-user (by-id db user-id)
+         
+         ;; Check email uniqueness across all providers if email is being linked
+         _ (when email
+             (when-let [existing-email-user (by-email db email)]
+               (when (not= (:xt/id existing-email-user) user-id)
+                 (throw (ex-info "Email already linked to another account" 
+                                {:type :duplicate-email 
+                                 :email email
+                                 :existing-user-id (:xt/id existing-email-user)})))))
+         
          ;; Update both CRDT fields and immutable auth fields
          clock (crdt/new-hlc user-id now)
          auth-fields (cond-> {:user/google_id google-id}
@@ -662,6 +682,15 @@
    {:pre [(uuid? user-id) (string? email) (not (empty? email))]}
    (let [db (xtdb/db node)
          current-user (by-id db user-id)
+         
+         ;; Check email uniqueness across all providers
+         _ (when-let [existing-email-user (by-email db email)]
+             (when (not= (:xt/id existing-email-user) user-id)
+               (throw (ex-info "Email already linked to another account" 
+                              {:type :duplicate-email 
+                               :email email
+                               :existing-user-id (:xt/id existing-email-user)}))))
+         
          clock (crdt/new-hlc user-id now)
          auth-fields (cond-> {:user/apple_id (:user/apple_id current-user)
                               :user/google_id (:user/google_id current-user)}

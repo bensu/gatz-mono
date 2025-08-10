@@ -35,6 +35,9 @@ export const AuthErrorDisplay: React.FC<AuthErrorDisplayProps> = ({
       case AuthErrorType.ACCOUNT_CONFLICT:
       case AuthErrorType.USERNAME_TAKEN:
       case AuthErrorType.PHONE_TAKEN:
+      case AuthErrorType.EMAIL_TAKEN:
+      case AuthErrorType.APPLE_EMAIL_TAKEN:
+      case AuthErrorType.GOOGLE_EMAIL_TAKEN:
         return 'error';
       case AuthErrorType.SERVICE_UNAVAILABLE:
         return 'cloud-off';

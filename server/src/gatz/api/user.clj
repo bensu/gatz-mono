@@ -448,25 +448,9 @@
               (json-response {:user (crdt.user/->value existing-user-by-apple)
                               :token (auth/create-auth-token ctx (:xt/id existing-user-by-apple))}))
             
-            ;; User exists by email but no Apple ID - link Apple account and sign them in
+            ;; User exists by email but no Apple ID - return error to prevent auto-linking
             existing-user-by-email
-            (do
-              (when (db.user/deleted? existing-user-by-email)
-                (throw (ex-info "Account deleted" {:type :account-deleted})))
-              ;; Directly update the user record to link Apple ID (without requiring auth context)
-              (let [user-id (:xt/id existing-user-by-email)
-                    now (java.util.Date.)
-                    clock (crdt/new-hlc user-id now)
-                    updated-user (merge existing-user-by-email 
-                                       {:crdt/clock clock
-                                        :user/updated_at (crdt/max-wins now)
-                                        :user/apple_id apple-id})]
-                (biff/submit-tx ctx [[:xtdb.api/put (assoc updated-user :db/doc-type :gatz.crdt/user)]])
-                (posthog/identify! ctx updated-user)
-                (posthog/capture! (assoc ctx :auth/user-id user-id) "user.link_apple")
-                (json-response {:type "sign_in"
-                                :user (crdt.user/->value updated-user)
-                                :token (auth/create-auth-token ctx user-id)})))
+            (err-resp "apple_email_taken" "The email associated with this Apple ID is already registered with another account. Please sign in to that account and link your Apple ID from settings.")
             
             ;; New user - return success without creating user, let frontend handle sign-up
             :else
@@ -538,6 +522,7 @@
           (let [ex-data (ex-data e)]
             (case (:type ex-data)
               :account-deleted (err-resp "account_deleted" "Account deleted")
+              :duplicate-email (err-resp "email_taken" "This email is already linked to another account")
               (err-resp "apple_link_failed" (.getMessage e)))))
         
         (catch Exception e
@@ -645,25 +630,9 @@
               (json-response {:user (crdt.user/->value existing-user-by-google)
                               :token (auth/create-auth-token ctx (:xt/id existing-user-by-google))}))
 
-            ;; User exists by email but no Google ID - link Google account and sign them in
+            ;; User exists by email but no Google ID - return error to prevent auto-linking
             existing-user-by-email
-            (do
-              (when (db.user/deleted? existing-user-by-email)
-                (throw (ex-info "Account deleted" {:type :account-deleted})))
-              ;; Directly update the user record to link Google ID (without requiring auth context)
-              (let [user-id (:xt/id existing-user-by-email)
-                    now (java.util.Date.)
-                    clock (crdt/new-hlc user-id now)
-                    updated-user (merge existing-user-by-email
-                                        {:crdt/clock clock
-                                         :user/updated_at (crdt/max-wins now)
-                                         :user/google_id google-id})]
-                (biff/submit-tx ctx [[:xtdb.api/put (assoc updated-user :db/doc-type :gatz.crdt/user)]])
-                (posthog/identify! ctx updated-user)
-                (posthog/capture! (assoc ctx :auth/user-id user-id) "user.link_google")
-                (json-response {:type "sign_in"
-                                :user (crdt.user/->value updated-user)
-                                :token (auth/create-auth-token ctx user-id)})))
+            (err-resp "google_email_taken" "The email associated with this Google account is already registered with another account. Please sign in to that account and link your Google account from settings.")
 
             ;; New user - return success without creating user, let frontend handle sign-up
             :else
@@ -791,6 +760,7 @@
           (let [ex-data (ex-data e)]
             (case (:type ex-data)
               :account-deleted (err-resp "account_deleted" "Account deleted")
+              :duplicate-email (err-resp "email_taken" "This email is already linked to another account")
               (err-resp "google_link_failed" (.getMessage e)))))
         
         (catch Exception e
@@ -945,6 +915,7 @@
           (let [ex-data (ex-data e)]
             (case (:type ex-data)
               :account-deleted (err-resp "account_deleted" "Account deleted")
+              :duplicate-email (err-resp "email_taken" "This email is already linked to another account")
               (err-resp "email_link_failed" (.getMessage e)))))
         
         (catch Exception e

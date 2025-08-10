@@ -19,6 +19,8 @@ export enum AuthErrorType {
   SIGNUP_DISABLED = 'SIGNUP_DISABLED',
   EMAIL_INVALID = 'EMAIL_INVALID',
   EMAIL_TAKEN = 'EMAIL_TAKEN',
+  APPLE_EMAIL_TAKEN = 'APPLE_EMAIL_TAKEN',
+  GOOGLE_EMAIL_TAKEN = 'GOOGLE_EMAIL_TAKEN',
   EMAIL_SENDING_FAILED = 'EMAIL_SENDING_FAILED',
   EMAIL_SIGNIN_FAILED = 'EMAIL_SIGNIN_FAILED'
 }
@@ -44,6 +46,8 @@ export const AUTH_ERROR_MESSAGES: Record<AuthErrorType, string> = {
   [AuthErrorType.SIGNUP_DISABLED]: "Sign up is currently disabled",
   [AuthErrorType.EMAIL_INVALID]: "Please enter a valid email address",
   [AuthErrorType.EMAIL_TAKEN]: "This email address is already registered",
+  [AuthErrorType.APPLE_EMAIL_TAKEN]: "The email associated with this Apple ID is already registered with another account",
+  [AuthErrorType.GOOGLE_EMAIL_TAKEN]: "The email associated with this Google account is already registered with another account",
   [AuthErrorType.EMAIL_SENDING_FAILED]: "Unknown error, please try again",
   [AuthErrorType.EMAIL_SIGNIN_FAILED]: "Email sign-in failed. Please try again"
 };
@@ -110,6 +114,12 @@ export const mapErrorToAuthError = (error: any): AuthError => {
         case 'apple_id_taken':
         case 'google_id_taken':
           return createAuthError(AuthErrorType.ACCOUNT_CONFLICT, error, undefined, false);
+        case 'apple_email_taken':
+          return createAuthError(AuthErrorType.APPLE_EMAIL_TAKEN, error, undefined, false);
+        case 'google_email_taken':
+          return createAuthError(AuthErrorType.GOOGLE_EMAIL_TAKEN, error, undefined, false);
+        case 'email_taken':
+          return createAuthError(AuthErrorType.EMAIL_TAKEN, error, undefined, false);
         default:
           break;
       }
@@ -156,6 +166,9 @@ export const isRetryableError = (error: AuthError): boolean => {
     AuthErrorType.ACCOUNT_CONFLICT,
     AuthErrorType.USERNAME_TAKEN,
     AuthErrorType.PHONE_TAKEN,
+    AuthErrorType.EMAIL_TAKEN,
+    AuthErrorType.APPLE_EMAIL_TAKEN,
+    AuthErrorType.GOOGLE_EMAIL_TAKEN,
     AuthErrorType.INVALID_TOKEN,
     AuthErrorType.SIGNUP_DISABLED
   ].includes(error.type);
