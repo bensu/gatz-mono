@@ -49,19 +49,20 @@ interface Props {
   onClose?(): void
 }
 
-const Main = ({ theme, translation, ...props }: Props) => {
+const defaultProps = {
+  onSelect: () => {},
+  withEmoji: true,
+} as const;
+
+const Main = (props: Props) => {
+  const { theme, translation, ...restProps } = { ...defaultProps, ...props };
   return (
     <ThemeProvider theme={{ ...DEFAULT_THEME, ...theme }}>
       <CountryProvider value={{ ...DEFAULT_COUNTRY_CONTEXT, translation }}>
-        <CountryPicker {...props} />
+        <CountryPicker {...restProps} />
       </CountryProvider>
     </ThemeProvider>
   )
-}
-
-Main.defaultProps = {
-  onSelect: () => {},
-  withEmoji: true,
 }
 
 export default Main

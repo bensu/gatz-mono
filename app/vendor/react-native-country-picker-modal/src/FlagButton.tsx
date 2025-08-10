@@ -122,18 +122,27 @@ export interface FlagButtonProps {
   onOpen?(): void
 }
 
-export const FlagButton = ({
-  allowFontScaling,
-  withEmoji,
-  withCountryNameButton,
-  withCallingCodeButton,
-  withCurrencyButton,
-  withFlagButton,
-  countryCode,
-  containerButtonStyle,
-  onOpen,
-  placeholder,
-}: FlagButtonProps) => {
+const defaultProps = {
+  withEmoji: true,
+  withCountryNameButton: false,
+  withCallingCodeButton: false,
+  withCurrencyButton: false,
+  withFlagButton: true,
+} as const;
+
+export const FlagButton = (props: FlagButtonProps) => {
+  const {
+    allowFontScaling,
+    withEmoji,
+    withCountryNameButton,
+    withCallingCodeButton,
+    withCurrencyButton,
+    withFlagButton,
+    countryCode,
+    containerButtonStyle,
+    onOpen,
+    placeholder,
+  } = { ...defaultProps, ...props };
   const { flagSizeButton: flagSize } = useTheme()
   return (
     <TouchableOpacity activeOpacity={0.7} onPress={onOpen}>
@@ -162,10 +171,3 @@ export const FlagButton = ({
   )
 }
 
-FlagButton.defaultProps = {
-  withEmoji: true,
-  withCountryNameButton: false,
-  withCallingCodeButton: false,
-  withCurrencyButton: false,
-  withFlagButton: true,
-}

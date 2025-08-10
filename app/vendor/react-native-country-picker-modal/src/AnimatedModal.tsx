@@ -11,7 +11,12 @@ interface Props {
   children: React.ReactNode
 }
 
-export const AnimatedModal = ({ children, visible }: Props) => {
+const defaultProps = {
+  visible: false,
+} as const;
+
+export const AnimatedModal = (props: Props) => {
+  const { children, visible } = { ...defaultProps, ...props };
   const translateY = new Animated.Value(height)
 
   const showModal = Animated.timing(translateY, {
@@ -47,6 +52,3 @@ export const AnimatedModal = ({ children, visible }: Props) => {
   )
 }
 
-AnimatedModal.defaultProps = {
-  visible: false,
-}

@@ -20,9 +20,10 @@ const defaultProps = {
   thumbColor: '#d9b44a',
   thumbResizeMode: 'cover',
   thumbSize: 48,
-};
+} as const;
 
-const ImageGallery = (props: IProps & typeof defaultProps) => {
+const ImageGallery = (props: IProps) => {
+  const mergedProps = { ...defaultProps, ...props };
   const {
     close,
     hideThumbs,
@@ -38,7 +39,7 @@ const ImageGallery = (props: IProps & typeof defaultProps) => {
     thumbResizeMode,
     thumbSize,
     disableSwipe,
-  } = props;
+  } = mergedProps;
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -232,7 +233,5 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
 });
-
-ImageGallery.defaultProps = defaultProps;
 
 export default ImageGallery;

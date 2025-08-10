@@ -410,12 +410,31 @@ type BubbleState = {
  * @param props - BubbleProps with animation, config, and action properties
  * @returns Styled message bubble with animations and reactions
  */
+const bubbleInMessageDefaultProps = {
+  withMargin: true,
+  currentMessage: {
+    text: null,
+    created_at: null,
+    image: null,
+  },
+  nextMessage: {},
+  previousMessage: {},
+  inPost: false,
+  showFull: true,
+  onDelete: () => { },
+  onReactji: () => { },
+  onFlagMessage: () => { },
+  onSuggestedPost: () => { },
+  onCopyText: () => { },
+} as const;
+
 const BubbleInMessage: React.FC<BubbleProps> = (props) => {
+  const mergedProps = { ...bubbleInMessageDefaultProps, ...props };
   
   // [context-integration]
 
-  const { currentMessage, inPost, showFull, colors, } = props;
-  const { textContainerStyle, bubbleHeightStyle, bubbleScaleStyle } = props;
+  const { currentMessage, inPost, showFull, colors, } = mergedProps;
+  const { textContainerStyle, bubbleHeightStyle, bubbleScaleStyle } = mergedProps;
   // [highlight-state-disabled]
   const isHighlighted = false; // currentMessage?.isHighlighted;
 
@@ -435,10 +454,10 @@ const BubbleInMessage: React.FC<BubbleProps> = (props) => {
       return (
         <HangingReactions
           reactions={currentMessage.reactions || {}}
-          onDisplayReactions={props.onDisplayReactions}
+          onDisplayReactions={mergedProps.onDisplayReactions}
           outerStyle={{ right: 6, bottom: -26 }}
-          isHover={props.isHover}
-          onReactji={props.onReactji}
+          isHover={mergedProps.isHover}
+          onReactji={mergedProps.onReactji}
         />
       );
     } else {
@@ -458,15 +477,15 @@ const BubbleInMessage: React.FC<BubbleProps> = (props) => {
     // [conditional-shadow]
     !inPost && styles.wrapperShadow,
     // [message-grouping-styles]
-    styledBubbleToNext(props),
-    styledBubbleToPrevious(props),
+    styledBubbleToNext(mergedProps),
+    styledBubbleToPrevious(mergedProps),
     // Stryker disable all
-    props.withMargin ? { marginRight: 8 } : {},
+    mergedProps.withMargin ? { marginRight: 8 } : {},
   ];
 
-  const isTruncated = props.isTruncated; // truncatedHeight !== undefined;
+  const isTruncated = mergedProps.isTruncated; // truncatedHeight !== undefined;
 
-  const messageStatus = props.messageRetryStatus?.[currentMessage.id];
+  const messageStatus = mergedProps.messageRetryStatus?.[currentMessage.id];
   const showStatus = messageStatus && (messageStatus.isRetrying || messageStatus.isSuccess || 
     (messageStatus.retryCount >= 0 && !messageStatus.isSuccess));
 
@@ -494,7 +513,7 @@ const BubbleInMessage: React.FC<BubbleProps> = (props) => {
         {showStatus && (
           <MessageStatus
             status={messageStatus}
-            onRetryPress={() => props.onRetryMessage?.(currentMessage.id)}
+            onRetryPress={() => mergedProps.onRetryMessage?.(currentMessage.id)}
             isSuccess={messageStatus.isSuccess || false}
           />
         )}
@@ -503,24 +522,6 @@ const BubbleInMessage: React.FC<BubbleProps> = (props) => {
   );
 };
 
-// Default props for BubbleInMessage
-BubbleInMessage.defaultProps = {
-  withMargin: true,
-  currentMessage: {
-    text: null,
-    created_at: null,
-    image: null,
-  },
-  nextMessage: {},
-  previousMessage: {},
-  inPost: false,
-  showFull: true,
-  onDelete: () => { },
-  onReactji: () => { },
-  onFlagMessage: () => { },
-  onSuggestedPost: () => { },
-  onCopyText: () => { },
-};
 
 // PropTypes for BubbleInMessage
 BubbleInMessage.propTypes = {

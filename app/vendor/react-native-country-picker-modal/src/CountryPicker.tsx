@@ -87,6 +87,14 @@ interface CountryPickerProps {
   onClose?(): void
 }
 
+const defaultProps = {
+  withModal: true,
+  withAlphaFilter: false,
+  withCallingCode: false,
+  placeholder: 'Select Country',
+  allowFontScaling: true,
+} as const;
+
 export const CountryPicker = (props: CountryPickerProps) => {
   const {
     allowFontScaling,
@@ -122,7 +130,7 @@ export const CountryPicker = (props: CountryPickerProps) => {
     excludeCountries,
     placeholder,
     preferredCountries,
-  } = props
+  } = { ...defaultProps, ...props }
   const [state, setState] = useState<State>({
     visible: props.visible || false,
     countries: [],
@@ -244,10 +252,3 @@ export const CountryPicker = (props: CountryPickerProps) => {
   )
 }
 
-CountryPicker.defaultProps = {
-  withModal: true,
-  withAlphaFilter: false,
-  withCallingCode: false,
-  placeholder: 'Select Country',
-  allowFontScaling: true,
-}

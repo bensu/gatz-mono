@@ -701,9 +701,21 @@ const ReplyToPreviewContainer: React.FC<InnerMessageProps> = (props) => {
  * @param props - MessageProps containing message data and action handlers
  * @returns React element representing the message or null if flagged
  */
+const messageDefaultProps = {
+  shouldRenderDay: true,
+  currentMessage: {},
+  nextMessage: {},
+  previousMessage: {},
+  user: {},
+  onMessageLayout: undefined,
+  inPost: false,
+  colors: {},
+} as const;
+
 const Message: React.FC<MessageProps> = React.memo((props) => {
+  const mergedProps = { ...messageDefaultProps, ...props };
   const context = useContext(GiftedChatContext);
-  const { currentMessage, inPost, onMessageLayout, user, db, messageActionProps } = props;
+  const { currentMessage, inPost, onMessageLayout, user, db, messageActionProps } = mergedProps;
 
   const onReply = useCallback(() => {
     messageActionProps?.onReplyTo?.(currentMessage.id);
@@ -806,30 +818,30 @@ const Message: React.FC<MessageProps> = React.memo((props) => {
   }, [currentMessage, user, db, context, onSuggestedPost, onEdit, onDelete, onFlagMessage]);
 
   const renderDay = useCallback(() => {
-    const { currentMessage, shouldRenderDay } = props;
+    const { currentMessage, shouldRenderDay } = mergedProps;
     // [day-separator-logic]
     if (shouldRenderDay && currentMessage && currentMessage.created_at) {
-      return <Day {...props} />;
+      return <Day {...mergedProps} />;
     } else {
       return null;
     }
-  }, [props]);
+  }, [mergedProps]);
 
   const renderSystemMessage = useCallback(() => {
-    const { onMessageLayout, ...restProps } = props;
+    const { onMessageLayout, ...restProps } = mergedProps;
     return (
       <SystemMessage
         currentMessage={{ ...restProps.currentMessage, system: true }}
       />
     );
-  }, [props]);
+  }, [mergedProps]);
 
   // [flagged-message-filtering]
   const isFlaggedByUser = currentMessage?.flagged_uids?.includes(getUserId(user));
   if (currentMessage && !isFlaggedByUser) {
     // @ts-ignore
     const messageRowProps: MessageRowProps = {
-      ...props,
+      ...mergedProps,
       onReply,
       onEdit,
       onDelete,
@@ -862,16 +874,6 @@ const Message: React.FC<MessageProps> = React.memo((props) => {
   return null;
 }, messagePropsAreEqual);
 
-Message.defaultProps = {
-  shouldRenderDay: true,
-  currentMessage: {},
-  nextMessage: {},
-  previousMessage: {},
-  user: {},
-  onMessageLayout: undefined,
-  inPost: false,
-  colors: {},
-};
 
 Message.propTypes = {
   currentMessage: PropTypes.object,

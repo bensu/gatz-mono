@@ -89,6 +89,11 @@ interface CountryItemProps {
   withCurrency?: boolean
   onSelect(country: Country): void
 }
+const countryItemDefaultProps = {
+  withFlag: true,
+  withCallingCode: false,
+} as const;
+
 const CountryItem = (props: CountryItemProps) => {
   const { activeOpacity, itemHeight, flagSize } = useTheme()
   const {
@@ -98,7 +103,7 @@ const CountryItem = (props: CountryItemProps) => {
     withEmoji,
     withCallingCode,
     withCurrency,
-  } = props
+  } = { ...countryItemDefaultProps, ...props }
   const extraContent: string[] = []
   if (
     withCallingCode &&
@@ -136,10 +141,6 @@ const CountryItem = (props: CountryItemProps) => {
     </TouchableOpacity>
   )
 }
-CountryItem.defaultProps = {
-  withFlag: true,
-  withCallingCode: false,
-}
 const MemoCountryItem = memo<CountryItemProps>(CountryItem)
 
 const renderItem =
@@ -170,6 +171,10 @@ const ItemSeparatorComponent = () => {
 
 const { height } = Dimensions.get('window')
 
+const countryListDefaultProps = {
+  filterFocus: undefined,
+} as const;
+
 export const CountryList = (props: CountryListProps) => {
   const {
     data,
@@ -182,7 +187,7 @@ export const CountryList = (props: CountryListProps) => {
     filter,
     flatListProps,
     filterFocus,
-  } = props
+  } = { ...countryListDefaultProps, ...props }
 
   const flatListRef = useRef<FlatList<Country>>(null)
   const [letter, setLetter] = useState<string>('')
@@ -257,6 +262,3 @@ export const CountryList = (props: CountryListProps) => {
   )
 }
 
-CountryList.defaultProps = {
-  filterFocus: undefined,
-}
