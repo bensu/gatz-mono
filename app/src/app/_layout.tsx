@@ -6,12 +6,14 @@ import { StyleSheet } from "react-native";
 import { isRunningInExpoGo } from 'expo';
 import { Slot, useNavigationContainerRef } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { PostHogProvider } from "posthog-react-native";
 
 import { SessionProvider } from "../context/SessionProvider";
 import { AssetProvider } from "../context/AssetProvider";
 import { VersionProvider } from "../context/VersionProvider";
 import { ThemeProvider } from "../context/ThemeProvider";
 import { configureGoogleSignIn } from "../gatz/auth";
+import { POSTHOG_API_KEY, POSTHOG_HOST_URL } from "../sdk/posthog";
 
 import * as Sentry from '@sentry/react-native';
 
@@ -57,17 +59,28 @@ function Layout() {
   }, [ref, isNavigationReady]);
 
   return (
-    <ThemeProvider>
-      <VersionProvider>
-        <GestureHandlerRootView style={styles.container}>
-          <AssetProvider>
-            <SessionProvider>
-              <Slot />
-            </SessionProvider>
-          </AssetProvider>
-        </GestureHandlerRootView>
-      </VersionProvider>
-    </ThemeProvider>
+    <PostHogProvider 
+      apiKey={POSTHOG_API_KEY}
+      options={{
+        host: POSTHOG_HOST_URL,
+      }}
+      autocapture={{
+        captureScreens: false, // Disable automatic screen tracking
+        captureTouches: true,  // Keep touch events
+      }}
+    >
+      <ThemeProvider>
+        <VersionProvider>
+          <GestureHandlerRootView style={styles.container}>
+            <AssetProvider>
+              <SessionProvider>
+                <Slot />
+              </SessionProvider>
+            </AssetProvider>
+          </GestureHandlerRootView>
+        </VersionProvider>
+      </ThemeProvider>
+    </PostHogProvider>
   );
 }
 
