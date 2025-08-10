@@ -176,12 +176,12 @@ export default function SignIn() {
 
   const [existingUser, setExistingUser] = useState<T.User | null>(null);
   const [socialSignupData, setSocialSignupData] = useState<{
-    type: 'apple' | 'google';
+    type: 'apple' | 'google' | 'email';
     apple_id?: string;
     google_id?: string;
     email?: string;
     full_name?: string;
-    id_token: string;
+    id_token?: string;
     client_id?: string; // For Google sign-in
   } | null>(null);
 
@@ -399,10 +399,13 @@ export default function SignIn() {
     
     if (socialSignupData?.type === 'apple') {
       // Use Apple Sign-Up
-      r = await openClient.appleSignUp(socialSignupData.id_token, username, 'chat.gatz');
+      r = await openClient.appleSignUp(socialSignupData.id_token!, username, 'chat.gatz');
     } else if (socialSignupData?.type === 'google') {
       // Use Google Sign-Up  
-      r = await openClient.googleSignUp(socialSignupData.id_token, username, socialSignupData.client_id!);
+      r = await openClient.googleSignUp(socialSignupData.id_token!, username, socialSignupData.client_id!);
+    } else if (socialSignupData?.type === 'email') {
+      // Use Email Sign-Up
+      r = await openClient.emailSignUp(socialSignupData.email!, username);
     } else {
       // Use regular SMS sign-up
       r = await openClient.signUp(username, phone);
@@ -537,6 +540,10 @@ export default function SignIn() {
       
       if (result.requiresSignup && result.signupData) {
         // Store email signup data and transition to username step
+        setSocialSignupData({
+          type: 'email',
+          email: result.signupData.email || email
+        });
         setStep('enter_username');
         return;
       }
@@ -633,6 +640,7 @@ export default function SignIn() {
                       onEmailVerified={handleEmailVerified}
                       onLinkEmail={handleEmailSignIn}
                       isLoading={isPhoneLoading || isSocialSignInLoading}
+                      buttonText="Sign up"
                     />
                     <TouchableOpacity
                       style={styles.backToSocialButton}
@@ -677,7 +685,16 @@ export default function SignIn() {
         return (
           <>
             {socialSignupData ? (
-              <EnteredText text={`${socialSignupData.type === 'apple' ? 'Apple' : 'Google'} Sign-In verified`} />
+              <>
+                {socialSignupData.type === 'email' ? (
+                  <EnteredText text={socialSignupData.email!} />
+                ) : null}
+                <EnteredText text={
+                  socialSignupData.type === 'apple' ? 'Apple Sign-In verified' : 
+                  socialSignupData.type === 'google' ? 'Google Sign-In verified' :
+                  'Email verified'
+                } />
+              </>
             ) : (
               <>
                 <TouchableOpacity onPress={handleRestart}>

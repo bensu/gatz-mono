@@ -20,6 +20,7 @@ interface EmailSignInComponentProps {
   onLinkEmail: (email: string, code: string) => Promise<void>;
   isLoading?: boolean;
   useModalStyling?: boolean;
+  buttonText?: string; // Allow custom button text
 }
 
 type Step = 'enter_email' | 'verify_code';
@@ -39,6 +40,7 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
   onLinkEmail,
   isLoading = false,
   useModalStyling = false,
+  buttonText,
 }) => {
   const colors = useThemeColors();
   const [step, setStep] = useState<Step>('enter_email');
@@ -255,7 +257,7 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
             </View>
             
             {renderButton(
-              "Link Email",
+              buttonText || "Link Email",
               handleVerifyCode,
               !isCodeValid(code) || isButtonDisabled,
               getVerifyCodeButtonState()
