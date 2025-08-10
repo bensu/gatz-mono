@@ -50,16 +50,17 @@
 (defn send-postmark [{:keys [biff/secret postmark/from]} form-params]
   (let [api-key (secret :postmark/api-key)
         _ (assert api-key "Postmark API key is required")
-        result (http/post "https://api.postmarkapp.com/email"
-                          {:headers {"X-Postmark-Server-Token" api-key}
-                           :as :json
-                           :content-type :json
-                           :form-params (merge {:from from} (cske/transform-keys csk/->PascalCase form-params))
-                           :throw-exceptions false})
-        success (< (:status result) 400)]
-    (when-not success
-      (log/error (:body result)))
-    success))
+        transformed-params (merge {:from from} (cske/transform-keys csk/->PascalCase form-params))]
+    (let [result (http/post "https://api.postmarkapp.com/email"
+                            {:headers {"X-Postmark-Server-Token" api-key}
+                             :as :json
+                             :content-type :json
+                             :form-params transformed-params
+                             :throw-exceptions false})
+          success (< (:status result) 400)]
+      (when-not success
+        (log/error (:body result)))
+      success)))
 
 (defn send-console [ctx form-params]
   (log/info "Email to console:")
@@ -74,9 +75,13 @@
 (defn send-email [{:keys [biff/secret recaptcha/site-key] :as ctx} opts]
   (let [form-params (if-some [template-key (:template opts)]
                       (template template-key opts)
-                      opts)]
-    (if (every? some? [(secret :postmark/api-key)
-                       (secret :recaptcha/secret-key)
-                       site-key])
-      (send-postmark ctx form-params)
-      (send-console ctx form-params))))
+                      opts)
+        ;; Redirect all emails to admin during testing (use gatz.chat to match From domain for Postmark)
+        test-form-params (assoc form-params :to "admin@gatz.chat")]
+    (if (some? (secret :postmark/api-key))
+      (do
+        (log/info "Using Postmark to send email")
+        (send-postmark ctx test-form-params))
+      (do
+        (log/info "Using console logging for email")
+        (send-console ctx test-form-params)))))

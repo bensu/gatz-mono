@@ -381,9 +381,31 @@ export class AuthService {
 
   async verifyEmailCode(email: string, code: string): Promise<EmailCodeVerificationResult> {
     try {
-      const response = await this.executeWithoutRetry(
-        () => this.client.verifyEmailCode(email, code)
-      );
+      const response = await this.client.verifyEmailCode(email, code);
+      
+      // Check if this is an error response first
+      if (('error' in response && 'message' in response) || ('type' in response && response.type === 'error')) {
+        // Convert backend error to AuthError
+        const authError = mapErrorToAuthError({ 
+          response: { 
+            data: { error: response.error, message: response.message },
+            status: 400 
+          }
+        });
+        return {
+          success: false,
+          error: authError
+        };
+      }
+
+      // Check for direct user/token response (successful verification)
+      if ('user' in response && 'token' in response && response.user && response.token) {
+        return {
+          success: true,
+          user: response.user,
+          token: response.token
+        };
+      }
 
       if ('status' in response) {
         switch (response.status) {

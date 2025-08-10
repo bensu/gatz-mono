@@ -334,6 +334,7 @@
         code (generate-code)
         verification-id (random-uuid)
         verification-doc {:xt/id verification-id
+                         :db/doc-type :email/verification_code
                          :db/type :email/verification_code
                          :verification/email clean-email
                          :verification/code code
@@ -381,13 +382,19 @@
       (not= clean-code (:verification/code verification))
       (do
         ;; Increment attempts
-        (biff/submit-tx ctx [(update verification :verification/attempts inc)])
+        (let [updated-verification (-> verification
+                                      (update :verification/attempts inc)
+                                      (assoc :db/doc-type :email/verification_code))]
+          (biff/submit-tx ctx [updated-verification]))
         {:status "wrong_code" :message "Invalid verification code"})
       
       :else
       (do
         ;; Mark as used
-        (biff/submit-tx ctx [(assoc verification :verification/used true)])
+        (let [used-verification (-> verification
+                                   (assoc :verification/used true)
+                                   (assoc :db/doc-type :email/verification_code))]
+          (biff/submit-tx ctx [used-verification]))
         {:status "approved" :email clean-email}))))
 
 (defn count-recent-attempts
