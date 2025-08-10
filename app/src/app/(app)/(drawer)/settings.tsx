@@ -38,6 +38,7 @@ import { multiPlatformAlert } from "../../../util";
 import * as Sync from "../../../../vendor/shared/npm-package";
 import { GatzClient } from "../../../gatz/client";
 import { useLocationPermission } from "../../../hooks/useLocationPermission";
+import { AccountLinkingSection, AccountLinkingModal, useAccountLinking } from "../../../components/AccountLinking";
 
 // type ThemeSelection = 'light' | 'auto' | 'dark';
 
@@ -520,27 +521,64 @@ const UrlInput = ({ label, value, onSubmit, validate, cleanText = (t) => t.trim(
   );
 };
 
-const subscribeToMe = (syncEngine: Sync.SyncEngine): { user: T.User | null, error: Error | null, loading: boolean } => {
+const subscribeToMe = (syncEngine: Sync.SyncEngine, refreshTrigger?: number): { user: T.User | null, error: Error | null, loading: boolean } => {
   const [user, setUser] = useState<T.User | null>(null);
-
   const [error, setIsError] = useState<Error | null>(null);
   const [loading, setIsLoading] = useState<boolean>(true);
+  
   useEffect(() => {
+    let mounted = true;
+    
     try {
       setIsLoading(true);
-      const { user, unsubscribe } = Sync.subscribe_to_me(syncEngine, "settings", setUser);
-      user.then(setUser)
-        .catch((e) => {
-          setIsError(e);
-        })
-        .finally(() => {
+      setIsError(null);
+      
+      console.log(`[Settings] Subscribing to user data with refresh trigger: ${refreshTrigger}`);
+      
+      const { user, unsubscribe } = Sync.subscribe_to_me(syncEngine, `settings-refresh-${refreshTrigger || 0}`, (userData) => {
+        if (mounted) {
+          console.log('[Settings] User data updated:', userData ? {
+            id: userData.id,
+            email: userData.email,
+            apple_id: userData.apple_id,
+            google_id: userData.google_id
+          } : null);
+          setUser(userData);
+        }
+      });
+      
+      user.then((userData) => {
+        if (mounted) {
+          console.log('[Settings] Initial user data:', userData ? {
+            id: userData.id,
+            email: userData.email,
+            apple_id: userData.apple_id,
+            google_id: userData.google_id
+          } : null);
+          setUser(userData);
           setIsLoading(false);
-        })
-      return unsubscribe;
+        }
+      })
+      .catch((e) => {
+        if (mounted) {
+          console.error('[Settings] Error loading user data:', e);
+          setIsError(e);
+          setIsLoading(false);
+        }
+      });
+      
+      return () => {
+        mounted = false;
+        unsubscribe();
+      };
     } catch (e) {
-      setIsError(e);
+      console.error('[Settings] Error setting up subscription:', e);
+      if (mounted) {
+        setIsError(e);
+        setIsLoading(false);
+      }
     }
-  }, [syncEngine]);
+  }, [syncEngine, refreshTrigger]);
 
   return { user, error, loading };
 }
@@ -553,7 +591,33 @@ export default function Settings() {
 
   useEffect(() => analytics.capture("settings.viewed"), [analytics]);
 
-  const { user, error, loading } = subscribeToMe(syncEngine);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const { user, error, loading } = subscribeToMe(syncEngine, refreshTrigger);
+
+  const handleUserUpdate = useCallback(() => {
+    console.log('[Settings] handleUserUpdate called - triggering refresh sequence');
+    
+    // Force multiple refreshes to ensure we get the updated user data
+    // Sometimes the backend takes time to propagate the changes
+    setTimeout(() => {
+      console.log('[Settings] First refresh trigger (500ms)');
+      setRefreshTrigger(prev => prev + 1);
+    }, 500);
+    
+    // Additional refresh after a longer delay
+    setTimeout(() => {
+      console.log('[Settings] Second refresh trigger (1500ms)');
+      setRefreshTrigger(prev => prev + 1);
+    }, 1500);
+    
+    // Final refresh to ensure we have the latest data
+    setTimeout(() => {
+      console.log('[Settings] Final refresh trigger (3000ms)');
+      setRefreshTrigger(prev => prev + 1);
+    }, 3000);
+  }, []);
+
+  const accountLinking = useAccountLinking(user || {} as T.User, gatzClient, handleUserUpdate);
 
   const finalDeleteAccount = useCallback(async () => {
     try {
@@ -766,7 +830,7 @@ export default function Settings() {
               style={[styles.section, { backgroundColor: colors.rowBackground }]}
             >
               <Text style={[styles.title, { color: colors.primaryText }]}>
-                Log in
+                Authentication
               </Text>
 
               <View
@@ -775,15 +839,31 @@ export default function Settings() {
                   { marginBottom: 8, backgroundColor: colors.appBackground },
                 ]}
               >
-                <Text style={{ fontSize: 18, color: colors.secondaryText }}>
-                  {user.phone_number}
-                </Text>
-                <Text style={{ fontSize: 16, color: colors.strongGrey }}>
-                  Only used for log in
-                </Text>
+                {/* Show email if user has email AND other non-SMS auth methods, otherwise show phone */}
+                {user.email && (user.apple_id || user.google_id) ? (
+                  <Text style={{ fontSize: 18, color: colors.secondaryText }}>
+                    {user.email}
+                  </Text>
+                ) : (
+                  <>
+                    <Text style={{ fontSize: 18, color: colors.secondaryText }}>
+                      {user.phone_number}
+                    </Text>
+                    <Text style={{ fontSize: 16, color: colors.strongGrey }}>
+                      Only used for log in
+                    </Text>
+                  </>
+                )}
               </View>
+
+              {/* Account Linking Section */}
+              <AccountLinkingSection
+                user={user}
+                onOpenMigration={accountLinking.openMigration}
+              />
+
               <TouchableOpacity
-                style={[styles.row, { backgroundColor: colors.appBackground }]}
+                style={[styles.row, { backgroundColor: colors.appBackground, marginTop: 8 }]}
                 onPress={signOut}
               >
                 <Text
@@ -867,6 +947,17 @@ export default function Settings() {
           </View>
         </ScrollView>
       </View>
+
+      {/* Account Linking Modal - Rendered outside ScrollView for proper positioning */}
+      {user && (
+        <AccountLinkingModal
+          visible={accountLinking.showMigrationModal}
+          onClose={accountLinking.closeMigration}
+          onMigrationSuccess={accountLinking.handleMigrationSuccess}
+          onLinkAccount={accountLinking.linkAccount}
+          gatzClient={gatzClient}
+        />
+      )}
     </View>
   );
 }

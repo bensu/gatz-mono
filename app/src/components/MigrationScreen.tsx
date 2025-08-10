@@ -43,6 +43,21 @@ type ModalState = 'main' | 'email_only';
 
 const ANIMATION_DURATION = 100;
 
+// Helper function to detect if an error is a user cancellation
+const isCancellationError = (error: any): boolean => {
+  if (!(error instanceof Error)) return false;
+  
+  const message = error.message.toLowerCase();
+  const cancellationKeywords = [
+    'cancel', 'abort', 'user_cancelled', 'user cancelled', 
+    'popup_closed', 'popup closed', 'dismissed',
+    '4902', // Google Sign-In cancellation code
+    'user_denied', 'access_denied', 'operation_cancelled'
+  ];
+  
+  return cancellationKeywords.some(keyword => message.includes(keyword));
+};
+
 export const MigrationScreen: React.FC<MigrationScreenProps> = ({
   visible,
   onClose,
@@ -132,11 +147,28 @@ export const MigrationScreen: React.FC<MigrationScreenProps> = ({
     } catch (error) {
       console.error('Migration failed:', error);
       
-      // Extract error message from different error types
+      // Check if this is a cancellation error
+      if (isCancellationError(error)) {
+        console.log('User cancelled sign-in, not showing error UI');
+        // For cancellation, we don't show an error - just log it and return
+        return;
+      }
+      
+      // Extract error message from different error types for actual errors
       let errorMessage = 'Failed to link your account. Please try again or contact support.';
+      let errorType = AuthErrorType.UNKNOWN_ERROR;
       
       if (error instanceof Error) {
         errorMessage = error.message;
+        
+        // Check for specific error types
+        if (error.message.toLowerCase().includes('network') || error.message.toLowerCase().includes('connection')) {
+          errorType = AuthErrorType.NETWORK_ERROR;
+        } else if (error.message.toLowerCase().includes('google')) {
+          errorType = AuthErrorType.GOOGLE_SIGNIN_FAILED;
+        } else if (error.message.toLowerCase().includes('apple')) {
+          errorType = AuthErrorType.APPLE_SIGNIN_FAILED;
+        }
       } else if (error && typeof error === 'object') {
         if ('response' in error && error.response?.data?.message) {
           errorMessage = error.response.data.message;
@@ -146,7 +178,7 @@ export const MigrationScreen: React.FC<MigrationScreenProps> = ({
       }
       
       setCurrentError({
-        type: AuthErrorType.UNKNOWN_ERROR,
+        type: errorType,
         message: errorMessage,
         canRetry: true
       });
@@ -339,10 +371,9 @@ export const MigrationScreen: React.FC<MigrationScreenProps> = ({
               {currentError && (
                 <AuthErrorDisplay
                   error={currentError}
-                  onRetry={() => {
-                    setCurrentError(null);
-                  }}
+                  showRetryButton={false}
                   onDismiss={() => setCurrentError(null)}
+                  style={{ backgroundColor: 'transparent', padding: 0, marginTop: 12 }}
                 />
               )}
 

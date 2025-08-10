@@ -67,6 +67,9 @@ export type User = {
   clock: HLC;
   avatar: string;
   phone_number: string;
+  apple_id?: string;
+  google_id?: string;
+  email?: string;
   created_at: SDate;
   updated_at: SDate;
   is_test?: boolean;
