@@ -120,13 +120,14 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
           style={[
             styles.modalButton, 
             { 
+              backgroundColor: colors.contrastBackground,
               opacity: (isDisabled || state === 'loading') ? 0.6 : 1
             }
           ]}
           onPress={onPress}
           disabled={isDisabled || state === 'loading'}
         >
-          <Text style={styles.modalButtonText}>
+          <Text style={[styles.modalButtonText, { color: colors.contrastText }]}>
             {state === 'loading' ? 'Loading...' : title}
           </Text>
         </TouchableOpacity>
@@ -147,19 +148,28 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
     <View style={styles.container}>
       {step === 'enter_email' ? (
         <>
-          <View style={styles.phoneInputContainer}>
+          <View style={[
+            styles.phoneInputContainer,
+            useModalStyling && {
+              backgroundColor: colors.contrastBackground,
+            }
+          ]}>
             <Ionicons 
               name="mail-outline" 
               size={20} 
-              color={GatzColor.introBackground} 
+              color={useModalStyling ? colors.contrastText : GatzColor.introBackground} 
               style={styles.inputIcon}
             />
             <TextInput
-              style={[styles.phoneInputText, { 
-                outlineStyle: 'none' // Remove focus blue on web
-              }]}
+              style={[
+                styles.phoneInputText, 
+                { 
+                  outlineStyle: 'none', // Remove focus blue on web
+                  color: useModalStyling ? colors.contrastText : GatzColor.introBackground
+                }
+              ]}
               placeholder="Enter your email address"
-              placeholderTextColor={GatzColor.introBackground}
+              placeholderTextColor={useModalStyling ? colors.contrastText : GatzColor.introBackground}
               value={email}
               onChangeText={(text) => {
                 setEmail(text);
@@ -199,19 +209,28 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
               </Text>
             </TouchableOpacity>
             
-            <View style={styles.phoneInputContainer}>
+            <View style={[
+              styles.phoneInputContainer,
+              useModalStyling && {
+                backgroundColor: colors.contrastBackground,
+              }
+            ]}>
               <Ionicons 
                 name="key-outline" 
                 size={20} 
-                color={GatzColor.introBackground} 
+                color={useModalStyling ? colors.contrastText : GatzColor.introBackground} 
                 style={styles.inputIcon}
               />
               <TextInput
-                style={[styles.phoneInputText, { 
-                  outlineStyle: 'none' // Remove focus blue on web
-                }]}
+                style={[
+                  styles.phoneInputText, 
+                  { 
+                    outlineStyle: 'none', // Remove focus blue on web
+                    color: useModalStyling ? colors.contrastText : GatzColor.introBackground
+                  }
+                ]}
                 placeholder="Enter 6-digit code"
-                placeholderTextColor={GatzColor.introBackground}
+                placeholderTextColor={useModalStyling ? colors.contrastText : GatzColor.introBackground}
                 value={code}
                 onChangeText={(text) => {
                   // Only allow digits and limit to 6 characters
@@ -302,7 +321,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   modalButton: {
-    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#000000',
     borderRadius: 8,
@@ -316,7 +334,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     lineHeight: 22,
     fontWeight: '500',
-    color: '#000000',
   },
   modalErrorStyle: {
     backgroundColor: 'transparent',

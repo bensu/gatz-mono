@@ -184,6 +184,7 @@ export const MigrationProvider: React.FC<PropsWithChildren> = ({ children }) => 
         onRemindLater={handleMigrationScreenClose}
         onMigrationSuccess={handleMigrationSuccess}
         onLinkAccount={handleLinkAccount}
+        gatzClient={gatzClient}
       />
 
       {/* Migration Banner */}
