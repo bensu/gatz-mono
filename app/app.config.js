@@ -59,6 +59,7 @@ export default {
       "expo-font",
       "expo-localization",
       "expo-video",
+      "expo-audio",
       "expo-document-picker",
       [
         "expo-notifications",
