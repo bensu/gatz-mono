@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { StyleSheet, View, TouchableOpacity, Platform, ScrollView, StyleProp, ViewStyle, Modal } from "react-native";
 import { Image } from "expo-image";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { Audio } from "expo-audio";
+// import { Audio, setAudioModeAsync } from "expo-audio"; // Temporarily removed
 import { ImageGallery as NativeImageGallery } from "../../../vendor/react-native-image-gallery/src";
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import ImageGallery from "react-image-gallery";
@@ -50,6 +50,68 @@ const MessageVideoPreview = ({ source, style, testID }: {
       contentFit="cover"
       accessibilityLabel="Video shouldPlay: false, controls: false"
     />
+  );
+};
+
+/**
+ * Component for displaying video in full-screen gallery.
+ * Uses expo-video VideoView with controls that appear on tap (Android-friendly).
+ */
+const GalleryVideoView = ({ source, style, isSelected }: { 
+  source: { uri: string }, 
+  style: any,
+  isSelected?: boolean
+}) => {
+  const [showControls, setShowControls] = useState(false);
+  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const player = useVideoPlayer(source, player => {
+    // Configure player but don't auto-play yet
+  });
+  
+  // Auto-hide controls after 3 seconds
+  useEffect(() => {
+    if (showControls) {
+      if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
+      }
+      controlsTimeoutRef.current = setTimeout(() => {
+        setShowControls(false);
+      }, 3000);
+    }
+    
+    return () => {
+      if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
+      }
+    };
+  }, [showControls]);
+  
+  // Auto-play when video becomes visible, pause when not visible
+  useEffect(() => {
+    if (isSelected) {
+      player.play();
+      // Hide controls initially on auto-play to avoid Android overlay issue
+      setShowControls(false);
+    } else {
+      player.pause();
+    }
+  }, [isSelected, player]);
+  
+  return (
+    <TouchableOpacity 
+      style={style}
+      onPress={() => setShowControls(!showControls)}
+      activeOpacity={1}
+    >
+      <VideoView 
+        player={player}
+        style={{ width: '100%', height: '100%' }}
+        nativeControls={showControls}
+        contentFit="contain"
+        allowsFullscreen={true}
+      />
+    </TouchableOpacity>
   );
 };
 
@@ -233,17 +295,17 @@ const OneMedia = ({ media, allMedia }: { media: T.Media, allMedia: T.Media[] }) 
  * - [horizontal-scroll-list] Renders media items in a horizontal ScrollView
  * - [gallery-modal-state] Manages gallery open state with index tracking
  * - [platform-specific-gallery] Uses different gallery implementations for web vs native
- * - [audio-configuration] Configures audio session for video playback on mount
+ * - [video-autoplay] Videos auto-play when visible with hidden controls, show controls on tap
  * - [touch-to-open] Each media item opens gallery on touch with correct index
  * - [close-button-overlay] Gallery includes close button in header
  * 
  * Dependencies (for testing strategy):
  * - Child Components: MessageImage, OneMedia (use real implementations)
  * - External Services: None
- * - Native Modules: expo-av (Audio), react-native-image-gallery, react-image-gallery
+ * - Native Modules: expo-video (VideoView), expo-image (Image), react-native-image-gallery, react-image-gallery
  * 
  * This component provides a media carousel with full-screen gallery viewing.
- * It handles both images and videos, configuring audio appropriately for video playback.
+ * It handles both images and videos with auto-play functionality for videos.
  * The gallery implementation differs between web (react-image-gallery) and native
  * (react-native-image-gallery) for optimal platform performance.
  * 
@@ -251,7 +313,7 @@ const OneMedia = ({ media, allMedia }: { media: T.Media, allMedia: T.Media[] }) 
  * - Horizontal scrolling with momentum
  * - Touch to open full-screen gallery
  * - Platform-specific gallery implementations
- * - Audio session configuration for videos
+ * - Video auto-play when visible with tap-to-show-controls (Android-friendly)
  * - Close button overlay in gallery view
  * 
  * @param props - Contains scrollViewRef, allMedia array, and optional contentContainerStyle
@@ -272,24 +334,24 @@ export const MessageMedia = ({
   // TODO: do this one for the entire app
   // Configure audio session for iOS if needed
   // [audio-configuration]
-  useEffect(() => {
-    if (allMedia.some(m => m.kind === "vid")) {
-      const setupAudio = async () => {
-        try {
-          await Audio.setAudioModeAsync({
-            playsInSilentModeIOS: true,
-            staysActiveInBackground: false,
-            shouldDuckAndroid: true,
-            playThroughEarpieceAndroid: false,
-            allowsRecordingIOS: false,
-          });
-        } catch (e) {
-          console.error("Failed to configure audio", e);
-        }
-      };
-      setupAudio();
-    }
-  }, [allMedia]);
+  // Temporarily disabled audio configuration to test if expo-video handles it automatically
+  // useEffect(() => {
+  //   if (allMedia.some(m => m.kind === "vid")) {
+  //     const setupAudio = async () => {
+  //       try {
+  //         // Use setAudioModeAsync directly imported from expo-audio
+  //         await setAudioModeAsync({
+  //           playsInSilentMode: true,
+  //           shouldPlayInBackground: false,
+  //           allowsRecording: false,
+  //         });
+  //       } catch (e) {
+  //         console.error("Failed to configure audio", e);
+  //       }
+  //     };
+  //     setupAudio();
+  //   }
+  // }, [allMedia]);
 
   const renderHeader = () => (
     <View style={styles.headerContainer}>
@@ -346,6 +408,29 @@ export const MessageMedia = ({
           renderHeaderComponent={renderHeader}
           initialIndex={isGalleryOpenAtIndex}
           hideThumbs
+          renderCustomImage={(item, index, isSelected) => {
+            const media = images[index];
+            if (media.kind === 'vid') {
+              return (
+                <GalleryVideoView 
+                  source={{ uri: item.url }}
+                  style={{ width: '100%', height: '100%' }}
+                  isSelected={isSelected}
+                />
+              );
+            } else if (media.kind === 'img') {
+              // Render images explicitly since we're taking over all rendering
+              return (
+                <Image
+                  source={{ uri: item.url }}
+                  style={{ width: '100%', height: '100%' }}
+                  contentFit="contain"
+                  cachePolicy={MEDIA_CACHE_POLICY}
+                />
+              );
+            }
+            return null;
+          }}
         />
       )
     }

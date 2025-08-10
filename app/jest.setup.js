@@ -141,12 +141,12 @@ jest.mock('expo-image', () => ({
   },
 }));
 
-// Mock expo-audio
-jest.mock('expo-audio', () => ({
-  Audio: {
-    setAudioModeAsync: jest.fn(() => Promise.resolve()),
-  },
-}));
+// Mock expo-audio (temporarily disabled while fixing audio configuration)
+// jest.mock('expo-audio', () => ({
+//   Audio: {
+//     setAudioModeAsync: jest.fn(() => Promise.resolve()),
+//   },
+// }));
 
 // Mock expo-video
 jest.mock('expo-video', () => ({
