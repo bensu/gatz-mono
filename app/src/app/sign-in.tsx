@@ -201,10 +201,10 @@ export default function SignIn() {
         // Check if this is an error response
         if (('error' in r && 'message' in r) || ('type' in r && r.type === 'error')) {
           // Convert to AuthError for better display
-          const authError = mapErrorToAuthError({ 
-            response: { 
+          const authError = mapErrorToAuthError({
+            response: {
               data: { error: r.error, message: r.message },
-              status: 400 
+              status: 400
             }
           });
           setCurrentError(authError);
@@ -260,7 +260,7 @@ export default function SignIn() {
               setTimeout(
                 () => signIn(
                   { userId: user.id, token, is_admin, is_test },
-                  { 
+                  {
                     redirectTo: "/"
                   }
                 ),
@@ -396,7 +396,7 @@ export default function SignIn() {
 
   const onSignUpAsync = async () => {
     let r: any;
-    
+
     if (socialSignupData?.type === 'apple') {
       // Use Apple Sign-Up
       r = await openClient.appleSignUp(socialSignupData.id_token!, username, 'chat.gatz');
@@ -410,7 +410,7 @@ export default function SignIn() {
       // Use regular SMS sign-up
       r = await openClient.signUp(username, phone);
     }
-    
+
     if (r.type === "error") {
       if (r.message) {
         throw new Error(r.message);
@@ -464,15 +464,15 @@ export default function SignIn() {
     async (credential: SocialSignInCredential) => {
       setIsSocialSignInLoading(true);
       setCurrentError(null);
-      
+
       try {
         const result = await authService.signInWithSocial(credential);
-        
+
         if (!result.success) {
           setCurrentError(result.error!);
           return;
         }
-        
+
         if (result.requiresSignup && result.signupData) {
           // Store social sign-in data and transition to username step
           setSocialSignupData({
@@ -493,11 +493,11 @@ export default function SignIn() {
           const { is_admin = false, is_test = false } = user;
           // Show success message during the delay
           setSocialSignInSuccess(true);
-          
+
           setTimeout(
             () => signIn(
               { userId: user.id, token, is_admin, is_test },
-              { 
+              {
                 redirectTo: Platform.select({
                   web: "/",
                   default: "/"
@@ -532,12 +532,12 @@ export default function SignIn() {
   const handleEmailSignIn = useCallback(async (email: string, code: string) => {
     try {
       const result = await authService.signInWithEmail(email, code);
-      
+
       if (!result.success) {
         setCurrentError(result.error!);
         return;
       }
-      
+
       if (result.requiresSignup && result.signupData) {
         // Store email signup data and transition to username step
         setSocialSignupData({
@@ -551,11 +551,11 @@ export default function SignIn() {
       if (result.user && result.token) {
         const { user, token } = result;
         const { is_admin = false, is_test = false } = user;
-        
+
         setTimeout(
           () => signIn(
             { userId: user.id, token, is_admin, is_test },
-            { 
+            {
               redirectTo: Platform.select({
                 web: "/",
                 default: "/"
@@ -601,7 +601,7 @@ export default function SignIn() {
                   isDisabled={phone.length === 0}
                 />
               </View>
-              
+
               {currentError && (
                 <AuthErrorDisplay
                   error={currentError}
@@ -610,7 +610,7 @@ export default function SignIn() {
                   style={{ backgroundColor: 'transparent', padding: 0, marginTop: 16 }}
                 />
               )}
-              
+
               <View style={styles.socialSignInSection}>
                 <Text style={styles.dividerText}>or</Text>
                 {!showEmailSignIn ? (
@@ -690,9 +690,9 @@ export default function SignIn() {
                   <EnteredText text={socialSignupData.email!} />
                 ) : null}
                 <EnteredText text={
-                  socialSignupData.type === 'apple' ? 'Apple Sign-In verified' : 
-                  socialSignupData.type === 'google' ? 'Google Sign-In verified' :
-                  'Email verified'
+                  socialSignupData.type === 'apple' ? 'Apple Sign-In verified' :
+                    socialSignupData.type === 'google' ? 'Google Sign-In verified' :
+                      'Email verified'
                 } />
               </>
             ) : (
@@ -761,6 +761,16 @@ export default function SignIn() {
   return (
     <MobileScreenWrapper backgroundColor={GatzColor.introBackground}>
       <View style={styles.container}>
+        {step === "enter_username" && (
+          <View style={{ width: "100%", display: "flex", flexDirection: "row", justifyContent: "flex-end" }}>
+            <TouchableOpacity
+              style={styles.alreadyHaveAccountButton}
+              onPress={restart}
+            >
+              <Text style={styles.alreadyHaveAccountText}>← I already have an account</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         <SafeAreaView style={{ flex: 1, width: "100%" }}>
           <KeyboardAvoidingView
             style={styles.outerContainer}
@@ -769,7 +779,9 @@ export default function SignIn() {
           >
             <View style={styles.innerContainer}>
               <View style={{ width: "100%" }}>
-                <Text style={styles.appTitle}>{welcomeTitle}</Text>
+                <View style={styles.titleContainer}>
+                  <Text style={styles.appTitle}>{welcomeTitle}</Text>
+                </View>
                 {renderInputSection()}
               </View>
               <View style={styles.logoFooter}>
@@ -907,5 +919,19 @@ export const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: GatzStyles.tagline.fontFamily,
     fontWeight: '500',
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    width: '100%',
+  },
+  alreadyHaveAccountButton: {
+    paddingTop: 8,
+  },
+  alreadyHaveAccountText: {
+    color: GatzColor.introTitle,
+    fontSize: 14,
+    fontFamily: GatzStyles.tagline.fontFamily,
   },
 });
