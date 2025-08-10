@@ -252,8 +252,7 @@ export const UniversalHeader = ({
   }
 
   const Header = ({ navigation, route, options }) => (
-    <SafeAreaView style={{ backgroundColor: colors.appBackground }}>
-      {STATUS_BAR_HEIGHT > 0 && <View style={{ height: STATUS_BAR_HEIGHT }} />}
+    <View style={{ backgroundColor: colors.appBackground }}>
       <View style={headerStyles.headerContainer}>
         <View style={headerStyles.headerLeft}>
           {headerLeft && headerLeft()}
@@ -263,7 +262,7 @@ export const UniversalHeader = ({
           {headerRight && headerRight()}
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 
   if (isMobile()) {
