@@ -5,6 +5,9 @@ import { MigrationStatus } from './types';
 const MIGRATION_SCREEN_SHOWN_KEY = 'gatz/migration/screen_shown';
 const MIGRATION_LAST_PROMPT_KEY = 'gatz/migration/last_prompt';
 
+// Time constants
+const REMIND_LATER_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
 export interface MigrationState {
   screenShown: boolean;
   lastPromptDate: string | null;
@@ -75,6 +78,21 @@ export const clearMigrationState = async (): Promise<void> => {
 };
 
 /**
+ * Check if the remind later period has expired
+ */
+const hasRemindLaterExpired = (lastPromptDate: string | null): boolean => {
+  if (!lastPromptDate) {
+    return true; // If no date recorded, consider it expired
+  }
+  
+  const lastPromptTime = new Date(lastPromptDate).getTime();
+  const now = Date.now();
+  const timeSinceLastPrompt = now - lastPromptTime;
+  
+  return timeSinceLastPrompt >= REMIND_LATER_EXPIRY_MS;
+};
+
+/**
  * Determine what migration UI to show based on API response and local state
  */
 export const determineMigrationUIState = async (
@@ -101,11 +119,18 @@ export const determineMigrationUIState = async (
     };
   }
 
-  // Screen was shown - don't show anything for now
-  // In the future, we might show screen again after some time period
+  // If screen was shown but the remind later period has expired, show it again
+  if (hasRemindLaterExpired(state.lastPromptDate)) {
+    return {
+      showScreen: true,
+      reason: 'Remind later period expired',
+    };
+  }
+
+  // Screen was shown recently - don't show anything
   return {
     showScreen: false,
-    reason: 'User has postponed migration',
+    reason: 'User has postponed migration (within remind later period)',
   };
 };
 
