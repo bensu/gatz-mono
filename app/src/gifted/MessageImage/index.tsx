@@ -56,6 +56,7 @@ const MessageVideoPreview = ({ source, style, testID }: {
 /**
  * Component for displaying video in full-screen gallery.
  * Uses expo-video VideoView with controls that appear on tap (Android-friendly).
+ * Handles iOS audio activation properly.
  */
 const GalleryVideoView = ({ source, style, isSelected }: { 
   source: { uri: string }, 
@@ -63,10 +64,12 @@ const GalleryVideoView = ({ source, style, isSelected }: {
   isSelected?: boolean
 }) => {
   const [showControls, setShowControls] = useState(false);
+  const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const player = useVideoPlayer(source, player => {
-    // Configure player but don't auto-play yet
+    // Configure player for audio playback (important for iOS)
+    player.muted = false;
   });
   
   // Auto-hide controls after 3 seconds
@@ -90,18 +93,34 @@ const GalleryVideoView = ({ source, style, isSelected }: {
   // Auto-play when video becomes visible, pause when not visible
   useEffect(() => {
     if (isSelected) {
+      if (Platform.OS === 'ios' && !hasUserInteracted) {
+        // On iOS, defer autoplay until user interaction to ensure audio works
+        return;
+      }
       player.play();
       // Hide controls initially on auto-play to avoid Android overlay issue
       setShowControls(false);
     } else {
       player.pause();
     }
-  }, [isSelected, player]);
+  }, [isSelected, player, hasUserInteracted]);
+  
+  const handlePress = () => {
+    // Mark that user has interacted (important for iOS audio)
+    if (!hasUserInteracted) {
+      setHasUserInteracted(true);
+      // If this is the first interaction and video should be playing, start it
+      if (isSelected) {
+        player.play();
+      }
+    }
+    setShowControls(!showControls);
+  };
   
   return (
     <TouchableOpacity 
       style={style}
-      onPress={() => setShowControls(!showControls)}
+      onPress={handlePress}
       activeOpacity={1}
     >
       <VideoView 
@@ -110,8 +129,72 @@ const GalleryVideoView = ({ source, style, isSelected }: {
         nativeControls={showControls}
         contentFit="contain"
         allowsFullscreen={true}
+        allowsPictureInPicture={false}
       />
+      {Platform.OS === 'ios' && !hasUserInteracted && isSelected && (
+        <View style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: [{ translateX: -20 }, { translateY: -20 }],
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          borderRadius: 20,
+          width: 40,
+          height: 40,
+          justifyContent: 'center',
+          alignItems: 'center'
+        }}>
+          <Ionicons name="play" size={20} color="white" />
+        </View>
+      )}
     </TouchableOpacity>
+  );
+};
+
+/**
+ * Web-specific video component that uses visibility detection instead of external state.
+ * More robust approach that doesn't interfere with gallery navigation.
+ */
+const WebVideoView = ({ src }: { src: string }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    const video = videoRef.current;
+    const container = containerRef.current;
+    if (!video || !container) return;
+    
+    // Use Intersection Observer to detect when video is visible
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
+          // Video is visible, auto-play
+          video.play().catch(console.error);
+        } else {
+          // Video is not visible or mostly hidden, pause
+          video.pause();
+        }
+      },
+      { threshold: 0.5 }
+    );
+    
+    observer.observe(container);
+    
+    return () => {
+      observer.disconnect();
+      video.pause();
+    };
+  }, [src]);
+  
+  return (
+    <div ref={containerRef} className="web-video-container">
+      <video
+        ref={videoRef}
+        src={src}
+        controls
+        style={{ width: '100%', height: 'auto', maxHeight: '80vh' }}
+      />
+    </div>
   );
 };
 
@@ -295,7 +378,7 @@ const OneMedia = ({ media, allMedia }: { media: T.Media, allMedia: T.Media[] }) 
  * - [horizontal-scroll-list] Renders media items in a horizontal ScrollView
  * - [gallery-modal-state] Manages gallery open state with index tracking
  * - [platform-specific-gallery] Uses different gallery implementations for web vs native
- * - [video-autoplay] Videos auto-play when visible with hidden controls, show controls on tap
+ * - [video-autoplay] Videos auto-play when visible (iOS requires tap for audio activation)
  * - [touch-to-open] Each media item opens gallery on touch with correct index
  * - [close-button-overlay] Gallery includes close button in header
  * 
@@ -313,7 +396,7 @@ const OneMedia = ({ media, allMedia }: { media: T.Media, allMedia: T.Media[] }) 
  * - Horizontal scrolling with momentum
  * - Touch to open full-screen gallery
  * - Platform-specific gallery implementations
- * - Video auto-play when visible with tap-to-show-controls (Android-friendly)
+ * - Video auto-play with platform-specific handling (iOS tap-for-audio, web intersection observer)
  * - Close button overlay in gallery view
  * 
  * @param props - Contains scrollViewRef, allMedia array, and optional contentContainerStyle
@@ -365,19 +448,15 @@ export const MessageMedia = ({
     // [platform-specific-gallery]
     if (Platform.OS === "web") {
       // Convert media to gallery format (including videos)
-      const images = allMedia.map(m => ({
+      const images = allMedia.map((m, index) => ({
         id: m.id,
         original: m.url,
         thumbnail: m.url,
         // For react-image-gallery, we'll handle videos specially through renderItem prop
         renderItem: m.kind === 'vid' ?
-          (item: { original: string }) => (
+          () => (
             <div className="image-gallery-image">
-              <video
-                src={item.original}
-                controls
-                style={{ width: '100%', height: 'auto', maxHeight: '80vh' }}
-              />
+              <WebVideoView src={m.url} />
             </div>
           ) : undefined
       }));
@@ -390,7 +469,7 @@ export const MessageMedia = ({
               showPlayButton={false}
               showFullscreenButton={false}
               showThumbnails={false}
-              startIndex={isGalleryOpenAtIndex}
+              startIndex={isGalleryOpenAtIndex || 0}
             />
           </View>
           {renderHeader()}
