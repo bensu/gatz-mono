@@ -112,7 +112,6 @@
    [:user/apple_id {:optional true} [:maybe string?]]
    [:user/google_id {:optional true} [:maybe string?]]
    [:user/email {:optional true} [:maybe string?]]
-   [:user/migration_completed_at {:optional true} [:maybe inst?]]
    ;; {k {k LWW}}
    [:user/settings [:map
                     [:settings/location {:optional true} LocationPreferences]
@@ -150,7 +149,6 @@
    [:user/apple_id {:optional true} [:maybe string?]]
    [:user/google_id {:optional true} [:maybe string?]]
    [:user/email {:optional true} [:maybe string?]]
-   [:user/migration_completed_at {:optional true} [:maybe inst?]]
    ;; {k {k LWW}}
    [:user/push_tokens (crdt/lww-schema [:maybe PushTokens])]
    [:user/settings [:map
@@ -635,7 +633,6 @@
    [:crdt/clock crdt/hlc-schema]
    [:user/updated_at [:or inst? (crdt/max-wins-schema inst?)]]
    [:user/apple_id string?]
-   [:user/migration_completed_at inst?]
    [:user/email {:optional true} [:maybe string?]]])
 
 (def UserLinkGoogleId
@@ -643,7 +640,6 @@
    [:crdt/clock crdt/hlc-schema]
    [:user/updated_at [:or inst? (crdt/max-wins-schema inst?)]]
    [:user/google_id string?]
-   [:user/migration_completed_at inst?]
    [:user/email {:optional true} [:maybe string?]]])
 
 (def UserAction

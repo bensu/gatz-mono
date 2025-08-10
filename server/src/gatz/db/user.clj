@@ -584,8 +584,7 @@
          current-user (by-id db user-id)
          ;; Update both CRDT fields and immutable auth fields
          clock (crdt/new-hlc user-id now)
-         auth-fields (cond-> {:user/apple_id apple-id
-                              :user/migration_completed_at now}
+         auth-fields (cond-> {:user/apple_id apple-id}
                        email (assoc :user/email email))
          updated-user (merge current-user 
                              {:crdt/clock clock
@@ -617,8 +616,7 @@
          current-user (by-id db user-id)
          ;; Update both CRDT fields and immutable auth fields
          clock (crdt/new-hlc user-id now)
-         auth-fields (cond-> {:user/google_id google-id
-                              :user/migration_completed_at now}
+         auth-fields (cond-> {:user/google_id google-id}
                        email (assoc :user/email email))
          updated-user (merge current-user 
                              {:crdt/clock clock
@@ -666,8 +664,7 @@
          current-user (by-id db user-id)
          clock (crdt/new-hlc user-id now)
          auth-fields (cond-> {:user/apple_id (:user/apple_id current-user)
-                              :user/google_id (:user/google_id current-user)
-                              :user/migration_completed_at now}
+                              :user/google_id (:user/google_id current-user)}
                        email (assoc :user/email email))
          updated-user (merge current-user 
                              {:crdt/clock clock

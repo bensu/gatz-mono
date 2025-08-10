@@ -14,18 +14,16 @@
 
 (defn migration-status [user-value]
   "Calculate migration status for a user based on whether they have social auth linked"
-  (let [migration-completed-at (:user/migration_completed_at user-value)
-        apple-id (:user/apple_id user-value)
+  (let [apple-id (:user/apple_id user-value)
         google-id (:user/google_id user-value) 
         email (:user/email user-value)
         has-linked-account? (or apple-id google-id email)
-        needs-migration? (and (not has-linked-account?) 
-                              (nil? migration-completed-at))
+        needs-migration? (not has-linked-account?)
         show-migration-screen? needs-migration?]
     (when needs-migration?
       {:required true
        :show_migration_screen show-migration-screen?
-       :completed_at migration-completed-at})))
+       :completed_at nil})))
 
 (deftest test-migration-status-logic
   (testing "Migration status calculation logic"
@@ -33,43 +31,38 @@
     (testing "SMS-only user without linked accounts should require migration"
       (let [user-value {:user/apple_id nil
                        :user/google_id nil
-                       :user/email nil
-                       :user/migration_completed_at nil}
+                       :user/email nil}
             status (migration-status user-value)]
         (is (= true (:required status)))
         (is (= true (:show_migration_screen status)))
         (is (nil? (:completed_at status)))))
     
     (testing "User with completed migration should not require migration"
-      (let [completed-at (Date.)
-            user-value {:user/apple_id nil
+      (let [user-value {:user/apple_id nil
                        :user/google_id nil
-                       :user/email nil
-                       :user/migration_completed_at completed-at}
+                       :user/email nil}
             status (migration-status user-value)]
-        (is (nil? status))))
+        ;; User without any linked accounts should require migration
+        (is (= true (:required status)))))
     
     (testing "User with Apple ID should not require migration"
       (let [user-value {:user/apple_id "apple123"
                        :user/google_id nil
-                       :user/email nil
-                       :user/migration_completed_at nil}
+                       :user/email nil}
             status (migration-status user-value)]
         (is (nil? status))))
     
     (testing "User with Google ID should not require migration"
       (let [user-value {:user/apple_id nil
                        :user/google_id "google123"
-                       :user/email nil
-                       :user/migration_completed_at nil}
+                       :user/email nil}
             status (migration-status user-value)]
         (is (nil? status))))
     
     (testing "User with linked email should not require migration"
       (let [user-value {:user/apple_id nil
                        :user/google_id nil
-                       :user/email "user@example.com"
-                       :user/migration_completed_at nil}
+                       :user/email "user@example.com"}
             status (migration-status user-value)]
         (is (nil? status))))))
 

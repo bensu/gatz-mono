@@ -61,18 +61,16 @@
 (defn migration-status
   "Calculate migration status for a user based on whether they have social auth linked"
   [user-value]
-  (let [migration-completed-at (:user/migration_completed_at user-value)
-        apple-id (:user/apple_id user-value)
+  (let [apple-id (:user/apple_id user-value)
         google-id (:user/google_id user-value) 
         email (:user/email user-value)
         has-linked-account? (or apple-id google-id email)
-        needs-migration? (and (not has-linked-account?) 
-                              (nil? migration-completed-at))
+        needs-migration? (not has-linked-account?)
         show-migration-screen? needs-migration?]
     (when needs-migration?
       {:required true
        :show_migration_screen show-migration-screen?
-       :completed_at migration-completed-at})))
+       :completed_at nil})))
 
 (defn get-me-data [{:keys [auth/user auth/user-id biff/db flags/flags] :as _ctx}]
   (let [my-contacts (db.contacts/by-uid db user-id)
@@ -462,8 +460,7 @@
                     updated-user (merge existing-user-by-email 
                                        {:crdt/clock clock
                                         :user/updated_at (crdt/max-wins now)
-                                        :user/apple_id apple-id
-                                        :user/migration_completed_at now})]
+                                        :user/apple_id apple-id})]
                 (biff/submit-tx ctx [[:xtdb.api/put (assoc updated-user :db/doc-type :gatz.crdt/user)]])
                 (posthog/identify! ctx updated-user)
                 (posthog/capture! (assoc ctx :auth/user-id user-id) "user.link_apple")
@@ -660,8 +657,7 @@
                     updated-user (merge existing-user-by-email
                                         {:crdt/clock clock
                                          :user/updated_at (crdt/max-wins now)
-                                         :user/google_id google-id
-                                         :user/migration_completed_at now})]
+                                         :user/google_id google-id})]
                 (biff/submit-tx ctx [[:xtdb.api/put (assoc updated-user :db/doc-type :gatz.crdt/user)]])
                 (posthog/identify! ctx updated-user)
                 (posthog/capture! (assoc ctx :auth/user-id user-id) "user.link_google")
