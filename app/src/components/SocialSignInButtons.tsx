@@ -77,14 +77,17 @@ export const SocialSignInButtons: React.FC<SocialSignInButtonsProps> = ({
       {isAppleAvailable && (
         <AppleAuthentication.AppleAuthenticationButton
           buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-          buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE_OUTLINE}
+          buttonStyle={colors.theme === 'dark' 
+            ? AppleAuthentication.AppleAuthenticationButtonStyle.BLACK 
+            : AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+          }
           cornerRadius={8}
           style={styles.appleButton}
           onPress={handleAppleSignIn}
         />
       )}
       <TouchableOpacity
-        style={[styles.modalGoogleButton, { borderColor: colors.primaryText, backgroundColor: colors.appBackground}]}
+        style={[styles.modalGoogleButton, { backgroundColor: colors.appBackground}]}
         onPress={handleGoogleSignIn}
         disabled={isAnyLoading}
       >
@@ -111,7 +114,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 0.5,
     borderRadius: 8,
     paddingVertical: 14,
     paddingHorizontal: 16,
@@ -128,10 +130,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderWidth: 1,
     borderRadius: 8,
     gap: 8,
     height: 50,

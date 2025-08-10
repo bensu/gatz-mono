@@ -301,7 +301,7 @@ export const MigrationScreen: React.FC<MigrationScreenProps> = ({
                     
                     {/* Email Sign-In Button */}
                     <TouchableOpacity
-                      style={[styles.emailSignInButton, { borderColor: colors.primaryText, backgroundColor: colors.appBackground}]}
+                      style={[styles.emailSignInButton, { backgroundColor: colors.appBackground}]}
                       onPress={() => setModalState('email_only')}
                       disabled={isLoading}
                     >
@@ -475,7 +475,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 0.5,
     borderRadius: 8,
     paddingVertical: 14,
     paddingHorizontal: 16,
