@@ -18,7 +18,7 @@ import { SocialSignInButtons } from './SocialSignInButtons';
 import { EmailSignInComponent } from './EmailSignInComponent';
 import { AuthErrorDisplay } from './AuthErrorDisplay';
 import { SocialSignInCredential } from '../gatz/auth';
-import { AuthError, AuthErrorType } from '../gatz/auth-errors';
+import { AuthError, AuthErrorType, mapErrorToAuthError } from '../gatz/auth-errors';
 import { GatzClient } from '../gatz/client';
 import Animated, {
   useAnimatedStyle,
@@ -154,34 +154,9 @@ export const MigrationScreen: React.FC<MigrationScreenProps> = ({
         return;
       }
       
-      // Extract error message from different error types for actual errors
-      let errorMessage = 'Failed to link your account. Please try again or contact support.';
-      let errorType = AuthErrorType.UNKNOWN_ERROR;
-      
-      if (error instanceof Error) {
-        errorMessage = error.message;
-        
-        // Check for specific error types
-        if (error.message.toLowerCase().includes('network') || error.message.toLowerCase().includes('connection')) {
-          errorType = AuthErrorType.NETWORK_ERROR;
-        } else if (error.message.toLowerCase().includes('google')) {
-          errorType = AuthErrorType.GOOGLE_SIGNIN_FAILED;
-        } else if (error.message.toLowerCase().includes('apple')) {
-          errorType = AuthErrorType.APPLE_SIGNIN_FAILED;
-        }
-      } else if (error && typeof error === 'object') {
-        if ('response' in error && error.response?.data?.message) {
-          errorMessage = error.response.data.message;
-        } else if ('message' in error && typeof error.message === 'string') {
-          errorMessage = error.message;
-        }
-      }
-      
-      setCurrentError({
-        type: errorType,
-        message: errorMessage,
-        canRetry: true
-      });
+      // Use the proper auth error mapping instead of manual error handling
+      const authError = mapErrorToAuthError(error);
+      setCurrentError(authError);
     } finally {
       setIsLoading(false);
     }

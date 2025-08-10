@@ -28,7 +28,7 @@ export const AUTH_ERROR_MESSAGES: Record<AuthErrorType, string> = {
   [AuthErrorType.CANCELLED]: "Sign-in was cancelled. Please try again when you're ready",
   [AuthErrorType.INVALID_TOKEN]: "Authentication failed. Please try signing in again",
   [AuthErrorType.ACCOUNT_NOT_FOUND]: "No account found. Please sign up first",
-  [AuthErrorType.ACCOUNT_CONFLICT]: "This account is already linked to another user",
+  [AuthErrorType.ACCOUNT_CONFLICT]: "This Google or Apple ID is already used in Gatz",
   [AuthErrorType.SERVICE_UNAVAILABLE]: "Authentication service is temporarily unavailable",
   [AuthErrorType.RATE_LIMITED]: "Too many attempts. Please wait before trying again",
   [AuthErrorType.UNKNOWN_ERROR]: "Something went wrong. Please contact support if this continues",

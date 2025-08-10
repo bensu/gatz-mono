@@ -1,4 +1,4 @@
-# gatz
+# gatz server
 
 This is the backend for a chat app.
 
@@ -8,10 +8,16 @@ To start the app:
 2. Run `bb generate-secrets` and paste the output into `secrets.env`
 3. Run `bb dev`
 
+Push to server's git origin.
+
+```sh
+git subtree push --prefix=server server-origin master
+```
+
 # Deploy
 
 ```
-git push heroku master
+git subtree push --prefix=server heroku master
 ```
 
 Debug

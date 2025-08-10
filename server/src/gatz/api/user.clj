@@ -753,12 +753,10 @@
     (cond
       ;; Validate required parameters
       (str/blank? id_token)
-      (do
-        (err-resp "missing_id_token" "Google ID token is required"))
+      (err-resp "missing_id_token" "Google ID token is required")
       
       (str/blank? client_id)
-      (do
-        (err-resp "missing_client_id" "Google client ID is required"))
+      (err-resp "missing_client_id" "Google client ID is required")
       
       :else
       (try
@@ -767,7 +765,6 @@
               existing-google-user (db.user/by-google-id db google-id)
               current-user (db.user/by-id db user-id)]
           
-          
           ;; Check if current user account is deleted
           (when (db.user/deleted? current-user)
             (throw (ex-info "Account deleted" {:type :account-deleted})))
@@ -775,8 +772,7 @@
           (cond
             ;; Google ID already linked to another account
             (and existing-google-user (not (= (:xt/id existing-google-user) user-id)))
-            (do
-              (err-resp "google_id_taken" "This Google account is already linked to another account"))
+            (err-resp "google_id_taken" "This Google account is already linked to another account")
             
             ;; Google ID already linked to current account
             (and existing-google-user (= (:xt/id existing-google-user) user-id))
