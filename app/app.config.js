@@ -3,7 +3,7 @@ export default {
     owner: "sbensu",
     name: "gatz.chat",
     slug: "gatz",
-    version: "1.1.30",
+    version: "1.1.31",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "automatic",
@@ -27,7 +27,7 @@ export default {
       },
     },
     android: {
-      versionCode: 123,
+      versionCode: 124,
       adaptiveIcon: {
         foregroundImage: "./assets/google_play_icon.png",
         backgroundColor: "#3D5135",
@@ -59,12 +59,35 @@ export default {
       "expo-font",
       "expo-localization",
       "expo-video",
+      "expo-document-picker",
+      [
+        "expo-notifications",
+        {
+          icon: "./assets/icon.png",
+          color: "#3D5135",
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          photosPermission: "Allow access to save and view photos.",
+          savePhotosPermission: "Allow saving photos to your gallery.",
+        }
+      ],
+      [
+        "expo-location",
+        {
+          locationWhenInUsePermission: "To share your city with friends, we need access to your location. You can change this anytime in settings.",
+        }
+      ],
       [
         "expo-image-picker",
         {
           photosPermission:
             "This allows you to send photos in your messages and upload your avatar.",
-        },
+          cameraPermission:
+            "This allows you to take photos for messages and your avatar.",
+        }
       ],
       [
         "@react-native-google-signin/google-signin",
