@@ -3,9 +3,8 @@
             [clojure.tools.logging :as log]
             [clojure.string :as str]))
 
-;; TEMPORARY: Enable mock mode for development
-;; TODO: Remove this when Twilio service is working
-(def ^:dynamic *mock-twilio* true)
+;; Twilio mock mode - set to false to use real Twilio
+(def ^:dynamic *mock-twilio* false)
 
 (def TEST_PHONES
   (->> ["+1 111 111 1111", "+1 222 222 2222", "+1 333 333 3333"
@@ -50,8 +49,7 @@
    Returns an id for its session or an error."
   [env {:keys [phone]}]
   (cond
-    ;; TEMPORARY: Mock all phones when mock mode is enabled
-    ;; TODO: Remove this when Twilio service is working
+    ;; Mock mode for development - use real Twilio when false
     *mock-twilio*
     (do
       (log/info "TWILIO MOCK: start-verification for phone" phone)
@@ -87,8 +85,7 @@
   "Checks if the code is the right one. Returns either true or false if the code is invalid"
   [env {:keys [phone code]}]
   (cond
-    ;; TEMPORARY: Mock all codes when mock mode is enabled (any code works)
-    ;; TODO: Remove this when Twilio service is working
+    ;; Mock mode for development - use real Twilio when false
     *mock-twilio*
     (do
       (log/info "TWILIO MOCK: check-code for phone" phone "with code" code "- APPROVED")
