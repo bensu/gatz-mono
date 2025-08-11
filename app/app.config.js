@@ -3,7 +3,7 @@ export default {
     owner: "sbensu",
     name: "gatz.chat",
     slug: "gatz",
-    version: "1.1.34",
+    version: "1.1.35",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "automatic",
@@ -27,7 +27,7 @@ export default {
       },
     },
     android: {
-      versionCode: 127,
+      versionCode: 128,
       adaptiveIcon: {
         foregroundImage: "./assets/google_play_icon.png",
         backgroundColor: "#3D5135",
@@ -55,6 +55,17 @@ export default {
       favicon: "./assets/favicon.png",
     },
     plugins: [
+      [
+        "expo-build-properties",
+        {
+          android: {
+            kotlinVersion: "2.1.0",
+            compileSdkVersion: 35,
+            targetSdkVersion: 34,
+            buildToolsVersion: "35.0.0",
+          },
+        },
+      ],
       "expo-router",
       "expo-font",
       "expo-localization",
