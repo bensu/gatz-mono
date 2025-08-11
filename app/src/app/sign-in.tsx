@@ -34,7 +34,7 @@ import { Logo, Tagline } from "../components/logo";
 import { NetworkButton, NetworkState } from "../components/NetworkButton";
 import { SocialSignInButtons } from "../components/SocialSignInButtons";
 import { EmailSignInComponent } from "../components/EmailSignInComponent";
-import { SocialSignInCredential, signInWithGoogleOneTap } from "../gatz/auth";
+import { SocialSignInCredential } from "../gatz/auth";
 import { AuthService } from "../gatz/auth-service";
 import { AuthError, AuthErrorType, mapErrorToAuthError } from "../gatz/auth-errors";
 import { AuthErrorDisplay } from "../components/AuthErrorDisplay";
@@ -359,7 +359,6 @@ export default function SignIn() {
     setShowEmailSignIn(false);
     setIsSocialSignInLoading(false);
     setSocialSignInSuccess(false);
-    setHasAttemptedOneTap(false);
   }, [setStep, resetPhone, resetCode, resetUsername]);
 
   const handleRestart = useCallback(() => {
@@ -461,7 +460,6 @@ export default function SignIn() {
   const [isSocialSignInLoading, setIsSocialSignInLoading] = useState(false);
   const [socialSignInSuccess, setSocialSignInSuccess] = useState(false);
   const [showEmailSignIn, setShowEmailSignIn] = useState(false);
-  const [hasAttemptedOneTap, setHasAttemptedOneTap] = useState(false);
 
 
   const handleSocialSignIn = useCallback(
@@ -528,33 +526,6 @@ export default function SignIn() {
     [authService, signIn],
   );
 
-  // Attempt Google One Tap Sign-in automatically when component mounts
-  const attemptOneTapSignIn = useCallback(async () => {
-    if (hasAttemptedOneTap || Platform.OS === 'web') {
-      return; // Don't attempt multiple times or on web (fallback to manual flow)
-    }
-    
-    setHasAttemptedOneTap(true);
-    
-    try {
-      console.log('Attempting Google One Tap Sign-in...');
-      const credential = await signInWithGoogleOneTap();
-      console.log('One Tap Sign-in successful, processing...');
-      await handleSocialSignIn(credential);
-    } catch (error) {
-      console.log('One Tap Sign-in failed, showing manual options:', error);
-      // Silently fail - user will see the manual sign-in options
-    }
-  }, [hasAttemptedOneTap, handleSocialSignIn]);
-
-  // Run One Tap attempt when component mounts
-  useEffect(() => {
-    if (step === 'enter_phone' && !hasAttemptedOneTap) {
-      // Small delay to ensure UI is ready
-      const timer = setTimeout(attemptOneTapSignIn, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [step, attemptOneTapSignIn, hasAttemptedOneTap]);
 
   const handleEmailVerified = useCallback(async (email: string) => {
     // This is just for sending the code, no action needed

@@ -111,9 +111,10 @@ export const configureGoogleSignIn = () => {
   // Configure both regular Google Sign-in and One Tap Sign-in
   GoogleSignin.configure(config);
   
-  // Configure Google One Tap Sign-in with automatic client ID detection
+  // Configure Google One Tap Sign-in with the same client ID used for regular Google Sign-in
+  const oneTapClientId = Platform.OS === 'ios' && iosClientId ? iosClientId : webClientId;
   GoogleOneTapSignIn.configure({
-    webClientId: 'autoDetect', // Recommended automatic detection
+    webClientId: oneTapClientId,
   });
 };
 
