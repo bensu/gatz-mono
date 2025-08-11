@@ -3,7 +3,7 @@ export default {
     owner: "sbensu",
     name: "gatz.chat",
     slug: "gatz",
-    version: "1.1.38",
+    version: "1.1.39",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "automatic",
@@ -27,7 +27,7 @@ export default {
       },
     },
     android: {
-      versionCode: 131,
+      versionCode: 132,
       adaptiveIcon: {
         foregroundImage: "./assets/google_play_icon.png",
         backgroundColor: "#3D5135",
