@@ -48,6 +48,7 @@ import { useThemeColors } from "../hooks/useThemeColors";
 import { activeLinkPreviews, addLoadedPreviews, addLoadingPreviews, extractUrls, LinkPreviews, removeLinkPreview, removeLinkPreviewsWithoutData, removeStuckLinkPreviews, UrlToLinkPreviewState } from "../../vendor/react-native-link-preview/LinkPreview";
 import { ScrollView } from "react-native-gesture-handler";
 import { debounce } from "lodash";
+import { MIN_COMPOSER_HEIGHT } from "../Constant";
 
 export type MessageDraft = {
   text: string;
@@ -747,6 +748,7 @@ export function InputToolbar(props: InputToolbarProps) {
         GatzStyles.gutter,
         {
           position,
+          minHeight: MIN_COMPOSER_HEIGHT,
           backgroundColor: colors.rowBackground,
           borderTopColor: colors.inputToolbarBorder,
         },

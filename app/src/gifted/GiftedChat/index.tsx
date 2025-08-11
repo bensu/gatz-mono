@@ -47,9 +47,7 @@ import { LeftRightStyle } from "../Models";
 import type { Contact } from "../../gatz/types";
 import { SystemMessage, } from "../SystemMessage";
 import * as utils from "../utils";
-import {
-  cachedDeviceHeights,
-} from "../keyboardAdjustment";
+import { homeIndicatorHeight} from "../keyboardAdjustment";
 
 import * as T from "../../gatz/types";
 import { SessionContext } from "../../context/SessionProvider";
@@ -305,11 +303,8 @@ function GiftedChat(props: GiftedChatProps) {
 
     // [platform-specific-keyboard]
     if (Platform.OS === "ios") {
-      if (cachedDeviceHeights) {
-        const { homeIndicatorHeight } = cachedDeviceHeights;
-        // Adjust keyboard height for iOS
-        keyboardHeightRef.current = keyboardHeightRef.current - homeIndicatorHeight; // [keyboard-height-tracking]
-      }
+      // Adjust keyboard height for iOS
+      keyboardHeightRef.current = keyboardHeightRef.current - homeIndicatorHeight; // [keyboard-height-tracking]
     }
 
     setState((state) => ({
