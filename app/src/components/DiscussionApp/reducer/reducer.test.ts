@@ -19,7 +19,6 @@ describe('DiscussionApp reducer - retry functionality', () => {
     messages: [mockMessage],
     numberOfUsers: 1,
     step: 0,
-    isTyping: false,
     pendingMessages: [],
     errorMessages: [],
     messageRetryStatus: {},

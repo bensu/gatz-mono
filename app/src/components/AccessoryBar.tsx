@@ -31,7 +31,6 @@ export default class AccessoryBar extends React.Component<Props> {
           /> */}
         {/* <Button onPress={() => takePictureAsync(onSend)} name="camera" /> */}
         {/* <Button onPress={() => getLocationAsync(onSend)} name="my-location" /> */}
-        {/* <Button onPress={() => isTyping()} name="chat" /> */}
       </View>
     );
   }

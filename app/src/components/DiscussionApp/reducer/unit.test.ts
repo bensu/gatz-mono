@@ -107,7 +107,6 @@ const createInitialState = (): State => ({
   step: 0,
   loadEarlier: false,
   isLoadingEarlier: false,
-  isTyping: false,
   pendingMessages: [],
   errorMessages: [],
   reactingToMessage: undefined,

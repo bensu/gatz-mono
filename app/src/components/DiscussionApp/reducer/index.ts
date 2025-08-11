@@ -13,7 +13,6 @@ export type State = {
   step: number;
   loadEarlier?: boolean;
   isLoadingEarlier?: boolean;
-  isTyping: boolean;
   pendingMessages: T.Message["id"][];
   errorMessages: T.Message["id"][];
   messageRetryStatus: Record<T.Message["id"], MessageRetryState>;
@@ -88,7 +87,6 @@ export type StateAction =
     messages: T.Message[];
   }
   | { type: ActionKind.LOAD_EARLIER_START }
-  | { type: ActionKind.SET_IS_TYPING; isTyping: boolean }
 
   // Reactions
   | { type: ActionKind.OPEN_REACTION_PICKER; message: T.Message }
@@ -245,7 +243,6 @@ export function reducer(state: State, action: StateAction): State {
       // [immutable-state]
       return {
         ...state, // [immutable-state]
-        isTyping: action.isTyping,
       };
     }
     case ActionKind.MESSAGE_DELETED: {

@@ -82,7 +82,6 @@ type Props = { did: Discussion["id"]; highlightedMessageId?: Message["id"] };
  * - numberOfUsers: Count of discussion participants
  * - step: Incremental counter for forcing re-renders
  * - loadEarlier/isLoadingEarlier: Pagination state
- * - isTyping: Typing indicator state
  * - pendingMessages: Array of message IDs being sent
  * - errorMessages: Array of message IDs that failed to send
  * - reactingToMessage: Message being reacted to (reaction picker open)
@@ -179,7 +178,6 @@ const DiscussionApp = (props: Props) => {
     step: 0,
     loadEarlier: true,
     isLoadingEarlier: false,
-    isTyping: false,
     reactingToMessage: undefined,
     displayingMessageReactions: undefined,
     pendingMessages: [],
@@ -578,7 +576,6 @@ const DiscussionApp = (props: Props) => {
           renderUsernameOnMessage
           keyboardShouldPersistTaps="never"
           // [user-presence]
-          isTyping={state.isTyping}
           inverted={false}
           // [lazy-loading]
           infiniteScroll

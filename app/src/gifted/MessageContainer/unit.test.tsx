@@ -30,10 +30,6 @@ jest.mock('../Post', () => ({
 jest.mock('../LoadEarlier', () => ({
   LoadEarlier: jest.fn(() => null),
 }));
-jest.mock('../TypingIndicator', () => ({
-  __esModule: true,
-  default: jest.fn(() => null),
-}));
 jest.mock('../../components/reactions', () => ({
   flattenReactions: jest.fn(() => []),
   HangingReactions: ({ children }: any) => {
@@ -396,7 +392,6 @@ describe('MessageContainerWrapper', () => {
       const maxProps: T.MessageContainerProps = {
         ...createMockProps(),
         highlightedMessageId: 'msg123',
-        isTyping: true,
         inverted: false,
         loadEarlier: true,
         alignTop: true,
@@ -434,7 +429,6 @@ describe('MessageContainerWrapper', () => {
         const props = messageContainerCall[1];
         // Verify all props are passed through
         expect(props.highlightedMessageId).toBe(maxProps.highlightedMessageId);
-        expect(props.isTyping).toBe(maxProps.isTyping);
         expect(props.inverted).toBe(maxProps.inverted);
         expect(props.messageProps).toBe(maxProps.messageProps);
         expect(props.post).toBe(maxProps.post);
@@ -882,7 +876,6 @@ describe('MessageContainerWrapper', () => {
         // Should not add any default values
         expect(props.messages).toBeUndefined();
         expect(props.user).toBeUndefined();
-        expect(props.isTyping).toBeUndefined();
       }
 
       spy.mockRestore();
@@ -1149,7 +1142,6 @@ describe('MessageContainer - Coverage Tests', () => {
       
       const props = {
         ...createMockProps(),
-        isTyping: true,
         messages: [
           { id: '1', text: 'Hello', user_id: 'user1' }
         ] as T.Message[],
@@ -1169,7 +1161,6 @@ describe('MessageContainer - Coverage Tests', () => {
     it('should handle typing indicator on mobile platform', () => {
       const props = {
         ...createMockProps(),
-        isTyping: true,
         messages: [
           { id: '1', text: 'Hello', user_id: 'user1' }
         ] as T.Message[],

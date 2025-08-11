@@ -65,8 +65,6 @@ type GiftedChatProps = MessageActionProps & {
   post?: T.Message;
   /* Messages to display */
   messages?: T.Message[];
-  /* Typing Indicator state */
-  isTyping?: boolean;
   showLeftUsername?: boolean;
   /* Controls whether or not the message bubbles appear at the top of the chat */
   alignTop?: boolean;
@@ -193,7 +191,6 @@ function GiftedChat(props: GiftedChatProps) {
     user,
     onSend,
     messages = [],
-    isTyping,
     locale = "en",
     actionSheet = null,
     keyboardShouldPersistTaps = Platform.select({
@@ -437,7 +434,6 @@ function GiftedChat(props: GiftedChatProps) {
             onArchive={props.onArchive}
             messages={messages}
             forwardRef={messageContainerRef}
-            isTyping={isTyping}
             showScrollToBottom
             bubble={{ colors }}
             messageActionProps={{

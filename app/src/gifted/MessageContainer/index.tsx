@@ -18,7 +18,6 @@ import { LoadEarlier } from "../LoadEarlier";
 import Message, { SwipeMessage, PropsForBubble, MessageActionProps } from "../Message";
 import Color from "../Color";
 import type { User } from "../../gatz/types";
-import TypingIndicator from "../TypingIndicator";
 
 import * as T from "../../gatz/types";
 
@@ -104,7 +103,6 @@ const styles = StyleSheet.create({
 export interface MessageContainerProps {
   highlightedMessageId?: T.Message["id"];
   messages?: T.Message[];
-  isTyping?: boolean;
   user?: T.Contact;
   inverted?: boolean;
   loadEarlier?: boolean;
@@ -164,8 +162,7 @@ class MessageContainer extends React.PureComponent<
   static defaultProps = {
     messages: [],
     user: {},
-    isTyping: false,
-    onLoadEarlier: () => { },
+      onLoadEarlier: () => { },
     inverted: true,
     loadEarlier: false,
     invertibleScrollViewProps: {},
@@ -178,8 +175,7 @@ class MessageContainer extends React.PureComponent<
 
   static propTypes = {
     messages: PropTypes.arrayOf(PropTypes.object),
-    isTyping: PropTypes.bool,
-    user: PropTypes.object,
+      user: PropTypes.object,
     onLoadEarlier: PropTypes.func,
     inverted: PropTypes.bool,
     loadEarlier: PropTypes.bool,
@@ -198,15 +194,9 @@ class MessageContainer extends React.PureComponent<
     hasScrolled: false,
   };
 
-  renderTypingIndicator = () => {
-    if (Platform.OS === "web") {
-      return null;
-    }
-    return <TypingIndicator isTyping={this.props.isTyping || false} />;
-  };
 
   renderFooter = () => {
-    return this.renderTypingIndicator();
+    return null;
   };
 
   renderLoadEarlier = () => {
@@ -511,7 +501,7 @@ class MessageContainer extends React.PureComponent<
           maxToRenderPerBatch={10}
           initialScrollIndex={0}
           ref={this.props.forwardRef}
-          extraData={[this.props.extraData, this.props.isTyping]}
+          extraData={this.props.extraData}
           keyExtractor={this.keyExtractor}
           enableEmptySections
           automaticallyAdjustContentInsets={false}

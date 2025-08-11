@@ -722,7 +722,6 @@ describe('GiftedChat Component', () => {
       const { getByTestId } = renderWithContexts({
         ...defaultProps,
         messages: [mockMessage],
-        isTyping: true,
         minInputToolbarHeight: 44,
       });
 
