@@ -75,13 +75,11 @@
 (defn send-email [{:keys [biff/secret recaptcha/site-key] :as ctx} opts]
   (let [form-params (if-some [template-key (:template opts)]
                       (template template-key opts)
-                      opts)
-        ;; Redirect all emails to admin during testing (use gatz.chat to match From domain for Postmark)
-        test-form-params (assoc form-params :to "admin@gatz.chat")]
+                      opts)]
     (if (some? (secret :postmark/api-key))
       (do
         (log/info "Using Postmark to send email")
-        (send-postmark ctx test-form-params))
+        (send-postmark ctx form-params))
       (do
         (log/info "Using console logging for email")
-        (send-console ctx test-form-params)))))
+        (send-console ctx form-params)))))
