@@ -9,7 +9,7 @@ import {
   Modal,
 } from "react-native";
 import { useAsync } from "react-async-hook";
-import { QrCodeSvg } from "react-native-qr-svg";
+import QRCode from "react-native-qrcode-skia";
 
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../gifted/hooks/useThemeColors";
@@ -62,10 +62,10 @@ export const QRModal = ({ title, fetchUrl, children, }: {
               <Text style={[qrButtonStyles.title, { fontWeight: "600", color: colors.primaryText }]}>
                 {title}
               </Text>
-              <QrCodeSvg
+              <QRCode
                 style={{ marginTop: 24 }}
                 value={asyncQRCode.result}
-                frameSize={200}
+                size={200}
               />
             </>
           )}

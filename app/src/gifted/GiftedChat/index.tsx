@@ -625,7 +625,6 @@ GiftedChat.propTypes = {
   imageProps: PropTypes.object,
   videoProps: PropTypes.object,
   audioProps: PropTypes.object,
-  lightboxProps: PropTypes.object,
   renderFooter: PropTypes.func,
   renderComposer: PropTypes.func,
   renderActions: PropTypes.func,
