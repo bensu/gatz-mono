@@ -1798,10 +1798,14 @@
   resolved "https://registry.yarnpkg.com/@react-native-community/netinfo/-/netinfo-11.4.1.tgz#a3c247aceab35f75dd0aa4bfa85d2be5a4508688"
   integrity sha512-B0BYAkghz3Q2V09BF88RA601XursIEA111tnc2JOaN7axJWmNefmfjZqw/KdSxKZp7CZUuPpjBmz/WCR9uaHYg==
 
-"@react-native-google-signin/google-signin@^15.0.0":
-  version "15.0.0"
-  resolved "https://registry.yarnpkg.com/@react-native-google-signin/google-signin/-/google-signin-15.0.0.tgz#5041e12fc5483d4b08b92d3f9a754c68c471f107"
-  integrity sha512-oU49nE+Z9TT/WaO1K7BH/QL2Nx3d2T3I5PGcYdD8swKNtfhMt8qCX/3mOnNEzthTBPrR0CWFGo3LXpkYspalog==
+"@react-native-google-signin/google-signin@^21.0.0":
+  version "21.0.0"
+  resolved "https://npm.pkg.github.com/download/@react-native-google-signin/google-signin/21.0.0/fa4162edbed7aad5043a1b0625013dc86c157bb9#fa4162edbed7aad5043a1b0625013dc86c157bb9"
+  integrity sha512-621mFXOlRz3vAIGMNCItAz8D3duQ60lfYk/RcEoSJM5lx3MInGk/oOK3QpSTyqb9IpGP/OQC2XNDQor+jA0Mag==
+  dependencies:
+    "@types/google-one-tap" "^1.2.6"
+    jwt-decode "^4.0.0"
+    nanoevents "^9.1.0"
 
 "@react-native/assets-registry@0.76.9":
   version "0.76.9"
@@ -2446,6 +2450,11 @@
   dependencies:
     "@types/minimatch" "*"
     "@types/node" "*"
+
+"@types/google-one-tap@^1.2.6":
+  version "1.2.6"
+  resolved "https://registry.yarnpkg.com/@types/google-one-tap/-/google-one-tap-1.2.6.tgz#854bdf1a51f9bc3d61f3c55d44135b653c523583"
+  integrity sha512-REmJsXVHvKb/sgI8DF+7IesMbDbcsEokHBqxU01ENZ8d98UPWdRLhUCtxEm9bhNFFg6PJGy7PNFdvovp0hK3jA==
 
 "@types/graceful-fs@^4.1.3":
   version "4.1.9"
@@ -6906,6 +6915,11 @@ jws@^3.2.2:
     jwa "^1.4.1"
     safe-buffer "^5.0.1"
 
+jwt-decode@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/jwt-decode/-/jwt-decode-4.0.0.tgz#2270352425fd413785b2faf11f6e755c5151bd4b"
+  integrity sha512-+KJGIyHgkGuIq3IEBNftfhW/LfWhXUIY6OmyVWjliu5KH1y0fw7VQ8YndE2O4qZdMSd9SqbnC8GOcZEy0Om7sA==
+
 kind-of@^6.0.2:
   version "6.0.3"
   resolved "https://registry.yarnpkg.com/kind-of/-/kind-of-6.0.3.tgz#07c05034a6c349fa06e24fa35aa76db4580ce4dd"
@@ -7662,6 +7676,11 @@ mz@^2.7.0:
     any-promise "^1.0.0"
     object-assign "^4.0.1"
     thenify-all "^1.0.0"
+
+nanoevents@^9.1.0:
+  version "9.1.0"
+  resolved "https://registry.yarnpkg.com/nanoevents/-/nanoevents-9.1.0.tgz#76c8c86ed54a26131ada5a0a1c5682f48690dbb7"
+  integrity sha512-Jd0fILWG44a9luj8v5kED4WI+zfkkgwKyRQKItTtlPfEsh7Lznfi1kr8/iZ+XAIss4Qq5GqRB0qtWbaz9ceO/A==
 
 nanoid@^3.3.1, nanoid@^3.3.11, nanoid@^3.3.7:
   version "3.3.11"

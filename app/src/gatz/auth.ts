@@ -1,5 +1,5 @@
 import * as AppleAuthentication from 'expo-apple-authentication';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { GoogleSignin, ConfigureParams, GoogleOneTapSignIn } from '@react-native-google-signin/google-signin';
 import { Platform } from 'react-native';
 
 export interface AppleSignInCredential {
@@ -33,6 +33,9 @@ export interface EmailSignInCredential {
 
 export type SocialSignInCredential = AppleSignInCredential | GoogleSignInCredential;
 export type AuthCredential = AppleSignInCredential | GoogleSignInCredential | EmailSignInCredential;
+
+// Export additional Google One Tap functions for advanced usage
+export { signInWithGoogleOneTap, signInWithGoogleManual, revokeGoogleAccess };
 
 export const isAppleSignInAvailable = async (): Promise<boolean> => {
   if (Platform.OS !== 'ios') return false;
@@ -81,7 +84,7 @@ export const configureGoogleSignIn = () => {
     return;
   }
 
-  let config = {
+  let config: ConfigureParams = {
     // React Native Google Sign-In library REQUIRES Web Client ID, even on Android
     webClientId,
     // Request offline access for refresh tokens
@@ -96,10 +99,22 @@ export const configureGoogleSignIn = () => {
       iosClientId: iosClientId,
     };
   }
-  // For Android, must use Web Client ID - the library doesn't work with Android Client ID
+  if (Platform.OS === 'android' && androidClientId) {
+    // For Android, must use param name webClientId
+    console.log('Android client ID:', androidClientId);
+    config = {
+      ...config,
+      webClientId: androidClientId,
+    };
+  }
 
-
+  // Configure both regular Google Sign-in and One Tap Sign-in
   GoogleSignin.configure(config);
+  
+  // Configure Google One Tap Sign-in with automatic client ID detection
+  GoogleOneTapSignIn.configure({
+    webClientId: 'autoDetect', // Recommended automatic detection
+  });
 };
 
 const signInWithGoogleWeb = async (): Promise<GoogleSignInCredential> => {
@@ -214,13 +229,105 @@ const signInWithGoogleWeb = async (): Promise<GoogleSignInCredential> => {
   });
 };
 
-export const signInWithGoogle = async (): Promise<GoogleSignInCredential> => {
+// Google One Tap Sign-in (automatic sign-in attempt)
+export const signInWithGoogleOneTap = async (): Promise<GoogleSignInCredential> => {
+  try {
+    // Use web-specific implementation on web platform
+    if (Platform.OS === 'web') {
+      return await signInWithGoogleWeb();
+    }
+
+    // Check Play Services availability for Android
+    await GoogleOneTapSignIn.checkPlayServices();
+    
+    // Attempt One Tap sign-in
+    const signInResponse = await GoogleOneTapSignIn.signIn();
+    
+    if (signInResponse.type === 'success') {
+      const { idToken, user } = signInResponse.data;
+      
+      if (!idToken) {
+        throw new Error('Google One Tap Sign-In failed: no ID token received');
+      }
+      
+      // Must use the same client ID that was used to configure the Google Sign-In library
+      const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
+      const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
+      
+      // Use the same logic as configureGoogleSignIn to determine which client ID was used
+      const clientId = Platform.OS === 'ios' && iosClientId ? iosClientId : webClientId;
+
+      return {
+        type: 'google',
+        idToken,
+        clientId,
+        user: user ? {
+          id: user.id,
+          name: user.name || undefined,
+          email: user.email,
+        } : undefined,
+      };
+    } else if (signInResponse.type === 'noSavedCredentialFound') {
+      // No saved credentials - fallback to manual sign-in flow
+      throw new Error('NO_SAVED_CREDENTIALS');
+    } else {
+      throw new Error('Google One Tap Sign-In cancelled or failed');
+    }
+  } catch (error) {
+    console.error('Google One Tap Sign-In error:', error);
+    throw error;
+  }
+};
+
+// Google manual sign-in (explicit user action)
+export const signInWithGoogleManual = async (): Promise<GoogleSignInCredential> => {
   try {
     // Use web-specific implementation on web platform
     if (Platform.OS === 'web') {
       return await signInWithGoogleWeb();
     }
     
+    // Use One Tap explicit sign-in for better UX
+    await GoogleOneTapSignIn.checkPlayServices();
+    const createResponse = await GoogleOneTapSignIn.createAccount();
+    
+    if (createResponse.type === 'success') {
+      const { idToken, user } = createResponse.data;
+      
+      if (!idToken) {
+        throw new Error('Google Manual Sign-In failed: no ID token received');
+      }
+      
+      // Must use the same client ID that was used to configure the Google Sign-In library
+      const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
+      const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
+      
+      // Use the same logic as configureGoogleSignIn to determine which client ID was used
+      const clientId = Platform.OS === 'ios' && iosClientId ? iosClientId : webClientId;
+
+      return {
+        type: 'google',
+        idToken,
+        clientId,
+        user: user ? {
+          id: user.id,
+          name: user.name || undefined,
+          email: user.email,
+        } : undefined,
+      };
+    } else {
+      throw new Error('Google Manual Sign-In cancelled or failed');
+    }
+  } catch (error) {
+    console.error('Google Manual Sign-In error:', error);
+    // Fallback to traditional Google Sign-in if One Tap fails
+    return await signInWithGoogleFallback();
+  }
+};
+
+// Fallback to traditional Google Sign-in
+const signInWithGoogleFallback = async (): Promise<GoogleSignInCredential> => {
+  try {
     // Use native implementation for iOS/Android
     await GoogleSignin.hasPlayServices();
     const userInfo = await GoogleSignin.signIn();
@@ -254,18 +361,49 @@ export const signInWithGoogle = async (): Promise<GoogleSignInCredential> => {
       } : undefined,
     };
   } catch (error) {
-    console.error('Google Sign-In error:', error);
+    console.error('Google Fallback Sign-In error:', error);
     throw error;
+  }
+};
+
+// Main Google Sign-in function (tries One Tap first, then manual)
+export const signInWithGoogle = async (): Promise<GoogleSignInCredential> => {
+  try {
+    // Try One Tap sign-in first for better UX
+    return await signInWithGoogleOneTap();
+  } catch (error) {
+    console.log('One Tap sign-in failed, falling back to manual sign-in');
+    // If One Tap fails due to no saved credentials, try manual sign-in
+    if (error instanceof Error && error.message === 'NO_SAVED_CREDENTIALS') {
+      return await signInWithGoogleManual();
+    }
+    // For other errors, still try manual sign-in as fallback
+    return await signInWithGoogleManual();
   }
 };
 
 export const signOutGoogle = async (): Promise<void> => {
   try {
     if (Platform.OS !== 'web') {
+      // Sign out from both regular Google Sign-in and One Tap
       await GoogleSignin.signOut();
+      await GoogleOneTapSignIn.signOut();
     }
     // For web, just clear any stored tokens/state if needed
   } catch (error) {
     console.error('Google Sign-Out error:', error);
+  }
+};
+
+export const revokeGoogleAccess = async (): Promise<void> => {
+  try {
+    if (Platform.OS !== 'web') {
+      // Revoke access for both regular Google Sign-in and One Tap
+      await GoogleSignin.revokeAccess();
+      await GoogleOneTapSignIn.revokeAccess();
+    }
+    // For web, just clear any stored tokens/state if needed
+  } catch (error) {
+    console.error('Google Revoke Access error:', error);
   }
 };
