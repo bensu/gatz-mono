@@ -1,12 +1,11 @@
 import PropTypes from "prop-types";
-import React, { useRef, useState, useCallback, useEffect } from "react";
+import React from "react";
 import {
   Platform,
   StyleSheet,
   TextInput,
   TextInputProps,
   NativeSyntheticEvent,
-  TextInputContentSizeChangeEventData,
   TextInputKeyPressEventData,
 } from "react-native";
 import {
@@ -21,7 +20,7 @@ import { useThemeColors } from "../hooks/useThemeColors";
 
 const MIN_HEIGHT = 40;
 
-const PADDING_VERTICAL = Platform.select({ ios: 10, default: 4 });
+const PADDING_VERTICAL = Platform.select({ ios: 4, default: 4 });
 // const colors = useThemeColors();
 
 const styles = StyleSheet.create({
@@ -90,26 +89,25 @@ export type ComposerProps = ComposerPropsFromInput & ComposerPropsFromChat;
  * keyboard shortcuts for power users, and theme-aware styling.
  * 
  * Key functionality and invariants:
- * - [auto-resize] Automatically adjusts height based on content within MIN/MAX bounds
+ * - [auto-resize] Uses minHeight/maxHeight for new architecture compatible auto-resizing
  * - [height-constraints] Maintains height between MIN_COMPOSER_HEIGHT and MAX_COMPOSER_HEIGHT
- * - [dimension-tracking] Tracks and updates dimensions only when they actually change
  * - [keyboard-shortcuts] Supports Cmd/Ctrl+Enter to send on web platform
  * - [edit-previous] Allows editing last message via ArrowUp when composer is empty
  * - [discussion-reset] Resets input state when discussion ID changes via key prop
  * - [theme-aware] Applies theme colors for background and text
  * - [platform-specific] Handles platform-specific styling differences (iOS/Android/Web)
  * - [multiline-support] Maintains proper text input behavior across multiple lines
- * - [content-size-responsive] Responds to content size changes for dynamic height
+ * - [new-architecture] Compatible with React Native's new architecture and Expo 52
  * 
  * This pattern provides:
- * - Responsive text input that grows with content
- * - Consistent behavior across platforms
+ * - Responsive text input that grows with content using native auto-sizing
+ * - Consistent behavior across platforms and new architecture
  * - Quick actions via keyboard shortcuts
  * - Seamless message editing flow
  * - Theme integration for dark/light mode support
  * 
- * The component manages its own height state internally while delegating
- * text content management to parent components via callbacks.
+ * The component uses React Native's built-in minHeight/maxHeight properties
+ * for auto-resizing, delegating text content management to parent components.
  * 
  * @param props - ComposerProps including text state, callbacks, and optional TextInput props
  * @returns A themed, auto-resizing TextInput component
@@ -123,54 +121,7 @@ export function Composer({
   onEdit,
   textInputProps = {},
 }: ComposerProps): React.ReactElement {
-  const dimensionsRef = useRef<{ width: number; height: number }>();
-  const [composerHeight, setComposerHeight] = useState(MIN_COMPOSER_HEIGHT);
-  const previousTextRef = useRef<string | undefined>(text);
-
   const colors = useThemeColors();
-
-  // Reset height when text goes from non-empty to empty (after submission)
-  useEffect(() => {
-    if (previousTextRef.current && previousTextRef.current.trim() !== '' && (!text || text.trim() === '')) {
-      // Text was cleared after having content, reset height
-      setComposerHeight(MIN_COMPOSER_HEIGHT);
-      dimensionsRef.current = undefined;
-    }
-    previousTextRef.current = text;
-  }, [text]);
-
-  const determineInputSizeChange = useCallback(
-    (dimensions: { width: number; height: number }) => {
-      // [dimension-tracking]
-      if (
-        !dimensionsRef.current ||
-        (dimensionsRef.current &&
-          (dimensionsRef.current.width !== dimensions.width ||
-            dimensionsRef.current.height !== dimensions.height))
-      ) {
-        // [height-constraints] [auto-resize]
-        const newComposerHeight = Math.max(
-          MIN_COMPOSER_HEIGHT!,
-          Math.min(
-            MAX_COMPOSER_HEIGHT!,
-            dimensions.height + PADDING_VERTICAL * 2,
-          ),
-        );
-        dimensionsRef.current = {
-          height: newComposerHeight,
-          width: dimensions.width,
-        };
-        setComposerHeight(newComposerHeight);
-      }
-    },
-    [setComposerHeight],
-  );
-
-  // [content-size-responsive]
-  const handleContentSizeChange = ({
-    nativeEvent: { contentSize },
-  }: NativeSyntheticEvent<TextInputContentSizeChangeEventData>) =>
-    determineInputSizeChange(contentSize);
 
   const handleKeyDown = (
     event: NativeSyntheticEvent<TextInputKeyPressEventData>,
@@ -204,7 +155,6 @@ export function Composer({
       placeholderTextColor={Color.defaultColor}
       multiline // [multiline-support]
       editable
-      onContentSizeChange={handleContentSizeChange}
       onChangeText={onTextChanged}
       onKeyPress={handleKeyDown}
       value={text}
@@ -212,7 +162,8 @@ export function Composer({
       style={[
         styles.textInput, // [platform-specific]
         {
-          height: composerHeight, // [auto-resize]
+          minHeight: MIN_COMPOSER_HEIGHT, // [auto-resize] - New architecture compatible
+          maxHeight: MAX_COMPOSER_HEIGHT, // [auto-resize] - New architecture compatible
           backgroundColor: colors.appBackground, // [theme-aware]
           color: colors.primaryText, // [theme-aware]
         },
