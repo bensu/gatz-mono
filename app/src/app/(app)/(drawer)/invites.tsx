@@ -243,6 +243,11 @@ const InviteFriends = ({
     })();
   }, [gatzClient]);
 
+  const fetchCrewShareLink = useCallback(
+    () => gatzClient.postCrewShareLink(),
+    [gatzClient]
+  );
+
   return (
     <View style={styles.section}>
       <Text
@@ -262,7 +267,7 @@ const InviteFriends = ({
               <View style={{ marginTop: 8 }}>
                 <QRModal
                   title={"@" + user.name}
-                  fetchUrl={() => gatzClient.postCrewShareLink()}
+                  fetchUrl={fetchCrewShareLink}
                 >
                   <Button title="Get QR code" icon="qr-code" />
                 </QRModal>

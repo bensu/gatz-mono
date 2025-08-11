@@ -22,8 +22,7 @@ import { Image } from "expo-image";
 import { VideoView, useVideoPlayer } from "expo-video";
 
 import { MaterialIcons } from "@expo/vector-icons";
-
-import { cachedDeviceHeights } from "../gifted/keyboardAdjustment";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { FrontendDBContext } from "../context/FrontendDBProvider";
 
@@ -149,6 +148,7 @@ export const PostComposer = ({
   const { session: { userId } } = useContext(SessionContext);
   const { db } = useContext(FrontendDBContext);
   const colors = useThemeColors();
+  const { bottom } = useSafeAreaInsets();
   const {
     draft, setDraft, clearDraft,
     medias, removeMedia, addMedias, location, setLocation,
@@ -437,7 +437,7 @@ export const PostComposer = ({
   }, [toggleOriginalMessage, colors]);
 
   return (
-    <View style={[styles.contentContainer, { paddingBottom: cachedDeviceHeights.homeIndicatorHeight },]}        >
+    <View style={[styles.contentContainer, { paddingBottom: bottom },]}        >
       <View style={[styles.centeredRow, styles.innerPostHeader]}>
         <View style={styles.row}>
           <ReactiveAvatarWithName size="medium" userId={userId} />

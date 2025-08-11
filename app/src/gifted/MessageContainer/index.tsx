@@ -300,7 +300,6 @@ class MessageContainer extends React.PureComponent<
         db: this.props.db,
         user,
         author,
-        key: item.id,
         currentMessage: item,
         previousMessage,
         // inverted,
@@ -311,9 +310,9 @@ class MessageContainer extends React.PureComponent<
       };
 
       if (messageProps.inPost) {
-        return <Message {...messageProps} />;
+        return <Message key={item.id} {...messageProps} />;
       } else {
-        return <SwipeMessage {...messageProps} />;
+        return <SwipeMessage key={item.id} {...messageProps} />;
       }
     }
     return null;

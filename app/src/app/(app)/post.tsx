@@ -41,8 +41,7 @@ import {
   FromOriginalMessage,
 } from "../../components/PostComposer";
 import { N_PROMPTS, PROMPTS } from "../../components/InitialPrompt";
-
-import { cachedDeviceHeights } from "../../gifted/keyboardAdjustment";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useThemeColors } from "../../gifted/hooks/useThemeColors";
 import { activeLinkPreviews } from "../../vendor/react-native-link-preview/LinkPreview";
 import { getLocation } from "../../location/Location";
@@ -82,6 +81,12 @@ const DraftPostScreenInner = ({
 
   const did = params.did as string;
   const mid = params.mid as string | undefined;
+
+  const insets = useSafeAreaInsets();
+  console.log("useSafeAreaInsets", useSafeAreaInsets);
+  console.log("insets", insets);
+
+
 
   // ================================
   // Location
@@ -614,7 +619,7 @@ const DraftPostScreenInner = ({
       <KeyboardAvoidingView
         style={[styles.container]}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={100 - cachedDeviceHeights.homeIndicatorHeight}
+        keyboardVerticalOffset={100 - insets.bottom}
       >
         <PostComposer
           draftRef={draftRef}
@@ -652,7 +657,6 @@ export default function DraftPostScreen() {
   const { db } = useContext(FrontendDBContext);
   const params = useLocalSearchParams();
   const colors = useThemeColors();
-
   const did = params.did as string;
   const contact_id = params.contact_id as string;
   const seedText = params.seedText as string;
