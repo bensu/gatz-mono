@@ -76,8 +76,8 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
     }
   };
 
-  const handleVerifyCode = async () => {
-    if (!isCodeValid(code)) {
+  const handleVerifyCodeWithValue = async (codeValue: string) => {
+    if (!isCodeValid(codeValue)) {
       setCurrentError(createAuthError(AuthErrorType.INVALID_CODE));
       return;
     }
@@ -86,13 +86,17 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
     setCurrentError(null);
 
     try {
-      await onLinkEmail(email, code);
+      await onLinkEmail(email, codeValue);
     } catch (error) {
       console.error('Failed to link email:', error);
       setCurrentError(createAuthError(AuthErrorType.EMAIL_SIGNIN_FAILED));
     } finally {
       setIsVerificationLoading(false);
     }
+  };
+
+  const handleVerifyCode = async () => {
+    return handleVerifyCodeWithValue(code);
   };
 
   const handleBackToEmail = () => {
@@ -205,8 +209,8 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
               onPress={handleBackToEmail}
               disabled={isButtonDisabled}
             >
-              <Ionicons name="arrow-back" size={20} color={GatzColor.introTitle} />
-              <Text style={[styles.backText, { color: GatzColor.introTitle }]}>
+              <Ionicons name="arrow-back" size={20} color={useModalStyling ? colors.primaryText : GatzColor.introTitle} />
+              <Text style={[styles.backText, { color: useModalStyling ? colors.primaryText : GatzColor.introTitle }]}>
                 {email}
               </Text>
             </TouchableOpacity>
@@ -244,8 +248,7 @@ export const EmailSignInComponent: React.FC<EmailSignInComponentProps> = ({
                   if (cleanText.length === 6) {
                     // Small delay to show the complete code before verification
                     setTimeout(() => {
-                      if (cleanText === code) return; // Prevent double verification
-                      handleVerifyCode();
+                      handleVerifyCodeWithValue(cleanText);
                     }, 100);
                   }
                 }}
