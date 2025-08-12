@@ -170,6 +170,11 @@ type Props = MainProps | InFeedProps;
  */
 // Stryker restore all
 export const arePropsEqual = (p: Props, n: Props) => {
+  // Defensive null checks for React 19 compatibility
+  if (!p || !n) {
+    return p === n;
+  }
+  
   // [props-equality-check] [shallow-comparison]
   return p.isActive === n.isActive &&
     p.isMain === n.isMain &&

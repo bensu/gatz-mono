@@ -224,8 +224,8 @@ export const usePushNotificationRouter = () => {
       Notifications.addNotificationResponseReceivedListener(navToUrl);
 
     return () => {
-      Notifications.removeNotificationSubscription(ntsListener.current);
-      Notifications.removeNotificationSubscription(responseListener.current);
+      ntsListener.current?.remove();
+      responseListener.current?.remove();
     };
   }, [handleNotification, navToUrl]);
 

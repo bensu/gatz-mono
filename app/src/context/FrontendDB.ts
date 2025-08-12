@@ -21,7 +21,9 @@ const getNewFeedItemIds = (
   return new Set(Array.from(incomingIds).filter((id) => !existingIds.has(id)));
 }
 
-const isContactEqual = (a: T.Contact, b: T.Contact): boolean => {
+const isContactEqual = (a: T.Contact | null | undefined, b: T.Contact | null | undefined): boolean => {
+  if (a === b) return true;
+  if (!a || !b) return false;
   return a.id === b.id && a.name === b.name && a.avatar === b.avatar;
 }
 

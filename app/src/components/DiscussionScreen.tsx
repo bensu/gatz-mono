@@ -38,9 +38,14 @@ import { useThemeColors } from "../gifted/hooks/useThemeColors";
 
 const MemoDiscussionApp = memo(
   DiscussionApp,
-  (prev, next) =>
-    prev.did === next.did &&
-    prev.highlightedMessageId === next.highlightedMessageId,
+  (prev, next) => {
+    // Defensive null checks for React 19 compatibility
+    if (!prev || !next) {
+      return prev === next;
+    }
+    return prev.did === next.did &&
+           prev.highlightedMessageId === next.highlightedMessageId;
+  },
 );
 
 export const DiscussionScreen = (

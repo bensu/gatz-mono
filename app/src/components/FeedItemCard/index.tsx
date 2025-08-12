@@ -243,6 +243,11 @@ const SWIPE_OUT_DURATION = 250; // Duration for swipe animation
 type SwipeableFeedItemCardProps = Props;
 
 const propsAreEqual = (prev: Props, next: Props) => {
+  // Defensive null checks for React 19 compatibility
+  if (!prev?.item || !next?.item) {
+    return prev === next;
+  }
+  
   if (prev.item.ref_type === "discussion" && next.item.ref_type === "discussion") {
     return prev.item.id === next.item.id;
   } else {

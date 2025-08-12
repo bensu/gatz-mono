@@ -430,7 +430,7 @@ export type MessageProps = {
   previousMessage?: T.Message;
   discussion?: T.Discussion; // needed for --- New ---
   user: T.Contact;
-  author: T.Contact;
+  author: T.Contact | null;
   colors: any;
 
   db: FrontendDB;
@@ -451,16 +451,25 @@ export type MessageProps = {
 
 type InnerMessageProps = MessageProps & BubbleActionProps;
 
-const isContactEqual = (ua: T.Contact, ub: T.Contact): boolean => {
+const isContactEqual = (ua: T.Contact | null | undefined, ub: T.Contact | null | undefined): boolean => {
+  if (ua === ub) return true;
+  if (!ua || !ub) return false;
   return ua.id === ub.id && ua.name === ub.name && ua.avatar === ub.avatar;
 };
 
 const isSimilarDiscussionToUser = (
-  mid: T.Message["id"],
-  userId: T.User["id"],
-  da: T.Discussion,
-  db: T.Discussion,
+  mid: T.Message["id"] | undefined,
+  userId: T.User["id"] | undefined,
+  da: T.Discussion | undefined,
+  db: T.Discussion | undefined,
 ): boolean => {
+  // Handle cases where required values are undefined
+  if (!mid || !userId || !da || !db) {
+    // If both discussions are undefined, they're similar
+    // If one is undefined and the other isn't, they're different
+    return da === db;
+  }
+  
   // we only care about the last message read of the discussion
   return (
     shouldShowLastSeen(mid, da, userId) === shouldShowLastSeen(mid, db, userId)
@@ -471,6 +480,11 @@ const messagePropsAreEqual = (
   prev: MessageProps,
   next: MessageProps,
 ): boolean => {
+  // Defensive null checks for React 19 compatibility
+  if (!prev || !next) {
+    return prev === next;
+  }
+  
   // Check message retry status for current message
   const prevRetryStatus = prev.messageActionProps?.messageRetryStatus?.[prev.currentMessage?.id];
   const nextRetryStatus = next.messageActionProps?.messageRetryStatus?.[next.currentMessage?.id];
@@ -493,8 +507,8 @@ const messagePropsAreEqual = (
     crdtIsEqual(next.previousMessage, prev.previousMessage) &&
     crdtIsEqual(next.nextMessage, prev.nextMessage) &&
     isSimilarDiscussionToUser(
-      prev.previousMessage && prev.previousMessage.id,
-      prev.user.id,
+      prev.previousMessage?.id,
+      prev.user?.id,
       prev.discussion,
       next.discussion,
     ) &&
@@ -533,6 +547,10 @@ type MessageRowProps = MessageContainerProps & BubbleAnimationProps;
 const MessageRowInPost: React.FC<MessageRowProps> = (props) => {
   const { currentMessage } = props;
 
+  if (!currentMessage) {
+    return null;
+  }
+
   const isHighlighted = false; //  currentMessage.isHighlighted;
 
   const flatReactions = flattenReactions(currentMessage.reactions);
@@ -554,6 +572,9 @@ const MessageRowInPost: React.FC<MessageRowProps> = (props) => {
 const MessageRowInChat: React.FC<MessageRowProps> = (props) => {
   const { currentMessage, nextMessage, navigateToDiscussion } = props;
 
+  if (!currentMessage) {
+    return null;
+  }
 
   const continuedDiscussionId = currentMessage.posted_as_discussion?.[0];
   const { isLoading, originallyFrom } = useContinuedDiscussion(continuedDiscussionId);
@@ -610,6 +631,11 @@ const MessageRowInChat: React.FC<MessageRowProps> = (props) => {
 // Helper render functions for MessageRow
 const SuggestedActions: React.FC<InnerMessageProps> = (props) => {
   const { onSuggestedPost, currentMessage, author } = props;
+  
+  if (!currentMessage) {
+    return null;
+  }
+  
   const mid = currentMessage.id;
 
   const hasAssociatedDiscussions =
@@ -643,24 +669,26 @@ const SuggestedActions: React.FC<InnerMessageProps> = (props) => {
 
 const ReplyToPreviewContainer: React.FC<InnerMessageProps> = (props) => {
   const { db, currentMessage, onTapReply, colors } = props;
-  if (currentMessage.reply_to) {
-    const replyMessage = db.getMessageById(currentMessage.did, currentMessage.reply_to);
-    return (
-      <TouchableOpacity
-        onPress={() => onTapReply && onTapReply(currentMessage.reply_to)}
-      >
-        <View
-          style={[
-            styles.replyPreviewOuterContainer,
-            { backgroundColor: colors.rowBackground },
-          ]}
-        >
-          <ReplyToPreviewComponent message={replyMessage} />
-        </View>
-      </TouchableOpacity>
-    );
+  
+  if (!currentMessage?.reply_to) {
+    return null;
   }
-  return null;
+  
+  const replyMessage = db.getMessageById(currentMessage.did, currentMessage.reply_to);
+  return (
+    <TouchableOpacity
+      onPress={() => onTapReply && onTapReply(currentMessage.reply_to)}
+    >
+      <View
+        style={[
+          styles.replyPreviewOuterContainer,
+          { backgroundColor: colors.rowBackground },
+        ]}
+      >
+        <ReplyToPreviewComponent message={replyMessage} />
+      </View>
+    </TouchableOpacity>
+  );
 };
 
 /**
@@ -704,6 +732,10 @@ const ReplyToPreviewContainer: React.FC<InnerMessageProps> = (props) => {
 const Message: React.FC<MessageProps> = React.memo((props) => {
   const context = useContext(GiftedChatContext);
   const { currentMessage, inPost, onMessageLayout, user, db, messageActionProps } = props;
+
+  if (!currentMessage) {
+    return null;
+  }
 
   const onReply = useCallback(() => {
     messageActionProps?.onReplyTo?.(currentMessage.id);

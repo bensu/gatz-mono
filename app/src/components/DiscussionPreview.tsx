@@ -88,6 +88,7 @@ const RowPreview = ({
           shouldRenderDay={false}
           bubble={{ colors, searchText, withMargin: false, showFull: false }}
           colors={colors}
+          user={db.getUserById(m.user_id)}
           author={author}
         />
       );
@@ -106,6 +107,7 @@ const RowPreview = ({
           shouldRenderDay={false}
           bubble={{ colors, searchText, withMargin: false, showFull: false }}
           colors={colors}
+          user={db.getUserById(m.user_id)}
           author={author}
         />
       );
@@ -259,6 +261,11 @@ type InnerProps = OuterProps & {
 }
 
 const propsAreEqual = (prev: OuterProps, next: OuterProps): boolean => {
+  // Defensive null checks for React 19 compatibility
+  if (!prev || !next) {
+    return prev === next;
+  }
+  
   // - We are assuming that if the messages have changed,
   //   the Discussion's clock have changed as well.
   // - We are purposefully not checking the users
