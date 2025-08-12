@@ -10,7 +10,8 @@
     "web": "expo start --web",
     "test": "jest",
     "eas-build-pre-install": "bin/eas-build-pre-install.sh",
-    "analyze-coverage": "node bin/analyze-coverage.js"
+    "analyze-coverage": "node bin/analyze-coverage.js",
+    "check-node-requirements": "node bin/check-node-requirements.js"
   },
   "engines": {
     "node": ">=20.18.1"
