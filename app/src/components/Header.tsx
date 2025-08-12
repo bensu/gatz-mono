@@ -37,7 +37,7 @@ export const HeaderTitleWithIcon = ({
       <Ionicons
         name={iconName}
         size={iconSize}
-        color={colors.primary}
+        color={colors.primaryText}
         style={{ marginRight: 6 }}
       />
       <Text style={{

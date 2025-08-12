@@ -66,6 +66,7 @@ export const QRModal = ({ title, fetchUrl, children, }: {
                 style={{ marginTop: 24 }}
                 value={asyncQRCode.result}
                 size={200}
+                color={colors.primaryText}
               />
             </>
           )}
