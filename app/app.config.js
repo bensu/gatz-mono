@@ -78,6 +78,7 @@ export default {
       "expo-video",
       "expo-audio",
       "expo-document-picker",
+      "expo-apple-authentication",
       [
         "expo-notifications",
         {
