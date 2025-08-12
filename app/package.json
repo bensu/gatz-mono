@@ -13,7 +13,7 @@
     "analyze-coverage": "node bin/analyze-coverage.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.18.1"
   },
   "resolutions": {
     "react-refresh": "~0.14.0"
