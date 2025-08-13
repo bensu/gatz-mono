@@ -35,6 +35,8 @@ import Animated, {
   WithSpringConfig,
   FadeOutDown,
   FadeInUp,
+  useDerivedValue,
+  useAnimatedProps,
 } from "react-native-reanimated";
 
 import * as T from "../../gatz/types";
@@ -921,9 +923,40 @@ export default Message;
 const { width: SCREEN_WIDTH, height: WINDOW_HEIGHT } = Dimensions.get("window");
 const TRANSLATE_X_THRESHOLD = SCREEN_WIDTH * 0.15;
 
-const pullSpring = (x: number): number => {
+// Platform-specific spring animation configuration for swipe-to-reply
+// Fixed for Android: Higher damping (15-20) prevents infinite bouncing, 
+// overshootClamping prevents overshooting, velocity=0 prevents initial velocity issues
+const SWIPE_ANIMATION_CONFIG: WithSpringConfig = Platform.select({
+  android: {
+    stiffness: 250,
+    damping: 20,
+    velocity: 0,
+    overshootClamping: true,
+    restDisplacementThreshold: 0.01,
+    restSpeedThreshold: 2,
+  },
+  default: {
+    stiffness: 300,
+    damping: 15,
+    velocity: 0,
+    overshootClamping: true,
+    restDisplacementThreshold: 0.01,
+    restSpeedThreshold: 2,
+  }
+});
+
+const ELASTIC_RESISTANCE_FACTOR = 0.2;
+const PARALLAX_BACKGROUND_RATIO = 0.25;
+const ICON_SCALE_ACTIVE = 1.16;
+
+const pullSpring = (x: number, threshold: number): number => {
   "worklet";
-  return x / 2;
+  if (x <= threshold) {
+    return x;
+  }
+  const overshoot = x - threshold;
+  const resistance = overshoot * ELASTIC_RESISTANCE_FACTOR;
+  return threshold + resistance;
 };
 
 /**
@@ -960,6 +993,7 @@ type InnerBubbleProps = BubbleAnimationProps & {
   bubbleRef: React.RefObject<View>;
   onLayout: () => void;
   isMenuOpen: boolean;
+  translateX?: any; // SharedValue<number>
 }
 
 const FEEDBACK_CONFIG: WithSpringConfig = {
@@ -1116,7 +1150,7 @@ const StaticMessageInnerRowInChat: React.FC<InnerMessageProps> = (props: InnerMe
 
 // This is the inner row of the message, without the avatar, which can be swiped to reply
 const AnimatedMessageInnerRowInChat: React.FC<InnerMessageProps & InnerBubbleProps> = (props: InnerMessageProps & InnerBubbleProps) => {
-  const { currentMessage, colors, isMenuOpen } = props;
+  const { currentMessage, colors, isMenuOpen, translateX: externalTranslateX } = props;
   // Create a ref for the ScrollView to use with gesture handler
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -1128,7 +1162,14 @@ const AnimatedMessageInnerRowInChat: React.FC<InnerMessageProps & InnerBubblePro
   const inBetweenMargin =
     hasReactions || hasEdits ? 4 : hasReactions ? 22 : hasEdits ? 6 : 2;
 
-  const translateX = useSharedValue(0);
+  // Use external translateX if provided, otherwise create our own
+  const localTranslateX = useSharedValue(0);
+  const translateX = externalTranslateX || localTranslateX;
+  
+  // Track threshold crossing to prevent continuous scale animation
+  // Fix: Only trigger scale animation once per threshold crossing, not on every frame
+  const iconScale = useSharedValue(1);
+  const hasThresholdBeenCrossed = useSharedValue(false);
 
   // Add cleanup for animations when component unmounts
   useEffect(() => {
@@ -1136,11 +1177,15 @@ const AnimatedMessageInnerRowInChat: React.FC<InnerMessageProps & InnerBubblePro
       // Ensure any pending animations are canceled
       // This prevents the animation system from trying to modify
       // objects that may have been frozen or made read-only
-      if (translateX) {
+      if (translateX && !externalTranslateX) {
+        // Only cancel if we own the translateX value
         cancelAnimation(translateX);
       }
+      if (iconScale) {
+        cancelAnimation(iconScale);
+      }
     };
-  }, [translateX]);
+  }, [translateX, externalTranslateX, iconScale]);
 
 
   const rMessageStyle = useAnimatedStyle(() => ({
@@ -1149,15 +1194,39 @@ const AnimatedMessageInnerRowInChat: React.FC<InnerMessageProps & InnerBubblePro
   const stableMessageStyle = useMemo(() => rMessageStyle, []);
 
   const replyIconContainerStyle = useAnimatedStyle(() => {
-    let opacity = 0;
-    if (translateX.value !== 0) {
-      opacity = withTiming(translateX.value < TRANSLATE_X_THRESHOLD ? 0.2 : 1, {
-        duration: 100,
-      });
+    const progress = translateX.value / TRANSLATE_X_THRESHOLD;
+    const clampedProgress = Math.min(Math.max(progress, 0), 1);
+    
+    // Progressive alpha based on swipe progress (0 to 1)
+    const opacity = clampedProgress;
+    
+    // Check threshold crossing and trigger scale animation only once per cross
+    const thresholdCrossed = translateX.value >= TRANSLATE_X_THRESHOLD;
+    if (thresholdCrossed && !hasThresholdBeenCrossed.value) {
+      hasThresholdBeenCrossed.value = true;
+      iconScale.value = withSpring(ICON_SCALE_ACTIVE, SWIPE_ANIMATION_CONFIG);
+    } else if (!thresholdCrossed && hasThresholdBeenCrossed.value) {
+      hasThresholdBeenCrossed.value = false;
+      iconScale.value = withSpring(1, SWIPE_ANIMATION_CONFIG);
     }
-    return { opacity };
+    
+    return { 
+      opacity,
+      transform: [
+        { translateX: translateX.value * PARALLAX_BACKGROUND_RATIO },
+        { scale: iconScale.value }
+      ]
+    };
   });
   const stableReplyIconContainerStyle = useMemo(() => replyIconContainerStyle, []);
+
+  const animatedIconProps = useAnimatedProps(() => {
+    const isActive = translateX.value >= TRANSLATE_X_THRESHOLD;
+    const color = isActive ? colors.textPrimary : colors.strongGrey;
+    return {
+      color: color,
+    };
+  });
 
   // Use a mutable plain object instead of a ref to avoid React fiber cleanup issues
   const isMountedObj = useMemo(() => ({ current: true }), []);
@@ -1206,14 +1275,19 @@ const AnimatedMessageInnerRowInChat: React.FC<InnerMessageProps & InnerBubblePro
       .onUpdate((e: GestureUpdateEvent<PanGestureHandlerEventPayload>) => {
         "worklet";
         if (e.translationX > 0) {
-          translateX.value = pullSpring(e.translationX);
+          translateX.value = pullSpring(e.translationX, TRANSLATE_X_THRESHOLD);
         }
       })
       .onEnd(() => {
         "worklet";
         const shouldReply = translateX.value > TRANSLATE_X_THRESHOLD;
-        // Use simple timing without completion callback
-        translateX.value = withTiming(0, { duration: 200 });
+        
+        // Reset threshold tracking and icon scale
+        hasThresholdBeenCrossed.value = false;
+        iconScale.value = withSpring(1, SWIPE_ANIMATION_CONFIG);
+        
+        // Animate back to original position
+        translateX.value = withSpring(0, SWIPE_ANIMATION_CONFIG);
 
         // Execute reply separately to avoid potential issues with completion callbacks
         if (shouldReply) {
@@ -1284,7 +1358,14 @@ const AnimatedMessageInnerRowInChat: React.FC<InnerMessageProps & InnerBubblePro
           stableReplyIconContainerStyle,
         ]}
       >
-        <MaterialIcons name="reply" size={20} color={colors.strongGrey} />
+        {React.createElement(
+          Animated.createAnimatedComponent(MaterialIcons),
+          {
+            name: "reply",
+            size: 20,
+            animatedProps: animatedIconProps
+          }
+        )}
       </Animated.View>
     </View>
   );
@@ -1410,6 +1491,23 @@ const AnimatedMessageInnerContainerInChat: React.FC<InnerMessageProps> = (props:
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const { hasReactions } = usefulMessageProps(currentMessage);
+
+  // Create shared translateX value for swipe gesture and parallax effects
+  const translateX = useSharedValue(0);
+  
+  // Add cleanup for animations when component unmounts
+  useEffect(() => {
+    return () => {
+      if (translateX) {
+        cancelAnimation(translateX);
+      }
+    };
+  }, [translateX]);
+
+  // Parallax style for avatar (background element) - 25% speed
+  const avatarParallaxStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value * PARALLAX_BACKGROUND_RATIO }],
+  }));
 
   // Add new animated value for press feedback
   const pressAnimation = useSharedValue(1);
@@ -1565,13 +1663,13 @@ const AnimatedMessageInnerContainerInChat: React.FC<InnerMessageProps> = (props:
       exiting={FadeOutDown.duration(300)}
       style={[styles.innerContainer, { overflow: 'visible' }]}
     >
-      <View style={[styles.avatarContainer, { opacity: isMenuOpen ? 0 : 1 }]}>
+      <Animated.View style={[styles.avatarContainer, { opacity: isMenuOpen ? 0 : 1 }, avatarParallaxStyle]}>
         <WrappedAvatar
           size="small"
           user={author}
           onPress={() => onPressAvatar(author.id)}
         />
-      </View>
+      </Animated.View>
       <AnimatedMessageInnerRowInChat
         onLongPress={onLongPress}
         onPressIn={onPressIn}
@@ -1580,6 +1678,7 @@ const AnimatedMessageInnerContainerInChat: React.FC<InnerMessageProps> = (props:
         onLayout={onLayout}
         isMenuOpen={isMenuOpen}
         bubbleScaleStyle={bubbleScaleStyle}
+        translateX={translateX}
         {...props as any}
       />
     </Animated.View>
@@ -1846,7 +1945,7 @@ const styles = StyleSheet.create({
   },
   animatedReplyIcon: {
     position: "absolute",
-    left: 4,
+    left: 8,
     top: 2,
     justifyContent: "center",
     alignItems: "center",
