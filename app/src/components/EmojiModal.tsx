@@ -10,8 +10,8 @@ import {
     TextInput,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import groupBy from 'just-group-by/index.js';
-import mapValues from 'just-map-values/index.js';
+import groupBy from 'just-group-by';
+import mapValues from 'just-map-values';
 import { frequentEmojiStore } from '../gatz/store';
 
 const emojiDB = require('./emoji.json') as Array<Emoji>;
