@@ -25,7 +25,7 @@
     "@gorhom/bottom-sheet": "4.4.8",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-community/netinfo": "11.4.1",
-    "@react-native-google-signin/google-signin": "20.1.4",
+    "@react-native-google-signin/google-signin": "22.1.0",
     "@react-navigation/drawer": "^7.0.0",
     "@react-navigation/native": "^7.0.14",
     "@redux-devtools/extension": "^3.3.0",

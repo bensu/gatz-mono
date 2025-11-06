@@ -1705,10 +1705,10 @@
   resolved "https://registry.yarnpkg.com/@react-native-community/netinfo/-/netinfo-11.4.1.tgz#a3c247aceab35f75dd0aa4bfa85d2be5a4508688"
   integrity sha512-B0BYAkghz3Q2V09BF88RA601XursIEA111tnc2JOaN7axJWmNefmfjZqw/KdSxKZp7CZUuPpjBmz/WCR9uaHYg==
 
-"@react-native-google-signin/google-signin@20.1.4":
-  version "20.1.4"
-  resolved "https://npm.pkg.github.com/download/@react-native-google-signin/google-signin/20.1.4/a5531c66575ef409676326fd521c977ba2968d73#a5531c66575ef409676326fd521c977ba2968d73"
-  integrity sha512-xxsa2hm5Cp5l7xlo9uTSo0o/MqlcqbY6vVAiFM5GkMITSRstWSP4bc31ssmehxVmmh7iQnS+6gvrsUYHJ3uhww==
+"@react-native-google-signin/google-signin@22.1.0":
+  version "22.1.0"
+  resolved "https://npm.pkg.github.com/download/@react-native-google-signin/google-signin/22.1.0/7d759d5efc1c396be5c1de8a0af18417c4cfdb4a#7d759d5efc1c396be5c1de8a0af18417c4cfdb4a"
+  integrity sha512-m69S0363kYDvq9Dcv0U9hetU1bgjzSQIcOtBRpGhb4HPhy3np/DsKQn1JySi/AyDwBtwOPaz38O6DpviDDI/7g==
   dependencies:
     "@types/google-one-tap" "^1.2.6"
     jwt-decode "^4.0.0"
