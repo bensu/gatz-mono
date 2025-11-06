@@ -196,7 +196,7 @@ export type Media = ImageMedia | VideoMedia | AudioMedia;
 type BaseInviteLink = {
   id: SULID;
   code: string;
-  expires_at: SDate;
+  expires_at?: SDate;
   created_by: User["id"];
   created_at: SDate;
   used_at?: SDate;

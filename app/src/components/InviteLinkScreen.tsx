@@ -204,16 +204,19 @@ const CrewInvite = ({
               <Button title="Join them" color={colors.active} onPress={execute} />
             )}
         </View>
-        <Text style={[
-          styles.message,
-          {
-            marginTop: 24,
-            marginBottom: 12,
-            color: colors.secondaryText,
-          }
-        ]}>
-          This invite expires on {renderDateText(invite_link.expires_at)}
-        </Text>
+        {/* Expiration dates temporarily hidden - may be re-enabled later */}
+        {/* {invite_link.expires_at && (
+          <Text style={[
+            styles.message,
+            {
+              marginTop: 24,
+              marginBottom: 12,
+              color: colors.secondaryText,
+            }
+          ]}>
+            This invite expires on {renderDateText(invite_link.expires_at)}
+          </Text>
+        )} */}
       </View>
     </View>
   );

@@ -71,7 +71,7 @@
      :invite_link/contact_id (when (= :invite_link/contact type) uid)
      :invite_link/created_by uid
      :invite_link/created_at now
-     :invite_link/expires_at (expires-on now)
+     :invite_link/expires_at (expires-on now) 
      :invite_link/code (random-code)
      ;; :invite_link/settings default-settings
      :invite_link/used_at {}
