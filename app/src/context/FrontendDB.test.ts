@@ -1579,13 +1579,14 @@ describe('[null-safe] [id-extraction] [listener-notification] [overwrites-existi
       invite_link: {
         id: 'il1',
         code: 'ABC123',
+        created_by: 'user1',
         created_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 86400000).toISOString()
+        // expires_at: new Date(Date.now() + 86400000).toISOString()
       }
     };
-    
+
     db.addInviteLinkResponse(inviteLink);
-    
+
     expect(db.getInviteLinkResponseById('il1')).toEqual(inviteLink);
   });
   
@@ -1594,13 +1595,14 @@ describe('[null-safe] [id-extraction] [listener-notification] [overwrites-existi
       invite_link: {
         id: 'il1',
         code: 'ABC123',
+        created_by: 'user1',
         created_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 86400000).toISOString()
+        // expires_at: new Date(Date.now() + 86400000).toISOString()
       }
     };
-    
+
     db.addInviteLinkResponse(inviteLink);
-    
+
     expect(db.getInviteLinkResponseById('il1')).toEqual(inviteLink);
     expect(db.getInviteLinkResponseById('non-existent')).toBeUndefined();
   });
@@ -1617,23 +1619,25 @@ describe('[null-safe] [id-extraction] [listener-notification] [overwrites-existi
       invite_link: {
         id: 'il1',
         code: 'ABC123',
+        created_by: 'user1',
         created_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 86400000).toISOString()
+        // expires_at: new Date(Date.now() + 86400000).toISOString()
       }
     };
-    
+
     const updated: T.InviteLinkResponse = {
       invite_link: {
         id: 'il1',
         code: 'XYZ789',
+        created_by: 'user1',
         created_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 172800000).toISOString()
+        // expires_at: new Date(Date.now() + 172800000).toISOString()
       }
     };
-    
+
     db.addInviteLinkResponse(original);
     db.addInviteLinkResponse(updated);
-    
+
     expect(db.getInviteLinkResponseById('il1')).toEqual(updated);
   });
 });
@@ -2550,8 +2554,9 @@ describe('[invite-link-listeners] Invite link response listeners', () => {
       invite_link: {
         id: 'il1',
         code: 'CODE123',
+        created_by: 'user1',
         created_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 86400000).toISOString()
+        // expires_at: new Date(Date.now() + 86400000).toISOString()
       }
     };
 
@@ -2579,7 +2584,7 @@ describe('[invite-link-listeners] Invite link response listeners', () => {
       ...inviteLinkResponse,
       invite_link: {
         ...inviteLinkResponse.invite_link,
-        expires_at: new Date(Date.now() + 172800000).toISOString()
+        // expires_at: new Date(Date.now() + 172800000).toISOString()
       }
     };
     db.addInviteLinkResponse(updatedResponse);
@@ -2596,8 +2601,9 @@ describe('[invite-link-listeners] Invite link response listeners', () => {
       invite_link: {
         id: 'il2',
         code: 'CODE456',
+        created_by: 'user1',
         created_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 86400000).toISOString()
+        // expires_at: new Date(Date.now() + 86400000).toISOString()
       }
     };
 
