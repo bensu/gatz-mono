@@ -56,7 +56,7 @@ function GroupsInner() {
       if (isMobile()) {
         router.push(`/group/${groupId}`);
       } else {
-        router.replace(`/groups?gid=${groupId}`);
+        router.replace(`/groups?gid=${groupId}`); //navigate to existing group 
       }
     },
     [router],
@@ -226,7 +226,7 @@ function GroupsWithHeader() {
   const router = useDebouncedRouter();
 
   const navToCreateGroup = useCallback(() => {
-    router.push("/new-group");
+    router.push("/new-group"); //when the user clicks on the button to create a new group
   }, [router.push]);
 
   const colors = useThemeColors();
@@ -360,7 +360,7 @@ export default function Groups() {
   const router = useDebouncedRouter();
 
   const onDesktopClose = useCallback(() => {
-    router.replace("/groups");
+    router.replace("/groups"); //when the user closes out of an existing group
   }, [router]);
 
   if (isMobile()) {
