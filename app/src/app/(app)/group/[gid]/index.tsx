@@ -1,8 +1,8 @@
-import { useEffect, useContext } from "react";
+import { useEffect, useContext, useCallback } from "react";
 import { Text, ActivityIndicator } from "react-native";
 import { useAsync } from "react-async-hook";
 
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { ClientContext } from "../../../../context/ClientProvider";
 import { FrontendDBContext } from "../../../../context/FrontendDBProvider";
@@ -20,6 +20,7 @@ function GroupScreen() {
   const { db } = useContext(FrontendDBContext);
   const { gatzClient } = useContext(ClientContext);
   const colors = useThemeColors();
+  const router = useRouter();
 
   const analytics = useProductAnalytics();
 
@@ -27,6 +28,10 @@ function GroupScreen() {
     () => analytics.capture("group.viewed", { group_id: groupId }),
     [analytics, groupId],
   );
+
+  const onDesktopClose = useCallback(() => {
+    router.replace("/groups");
+  }, [router]);
 
   // listen to group changes to re-render the inner
   const { result, loading, error } = useAsync(async () => {
@@ -42,7 +47,7 @@ function GroupScreen() {
   } else if (error) {
     return <Text style={{ color: colors.primaryText }}>There was an error</Text>;
   } else {
-    return <GroupScreenInner groupResponse={result} />;
+    return <GroupScreenInner groupResponse={result} onDesktopClose={onDesktopClose} />;
   }
 }
 

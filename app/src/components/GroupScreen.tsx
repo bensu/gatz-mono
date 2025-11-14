@@ -1,42 +1,42 @@
-import { useEffect, useState, useCallback, useContext, useMemo } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
-  StyleSheet,
-  View,
-  Text,
-  ActivityIndicator,
-  TouchableOpacity,
   Platform,
   ScrollView,
   Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
-import * as Clipboard from "expo-clipboard";
 import { MaterialIcons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 
-import * as T from "../gatz/types";
-import { SessionContext } from "../context/SessionProvider";
 import { ClientContext } from "../context/ClientProvider";
 import { FrontendDBContext } from "../context/FrontendDBProvider";
+import { SessionContext } from "../context/SessionProvider";
+import * as T from "../gatz/types";
 
 import TouchableOpacityItem from "./TouchableOpacityItem";
 import { AnnotatedContact, ContactInGroupRow } from "./contacts";
 
-import { pickImages, uploadPicture, prepareFile } from "../mediaUtils";
+import { pickImages, prepareFile, uploadPicture } from "../mediaUtils";
 
 import GiftedAvatar from "../gifted/GiftedAvatar";
 
-import { UniversalHeader } from "../components/Header";
 import {
   AddMemberScreen,
   RemoveMemberScreen,
 } from "../components/AddMemberScreen";
+import { UniversalHeader } from "../components/Header";
 import { QRModal } from "../components/QRButton";
 
-import { assertNever, isMobile } from "../util";
 import { useDebouncedRouter } from "../context/debounceRouter";
 import { useThemeColors } from "../gifted/hooks/useThemeColors";
+import { assertNever, isMobile } from "../util";
 
 const keyExtractor = (item: T.Contact) => item.id;
 
@@ -757,22 +757,22 @@ export const GroupScreen = ({
       case undefined: {
         return null;
       }
-      
+
       case "leave": {
         // TO DO: Implement leave group modal
         return null;
       }
-      
+
       case "archive": {
         // TO DO: Implement archive group modal
         return null;
       }
-      
+
       case "unarchive": {
         // TO DO: Implement unarchive group modal
         return null;
       }
-      
+
       case "transfer-ownership": {
         // TO DO: Implement transfer ownership modal
         return null;
@@ -786,20 +786,20 @@ export const GroupScreen = ({
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.rowBackground }}>
-      <UniversalHeader 
-        onNew={onPost} 
+      <UniversalHeader
+        onNew={onPost}
         title="Group info"
         headerLeft={
           onDesktopClose && !isMobile()
             ? () => (
-                <TouchableOpacity onPress={onDesktopClose} testID="close-button">
-                  <MaterialIcons
-                    name="close"
-                    color={colors.strongGrey}
-                    size={24}
-                  />
-                </TouchableOpacity>
-              )
+              <TouchableOpacity onPress={onDesktopClose} testID="close-button">
+                <MaterialIcons
+                  name="close"
+                  color={colors.strongGrey}
+                  size={24}
+                />
+              </TouchableOpacity>
+            )
             : undefined
         }
       />

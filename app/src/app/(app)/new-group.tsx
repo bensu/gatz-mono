@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useContext } from "react";
+import React, { useState, useContext } from "react";
 import {
   Text,
   TextInput,
@@ -7,7 +7,7 @@ import {
   ScrollView,
   TouchableOpacity,
 } from "react-native";
-import { Stack, useLocalSearchParams } from "expo-router";
+import { Stack, useLocalSearchParams, router } from "expo-router";
 
 import { ClientContext } from "../../context/ClientProvider";
 import { FrontendDBContext } from "../../context/FrontendDBProvider";
@@ -45,7 +45,6 @@ const Button = ({
 export default function NewGroup() {
   const { db } = useContext(FrontendDBContext);
   const { gatzClient } = useContext(ClientContext);
-  const router = useDebouncedRouter();
   const params = useLocalSearchParams();
   const is_crew = params.withCrewInvite === "true";
   const [name, setName] = useState("");
@@ -65,18 +64,11 @@ export default function NewGroup() {
       });
       db.addGroup(group);
       if (group && group.id) {
-        router.replace(`/group/${group.id}`);
+        // Use non-debounced router to properly replace /new-group in history
+        router.replace(`/group/${group.id}?from=create`);
       }
     }
   };
-
-  const goBack = useCallback(() => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace("/settings");
-    }
-  }, [router]);
 
   return (
     <MobileScreenWrapper>
