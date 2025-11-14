@@ -261,7 +261,16 @@ const ContactRequest = ({ contactId, state, makeRequest, toFeed, toDM, }: {
       );
     }
     case "viewer_awaits_response": {
-      return null;
+      return (
+        <View style={styles.sectionOuter}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
+            <MaterialIcons name="schedule" size={18} color={colors.greyText} />
+            <Text style={{ marginLeft: 4, color: colors.primaryText, fontSize: 18 }}>
+              Friend request pending
+            </Text>
+          </View>
+        </View>
+      );
     }
     case "viewer_ignored_response": {
       return null;
